@@ -381,7 +381,7 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
                     border: `1px solid ${COLORS.border}`, display: 'block',
                   }} onError={(e) => { e.target.style.display = 'none'; }} />
                   <button type="button" onClick={() => setForm(prev => ({ ...prev, logo_url: '' }))}
-                    title="Remove logo"
+                    title="Remove logo" aria-label="Remove your organization logo"
                     style={{
                       position: 'absolute', top: -6, right: -6, width: '18px', height: '18px', borderRadius: '50%',
                       border: 'none', background: 'rgba(25,27,30,0.75)', color: COLORS.white, cursor: 'pointer',

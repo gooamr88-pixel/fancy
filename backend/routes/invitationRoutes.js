@@ -22,14 +22,26 @@ const router = express.Router({ mergeParams: true });
  *
  * Order matters: requireSmsAddon loads the event, and requireSendLimit reads it.
  */
+/**
+ * Every channel that costs money, in one place.
+ *
+ * `detail-sms` had to be added here as well as to the validator below, and
+ * forgetting it would not have failed loudly: the send would simply have bypassed
+ * the add-on entitlement check AND the new-account ramp-up cap, on a path that
+ * bills per segment. A list rather than an equality test, so the next paid channel
+ * cannot be added to the validator alone.
+ */
+const BILLED_CHANNELS = ['sms', 'detail-sms'];
+
 const gateSmsChannel = (req, res, next) => {
-  if (req.body?.channel !== 'sms') return next();
+  if (!BILLED_CHANNELS.includes(req.body?.channel)) return next();
   return requireSmsAddon(req, res, (err) => (err ? next(err) : requireSendLimit(req, res, next)));
 };
 
-// Unified invitation dispatch (email / sms / qr) — one endpoint, one response shape.
+// Unified dispatch (email / sms / qr / detail-sms) — one endpoint, one response shape.
 router.post('/send', [
-  body('channel').isIn(['email', 'sms', 'qr']).withMessage('channel must be one of: email, sms, qr.'),
+  body('channel').isIn(['email', 'sms', 'qr', 'detail-sms'])
+    .withMessage('channel must be one of: email, sms, qr, detail-sms.'),
   body('partyIds').optional().isArray({ max: 5000 }).withMessage('partyIds must be an array of at most 5000 guests.'),
   body('partyIds.*').optional().isUUID().withMessage('Each guest id must be a valid UUID.'),
   body('resend').optional().isBoolean().withMessage('resend must be a boolean.'),

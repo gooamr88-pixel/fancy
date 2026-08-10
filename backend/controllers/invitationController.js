@@ -33,8 +33,8 @@ const sendInvitations = async (req, res, next) => {
   const { eventId } = req.params;
   const channel = req.body?.channel;
 
-  if (!['email', 'sms', 'qr'].includes(channel)) {
-    return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'channel must be one of: email, sms, qr.' });
+  if (!['email', 'sms', 'qr', 'detail-sms'].includes(channel)) {
+    return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'channel must be one of: email, sms, qr, detail-sms.' });
   }
 
   try {
@@ -72,13 +72,24 @@ const sendInvitations = async (req, res, next) => {
       return sendOk(res, { channel: 'qr', async: false, queued: partyIds.length, sent, skipped, failed, failures });
     }
 
-    // channel === 'sms'
+    /**
+     * channel === 'sms' | 'detail-sms'
+     *
+     * Two message types down one path. 'sms' texts the invitation; 'detail-sms'
+     * texts the confirmation carrying their table, who is with them, the meals and
+     * their pass link. Same gates, same batching, same billing — the only
+     * difference is which template renders, which is why they share this branch
+     * rather than getting a second one to keep in sync.
+     */
     const { partyIds } = req.body || {};
     if (!Array.isArray(partyIds) || partyIds.length === 0) {
-      return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'partyIds is required for the sms channel.' });
+      return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: `partyIds is required for the ${channel} channel.` });
     }
 
-    const result = await invitationService.sendInvitationSmsBulk(eventId, partyIds, { user: req.user });
+    const result = await invitationService.sendInvitationSmsBulk(eventId, partyIds, {
+      user: req.user,
+      type: channel === 'detail-sms' ? 'rsvp_confirmation' : 'invitation',
+    });
     if (result.code) {
       const status = result.code === 'EVENT_NOT_FOUND' ? 404
         : result.code === 'ADDON_INACTIVE' ? 402
@@ -88,7 +99,10 @@ const sendInvitations = async (req, res, next) => {
     }
 
     return sendOk(res, {
-      channel: 'sms', async: false,
+      // Echo the channel the caller asked for, not a hardcoded 'sms' — the client
+      // keys its per-button spinner off it, so reporting the wrong one leaves the
+      // pressed button spinning forever.
+      channel, async: false,
       queued: partyIds.length,
       sent: result.sent, skipped: result.skipped, failed: result.failed,
       // Grouped and already in plain language — "3 haven't agreed to receive

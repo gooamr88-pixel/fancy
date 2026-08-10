@@ -3,8 +3,12 @@ import { toast } from '../../utils/toast';
 import React, { useState, useMemo, useCallback } from 'react';
 import { smsReachability, countReachable } from '../../utils/smsReachability';
 import { isAccepted, isDeclined } from '../../utils/responseHelpers';
+import { matchesGuestSearch } from '../../utils/guestSearch';
 import EditGuestModal from './EditGuestModal';
 import SmsBalanceBanner from './SmsBalanceBanner';
+import GuestSendMenu from './GuestSendMenu';
+import ConfirmBulkTextModal from './ConfirmBulkTextModal';
+import ConfirmRemoveGuestModal from './ConfirmRemoveGuestModal';
 
 const COLORS = {
   gold: '#B8944F',
@@ -45,49 +49,10 @@ const TrashIcon = ({ color = COLORS.stone }) => (
   </svg>
 );
 
-const DownloadIcon = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-    <polyline points="7 10 12 15 17 10" />
-    <line x1="12" y1="15" x2="12" y2="3" />
-  </svg>
-);
-
 const PencilIcon = ({ color = COLORS.stone }) => (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M12 20h9" />
     <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
-  </svg>
-);
-
-const MailIcon = ({ color = COLORS.stone }) => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="2" y="4" width="20" height="16" rx="2" />
-    <path d="m22 7-10 5L2 7" />
-  </svg>
-);
-
-const TicketIcon = ({ color = COLORS.stone }) => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z" />
-    <path d="M13 5v14" />
-  </svg>
-);
-
-/* Send an invitation by email — a paper plane, distinct from the envelope used
-   for "resend the confirmation". The two sit next to each other in the same row,
-   so they must not share a glyph. */
-const SendIcon = ({ color = COLORS.stone }) => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M22 2 11 13" />
-    <path d="M22 2 15 22l-4-9-9-4Z" />
-  </svg>
-);
-
-/* Send an invitation by text. */
-const ChatIcon = ({ color = COLORS.stone }) => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z" />
   </svg>
 );
 
@@ -127,24 +92,48 @@ function responseBadge(response) {
 
 /* ── sub-components ──────────────────────────────────────────── */
 
-const SummaryCard = React.memo(function SummaryCard({ count, label, accent }) {
+/**
+ * A count, and the filter for it.
+ *
+ * ── Two problems, one fix ──
+ *
+ * These were four inert numbers sitting directly above a <select> offering the
+ * same four categories by the same names — so reading "Declined 12" and wanting to
+ * see those twelve meant looking away and re-picking the word you were already
+ * looking at. Same duplication the Guest list had.
+ *
+ * ── And the unit ──
+ *
+ * "Total Responses" here counted PARTIES while "Total Guests" in the Guest list
+ * counted PEOPLE. Two sections, similar labels, different units, and a family of
+ * four is one of the first and four of the second — so the two screens appeared to
+ * contradict each other and neither said which it meant. `people` is now shown
+ * underneath whenever it differs from the party count.
+ */
+const SummaryCard = React.memo(function SummaryCard({ count, people, label, accent, active, onClick, title }) {
   const [hovered, setHovered] = useState(false);
   return (
-    <div
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      aria-pressed={active}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
         flex: '1 1 0',
         minWidth: 140,
-        background: COLORS.white,
-        border: `1px solid ${COLORS.border}`,
+        textAlign: 'left',
+        font: 'inherit',
+        background: active ? `${accent}0F` : COLORS.white,
+        border: `1px solid ${active ? accent : COLORS.border}`,
         borderLeft: `4px solid ${accent}`,
         borderRadius: 12,
         padding: '20px 24px',
         transition: 'all 0.3s ease',
-        boxShadow: hovered ? '0 8px 24px rgba(0,0,0,0.06)' : 'none',
-        transform: hovered ? 'translateY(-2px)' : 'translateY(0)',
-        cursor: 'default',
+        boxShadow: active ? `0 2px 10px ${accent}22` : hovered ? '0 8px 24px rgba(0,0,0,0.06)' : 'none',
+        transform: hovered && !active ? 'translateY(-2px)' : 'translateY(0)',
+        cursor: onClick ? 'pointer' : 'default',
       }}
     >
       <span style={{
@@ -159,15 +148,73 @@ const SummaryCard = React.memo(function SummaryCard({ count, label, accent }) {
         display: 'block',
         fontSize: 10,
         fontWeight: 700,
-        color: COLORS.stone,
+        color: active ? accent : COLORS.stone,
         textTransform: 'uppercase',
         letterSpacing: '0.1em',
         marginTop: 6,
         fontFamily: 'var(--font-sans)',
       }}>{label}</span>
-    </div>
+      {/* Only when it differs — on a list of solo guests the two numbers are the
+          same and repeating it would be noise. */}
+      {typeof people === 'number' && people !== count && (
+        <span style={{
+          display: 'block', fontSize: 11, color: COLORS.stone,
+          marginTop: 3, fontFamily: 'var(--font-sans)', fontWeight: 500,
+        }}>
+          {people} {people === 1 ? 'person' : 'people'}
+        </span>
+      )}
+    </button>
   );
 });
+
+/**
+ * A labelled cluster of bulk sends, with the price stated once for the cluster.
+ *
+ * The heading is what lets the buttons inside be short. "Invitation" and "All
+ * their details" are unambiguous under "By text message"; spelled out on every
+ * button they would be four long labels repeating the same two words.
+ */
+function BulkGroup({ heading, note, noteColor, children }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        <span style={{
+          fontSize: 9.5, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase',
+          color: COLORS.stone, fontFamily: 'var(--font-sans)',
+        }}>{heading}</span>
+        <span style={{ fontSize: 9.5, fontWeight: 700, color: noteColor, fontFamily: 'var(--font-sans)' }}>
+          {note}
+        </span>
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>{children}</div>
+    </div>
+  );
+}
+
+function BulkButton({ primary, busy, disabled, onClick, label, busyLabel, title }) {
+  const dead = disabled && !busy;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled || busy}
+      title={title}
+      style={{
+        padding: '9px 16px', borderRadius: 9,
+        border: primary ? 'none' : `1px solid ${COLORS.border}`,
+        background: dead ? '#EFECE5'
+          : primary ? 'linear-gradient(135deg, #D7BE80 0%, #B8944F 100%)' : COLORS.white,
+        color: dead ? '#9A958B' : primary ? COLORS.white : COLORS.charcoal,
+        fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-sans)',
+        cursor: busy ? 'wait' : dead ? 'not-allowed' : 'pointer',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {busy ? busyLabel : label}
+    </button>
+  );
+}
 
 /* ── main component ──────────────────────────────────────────── */
 export default function RSVPsTab({
@@ -183,25 +230,45 @@ export default function RSVPsTab({
   const [sort, setSort] = useState('newest');
   const [page, setPage] = useState(1);
   const [deletingId, setDeletingId] = useState(null);
-  const [exporting, setExporting] = useState(false);
-  const [exportingExcel, setExportingExcel] = useState(false);
-  const [exportSort, setExportSort] = useState('name'); // 'name' (A–Z) | 'table'
   const [resending, setResending] = useState(null); // `${rsvpId}:${type}` while a resend is in flight
   // `${rsvpId}:invite-${channel}` or `bulk:${channel}` while an invitation send
   // is in flight. Separate from `resending` so a per-guest spinner and a bulk
   // send can never disable each other's button.
   const [sending, setSending] = useState(null);
   const [editingGuest, setEditingGuest] = useState(null);
+  // The guest awaiting removal, captured when the row button was pressed.
+  const [removing, setRemoving] = useState(null);
 
   // Party ids the organizer has ticked. A Set because every operation here is a
   // membership test, and the list can run to thousands of guests.
   const [selectedIds, setSelectedIds] = useState(() => new Set());
 
   /* counts */
+  /**
+   * Counts in BOTH units.
+   *
+   * A "response" is one party; a family of four is one of them and four people. The
+   * Guest list section counts people, this one counted parties, and neither said
+   * so — so the two screens looked like they disagreed. Both numbers are computed
+   * here and the card shows the second one underneath whenever it differs.
+   */
   const counts = useMemo(() => {
-    const accepted = rsvps.filter(r => isAccepted(r.response)).length;
-    const declined = rsvps.filter(r => isDeclined(r.response)).length;
-    return { total: rsvps.length, accepted, declined, pending: rsvps.length - accepted - declined };
+    const heads = (list) => list.reduce((sum, r) => sum + (r.party_size || 1), 0);
+    const acceptedList = rsvps.filter(r => isAccepted(r.response));
+    const declinedList = rsvps.filter(r => isDeclined(r.response));
+    const pendingList = rsvps.filter(r => isPending(r.response));
+    return {
+      total: rsvps.length,
+      accepted: acceptedList.length,
+      declined: declinedList.length,
+      pending: pendingList.length,
+      people: {
+        total: heads(rsvps),
+        accepted: heads(acceptedList),
+        declined: heads(declinedList),
+        pending: heads(pendingList),
+      },
+    };
   }, [rsvps]);
 
   /* filtered + sorted */
@@ -210,11 +277,9 @@ export default function RSVPsTab({
 
     // search
     if (search.trim()) {
-      const q = search.toLowerCase().trim();
-      list = list.filter(r =>
-        (r.guest_name || '').toLowerCase().includes(q) ||
-        (r.email || '').toLowerCase().includes(q)
-      );
+      // Name, email, PHONE, meal, notes, side and every companion name — the
+      // same helper the Guest list uses, so the two searches cannot drift.
+      list = list.filter((r) => matchesGuestSearch(r, search));
     }
 
     // filter
@@ -286,54 +351,26 @@ export default function RSVPsTab({
   // server-side and would otherwise surface as a 429 at the end of the flow.
   const overSendLimit = smsMaxPerSend > 0 && reach.reachable > smsMaxPerSend;
 
-  /* export CSV */
-  const handleExport = useCallback(async () => {
-    if (exporting) return;
-    setExporting(true);
-    try {
-      // Attending guest list, ordered by the user's chosen sort (name A–Z or by table).
-      const res = await fetch(`${apiUrl}/events/${eventId}/rsvps/export?attending=true&sort=${exportSort}`, { credentials: 'include' });
-      if (!res.ok) throw new Error('Export failed');
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `attending-guests-by-${exportSort}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error('CSV export error:', err);
-      toast.error('Failed to export CSV. Please try again.');
-    } finally {
-      setExporting(false);
-    }
-  }, [eventId, exporting, exportSort]);
+  /**
+   * The entry-pass and details sends only apply to guests who ACCEPTED.
+   *
+   * signQrTicketForResponse mints nothing for a maybe or a no, and there is no
+   * table or meal to report for them either — so the server refuses those rows.
+   * Counting them here means the button says how many it will actually reach
+   * instead of promising the whole selection and quietly skipping most of it.
+   */
+  const attendingSelectedIds = useMemo(
+    () => selectedGuests.filter((g) => isAccepted(g.response)).map((g) => g.id),
+    [selectedGuests],
+  );
+  const attendingSelected = attendingSelectedIds.length;
+  const detailReachable = useMemo(
+    () => selectedGuests.filter((g) => isAccepted(g.response) && smsReachability(g).reachable).length,
+    [selectedGuests],
+  );
 
-  /* export Excel */
-  const handleExportExcel = useCallback(async () => {
-    if (exportingExcel) return;
-    setExportingExcel(true);
-    try {
-      const res = await fetch(`${apiUrl}/events/${eventId}/rsvps/export-excel?attending=true&sort=${exportSort}`, { credentials: 'include' });
-      if (!res.ok) throw new Error('Export failed');
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `attending-guests-by-${exportSort}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error('Excel export error:', err);
-      toast.error('Failed to export Excel file. Please try again.');
-    } finally {
-      setExportingExcel(false);
-    }
-  }, [eventId, exportingExcel, exportSort]);
+  /* Downloading the guest list moved to GuestsTab — see the pointer in the
+     toolbar below for why. */
 
   /* resend confirmation or QR-ticket email */
   const handleResend = useCallback(async (rsvpId, type) => {
@@ -376,7 +413,7 @@ export default function RSVPsTab({
     const ids = Array.isArray(partyIds) ? partyIds : [partyIds];
     if (ids.length === 0) return;
 
-    const key = ids.length === 1 ? `${ids[0]}:invite-${channel}` : `bulk:${channel}`;
+    const key = ids.length === 1 ? `${ids[0]}:${channel}` : `bulk:${channel}`;
     setSending(key);
     try {
       const res = await fetch(`${apiUrl}/events/${eventId}/invitations/send`, {
@@ -409,9 +446,59 @@ export default function RSVPsTab({
     }
   }, [apiUrl, eventId, onRefresh]);
 
-  /* delete RSVP */
+  /**
+   * ONE entry point for everything the Send menu can do to one guest.
+   *
+   * The four channels do not all reach the same endpoint — `qr` is an email sent by
+   * the notifications route, the other three go through invitations/send — and the
+   * menu has no business knowing that. It says which of the four things the
+   * organizer picked; this decides how it gets sent.
+   *
+   * Without this the menu would have had to hold two different fetch shapes and
+   * two different in-flight key formats, which is how the two spinners drifted
+   * apart in the first place.
+   */
+  const handleSendGuest = useCallback((rsvpId, channel) => {
+    if (channel === 'qr') return handleResend(rsvpId, 'qr');
+    return handleSendInvitations([rsvpId], channel);
+  }, [handleResend, handleSendInvitations]);
+
+  /**
+   * The confirmation that stands between a click and a bill.
+   *
+   * Held here rather than inside the dialog so the dialog stays a pure renderer of
+   * "you are about to send X to N guests" — and so a stale open dialog cannot fire
+   * against a selection that has since changed: the ids are captured at the moment
+   * the button was pressed, not read back when Send is clicked.
+   */
+  const [bulkAsk, setBulkAsk] = useState(null); // { channel, ids, reachable }
+
+  // A plain function, not a useCallback. It is only ever called from inline
+  // onClick handlers in this component's own JSX — nothing memoized receives it,
+  // so wrapping it bought nothing and the React Compiler rejected the memo it
+  // could not preserve.
+  const askBulkSms = (channel, ids, reachable) => {
+    if (!ids || ids.length === 0 || reachable === 0) return;
+    setBulkAsk({ channel, ids, reachable });
+  };
+
+  /**
+   * ASK, then delete.
+   *
+   * This used `window.confirm('Are you sure you want to delete this RSVP?')` — no
+   * name, no party size, nothing identifying the row. On a paginated table reached
+   * by a small icon, a prompt that cannot say WHICH guest is a prompt that cannot
+   * catch a misclick, which is the only reason it exists. Shares
+   * ConfirmRemoveGuestModal with the Guest list so both ask the same question the
+   * same way.
+   */
+  const askRemove = useCallback((rsvp) => {
+    if (!rsvp?.id) return;
+    setRemoving({ id: rsvp.id, name: rsvp.guest_name || '', partySize: rsvp.party_size || 1 });
+  }, []);
+
   const handleDelete = useCallback(async (rsvpId) => {
-    if (!window.confirm('Are you sure you want to delete this RSVP? This action cannot be undone.')) return;
+    if (!rsvpId) return;
     setDeletingId(rsvpId);
     try {
       const res = await fetch(`${apiUrl}/events/${eventId}/rsvps/${rsvpId}`, {
@@ -419,10 +506,13 @@ export default function RSVPsTab({
         credentials: 'include',
       });
       if (!res.ok) throw new Error('Delete failed');
+      setRemoving(null);
       onRefresh?.();
     } catch (err) {
       console.error('Delete RSVP error:', err);
-      toast.error('Failed to delete this RSVP. Please try again.');
+      // The dialog stays open on failure — closing it would leave the error in a
+      // toast with no way to retry the thing that caused it.
+      toast.error('Failed to remove this guest. Please try again.');
     } finally {
       setDeletingId(null);
     }
@@ -462,12 +552,27 @@ export default function RSVPsTab({
         topUpHref="/dashboard/campaigns"
       />
 
-      {/* ── Summary Bar ─────────────────────────────────────── */}
+      {/* ── Summary Bar — and the filter. Tap a card to see those guests; tap the
+             active one again to clear it. The `<select>` that used to duplicate
+             these four categories underneath is gone. ── */}
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-        <SummaryCard count={counts.total} label="Total Responses" accent={COLORS.stone} />
-        <SummaryCard count={counts.accepted} label="Accepted" accent={COLORS.gold} />
-        <SummaryCard count={counts.declined} label="Declined" accent={COLORS.rose} />
-        <SummaryCard count={counts.pending} label="Pending" accent={COLORS.champagne} />
+        {[
+          { key: 'all', label: 'Total Responses', n: counts.total, people: counts.people.total, accent: COLORS.stone },
+          { key: 'attending', label: 'Accepted', n: counts.accepted, people: counts.people.accepted, accent: COLORS.gold },
+          { key: 'declined', label: 'Declined', n: counts.declined, people: counts.people.declined, accent: COLORS.rose },
+          { key: 'pending', label: 'Pending', n: counts.pending, people: counts.people.pending, accent: COLORS.champagne },
+        ].map((c) => (
+          <SummaryCard
+            key={c.key}
+            count={c.n}
+            people={c.people}
+            label={c.label}
+            accent={c.accent}
+            active={filter === c.key && c.key !== 'all'}
+            title={c.key === 'all' ? 'Show everyone' : `Show only ${c.label.toLowerCase()}`}
+            onClick={() => { setFilter(filter === c.key ? 'all' : c.key); setPage(1); }}
+          />
+        ))}
       </div>
 
       {/* ── Toolbar ──────────────────────────────────────────── */}
@@ -488,7 +593,7 @@ export default function RSVPsTab({
           </div>
           <input
             type="text"
-            placeholder="Search by name or email…"
+            placeholder="Search name, email or phone…"
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{ ...inputStyle, width: '100%', paddingLeft: 36 }}
@@ -497,24 +602,10 @@ export default function RSVPsTab({
           />
         </div>
 
-        {/* Filter */}
-        <div style={selectWrapStyle}>
-          <select
-            value={filter}
-            onChange={e => setFilter(e.target.value)}
-            style={{ ...inputStyle, paddingRight: 30, appearance: 'none', cursor: 'pointer', minWidth: 130 }}
-            onFocus={e => { e.target.style.borderColor = COLORS.gold; }}
-            onBlur={e => { e.target.style.borderColor = COLORS.border; }}
-          >
-            <option value="all">All Responses</option>
-            <option value="attending">Attending</option>
-            <option value="declined">Declined</option>
-            <option value="pending">Pending</option>
-          </select>
-          <div style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', display: 'flex' }}>
-            <ChevronDown />
-          </div>
-        </div>
+        {/* The response filter used to be a <select> here, offering the same four
+            categories as the four cards above it under the same four names. The
+            cards are the filter now; a second control for the same choice only
+            made it possible for them to disagree. */}
 
         {/* Sort */}
         <div style={selectWrapStyle}>
@@ -535,26 +626,23 @@ export default function RSVPsTab({
           </div>
         </div>
 
-        {/* Export attending guest list — choose ordering, then CSV or Excel */}
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={selectWrapStyle} title="Order of the exported attending guest list">
-            <select
-              value={exportSort}
-              onChange={e => setExportSort(e.target.value)}
-              style={{ ...inputStyle, paddingRight: 30, appearance: 'none', cursor: 'pointer', minWidth: 168 }}
-              onFocus={e => { e.target.style.borderColor = COLORS.gold; }}
-              onBlur={e => { e.target.style.borderColor = COLORS.border; }}
-            >
-              <option value="name">Export order: Name (A–Z)</option>
-              <option value="table">Export order: By Table</option>
-            </select>
-            <div style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', display: 'flex' }}>
-              <ChevronDown />
-            </div>
-          </div>
-          <ExportButton exporting={exporting} onClick={handleExport} label="Export CSV" />
-          <ExportButton exporting={exportingExcel} onClick={handleExportExcel} label="Export Excel" />
-        </div>
+        {/**
+          * Downloading moved to the Guest list section.
+          *
+          * It lived here as a sort selector plus two buttons, hitting the export
+          * endpoints with `attending=true` — while the page header rendered a
+          * third button hitting the same endpoint with no parameters at all. Two
+          * visibly similar controls, two different files, no way to tell which
+          * was which until you opened them.
+          *
+          * This section is about REACHING the list; the list itself — and every
+          * column an export contains — belongs to Guest list. A pointer rather
+          * than silence, because anyone who used the old buttons will look here
+          * first.
+          */}
+        <span style={{ fontSize: 12, color: COLORS.stone, fontFamily: 'var(--font-sans)' }}>
+          Need a spreadsheet? It’s in <strong style={{ color: COLORS.charcoal }}>Guest list</strong> → Download list.
+        </span>
       </div>
 
       {/* ── Table / Empty ────────────────────────────────────── */}
@@ -570,18 +658,49 @@ export default function RSVPsTab({
           borderRadius: 12,
         }}>
           <EmptyIcon />
+          {/* It said "Share your invitation link to start collecting responses"
+              and then offered no link and no button — an instruction with nothing
+              to act on. Both empties now end in the thing to do next. */}
           <p style={{
             marginTop: 20,
-            fontSize: 15,
+            fontSize: 14.5,
             color: COLORS.stone,
-            fontStyle: 'italic',
             fontFamily: 'var(--font-sans)',
             textAlign: 'center',
+            maxWidth: 420,
+            lineHeight: 1.65,
+            margin: '20px auto 0',
           }}>
             {rsvps.length === 0
-              ? 'No RSVPs received yet. Share your invitation link to start collecting responses.'
-              : 'No responses match your current filters.'}
+              ? 'Nobody has replied yet. Tick guests on your list and send them their invitation — by email, or by text if you have messaging.'
+              : `None of your ${rsvps.length} guests match this search or filter.`}
           </p>
+          {rsvps.length === 0 ? (
+            <a
+              href={`/dashboard?tab=guests${eventId ? `&event=${eventId}` : ''}`}
+              style={{
+                marginTop: 18, padding: '11px 22px', borderRadius: 30, textDecoration: 'none',
+                background: 'linear-gradient(135deg, #D7BE80 0%, #B8944F 100%)',
+                color: COLORS.white, fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-sans)',
+                boxShadow: '0 4px 15px rgba(184, 148, 79, 0.25)',
+              }}
+            >
+              Go to your guest list
+            </a>
+          ) : (
+            <button
+              type="button"
+              onClick={() => { setSearch(''); setFilter('all'); setPage(1); }}
+              style={{
+                marginTop: 18, padding: '9px 18px', borderRadius: 8,
+                border: `1px solid ${COLORS.border}`, background: COLORS.white,
+                color: COLORS.charcoal, cursor: 'pointer',
+                fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-sans)',
+              }}
+            >
+              Show all guests
+            </button>
+          )}
         </div>
       ) : (
         <>
@@ -614,59 +733,77 @@ export default function RSVPsTab({
               )}
             </div>
 
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {/* The two send buttons. They go straight to the server now —
-                  the modal that used to sit in between asked the organizer to
-                  choose an audience they had already chosen by ticking rows,
-                  and to attest consent they had already recorded per guest. */}
-              <button
-                type="button"
-                onClick={() => (smsAddonActive
-                  ? handleSendInvitations([...selectedIds], 'sms')
-                  : onBuySms?.())}
-                disabled={sending !== null || (smsAddonActive && reach.reachable === 0)}
-                title={smsAddonActive
-                  ? `Text the invitation to ${reach.reachable} of the ${selectedIds.size} selected`
-                  : 'Text messaging is not switched on for this event yet.'}
-                style={{
-                  padding: '9px 18px', borderRadius: 9, border: 'none',
-                  background: (smsAddonActive && reach.reachable === 0)
-                    ? '#C9C4BA'
-                    : 'linear-gradient(135deg, #D7BE80 0%, #B8944F 100%)',
-                  color: COLORS.white, fontSize: 12.5, fontWeight: 700,
-                  cursor: sending !== null ? 'wait'
-                    : (smsAddonActive && reach.reachable === 0) ? 'not-allowed' : 'pointer',
-                  fontFamily: 'var(--font-sans)',
-                  opacity: sending !== null ? 0.7 : 1,
-                }}
-              >
-                {sending === 'bulk:sms'
-                  ? 'Texting…'
-                  : smsAddonActive
-                    ? `Text invitation${reach.reachable !== selectedIds.size ? ` (${reach.reachable})` : ''}`
+            {/**
+              * FOUR bulk sends, grouped by channel, and the paid pair asks first.
+              *
+              * There were two buttons and neither confirmed anything: pressing
+              * "Text invitation (74)" billed 74 messages on one click, with no
+              * dialog and no undo. The backend's own comment assumed otherwise —
+              * invitationService says a repeat press is fine because "the confirm
+              * dialog already told them the cost", and that dialog did not exist.
+              * It does now, for the two channels that spend money.
+              *
+              * Email stays one click. It is free, and putting a dialog in front of
+              * a free action teaches organizers to dismiss dialogs.
+              */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'flex-start' }}>
+              <BulkGroup heading="By email" note="Free" noteColor={COLORS.greenDark}>
+                <BulkButton
+                  primary
+                  busy={sending === 'bulk:email'}
+                  disabled={sending !== null}
+                  onClick={() => handleSendInvitations([...selectedIds], 'email')}
+                  label="Invitation"
+                  busyLabel="Emailing…"
+                  title={`Email the invitation to the ${selectedIds.size} selected`}
+                />
+                <BulkButton
+                  busy={sending === 'bulk:qr'}
+                  disabled={sending !== null || attendingSelected === 0}
+                  onClick={() => handleSendInvitations([...selectedIds], 'qr')}
+                  label={`Entry pass${attendingSelected !== selectedIds.size ? ` (${attendingSelected})` : ''}`}
+                  busyLabel="Emailing…"
+                  title={attendingSelected === 0
+                    ? 'Only guests who accepted have a seat and a pass'
+                    : `Email the entry pass and table to ${attendingSelected} who accepted`}
+                />
+              </BulkGroup>
+
+              <BulkGroup heading="By text message" note="Uses your balance" noteColor={COLORS.gold}>
+                <BulkButton
+                  primary
+                  busy={sending === 'bulk:sms'}
+                  disabled={sending !== null || (smsAddonActive && reach.reachable === 0)}
+                  onClick={() => (smsAddonActive
+                    ? askBulkSms('sms', [...selectedIds], reach.reachable)
+                    : onBuySms?.())}
+                  label={smsAddonActive
+                    ? `Invitation${reach.reachable !== selectedIds.size ? ` (${reach.reachable})` : ''}`
                     : 'Add texting'}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSendInvitations([...selectedIds], 'email')}
-                disabled={sending !== null}
-                title={`Email the invitation to the ${selectedIds.size} selected`}
-                style={{
-                  padding: '9px 18px', borderRadius: 9,
-                  border: `1px solid ${COLORS.border}`, background: 'transparent',
-                  color: COLORS.charcoal, fontSize: 12.5, fontWeight: 700,
-                  cursor: sending !== null ? 'wait' : 'pointer',
-                  fontFamily: 'var(--font-sans)',
-                  opacity: sending !== null ? 0.7 : 1,
-                }}
-              >
-                {sending === 'bulk:email' ? 'Emailing…' : 'Email invitation'}
-              </button>
+                  busyLabel="Texting…"
+                  title={smsAddonActive
+                    ? `Text the invitation to ${reach.reachable} of the ${selectedIds.size} selected`
+                    : 'Text messaging is not switched on for this event yet.'}
+                />
+                <BulkButton
+                  busy={sending === 'bulk:detail-sms'}
+                  disabled={sending !== null || !smsAddonActive || detailReachable === 0}
+                  onClick={() => askBulkSms('detail-sms', attendingSelectedIds, detailReachable)}
+                  label={`All their details${detailReachable !== selectedIds.size ? ` (${detailReachable})` : ''}`}
+                  busyLabel="Texting…"
+                  title={!smsAddonActive
+                    ? 'Text messaging is not switched on for this event yet.'
+                    : detailReachable === 0
+                      ? 'Needs guests who accepted and agreed to texts'
+                      : `Text table, companions, meals and pass link to ${detailReachable} guests`}
+                />
+              </BulkGroup>
+
               <button
                 type="button"
                 onClick={clearSelection}
                 style={{
-                  padding: '9px 14px', borderRadius: 9, border: 'none',
+                  padding: '9px 14px', marginTop: 18, borderRadius: 9, border: 'none',
                   background: 'transparent', color: COLORS.stone,
                   fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
                   fontFamily: 'var(--font-sans)',
@@ -735,14 +872,14 @@ export default function RSVPsTab({
                     rsvp={rsvp}
                     isEven={idx % 2 === 0}
                     deletingId={deletingId}
-                    onDelete={handleDelete}
+                    onDelete={askRemove}
                     resending={resending}
-                    onResend={handleResend}
                     onEdit={setEditingGuest}
                     selected={selectedIds.has(rsvp.id)}
                     onToggleSelect={toggleOne}
                     sending={sending}
-                    onSendInvitation={handleSendInvitations}
+                    onSendGuest={handleSendGuest}
+                    onBuySms={onBuySms}
                     smsAddonActive={smsAddonActive}
                   />
                 ))}
@@ -756,14 +893,14 @@ export default function RSVPsTab({
                 key={rsvp.id || idx}
                 rsvp={rsvp}
                 deletingId={deletingId}
-                onDelete={handleDelete}
+                onDelete={askRemove}
                 resending={resending}
-                onResend={handleResend}
                 onEdit={setEditingGuest}
                 selected={selectedIds.has(rsvp.id)}
                 onToggleSelect={toggleOne}
                 sending={sending}
-                onSendInvitation={handleSendInvitations}
+                onSendGuest={handleSendGuest}
+                onBuySms={onBuySms}
                 smsAddonActive={smsAddonActive}
               />
             ))}
@@ -826,12 +963,41 @@ export default function RSVPsTab({
         rsvp={editingGuest}
         onGuestUpdated={onRefresh}
       />
+
+      {/* Mounted only while asking, so each open starts fresh and there is no
+          stale state to re-arm — see the same note in ClearGuestListModal. The ids
+          were captured when the button was pressed, so changing the selection
+          behind the dialog cannot change who it sends to. */}
+      {removing && (
+        <ConfirmRemoveGuestModal
+          guestName={removing.name}
+          partySize={removing.partySize}
+          busy={deletingId === removing.id}
+          onCancel={() => setRemoving(null)}
+          onConfirm={() => handleDelete(removing.id)}
+        />
+      )}
+
+      {bulkAsk && (
+        <ConfirmBulkTextModal
+          channel={bulkAsk.channel}
+          count={bulkAsk.reachable}
+          remaining={smsRemaining}
+          busy={sending === `bulk:${bulkAsk.channel}`}
+          onCancel={() => setBulkAsk(null)}
+          onConfirm={() => {
+            const { channel, ids } = bulkAsk;
+            setBulkAsk(null);
+            handleSendInvitations(ids, channel);
+          }}
+        />
+      )}
     </div>
   );
 }
 
 /* ── Table Row ───────────────────────────────────────────────── */
-const RSVPRow = React.memo(function RSVPRow({ rsvp, isEven, deletingId, onDelete, resending, onResend, onEdit, selected, onToggleSelect, sending, onSendInvitation, smsAddonActive }) {
+const RSVPRow = React.memo(function RSVPRow({ rsvp, isEven, deletingId, onDelete, resending, onEdit, selected, onToggleSelect, sending, onSendGuest, smsAddonActive, onBuySms }) {
   const [hovered, setHovered] = useState(false);
   const badge = responseBadge(rsvp.response);
   const reach = smsReachability(rsvp);
@@ -958,38 +1124,38 @@ const RSVPRow = React.memo(function RSVPRow({ rsvp, isEven, deletingId, onDelete
         borderBottom: `1px solid ${COLORS.border}`,
         textAlign: 'center',
       }}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
-          <IconActionButton title="Edit guest" onClick={() => onEdit(rsvp)} icon={PencilIcon} />
-          {/* Send this ONE guest their invitation, by either channel. The two
-              buttons below them resend the confirmation and the entry pass —
-              different messages, deliberately kept apart, because "invite them"
-              and "send their pass again" are not the same intent. */}
-          <InviteButton
-            channel="email" rsvpId={rsvp.id} sending={sending} onSend={onSendInvitation}
-            title="Email this guest their invitation"
+        {/**
+          * Four unlabelled send icons became one labelled "Send" menu.
+          *
+          * The four were: email-invitation (paper plane), text-invitation (speech
+          * bubble), resend-confirmation (envelope) and send-QR-pass (ticket) — each
+          * explained only by a `title`, which touch devices never show. Two of the
+          * four were a plane and an envelope side by side, and the comment that
+          * used to sit here conceded they "must not share a glyph".
+          *
+          * The menu groups them by channel, states once per group that email is
+          * free and text costs balance, and gives every item a sentence describing
+          * what the guest actually receives. Edit and Remove stay in the row: they
+          * are frequent, they are not sends, and they do not belong under a heading
+          * about how a message arrives.
+          */}
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
+          <GuestSendMenu
+            guestName={rsvp.guest_name}
+            busy={[sending, resending].some((k) => !!k && String(k).startsWith(`${rsvp.id}:`))}
+            smsActive={smsAddonActive}
+            reach={reachability}
+            attending={isAccepted(rsvp.response)}
+            onBuySms={onBuySms}
+            onSend={(channel) => onSendGuest(rsvp.id, channel)}
           />
-          <InviteButton
-            channel="sms" rsvpId={rsvp.id} sending={sending} onSend={onSendInvitation}
-            title={smsAddonActive
-              ? (reachability?.reachable ? 'Text this guest their invitation' : `Cannot text — ${reachability?.label || 'no permission on file'}`)
-              : 'Text messaging is not switched on for this event yet'}
-            disabled={!smsAddonActive || !reachability?.reachable}
+          <IconActionButton
+            title="Edit guest"
+            aria-label={`Edit ${rsvp.guest_name || 'guest'}`}
+            onClick={() => onEdit(rsvp)}
+            icon={PencilIcon}
           />
-          <ResendButton
-            type="confirmation"
-            rsvpId={rsvp.id}
-            resending={resending}
-            onResend={onResend}
-            title="Resend confirmation email"
-          />
-          <ResendButton
-            type="qr"
-            rsvpId={rsvp.id}
-            resending={resending}
-            onResend={onResend}
-            title="Send check-in QR pass to this guest"
-          />
-          <DeleteButton rsvpId={rsvp.id} deletingId={deletingId} onDelete={onDelete} />
+          <DeleteButton rsvp={rsvp} deletingId={deletingId} onDelete={onDelete} />
         </div>
       </td>
     </tr>
@@ -997,7 +1163,7 @@ const RSVPRow = React.memo(function RSVPRow({ rsvp, isEven, deletingId, onDelete
 });
 
 /* ── Mobile Card (same data/actions as RSVPRow, stacked instead of tabular) ── */
-const RSVPCard = React.memo(function RSVPCard({ rsvp, deletingId, onDelete, resending, onResend, onEdit, selected, onToggleSelect, sending, onSendInvitation, smsAddonActive }) {
+const RSVPCard = React.memo(function RSVPCard({ rsvp, deletingId, onDelete, resending, onEdit, selected, onToggleSelect, sending, onSendGuest, smsAddonActive, onBuySms }) {
   const badge = responseBadge(rsvp.response);
   const reach = smsReachability(rsvp);
   return (
@@ -1050,41 +1216,46 @@ const RSVPCard = React.memo(function RSVPCard({ rsvp, deletingId, onDelete, rese
 
       {/* Identical actions to the desktop row, in the same order. The two views
           are one workflow rendered twice — a guest reachable on a laptop and not
-          on a phone would be a bug, not a simplification. flexWrap because five
-          buttons plus a delete do not fit 320px on one line. */}
-      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4, borderTop: `1px solid ${COLORS.border}`, paddingTop: 10 }}>
-        <IconActionButton title="Edit guest" onClick={() => onEdit(rsvp)} icon={PencilIcon} />
-        <InviteButton
-          channel="email" rsvpId={rsvp.id} sending={sending} onSend={onSendInvitation}
-          title="Email this guest their invitation"
+          on a phone would be a bug, not a simplification. And the phone is where
+          the old six unlabelled icons were worst: `title` never renders on touch,
+          so all six were blank squares there. */}
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6, borderTop: `1px solid ${COLORS.border}`, paddingTop: 10 }}>
+        <GuestSendMenu
+          guestName={rsvp.guest_name}
+          busy={[sending, resending].some((k) => !!k && String(k).startsWith(`${rsvp.id}:`))}
+          smsActive={smsAddonActive}
+          reach={reach}
+          attending={isAccepted(rsvp.response)}
+          onBuySms={onBuySms}
+          onSend={(channel) => onSendGuest(rsvp.id, channel)}
         />
-        <InviteButton
-          channel="sms" rsvpId={rsvp.id} sending={sending} onSend={onSendInvitation}
-          title={smsAddonActive
-            ? (reach.reachable ? 'Text this guest their invitation' : `Cannot text — ${reach.label || 'no permission on file'}`)
-            : 'Text messaging is not switched on for this event yet'}
-          disabled={!smsAddonActive || !reach.reachable}
+        <IconActionButton
+          title="Edit guest"
+          aria-label={`Edit ${rsvp.guest_name || 'guest'}`}
+          onClick={() => onEdit(rsvp)}
+          icon={PencilIcon}
         />
-        <ResendButton type="confirmation" rsvpId={rsvp.id} resending={resending} onResend={onResend} title="Resend confirmation email" />
-        <ResendButton type="qr" rsvpId={rsvp.id} resending={resending} onResend={onResend} title="Send check-in QR pass to this guest" />
-        <DeleteButton rsvpId={rsvp.id} deletingId={deletingId} onDelete={onDelete} />
+        <DeleteButton rsvp={rsvp} deletingId={deletingId} onDelete={onDelete} />
       </div>
     </div>
   );
 });
 
 /* ── Delete Button ───────────────────────────────────────────── */
-function DeleteButton({ rsvpId, deletingId, onDelete }) {
+function DeleteButton({ rsvp, deletingId, onDelete }) {
   const [hovered, setHovered] = useState(false);
-  const isDeleting = deletingId === rsvpId;
+  const isDeleting = deletingId === rsvp.id;
 
   return (
     <button
-      onClick={() => onDelete(rsvpId)}
+      onClick={() => onDelete(rsvp)}
       disabled={isDeleting}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      title="Delete RSVP"
+      title="Remove guest"
+      // Named, because `title` is a desktop-hover affordance that touch never
+      // shows — so on a phone this was an unlabelled square that deletes someone.
+      aria-label={`Remove ${rsvp.guest_name || 'this guest'} from this event`}
       style={{
         display: 'inline-flex',
         alignItems: 'center',
@@ -1105,7 +1276,7 @@ function DeleteButton({ rsvpId, deletingId, onDelete }) {
 }
 
 /* ── Generic Icon Action Button ──────────────────────────────── */
-function IconActionButton({ title, onClick, icon: Icon }) {
+function IconActionButton({ title, onClick, icon: Icon, 'aria-label': ariaLabel }) {
   const [hovered, setHovered] = useState(false);
   return (
     <button
@@ -1113,6 +1284,7 @@ function IconActionButton({ title, onClick, icon: Icon }) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       title={title}
+      aria-label={ariaLabel || title}
       style={{
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         width: 44, height: 44, borderRadius: 8, border: 'none',
@@ -1125,119 +1297,9 @@ function IconActionButton({ title, onClick, icon: Icon }) {
   );
 }
 
-/* ── Send-Invitation Button ──────────────────────────────────────
- *
- * Deliberately shaped like ResendButton below, and deliberately NOT merged with
- * it. They look alike because they belong to the same row of controls, but they
- * mean different things — this one INVITES someone, that one re-sends a message
- * they were already sent. Collapsing them into one component with a mode flag
- * would make the next person adding a state have to work out which of two
- * unrelated intents they were changing.
- *
- * 44x44 to match the rest of the row: that is the minimum comfortable touch
- * target, and this row is six buttons wide on a phone.
- */
-function InviteButton({ channel, rsvpId, sending, onSend, title, disabled = false }) {
-  const [hovered, setHovered] = useState(false);
-  const isBusy = sending === `${rsvpId}:invite-${channel}`;
-  // Any send in flight locks the rest, so a double-tap on a slow connection
-  // cannot bill an organizer twice for the same guest.
-  const isBlocked = disabled || (sending !== null && !isBusy);
-  const Icon = channel === 'sms' ? ChatIcon : SendIcon;
 
-  return (
-    <button
-      onClick={() => !isBlocked && onSend(rsvpId, channel)}
-      disabled={isBusy || isBlocked}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      title={title}
-      aria-label={title}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: 44,
-        height: 44,
-        borderRadius: 8,
-        border: 'none',
-        cursor: isBusy ? 'wait' : isBlocked ? 'not-allowed' : 'pointer',
-        background: hovered && !isBlocked ? COLORS.champagneLight : 'transparent',
-        transition: 'all 0.2s ease',
-        opacity: isBusy ? 0.4 : isBlocked ? 0.3 : 1,
-      }}
-    >
-      <Icon color={hovered && !isBlocked ? COLORS.gold : COLORS.stone} />
-    </button>
-  );
-}
-
-/* ── Resend Button ───────────────────────────────────────────── */
-function ResendButton({ type, rsvpId, resending, onResend, title }) {
-  const [hovered, setHovered] = useState(false);
-  const isBusy = resending === `${rsvpId}:${type}`;
-  const Icon = type === 'qr' ? TicketIcon : MailIcon;
-
-  return (
-    <button
-      onClick={() => onResend(rsvpId, type)}
-      disabled={isBusy}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      title={title}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: 44,
-        height: 44,
-        borderRadius: 8,
-        border: 'none',
-        cursor: isBusy ? 'wait' : 'pointer',
-        background: hovered ? COLORS.champagneLight : 'transparent',
-        transition: 'all 0.2s ease',
-        opacity: isBusy ? 0.4 : 1,
-      }}
-    >
-      <Icon color={hovered ? COLORS.gold : COLORS.stone} />
-    </button>
-  );
-}
 
 /* ── Export Button ───────────────────────────────────────────── */
-function ExportButton({ exporting, onClick, label = 'Export CSV' }) {
-  const [hovered, setHovered] = useState(false);
-
-  return (
-    <button
-      onClick={onClick}
-      disabled={exporting}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 7,
-        padding: '9px 18px',
-        fontSize: 13,
-        fontWeight: 600,
-        fontFamily: 'var(--font-sans)',
-        color: COLORS.white,
-        background: hovered ? COLORS.goldHover : COLORS.gold,
-        border: 'none',
-        borderRadius: 8,
-        cursor: exporting ? 'wait' : 'pointer',
-        transition: 'all 0.25s ease',
-        boxShadow: hovered ? '0 4px 14px rgba(184,148,79,0.3)' : 'none',
-        opacity: exporting ? 0.7 : 1,
-        whiteSpace: 'nowrap',
-      }}
-    >
-      <DownloadIcon />
-      {exporting ? 'Exporting…' : label}
-    </button>
-  );
-}
 
 /* ── Pagination Button ───────────────────────────────────────── */
 function PageBtn({ label, active, disabled, onClick }) {

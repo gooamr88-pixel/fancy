@@ -6,6 +6,7 @@ const {
   estimateAllowance, sanitizeAllowanceRequest, scriptForLanguage,
   MIN_ALLOWANCE, MAX_ALLOWANCE, ROUNDING_STEP,
 } = require('../utils/smsEstimator');
+const { SMS_TYPE_KEYS } = require('../config/smsMessageTypes');
 
 /**
  * ALLOWANCE ESTIMATOR.
@@ -81,8 +82,17 @@ test('the breakdown lists every type, including disabled ones', () => {
   const invitation = est.breakdown.find((b) => b.key === 'invitation');
   assert.equal(invitation.enabled, false);
   assert.equal(invitation.segments, 0, 'a disabled type costs nothing');
-  assert.equal(est.breakdown.length, 4,
-    'exactly four types, and disabled ones still appear so the organizer can see what enabling one would add');
+
+  // Derived from the registry rather than hard-coded. This asserted `4`, so
+  // shipping a fifth type failed here with "expected 4, actual 5" — a number
+  // that says nothing about what is actually wrong. What matters is that EVERY
+  // registered type appears, disabled ones included, so the organizer can see
+  // what switching one on would add.
+  assert.deepEqual(
+    est.breakdown.map((b) => b.key).sort(),
+    [...SMS_TYPE_KEYS].sort(),
+    'every registered type must appear in the breakdown',
+  );
 });
 
 test('disabling a type LOWERS the total rather than redistributing it', () => {

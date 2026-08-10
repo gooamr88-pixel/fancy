@@ -1,12 +1,13 @@
 'use client';
 import { toast } from '../utils/toast';
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import QRCode from 'qrcode';
-import { logout, apiFetch } from '../utils/apiClient';
-import LogoutModal from '../components/LogoutModal';
+import { apiFetch } from '../utils/apiClient';
+import { ALL_TAB_KEYS } from './components/dashboardNavItems';
+import NoEventSelected from './components/NoEventSelected';
 import { useIsClient } from '../utils/useIsClient';
 import Icon from '../components/icons/Icon';
 import { useRealtimeRSVPs } from './hooks/useRealtimeRSVPs';
@@ -15,6 +16,7 @@ import LiveActivityFeed from './components/LiveActivityFeed';
 import ResponsiveChartBoard from './components/ResponsiveChartBoard';
 import SeatingManager from './components/SeatingManager';
 import TableForm from './components/TableForm';
+import SeatingProgress from './components/SeatingProgress';
 import FormBuilder from './components/FormBuilder';
 import AddGuestModal from './components/AddGuestModal';
 import ImportGuestsModal from './components/ImportGuestsModal';
@@ -89,67 +91,22 @@ async function fetchAllRsvps(eventId) {
   return { ...first, data: { ...first.data, rsvps: all } };
 }
 
-/* ═══════════════════════════════════════════════
-   Sidebar Navigation Items
-   ═══════════════════════════════════════════════ */
-const sidebarNav = [
-  { key: 'overview', label: 'Dashboard', icon: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-  )},
-  { key: 'events', label: 'Events', icon: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-  )},
-  { key: 'drafts', label: 'Drafts', icon: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-  )},
-  { key: 'share', label: 'Share & QR', icon: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
-  )},
-  { key: 'rsvps', label: 'RSVPs', icon: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-  )},
-  { key: 'guests', label: 'Guests', icon: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-  )},
-  { key: 'seating', label: 'Seating', icon: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-  )},
-  { key: 'checkin', label: 'Check-In', icon: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 7V4a1 1 0 0 1 1-1h3"/><path d="M17 3h3a1 1 0 0 1 1 1v3"/><path d="M21 17v3a1 1 0 0 1-1 1h-3"/><path d="M7 21H4a1 1 0 0 1-1-1v-3"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
-  )},
-  // Distinct from 'checkin' above, which opens the door KIOSK. This is the
-  // preparation surface — pairing tablets, adding staff, readiness — done at a
-  // desk days earlier (amendment A-16).
-  { key: 'checkin-setup', label: 'Check-In Setup', icon: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12" y2="18"/></svg>
-  )},
-  { key: 'form-builder', label: 'Form Builder', icon: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-  )},
-  // "SMS Campaigns" named the one manual feature and hid the six automatic ones,
-  // so the page most organizers needed — their message balance and history —
-  // was behind a label that sounded like marketing software they had not bought.
-  // The campaign composer is now gone entirely; the page is balance, history and
-  // the four switches, which is what the label promised all along.
-  { key: 'campaigns', label: 'Text messages', icon: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-  )},
-  // The explanation, separate from the controls. An organizer deciding WHETHER to
-  // buy has different questions from one who already has and wants to check a
-  // balance, and putting both on one page served neither.
-  { key: 'sms-plans', label: 'Texting & pricing', icon: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-  )},
-  { key: 'referrals', label: 'Referrals', icon: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
-  )},
-  { key: 'profile', label: 'Profile', icon: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v2"/></svg>
-  )},
-  { key: 'settings', label: 'Settings', icon: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-  )},
-];
+/**
+ * The sections that are about ONE event, and what to call them when there isn't
+ * one. The value is the sentence subject in NoEventSelected, so it reads as
+ * "Your guest list belongs to an event" rather than a generic refusal.
+ *
+ * Account-scoped tabs (overview, events, drafts, profile, referrals) are absent
+ * on purpose — they work perfectly well with no event and must not be blocked.
+ */
+const EVENT_SCOPED_TABS = {
+  guests: 'Your guest list',
+  rsvps: 'Invitations and replies',
+  seating: 'Seating',
+  share: 'Your invitation link',
+  settings: 'Event details',
+  'form-builder': 'Your RSVP form',
+};
 
 function DashboardSkeleton() {
   return (
@@ -227,7 +184,24 @@ function QRCodeDisplay({ url, size = 200 }) {
   );
 }
 
+/**
+ * The section and the selected event both come from the URL now, which means
+ * this component calls `useSearchParams`. Next requires that behind a Suspense
+ * boundary — without one, reading the query string opts the whole route out of
+ * static rendering and the build says so.
+ *
+ * The fallback is the skeleton this page already had, so the boundary costs
+ * nothing visually: it is what the first paint looked like anyway.
+ */
 export default function DashboardPage() {
+  return (
+    <Suspense fallback={<DashboardSkeleton />}>
+      <DashboardPageInner />
+    </Suspense>
+  );
+}
+
+function DashboardPageInner() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   // isClient gates the localStorage read until we're past hydration (SSR has
@@ -237,7 +211,16 @@ export default function DashboardPage() {
   const isClient = useIsClient();
   const orgId = isClient ? localStorage.getItem('org_id') : null;
   const authChecked = isClient && !!orgId;
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  /* Declared FIRST, above everything that closes over them.
+     A dependency array is evaluated during render, so a useCallback listing
+     `[router, pathname, searchParams]` while those consts sit further down is a
+     temporal-dead-zone ReferenceError — which does not warn, it fails the
+     production build at prerender. See the same note on the smsAddon effect
+     below; this is the reason these three moved to the top of the component. */
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const [stats, setStats] = useState({
     invitedParties: 0, attendingParties: 0, attendingGuests: 0,
@@ -257,7 +240,52 @@ export default function DashboardPage() {
   const [newTableCapacity, setNewTableCapacity] = useState(10);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterResponse, setFilterResponse] = useState('all');
-  const [activeTab, setActiveTab] = useState('overview');
+  /**
+   * WHICH SECTION IS OPEN — held in the URL, not in React state.
+   *
+   * This was `useState('overview')`, and that single fact caused most of the
+   * dashboard's disorientation:
+   *
+   *   • The sidebar had to be rendered by THIS component to read it, so it
+   *     existed on this page only and vanished on the six sub-pages — four of
+   *     which its own items link to.
+   *   • The four route-based items could never highlight, because they navigate
+   *     without ever setting this variable.
+   *   • The browser's back button skipped every section change, jumping straight
+   *     out of the dashboard.
+   *   • No section was linkable. Support could not say "open this URL".
+   *
+   * Deliberately kept as the same `activeTab` / `setActiveTab` pair the twenty-odd
+   * call sites below already use, so moving the source of truth did not become a
+   * rewrite of every one of them.
+   */
+  const activeTab = (() => {
+    const t = searchParams.get('tab');
+    return ALL_TAB_KEYS.includes(t) ? t : 'overview';
+  })();
+
+  /**
+   * Navigate to a section, optionally switching event at the same time.
+   *
+   * ONE navigation for both, and that is a correctness requirement rather than an
+   * optimisation. Both `setActiveTab` and `setEventId` build their query string
+   * from the `searchParams` of the render they were created in, so calling them
+   * in the same tick makes the second overwrite the first — "select this event
+   * and open its guest list" would arrive with the event silently dropped.
+   */
+  const goTo = useCallback((key, id) => {
+    if (typeof window === 'undefined') return;
+    // window.location.search, not the captured searchParams — see setEventId.
+    const q = new URLSearchParams(window.location.search);
+    if (!key || key === 'overview') q.delete('tab'); else q.set('tab', key);
+    if (id) q.set('event', id);
+    const qs = q.toString();
+    // scroll: false — switching section should not also throw away the reading
+    // position of a long list the organizer is halfway down.
+    router.push(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
+  }, [router, pathname]);
+
+  const setActiveTab = useCallback((key) => goTo(key), [goTo]);
   const [showAddGuestModal, setShowAddGuestModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   /**
@@ -281,9 +309,46 @@ export default function DashboardPage() {
 
 
   const [events, setEvents] = useState([]);
-  const [eventId, setEventId] = useState('');
-  const router = useRouter();
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+
+  /**
+   * WHICH EVENT — derived from the URL, not mirrored into state.
+   *
+   * The sidebar lives in the layout and writes `?event=` when the organizer uses
+   * its switcher. Keeping a second copy in state here would need an effect to
+   * follow it, and a synchronous setState inside an effect is both a cascading
+   * render and an error under this repo's react-hooks/set-state-in-effect rule.
+   * Deriving has no such problem and cannot drift: there is only one value.
+   *
+   * `pickedEventId` is the fallback for the moment before the URL says anything —
+   * the very first load, where fetchEvents chooses a sensible default (the event
+   * a Stripe return named, then the last one used, then the first) and then puts
+   * it in the URL. The URL wins as soon as it names an event we actually have;
+   * a stale or hand-typed id for an event this organizer does not own never does.
+   */
+  const [pickedEventId, setPickedEventId] = useState('');
+  const urlEventId = searchParams.get('event') || '';
+  const eventId = (urlEventId && events.some((e) => e.id === urlEventId))
+    ? urlEventId
+    : pickedEventId;
+
+  /**
+   * Selecting an event records it in the URL as well.
+   *
+   * Reads `window.location.search` rather than closing over `searchParams` so the
+   * callback is stable across renders. fetchEvents calls this from inside a
+   * `useCallback([])`, and a version that captured `searchParams` would write a
+   * query string from whenever it was created — dropping whatever else the URL
+   * had gained since.
+   */
+  const setEventId = useCallback((id) => {
+    setPickedEventId(id);
+    if (typeof window === 'undefined') return;
+    const q = new URLSearchParams(window.location.search);
+    if (id) q.set('event', id); else q.delete('event');
+    const qs = q.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
+  }, [router, pathname]);
 
   /* Whether this event can send texts at all, and its current per-send cap and
      balance — needed BEFORE the send modal opens so the RSVPs action bar can say
@@ -338,23 +403,34 @@ export default function DashboardPage() {
     // of these setState calls are bare top-level statements in the effect body.
     (async () => {
       const params = new URLSearchParams(window.location.search);
-      const tab = params.get('tab');
       const saved = params.get('saved');
       const forceReset = params.get('forceReset');
-      if (tab) setActiveTab(tab);
       if (saved === 'draft') toast.success('Draft saved — finish it any time from Drafts.');
       // forcePasswordReset only ever renders inside OrganizerProfile, which only
       // mounts when activeTab === 'profile' (default tab is 'overview') — without
       // this, a user linked in via ?forceReset=1 never actually saw the prompt
       // unless they happened to click into Profile themselves.
       if (forceReset === '1') { setForcePasswordReset(true); setActiveTab('profile'); }
-      if (tab || saved || forceReset) {
-        params.delete('tab'); params.delete('saved'); params.delete('forceReset');
+      /**
+       * `tab` is deliberately NOT read or stripped here any more.
+       *
+       * It is now the source of truth for which section is open, read straight
+       * from searchParams on every render. This effect used to copy it into state
+       * and then DELETE it from the URL — which, once the sidebar started reading
+       * `?tab=` to highlight the active section, would have wiped the highlight a
+       * moment after every navigation and broken every deep link and bookmark.
+       *
+       * `saved` and `forceReset` are still cleaned up: both are one-shot signals
+       * that have been consumed by the time we get here, and leaving them would
+       * re-fire the toast on every refresh.
+       */
+      if (saved || forceReset) {
+        params.delete('saved'); params.delete('forceReset');
         const qs = params.toString();
         window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''));
       }
     })();
-  }, []);
+  }, [setActiveTab]);
 
   // Pulled out to a stable callback (not just an inline effect function) so the
   // "Retry Connection" screen's button can call it directly — previously that
@@ -408,7 +484,7 @@ export default function DashboardPage() {
       setLoading(false);
       return false;
     }
-  }, []);
+  }, [setEventId]);
 
   useEffect(() => {
     if (!authChecked) return;
@@ -453,9 +529,10 @@ export default function DashboardPage() {
         if (ok) toast.success('Payment confirmed successfully!');
       }
     })();
-  }, [fetchEvents]);
+  }, [fetchEvents, setActiveTab]);
 
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  // Log out moved into DashboardNav with the rest of the sidebar footer, so it
+  // exists on every dashboard page rather than only on this one.
 
   // "Latest request wins" guard: switching events quickly, or a 20s realtime
   // poll (useRealtimeRSVPs) overlapping a manual switch, could previously let
@@ -661,186 +738,10 @@ export default function DashboardPage() {
   const liveCount = events.length - draftCount;
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: COLORS.white, fontFamily: 'var(--font-sans)' }}>
-
-      {/* The old top-left floating hamburger lived here. It was removed: it was a
-          detached white chip overlapping the sticky glass top-bar (and forcing a
-          72px padding hack to avoid the title), AND it was redundant — the bottom
-          tab bar's "More" opens the very same drawer from a far better thumb
-          position (see the tab bar's own comment below). The drawer is now closed
-          via the X in its header or by tapping the overlay. */}
-
-      {/* ═══ SIDEBAR OVERLAY (mobile) ═══ */}
-      {sidebarOpen && (
-        <div
-          onClick={() => setSidebarOpen(false)}
-          style={{ display: 'none', position: 'fixed', inset: 0, zIndex: 49, background: 'rgba(0,0,0,0.3)' }}
-          className="sidebar-overlay"
-        />
-      )}
-
-      {/* ═══ MOBILE BOTTOM TAB BAR ═══
-          The off-canvas sidebar drawer costs two taps to reach any section
-          (open hamburger, then tap) and the hamburger itself sits top-left —
-          the worst spot for one-handed thumb reach. This surfaces the 4
-          highest-frequency destinations plus "More" (opens the same drawer,
-          everything else still lives there) within one thumb's reach. */}
-      <nav className="dashboard-bottom-tabbar" aria-label="Primary">
-        {[
-          { key: 'overview', label: 'Home', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> },
-          { key: 'guests', label: 'Guests', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg> },
-          { key: 'rsvps', label: 'RSVPs', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> },
-          { key: 'seating', label: 'Seating', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg> },
-        ].map(item => {
-          const isActive = activeTab === item.key;
-          return (
-            <button
-              key={item.key}
-              onClick={() => { setActiveTab(item.key); setSidebarOpen(false); }}
-              aria-current={isActive ? 'page' : undefined}
-              className="dashboard-bottom-tab"
-              style={{ color: isActive ? COLORS.gold : COLORS.stone }}
-            >
-              {item.icon}
-              <span>{item.label}</span>
-            </button>
-          );
-        })}
-        <button
-          onClick={() => setSidebarOpen(true)}
-          aria-label="More navigation options"
-          className="dashboard-bottom-tab"
-          style={{ color: COLORS.stone }}
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>
-          <span>More</span>
-        </button>
-      </nav>
-
-      {/* ═══ LEFT SIDEBAR ═══ */}
-      <aside className="dashboard-sidebar" style={{
-        width: '240px', minHeight: '100vh', background: COLORS.white, borderRight: `1px solid ${COLORS.border}`,
-        display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, left: 0, zIndex: 50,
-        transition: 'transform 0.3s ease',
-      }}>
-        {/* Logo */}
-        <div style={{ padding: '24px 20px', borderBottom: `1px solid ${COLORS.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-          {/* Mobile-only dismiss for the off-canvas drawer (desktop keeps the
-              sidebar permanently docked, so it has nothing to close). */}
-          <button
-            onClick={() => setSidebarOpen(false)}
-            aria-label="Close navigation menu"
-            className="sidebar-close"
-            style={{
-              display: 'none', order: 2, width: '36px', height: '36px', flexShrink: 0,
-              borderRadius: '8px', border: `1px solid ${COLORS.border}`, background: COLORS.white,
-              cursor: 'pointer', alignItems: 'center', justifyContent: 'center',
-            }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={COLORS.charcoal} strokeWidth="2" strokeLinecap="round">
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
-          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
-            <svg
-              width="24"
-              height="20"
-              viewBox="0 0 38 32"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              style={{ flexShrink: 0 }}
-            >
-              <rect x="2" y="8" width="34" height="22" rx="2" stroke="#B8944F" strokeWidth="2" fill="none" />
-              <path d="M2 10L19 22L36 10" stroke="#B8944F" strokeWidth="2" fill="none" strokeLinejoin="round" />
-              <path d="M4 8L19 0L34 8" stroke="#B8944F" strokeWidth="2" fill="none" strokeLinejoin="round" />
-            </svg>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
-              <span style={{ fontFamily: 'var(--font-script)', fontSize: '26px', fontWeight: 400, color: COLORS.gold, lineHeight: 1 }}>Fancy</span>
-              <span style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: COLORS.charcoal, letterSpacing: '1.5px', textTransform: 'uppercase', lineHeight: 1 }}>RSVP</span>
-            </div>
-          </Link>
-        </div>
-
-        {/* Nav Items */}
-        <nav style={{ flex: 1, padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          {sidebarNav.map(item => {
-            const isActive = activeTab === item.key;
-            return (
-              <button key={item.key} data-testid={`tab-${item.key}`} onClick={() => {
-                if (item.key === 'campaigns') {
-                  router.push('/dashboard/campaigns');
-                } else if (item.key === 'sms-plans') {
-                  // A real route, not a client-state tab. Without this branch it
-                  // would fall through to setActiveTab and render nothing, since
-                  // there is no matching case in the tab ternary.
-                  router.push(`/dashboard/sms-plans${eventId ? `?event=${eventId}` : ''}`);
-                } else if (item.key === 'checkin') {
-                  router.push('/checkin');
-                } else if (item.key === 'checkin-setup') {
-                  router.push('/dashboard/checkin-setup');
-                } else {
-                  setActiveTab(item.key);
-                  setSidebarOpen(false);
-                }
-              }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px',
-                  borderRadius: '8px', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%',
-                  background: isActive ? COLORS.ivory : 'transparent',
-                  color: isActive ? COLORS.gold : COLORS.stone,
-                  borderLeft: isActive ? `3px solid ${COLORS.gold}` : '3px solid transparent',
-                  fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: isActive ? 600 : 400,
-                  transition: 'all 0.2s ease',
-                }}
-                onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background = '#FDFCF9'; e.currentTarget.style.color = COLORS.charcoal; } }}
-                onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = COLORS.stone; } }}
-              >
-                <span style={{ display: 'flex', width: '18px', height: '18px' }}>{item.icon}</span>
-                <span style={{ flex: 1 }}>{item.label}</span>
-                {item.key === 'drafts' && draftCount > 0 && (
-                  <span style={{
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                    minWidth: '18px', height: '18px', padding: '0 6px', borderRadius: '9px',
-                    background: isActive ? COLORS.gold : 'rgba(184, 148, 79, 0.14)',
-                    color: isActive ? COLORS.white : COLORS.gold,
-                    fontSize: '10px', fontWeight: 700, fontFamily: 'var(--font-sans)', lineHeight: 1,
-                  }}>{draftCount}</span>
-                )}
-                {/* Referrals otherwise reads as an admin-tier item identical
-                    in weight to Settings/Profile — this pill marks it as a
-                    reward feature worth a look, not paperwork. */}
-                {item.key === 'referrals' && !isActive && (
-                  <span style={{
-                    display: 'inline-flex', alignItems: 'center', padding: '2px 7px', borderRadius: '9px',
-                    background: 'rgba(184, 148, 79, 0.14)', color: COLORS.gold,
-                    fontSize: '9px', fontWeight: 700, fontFamily: 'var(--font-sans)', lineHeight: 1.4,
-                    letterSpacing: '0.03em', textTransform: 'uppercase',
-                  }}>Earn</span>
-                )}
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Bottom: Log Out */}
-        <div style={{ padding: '16px 12px', borderTop: `1px solid ${COLORS.border}` }}>
-          <button onClick={() => setShowLogoutModal(true)} aria-label="Log out" style={{
-            display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', width: '100%',
-            background: 'transparent', border: `1px solid ${COLORS.border}`, borderRadius: '8px', cursor: 'pointer',
-            fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 600, color: COLORS.stone,
-            transition: 'all 0.2s ease',
-          }}
-            onMouseEnter={e => { e.currentTarget.style.background = COLORS.charcoal; e.currentTarget.style.borderColor = COLORS.charcoal; e.currentTarget.style.color = COLORS.white; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = COLORS.border; e.currentTarget.style.color = COLORS.stone; }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-            Log Out
-          </button>
-        </div>
-      </aside>
+    <div style={{ minHeight: '100vh', background: COLORS.white, fontFamily: 'var(--font-sans)' }}>
 
       {/* ═══ MAIN CONTENT ═══ */}
-      <main style={{ flex: 1, marginLeft: '240px', minHeight: '100vh', background: '#FAFAF8' }}>
+      <main style={{ minHeight: '100vh', background: '#FAFAF8' }}>
 
         {/* Top Bar — sticky glassmorphism container */}
         <div
@@ -1238,40 +1139,15 @@ export default function DashboardPage() {
                   QR Code
                 </button>
 
-                {activeTab === 'rsvps' && (
-                  <button
-                    onClick={async () => {
-                      try {
-                        const blob = await apiFetch(`/events/${eventId}/rsvps/export`);
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url; a.download = 'guest-list.csv'; a.click();
-                        URL.revokeObjectURL(url);
-                      } catch (err) { toast.error(err.message); }
-                    }}
-                    id="btn-export-excel"
-                    style={{
-                      padding: '8px 16px',
-                      background: COLORS.white,
-                      border: `1px solid ${COLORS.border}`,
-                      color: COLORS.stone,
-                      borderRadius: '30px',
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      fontFamily: 'var(--font-sans)',
-                      transition: 'all 0.2s ease',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = COLORS.gold; e.currentTarget.style.color = COLORS.gold; e.currentTarget.style.background = 'rgba(184, 148, 79, 0.02)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = COLORS.border; e.currentTarget.style.color = COLORS.stone; e.currentTarget.style.background = COLORS.white; }}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-                    Export Sheet
-                  </button>
-                )}
+                {/* "Export Sheet" was here, on the RSVPs tab only.
+                    It hit `/rsvps/export` with no parameters — every guest,
+                    unordered — while a button a few pixels below it inside the
+                    tab hit the SAME endpoint with `attending=true&sort=…` and
+                    produced a different file under a near-identical label. Its
+                    id was even `btn-export-excel` while it downloaded CSV.
+                    Downloading is now one control in the Guest list section,
+                    where the detail being exported actually lives, with both
+                    scope choices as visible inputs. */}
               </div>
             </>
           )}
@@ -1279,7 +1155,18 @@ export default function DashboardPage() {
 
         <div className="content-container fx-container fx-container--4xl fx-gutter" style={{ '--fx-pad-x': '32px', paddingTop: '32px', paddingBottom: '32px' }}>
 
-          {activeTab === 'profile' ? (
+          {/**
+            * One guard for every event-scoped section, checked before the section
+            * renders rather than inside each one.
+            *
+            * Only Seating ever did this. The other seven rendered with an empty
+            * event id: a heading, an empty table, and no clue that the fix was to
+            * pick an event. Whatever the section, the answer is the same sentence,
+            * so it belongs in one place ahead of the dispatch below.
+            */}
+          {EVENT_SCOPED_TABS[activeTab] && !eventId ? (
+            <NoEventSelected section={EVENT_SCOPED_TABS[activeTab]} empty={events.length === 0} />
+          ) : activeTab === 'profile' ? (
             <OrganizerProfile events={events} forcePasswordReset={forcePasswordReset} onPasswordReset={() => setForcePasswordReset(false)} />
           ) : activeTab === 'referrals' ? (
             <ReferralsTab />
@@ -1308,7 +1195,12 @@ export default function DashboardPage() {
             <EventsTab
               events={events}
               activeEventId={eventId}
-              onSelectEvent={(id, tab) => { setEventId(id); setActiveTab(tab || 'overview'); }}
+              // One navigation carrying both, via goTo — see its note. Two
+              // separate calls would drop the event.
+              onSelectEvent={(id, tab) => { setPickedEventId(id); goTo(tab || 'overview', id); }}
+              // Restores the only route to unfinished events now that Drafts left
+              // the sidebar and its badge moved onto Your events.
+              onOpenDrafts={() => setActiveTab('drafts')}
               onRefresh={loadDashboardData}
             />
           ) : activeTab === 'drafts' ? (
@@ -1361,28 +1253,39 @@ export default function DashboardPage() {
               onUpgrade={() => setActiveTab('events')}
               wrapperStyle={{ display: 'flex', width: '100%' }}
             >
+              {/* The `{eventId && …}` / `{!eventId && …}` pair that used to wrap
+                  this is gone — NoEventSelected above the dispatch now answers
+                  that for all seven event-scoped sections instead of only this
+                  one, so reaching here already means an event is selected. */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%' }}>
-                {eventId && (<>
+                <>
+                  {/**
+                    * HOW FAR ALONG THE SEATING IS — the question this section
+                    * exists to answer, and it was not answered anywhere.
+                    *
+                    * The screen was a table form and a paginated list of
+                    * dropdowns. "Have I seated everyone?" meant scrolling that
+                    * list and counting the ones reading "Unassigned" by eye, and
+                    * the filter beside it offered the four RSVP states but not
+                    * seated/unseated — so the question could not even be asked.
+                    *
+                    * It also states that the map is the SAME chart. Two surfaces
+                    * both create tables and both assign guests, and nothing said
+                    * whether they were two views or two tools; an organizer who
+                    * assigned here had no way to know the map already agreed.
+                    */}
+                  <SeatingProgress
+                    rsvps={rsvps}
+                    tables={tables}
+                    onShowUnseated={() => { setFilterResponse('unseated'); setSearchQuery(''); }}
+                    eventId={eventId}
+                  />
+
                   <div className="seating-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '24px' }}>
                     <TableForm tables={tables} newTableName={newTableName} setNewTableName={setNewTableName} newTableCapacity={newTableCapacity} setNewTableCapacity={setNewTableCapacity} onCreateTable={handleCreateTable} onUpdateTable={handleUpdateTable} />
                     <ErrorBoundary><SeatingManager rsvps={rsvps} tables={tables} searchQuery={searchQuery} setSearchQuery={setSearchQuery} filterResponse={filterResponse} setFilterResponse={setFilterResponse} onAssignTable={handleAssignTable} /></ErrorBoundary>
                   </div>
-                  <div style={{ textAlign: 'center' }}>
-                    <Link href="/dashboard/seating-map" style={{
-                      display: 'inline-flex', alignItems: 'center', gap: '8px',
-                      padding: '10px 24px', background: COLORS.gold, color: COLORS.white, borderRadius: '8px',
-                      fontSize: '13px', fontWeight: 700, textDecoration: 'none', fontFamily: 'var(--font-sans)',
-                    }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
-                      Open Full Seating Map
-                    </Link>
-                  </div>
-                </>)}
-                {!eventId && (
-                  <div style={{ textAlign: 'center', padding: '48px', background: COLORS.white, border: `1px solid ${COLORS.border}`, borderRadius: '12px' }}>
-                    <p style={{ color: COLORS.stone, fontSize: '14px', fontStyle: 'italic' }}>Select or create an event first to manage seating.</p>
-                  </div>
-                )}
+                </>
               </div>
             </FeatureGate>
           ) : (
@@ -1708,42 +1611,13 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* The sidebar, drawer and bottom-bar rules that used to live here are gone
+          with the markup they styled — it now renders from the layout, where a
+          styled-jsx rule written in THIS function could never have reached it
+          (AGENTS.md, failure mode 3). They live in globals.css as `.dnav-*`,
+          including the 240px content offset that was the "main" margin-left. */}
       <style jsx>{`
-        .dashboard-bottom-tabbar {
-          display: none;
-          position: fixed;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          z-index: 55;
-          background: ${COLORS.white};
-          border-top: 1px solid ${COLORS.border};
-          padding: 6px 4px max(6px, env(safe-area-inset-bottom));
-          justify-content: space-around;
-          align-items: stretch;
-          box-shadow: 0 -4px 16px rgba(0,0,0,0.04);
-        }
-        .dashboard-bottom-tab {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          gap: 2px;
-          flex: 1;
-          min-height: 48px;
-          padding: 4px;
-          background: none;
-          border: none;
-          cursor: pointer;
-          font-family: var(--font-sans);
-          font-size: 10px;
-          font-weight: 600;
-        }
         @media (max-width: 1023.98px) {
-          .sidebar-close { display: flex !important; }
-          .sidebar-overlay { display: block !important; }
-          .dashboard-sidebar { transform: ${sidebarOpen ? 'translateX(0)' : 'translateX(-100%)'}; }
-          main { margin-left: 0 !important; padding-bottom: calc(60px + env(safe-area-inset-bottom)) !important; }
           /* Was padding-left:72px to dodge the old floating hamburger; that button
              is gone, so the header title gets the full width back. */
           .top-bar { padding-left: 16px !important; padding-right: 16px !important; }
@@ -1758,14 +1632,12 @@ export default function DashboardPage() {
             padding-top: 16px !important;
             padding-bottom: 16px !important;
           }
-          .dashboard-bottom-tabbar { display: flex !important; }
           .action-btn-divider { display: none !important; }
         }
         @media (max-width: 1023.98px) {
           .seating-form-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>
-      <LogoutModal isOpen={showLogoutModal} onClose={() => setShowLogoutModal(false)} onConfirm={logout} />
     </div>
   );
 }

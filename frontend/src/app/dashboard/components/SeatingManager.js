@@ -21,7 +21,19 @@ const SeatingManager = memo(function SeatingManager({
         filterResponse === "all" ||
         (filterResponse === "yes" && isAccepted(r.response)) ||
         (filterResponse === "no" && isDeclined(r.response)) ||
-        (filterResponse === "pending" && !isAccepted(r.response) && !isDeclined(r.response));
+        (filterResponse === "pending" && !isAccepted(r.response) && !isDeclined(r.response)) ||
+        /**
+         * "Who still needs a table" — the question this whole screen exists to
+         * answer, and there was no way to ask it. The filter offered the four
+         * response states only, so finding the unseated meant scrolling a
+         * paginated list of dropdowns and reading "Unassigned" by eye.
+         *
+         * Restricted to accepted guests on both: a declined guest is not
+         * "unseated", they are not coming, and counting them as work left to do
+         * would mean this filter never empties.
+         */
+        (filterResponse === "unseated" && isAccepted(r.response) && !r.tableId) ||
+        (filterResponse === "seated" && isAccepted(r.response) && !!r.tableId);
       return matchesSearch && matchesFilter;
     });
   }, [rsvps, searchQuery, filterResponse]);
@@ -103,6 +115,8 @@ const SeatingManager = memo(function SeatingManager({
             style={{ ...inputStyle, cursor: "pointer" }}
             aria-label="Filter by response"
           >
+            <option value="unseated">Still need a table</option>
+            <option value="seated">Already seated</option>
             <option value="all">All Responses</option>
             <option value="yes">Attending (Yes)</option>
             <option value="no">Declined (No)</option>

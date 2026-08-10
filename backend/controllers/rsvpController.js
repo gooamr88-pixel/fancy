@@ -464,21 +464,91 @@ const submitPublicRSVP = async (req, res, next) => {
       tableName: null, partySize: computedPartySize, eventDate: result.event_date,
     });
 
-    // NO TEXT IS SENT ON SUBMISSION ANY MORE.
-    //
-    // The `rsvp_confirmation` type is retired, absorbed into `seating_reminder`.
-    // The confirmation EMAIL still goes out above and still carries the scannable
-    // pass, the full logistics and the entry-pass link — everything a text could
-    // have said and several things it structurally could not.
-    //
-    // What the guest gets by text instead is one message that is worth paying
-    // for: their table and their pass link, sent once the organizer has actually
-    // seated them, and again in the day or two before the event. A text at
-    // submission time said "we got it" — which the guest already knew, having
-    // just pressed the button, and which cost the organizer a message to say.
-    //
-    // The pass token is still minted here (above), unchanged: the success screen
-    // shows it immediately, and jobSeatingNotices re-derives it when it texts.
+    /**
+     * THE CONFIRMATION TEXT, WITH THE GUEST'S OWN DETAILS IN IT.
+     *
+     * `rsvp_confirmation` was retired here on the grounds that a text saying "we
+     * got it" told the guest something they had just done themselves. That was a
+     * fair objection to the old message and it does not apply to this one: it
+     * carries the date, the venue, who is coming with them, what was ordered for
+     * each of them, and their pass link — the questions an organizer otherwise
+     * answers by hand, one guest at a time.
+     *
+     * ── Deliberately fire-and-forget ──
+     *
+     * The RSVP is already committed. Awaiting a carrier round trip here would make
+     * a guest watch a spinner for something that is not about them, and a carrier
+     * outage would turn a successful RSVP into an error on their screen. Every
+     * gate (entitlement, the organizer's switch, consent, STOP, balance) lives
+     * inside sendTransactionalSms; nothing needs re-checking here.
+     *
+     * ── No table yet, on purpose ──
+     *
+     * At submission time nobody has seated them, so `tableName` is absent and the
+     * template omits that clause rather than inventing one. `seating_reminder`
+     * covers the table later — when it is actually known.
+     */
+    if (result.response === 'yes') {
+      (async () => {
+        const [{ data: ev }, { data: party }] = await Promise.all([
+          supabase.from('events')
+            .select('id, title, slug, event_date, location_name, location_address, sms_addon_purchased_at, sms_settings')
+            .eq('id', eventId).single(),
+          // Read the COMMITTED party rather than rebuilding it from the request
+          // body: the RPC has already normalized names, party size and meals, and
+          // this is the same shape the guest's own ticket page renders from — so
+          // the text and the page it links to cannot disagree.
+          supabase.from('rsvp_parties')
+            .select('id, label, preferred_lang, companion_meal_counts, guests(full_name, is_primary_contact, meal_selection)')
+            .eq('id', result.party_id).single(),
+        ]);
+        if (!ev?.sms_addon_purchased_at || !party) return;
+
+        const members = party.guests || [];
+        const companions = members
+          .filter((g) => !g.is_primary_contact && g.full_name)
+          .map((g) => g.full_name);
+
+        // One tally for the whole party — "Beef Steak x2, Fish x1" says what was
+        // ordered in far fewer characters than naming a dish per person, and
+        // characters are segments.
+        const tally = {};
+        for (const g of members) {
+          if (g.meal_selection) tally[g.meal_selection] = (tally[g.meal_selection] || 0) + 1;
+        }
+        for (const [meal, n] of Object.entries(party.companion_meal_counts || {})) {
+          if (meal && Number(n) > 0) tally[meal] = (tally[meal] || 0) + Number(n);
+        }
+        const meals = Object.entries(tally)
+          .sort((a, b) => b[1] - a[1])
+          .map(([meal, n]) => (n > 1 ? `${meal} x${n}` : meal));
+
+        const { sendTransactionalSms } = require('../services/smsDispatch');
+        const T = require('../utils/emailTemplates');
+
+        await sendTransactionalSms({
+          type: 'rsvp_confirmation',
+          eventId,
+          partyId: party.id,
+          // Keyed on the party alone: one confirmation per guest, ever. A guest who
+          // edits their RSVP twice must not be charged for three copies of the
+          // same message, and the (kind, ref) unique index is what guarantees it.
+          ref: `rsvpconf:${party.id}`,
+          event: ev,
+          lang: party.preferred_lang || 'en',
+          context: {
+            guestName: party.label || guestName,
+            eventTitle: ev.title,
+            dateLabel: T.formatEventDate ? T.formatEventDate(ev.event_date) : null,
+            venue: ev.location_name || ev.location_address || null,
+            tableName: null,
+            companions,
+            meals,
+            ticketUrl: qrToken ? T.buildTicketLinks(qrToken).ticketUrl : null,
+          },
+        });
+      })().catch((err) => logger.warn({ err, eventId }, 'RSVP confirmation text failed'));
+    }
 
     return sendOk(res, {
       partyId: result.party_id,

@@ -137,13 +137,29 @@ test('BOTH the campaigns and invitations routes mount the same gate', () => {
     'the tier-based gate is replaced, not layered — SMS is sold per event on any plan');
 });
 
-test('the invitations gate applies to the sms channel ONLY', () => {
+test('the invitations gate applies to the BILLED channels only', () => {
   const src = require('fs').readFileSync(require.resolve('../routes/invitationRoutes'), 'utf8');
-  // Either polarity is correct — the gate now early-returns on the negative
-  // (`!== 'sms'`) rather than branching on the positive, because it applies TWO
-  // middlewares in sequence rather than one.
-  assert.match(src, /channel\s*(===|!==)\s*'sms'/,
-    'email and qr invitations must stay reachable without the SMS add-on');
+
+  // Asserted on the billed-channel LIST rather than on a literal
+  // `channel === 'sms'`, which is what this checked before. That string stopped
+  // existing the moment a second paid channel ('detail-sms') was added, and a test
+  // pinned to one spelling of the condition fails on a correct change while saying
+  // nothing about the risk it exists to cover.
+  const billed = src.match(/BILLED_CHANNELS\s*=\s*\[([^\]]*)\]/);
+  assert.ok(billed, 'the gate must decide from a named list of billed channels');
+
+  for (const channel of ['sms', 'detail-sms']) {
+    assert.match(billed[1], new RegExp(`'${channel}'`),
+      `${channel} bills per segment — it must be behind the add-on gate and the ramp-up`);
+  }
+  for (const free of ['email', 'qr']) {
+    assert.doesNotMatch(billed[1], new RegExp(`'${free}'`),
+      `${free} invitations must stay reachable without the SMS add-on`);
+  }
+
+  // And the gate must actually consult that list, not merely define it.
+  assert.match(src, /BILLED_CHANNELS\.includes\(/,
+    'defining the list without testing against it would gate nothing');
 
   // The ramp-up must be here too. This is now the ONLY bulk SMS door in the
   // platform: the campaign route that used to carry the cap is gone, so missing

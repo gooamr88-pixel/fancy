@@ -9,6 +9,7 @@ import { logout, apiFetch } from '../../utils/apiClient';
 import LogoutModal from '../../components/LogoutModal';
 import { useIsClient } from '../../utils/useIsClient';
 import Icon from '../../components/icons/Icon';
+import { useConfirm } from '../../components/useConfirm';
 // The shape catalogue and world geometry are shared with the two guest-facing
 // maps — see utils/seatingGeometry.js for why they must not be re-declared here.
 import {
@@ -297,6 +298,10 @@ function VirtualGuestList({ items, height, onDragStartGuest, onTapGuest, armedGu
    Page
    ════════════════════════════════════════════════════════════════ */
 export default function SeatingMapPage() {
+  // Awaitable confirms. All three of these sit mid-flow — one inside a save
+  // that retries itself with force — so a promise keeps each call site one
+  // line instead of splitting working logic into ask/resume halves.
+  const [confirm, confirmDialog] = useConfirm();
   const router = useRouter();
   // isClient gates the localStorage reads until we're past hydration (SSR has
   // no localStorage). authChecked/eventId are both fully derived from those
@@ -692,18 +697,24 @@ export default function SeatingMapPage() {
   // seat anyone). Declared ahead of onElementPointerDown, which depends on
   // onTapAssign below — both are useCallback deps evaluated at render time,
   // so they must exist before that point, not just before it's *called*.
-  const assignGuestToTable = useCallback((rsvpId, partySize, from, tableId) => {
+  const assignGuestToTable = useCallback(async (rsvpId, partySize, from, tableId) => {
     const el = elements.find(x => x.id === tableId);
     if (!el || isZone(el)) { toast.error('Guests can only be seated at tables, not venue zones.'); return; }
     if (from === tableId) return;
     const projected = occByTable[tableId] || 0;
     if (projected + partySize > (el.max_capacity || 0)) {
       const remaining = (el.max_capacity || 0) - projected;
-      if (!window.confirm(`${el.table_name} has ${remaining} seat(s) left, party size is ${partySize}. Seat anyway (overbook)?`)) return;
+      const ok = await confirm({
+        title: `${el.table_name} does not have room for ${partySize}`,
+        body: `Only ${remaining} ${remaining === 1 ? 'seat is' : 'seats are'} left there. You can seat them anyway and rearrange the room later.`,
+        confirmLabel: 'Seat them anyway',
+        cancelLabel: 'Pick another table',
+      });
+      if (!ok) return;
     }
     setPending(prev => ({ ...prev, [rsvpId]: { from: from || '', to: tableId, size: partySize } }));
     toast.success(`${el.table_name} — seated`);
-  }, [elements, occByTable]);
+  }, [elements, occByTable, confirm]);
 
   /* ════════ tap-to-assign (touch-friendly alternative to drag-and-drop) ════════
      Tap a guest in the list to "arm" them, then tap a table to seat them —
@@ -1204,7 +1215,12 @@ export default function SeatingMapPage() {
       const data = await res.json();
       if (!res.ok) {
         const capacityIssue = !force && data.error === 'BATCH_SAVE_FAILED' && /remaining seats|CAPACITY_EXCEEDED/i.test(data.message || '');
-        if (capacityIssue && window.confirm(`${data.message}\n\nOverbook and save anyway?`)) { setSaving(false); return saveSeating(true); }
+        if (capacityIssue && await confirm({
+          title: 'Some tables are over capacity',
+          body: data.message,
+          confirmLabel: 'Save anyway',
+          cancelLabel: 'Let me fix it',
+        })) { setSaving(false); return saveSeating(true); }
         throw new Error(data.message || 'Failed to save seating.');
       }
       setPending({});
@@ -1309,7 +1325,13 @@ export default function SeatingMapPage() {
   const deleteElement = useCallback(async () => {
     if (!selected) return;
     if (!isZone(selected) && (occByTable[selected.id] || 0) > 0) { toast.error('Unassign guests before deleting this table.'); return; }
-    if (!window.confirm(`Delete ${selected.table_name}?`)) return;
+    if (!(await confirm({
+      title: `Delete ${selected.table_name}?`,
+      body: 'It is removed from the floor plan. Nobody is seated there, so no guest loses a seat.',
+      confirmLabel: 'Delete it',
+      cancelLabel: 'Keep it',
+      tone: 'danger',
+    }))) return;
     try {
       const res = await fetch(`${API_URL}/events/${eventId}/tables/${selected.id}`, { method: 'DELETE', credentials: 'include' });
       const data = await res.json();
@@ -1317,7 +1339,7 @@ export default function SeatingMapPage() {
       setSelectedId(null);
       loadLayout();
     } catch (err) { toast.error(err.message); }
-  }, [selected, occByTable, eventId, loadLayout]);
+  }, [selected, occByTable, eventId, loadLayout, confirm]);
 
   const duplicateElement = useCallback(async () => {
     // Guard against runaway duplication: the "Duplicate" button and its Ctrl/Cmd+D
@@ -1987,6 +2009,7 @@ export default function SeatingMapPage() {
         }
       `}</style>
       <LogoutModal isOpen={showLogoutModal} onClose={() => setShowLogoutModal(false)} onConfirm={logout} />
+      {confirmDialog}
     </div>
   );
 }
@@ -2721,15 +2744,34 @@ function AddElementModal({ onClose, onAdd, btn, view, saving, elements }) {
       <div onClick={e => e.stopPropagation()} style={{ background: C.white, border: `1px solid ${C.border}`, width: '100%', maxWidth: 520, borderRadius: 16, padding: 24, maxHeight: '88vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
         <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 500 }}>Add Element</h3>
 
+        {/**
+          * .fx-grid rather than repeat(3|4, 1fr).
+          *
+          * The fixed grids fitted a 320px phone by 1.5px. Arithmetic: the modal is
+          * 288px there, its 24px padding leaves 240px, and four tracks with three
+          * 8px gaps give each tile 54px — 40px inside its own padding and border.
+          * "Welcome" (the longest unbreakable run in "Welcome Desk") needs about
+          * 38.5px at font-size 10. It fitted, and one longer zone label would have
+          * overflowed with nothing to catch it.
+          *
+          * auto-fit contributes ZERO to min-content width (AGENTS.md), so the tiles
+          * now drop to two columns on a phone and grow to five in the modal's full
+          * 520px instead of being pinned to a count that only suits one width.
+          *
+          * `--fx-col` and `--fx-gap` are the class's documented inputs; the inline
+          * `display`, `gridTemplateColumns` and `gap` are DELETED rather than left
+          * beside it, because an inline style always beats a class and would have
+          * made the class inert at every viewport.
+          */}
         <div>
           <span style={{ fontSize: 11, color: C.stone, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Tables</span>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 8 }}>
+          <div className="fx-grid" style={{ '--fx-col': '76px', '--fx-gap': '8px', marginTop: 8 }}>
             {tables.map(([s, m]) => <Tile key={s} s={s} m={m} />)}
           </div>
         </div>
         <div>
           <span style={{ fontSize: 11, color: C.stone, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Venue Zones</span>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginTop: 8 }}>
+          <div className="fx-grid" style={{ '--fx-col': '76px', '--fx-gap': '8px', marginTop: 8 }}>
             {zones.map(([s, m]) => <Tile key={s} s={s} m={m} />)}
           </div>
         </div>

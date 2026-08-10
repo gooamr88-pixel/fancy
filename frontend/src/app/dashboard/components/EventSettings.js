@@ -325,6 +325,9 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
   // How many guests a cancellation would reach, fetched when the dialog opens so
   // the confirm can name real numbers instead of asking blind.
   const [cancelReach, setCancelReach] = useState({ parties: null, smsReachable: null, smsRemaining: null });
+  // The save's proposal to tell the guests, and the send that follows it.
+  const [changeNotice, setChangeNotice] = useState(null);
+  const [notifyBusy, setNotifyBusy] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
   // Custom dress-code text mode — starts on if the saved value isn't one of
@@ -823,10 +826,68 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
       setSuccess(true);
       onEventUpdated?.(data.event || data);
       setTimeout(() => setSuccess(false), 3000);
+
+      /**
+       * TELLING THE GUESTS — the half of this feature that was never connected.
+       *
+       * `updateEvent` has always returned a `changeNotice` when a live event's date
+       * or venue actually moved: what changed, a `changeKey`, and how many guests
+       * would be reached. `POST /events/:id/notify-change` has always been there to
+       * send it. `ConfirmGuestNotifyModal` has always supported `mode="change"`.
+       *
+       * Nothing read any of it. `grep changeNotice frontend/src` returned nothing,
+       * so **moving a wedding's date or venue told not one guest** — silently, while
+       * reporting "Settings saved successfully". Three finished pieces and no wire
+       * between them.
+       *
+       * Deliberately a PROPOSAL, not an automatic send: the same save can now text
+       * several hundred people, so fixing a typo'd venue and saving the correction
+       * would spend an organizer's balance twice before any dialog appeared. The
+       * server proposes here; the organizer decides in the dialog.
+       */
+      if (data.changeNotice) setChangeNotice(data.changeNotice);
     } catch (err) {
       setError(err.message || 'Something went wrong');
     } finally {
       setSaving(false);
+    }
+  };
+
+  /**
+   * Send the change the organizer just saved and confirmed.
+   *
+   * `changeKey` travels with the proposal and back again so a dialog left open
+   * while the venue changed a second time cannot broadcast the FIRST change's key —
+   * the server recomputes it and answers 409 CHANGE_SUPERSEDED, which is the one
+   * error here worth its own sentence.
+   */
+  const handleNotifyChange = async ({ sendSms }) => {
+    setNotifyBusy(true);
+    setError('');
+    try {
+      const res = await fetch(`${apiUrl}/events/${eventId}/notify-change`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          changeKey: changeNotice?.changeKey,
+          channels: sendSms ? ['email', 'sms'] : ['email'],
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 409) {
+        // Not a failure to retry blindly — the details moved again underneath them.
+        setChangeNotice(null);
+        toast.error(data.message || 'These details changed again. Review them and send once more.');
+        return;
+      }
+      if (!res.ok || data.success === false) throw new Error(data.message || 'Could not tell your guests.');
+      setChangeNotice(null);
+      toast.success(data.message || 'Your guests have been told.');
+    } catch (err) {
+      setError(err.message || 'Could not tell your guests.');
+    } finally {
+      setNotifyBusy(false);
     }
   };
 
@@ -889,7 +950,16 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
    * lint rule in this repo treats the latter as a set-state-in-effect violation.
    */
   useEffect(() => {
-    if (!cancelOpen || !eventId) return;
+    /**
+     * Fetched for EITHER dialog, not just the cancel one.
+     *
+     * This was gated on `cancelOpen` alone. The change dialog reads the same
+     * balance, and ConfirmGuestNotifyModal decides whether to offer the text
+     * option from `smsRemaining !== null` — so leaving it null there would have
+     * silently hidden the "also send a text" checkbox and quietly downgraded every
+     * date-and-venue change to email only.
+     */
+    if ((!cancelOpen && !changeNotice) || !eventId) return;
     let cancelled = false;
     (async () => {
       try {
@@ -909,7 +979,10 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
       } catch { /* the dialog still works, it just cannot promise numbers */ }
     })();
     return () => { cancelled = true; };
-  }, [cancelOpen, eventId, apiUrl]);
+    // `changeNotice` is a dependency, not just a guard — without it the effect
+    // never re-runs when the save proposes a notification, so the balance stays
+    // null and the text option stays hidden.
+  }, [cancelOpen, changeNotice, eventId, apiUrl]);
 
   /**
    * Call the event off, and tell the guests.
@@ -2506,6 +2579,38 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         busy={cancelBusy}
       />
 
+      {/**
+        * The same dialog, in its OTHER mode — which nothing had ever opened.
+        *
+        * `mode="change"` and its "Tell your guests" heading have existed in
+        * ConfirmGuestNotifyModal since it was written; only the cancel path used
+        * it. Opening it here is what finally connects saving a new date or venue to
+        * the guests it affects.
+        *
+        * Counts come straight from the server's proposal rather than from the
+        * cancel dialog's separate fetch: they were computed against the change that
+        * was actually saved, so they cannot describe a different one.
+        *
+        * `estimatedSegments` is supplied — the modal documents a "using about N of
+        * your 1,600 messages" line that never rendered, because no caller ever
+        * passed it. Two segments per guest is the measured invitation-class figure
+        * (utils/smsSegments), the same basis the bulk-send dialog quotes from.
+        */}
+      <ConfirmGuestNotifyModal
+        open={!!changeNotice}
+        onClose={() => setChangeNotice(null)}
+        onConfirm={handleNotifyChange}
+        mode="change"
+        changed={changeNotice?.changed || []}
+        parties={changeNotice?.parties ?? null}
+        smsReachable={changeNotice?.smsReachable ?? null}
+        smsRemaining={cancelReach.smsRemaining}
+        estimatedSegments={
+          changeNotice?.smsReachable != null ? changeNotice.smsReachable * 2 : null
+        }
+        busy={notifyBusy}
+      />
+
       {/* ═══ DANGER ZONE ═══ */}
       <div style={{ ...sectionStyle, border: '1px solid #FECACA' }}>
         <h3 style={{ ...sectionTitleStyle, color: '#C45E5E', borderBottomColor: '#FECACA' }}>
@@ -2687,9 +2792,13 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           .es-tabs { overflow-x: auto; flex-wrap: nowrap !important; }
         }
         /* MOB-11: .es-save-bar is 'position: sticky; bottom: 0', which sticks
-           to the actual viewport edge — it has no idea dashboard/page.js also
-           pins its own always-on '.dashboard-bottom-tabbar' (~60px + safe-area,
-           z-index 55) to that same edge on mobile/tablet widths. For most of
+           to the actual viewport edge — it has no idea the dashboard also pins an
+           always-on mobile tab bar ('.dnav-bottombar' in globals.css, ~60px +
+           safe-area, z-index 55) to that same edge on mobile/tablet widths.
+           (That bar was '.dashboard-bottom-tabbar' inside dashboard/page.js until
+           it moved to the shared layout. The offset below is geometry, not a class
+           reference, so the rename did not affect it — but the 60px and the
+           1023.98px breakpoint must still track that class.) For most of
            the scroll range the two collide: this bar (z-index 20) renders
            underneath the tab bar, so Save / the error / the "saved" banner sit
            hidden behind it, and the fields just above look permanently stuck

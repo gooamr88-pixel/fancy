@@ -21,6 +21,25 @@ const CONDITIONS = [
   { value: 'attending', label: 'If Attending', color: '#3B82F6', bg: 'rgba(59,130,246,0.08)' },
 ];
 
+/**
+ * How each answer type reads to somebody who is not a developer.
+ *
+ * The saved-question rows used to print the raw enum — `type: multiselect`,
+ * `type: textarea` — in monospace beside a database key. These are the same values
+ * said in the words an organizer would use to describe what they asked for.
+ */
+const ANSWER_TYPE_LABELS = {
+  text: 'Short answer',
+  textarea: 'Long answer',
+  email: 'Email address',
+  phone: 'Phone number',
+  number: 'A number',
+  select: 'Pick one',
+  radio: 'Pick one',
+  multiselect: 'Pick any',
+  checkbox: 'Yes / no',
+};
+
 export default function FormBuilder({ eventId }) {
   const [fields, setFields] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -74,11 +93,76 @@ export default function FormBuilder({ eventId }) {
 
   // Auto-derive the field key from the label — but only while ADDING. The key is
   // immutable once a field exists (changing it would orphan saved guest answers).
+  /**
+   * Derive the storage key from the label — and never produce a collision.
+   *
+   * ── The bug this replaces ──
+   *
+   * The old slug was `label.toLowerCase().replace(/[^a-z0-9\s-]/g,'').replace(/[\s-]+/g,'_')`,
+   * which keeps Latin letters and digits and throws everything else away. For an
+   * ARABIC label that leaves nothing:
+   *
+   *     "ملاحظات غذائية"  ->  "_"
+   *     "نوع الوجبة"      ->  "_"
+   *     "🎂"              ->  ""
+   *
+   * So every Arabic question produced the SAME key, `_`. `rsvp_form_fields` has no
+   * unique constraint on `field_key` (only a partial index for the single meal
+   * field), so the second Arabic question saved happily alongside the first with an
+   * identical key — and anything that reads a field BY key, exports included, can
+   * no longer tell them apart. An emoji-only label produced an empty key and then
+   * an error blaming a "Field Key" the organizer had never been shown.
+   *
+   * For the primary audience of this product, writing questions in Arabic, the
+   * feature was broken from the second question onward.
+   *
+   * ── The fix ──
+   *
+   * Slug what transliterates; when nothing does, fall back to `question_<n>` chosen
+   * against the keys already on this event so it is unique by construction. The key
+   * is storage, not content — it never has to be readable, only distinct and stable.
+   */
+  const deriveKey = (val) => {
+    const slug = String(val || '')
+      .toLowerCase().trim()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/[\s-]+/g, '_')
+      .replace(/^_+|_+$/g, ''); // "Bus?" must not become "bus_" and "_" must not survive
+
+    const taken = new Set(fields.map((f) => f.field_key).filter(Boolean));
+    if (slug && !taken.has(slug)) return slug;
+    if (slug) {
+      // A genuine duplicate label ("Notes" twice) gets a suffix rather than
+      // silently sharing a key with the first one.
+      let n = 2;
+      while (taken.has(`${slug}_${n}`)) n += 1;
+      return `${slug}_${n}`;
+    }
+    // Nothing transliterated — Arabic, emoji, punctuation only.
+    let n = 1;
+    while (taken.has(`question_${n}`)) n += 1;
+    return `question_${n}`;
+  };
+
   const handleLabelChange = (val) => {
     setLabel(val);
+    // The key is immutable once a field exists — changing it would orphan every
+    // answer already saved against it.
     if (editingId) return;
-    const slug = val.toLowerCase().trim().replace(/[^a-z0-9\s-]/g, '').replace(/[\s-]+/g, '_');
-    setKey(slug);
+    /**
+     * The meal shortcut's key is a magic string, not a slug.
+     *
+     * The guest RSVP wizard finds the meal question by `field_key ===
+     * 'meal_selection'` (utils/mealField), so typing the label must not slug over
+     * it. This guard was not needed while the key had a visible input that was
+     * `disabled` for the meal case — except it WAS: handleLabelChange overwrote the
+     * state anyway and the disabled box simply displayed the wrong value. It never
+     * surfaced because fieldController re-forces 'meal_selection' on the way in.
+     * Now that the input is gone the mismatch would be completely invisible, so the
+     * client is made to agree with the server rather than relying on it.
+     */
+    if (isMealField) return;
+    setKey(deriveKey(val));
   };
 
   const resetForm = () => {
@@ -126,7 +210,14 @@ export default function FormBuilder({ eventId }) {
 
   const handleSubmitField = async (e) => {
     e.preventDefault();
-    if (!label.trim() || !key.trim() || !eventId) { toast.error('Label and Field Key are required.'); return; }
+    if (!eventId) return;
+    // Only the LABEL is the organizer's to get right. The key is derived, so
+    // blaming them for it — which the old message did — described a field they
+    // could no longer even see.
+    if (!label.trim()) { toast.error('Give your question a label first.'); return; }
+    // Belt and braces: deriveKey never returns empty, but a key of '' would write a
+    // field that nothing can look up, and silently.
+    const fieldKey = key.trim() || deriveKey(label);
     let options = [];
     if (TYPES_WITH_OPTIONS.includes(type)) {
       options = optionsString.split(',').map(o => o.trim()).filter(Boolean);
@@ -144,7 +235,8 @@ export default function FormBuilder({ eventId }) {
           // The field key is immutable — only sent when creating.
           body: JSON.stringify(isEdit
             ? { fieldLabel: label, fieldType: type, options, isRequired, scope, condition }
-            : { fieldKey: key, fieldLabel: label, fieldType: type, options, isRequired, sortOrder: fields.length, isMealField, scope, condition }),
+            // fieldKey, not key — the guarded value computed above.
+            : { fieldKey, fieldLabel: label, fieldType: type, options, isRequired, sortOrder: fields.length, isMealField, scope, condition }),
         }
       );
       const data = await res.json();
@@ -196,7 +288,10 @@ export default function FormBuilder({ eventId }) {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F0ECE3', paddingBottom: '16px' }}>
         <div>
-          <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '18px', fontWeight: 500, color: '#191B1E' }}>RSVP Custom Questionnaire</h3>
+          {/* "RSVP Custom Questionnaire" — three nouns, none of which an organizer
+              would use. This is the list of extra things their RSVP form asks, and
+              the sidebar now calls the section "RSVP form", so the two agree. */}
+          <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '18px', fontWeight: 500, color: '#191B1E' }}>What else you ask your guests</h3>
           <p style={{ fontSize: '11px', color: '#77736A', fontFamily: 'var(--font-sans)', marginTop: '4px' }}>Configure additional questions guest party heads reply to when completing RSVPs.</p>
         </div>
         {!showAddForm && (
@@ -231,18 +326,30 @@ export default function FormBuilder({ eventId }) {
             </p>
           )}
 
-          <div className="fb-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            <div>
-              <label style={labelStyle}>{isMealField ? 'Question Label' : 'Question / Label (e.g. Dietary Notes)'}</label>
-              <input type="text" value={label} onChange={e => handleLabelChange(e.target.value)} placeholder="e.g. Dietary Restrictions"
-                style={inputStyle} onFocus={e => e.target.style.borderColor = '#B8944F'} onBlur={e => e.target.style.borderColor = '#E8E2D6'} />
-            </div>
-            <div>
-              <label style={labelStyle}>Field Key {editingId || isMealField ? '(cannot change)' : '(Unique identifier in DB)'}</label>
-              <input type="text" value={key} onChange={e => setKey(e.target.value)} placeholder="e.g. dietary_restrictions" disabled={!!editingId || isMealField}
-                style={{ ...inputStyle, fontFamily: 'monospace', ...((editingId || isMealField) ? { background: '#F0ECE3', color: '#A09A91', cursor: 'not-allowed' } : {}) }}
-                onFocus={e => { if (!editingId && !isMealField) e.target.style.borderColor = '#B8944F'; }} onBlur={e => e.target.style.borderColor = '#E8E2D6'} />
-            </div>
+          {/**
+            * "Field Key (Unique identifier in DB)" used to sit beside this input.
+            *
+            * It was already filled in automatically from the label, immutable once
+            * the field existed, and described to the organizer as a database
+            * identifier — so it was a developer-facing slug that a person planning a
+            * wedding could only leave alone or break. Clearing it produced "Label
+            * and Field Key are required", an error about something they never
+            * knowingly filled in.
+            *
+            * It is storage, and it is now generated (see deriveKey). The organizer
+            * writes the question; nothing asks them to name a column.
+            */}
+          <div>
+            <label style={labelStyle}>{isMealField ? 'Question Label' : 'What do you want to ask your guests?'}</label>
+            <input
+              type="text"
+              value={label}
+              onChange={e => handleLabelChange(e.target.value)}
+              placeholder="e.g. Any dietary requirements?"
+              style={inputStyle}
+              onFocus={e => e.target.style.borderColor = '#B8944F'}
+              onBlur={e => e.target.style.borderColor = '#E8E2D6'}
+            />
           </div>
 
           <div className="fb-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -339,20 +446,23 @@ export default function FormBuilder({ eventId }) {
                     <span style={{ fontSize: '9px', background: 'rgba(59,155,109,0.1)', color: '#3B9B6D', border: '1px solid rgba(59,155,109,0.25)', padding: '2px 6px', borderRadius: '10px', fontWeight: 800, textTransform: 'uppercase' }}>Always</span>
                   )}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', minWidth: 0, overflowWrap: 'anywhere', fontSize: '10px', color: '#A09A91', fontWeight: 500, fontFamily: 'monospace' }}>
-                  <span>key: {f.field_key}</span>
-                  <span>•</span>
-                  <span>type: {f.field_type}</span>
-                  {f.options && f.options.length > 0 && (<><span>•</span><span>options: [{f.options.join(', ')}]</span></>)}
+                {/* `key: dietary_restrictions` used to lead this line in monospace.
+                    It is a storage detail the organizer does not choose any more, so
+                    showing it first told them nothing and made the row read like a
+                    database dump. The answer TYPE and the choices are what they came
+                    to check. */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', minWidth: 0, overflowWrap: 'anywhere', fontSize: '11px', color: '#A09A91', fontWeight: 500, fontFamily: 'var(--font-sans)' }}>
+                  <span>{ANSWER_TYPE_LABELS[f.field_type] || f.field_type}</span>
+                  {f.options && f.options.length > 0 && (<><span>•</span><span>{f.options.join(', ')}</span></>)}
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <button onClick={() => startEdit(f)} title="Edit field"
+                <button onClick={() => startEdit(f)} title="Edit question" aria-label={`Edit the question: ${f.field_label}`}
                   style={{ padding: '6px', background: 'rgba(184,148,79,0.08)', border: '1px solid rgba(184,148,79,0.2)', borderRadius: '8px', cursor: 'pointer', color: '#B8944F', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                   onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,148,79,0.16)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(184,148,79,0.08)'}>
                   <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                 </button>
-                <button onClick={() => handleDeleteField(f.id, f.field_label)} title="Delete field"
+                <button onClick={() => handleDeleteField(f.id, f.field_label)} title="Delete question" aria-label={`Delete the question: ${f.field_label}`}
                   style={{ padding: '6px', background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.15)', borderRadius: '8px', cursor: 'pointer', color: '#C45E5E', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                   onMouseEnter={e => e.currentTarget.style.background = 'rgba(196,94,94,0.12)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(196,94,94,0.06)'}>
                   <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>

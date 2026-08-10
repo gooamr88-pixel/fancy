@@ -69,6 +69,66 @@ const ALL_TABS = GROUPS.flatMap((g) => g.tabs);
  * earlier, at a desk, and folding it into the kiosk would put administrative
  * controls on a screen that faces guests.
  */
+/**
+ * The browser kiosk, as a stated fallback rather than an equal.
+ *
+ * `/checkin` used to be its own sidebar entry sitting directly beside "Check-In
+ * Setup" — two items differing by one word, one of which silently left the
+ * dashboard for a full-screen kiosk. The app is the door scanner now, so the link
+ * belongs here, beneath the download, framed as what it actually is.
+ *
+ * It is not deleted, and each reason is a real gap it covers:
+ *   • the app is a plan feature (freeDefault: false) while this page is ungated,
+ *     so without it an organizer on the wrong tier cannot check anyone in;
+ *   • publishing a build is gated again behind an admin switch that defaults off,
+ *     so a bad release would close every customer's door at once;
+ *   • the app is Android only — there is no iOS build.
+ *
+ * Naming those three, rather than offering a bare second button, is what stops an
+ * organizer using the weaker tool by accident while the better one sits above it.
+ */
+function BrowserFallback({ eventId }) {
+  return (
+    <div style={{
+      marginTop: 24, paddingTop: 20, borderTop: `1px solid ${C.border}`,
+      fontFamily: 'var(--font-sans)',
+    }}>
+      <p style={{
+        margin: '0 0 6px', fontSize: 12, color: C.stone,
+        textTransform: 'uppercase', letterSpacing: '0.09em', fontWeight: 700,
+      }}>
+        No Android tablet? Use a browser
+      </p>
+      <p style={{ margin: '0 0 14px', fontSize: 13.5, color: C.stone, lineHeight: 1.65, maxWidth: 560 }}>
+        The app is faster at the door and keeps working with no internet, so use it
+        when you can. The browser version scans and searches the same guest list and
+        runs on an iPhone, an iPad or any laptop — reach for it if your plan does not
+        include the app, if you are on iOS, or if something goes wrong on the night.
+        It needs a connection.
+      </p>
+      <Link
+        href={`/checkin${eventId ? `?event=${eventId}` : ''}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+          padding: '10px 18px', borderRadius: 9,
+          border: `1px solid ${C.border}`, background: '#FFFFFF',
+          color: C.charcoal, fontSize: 12.5, fontWeight: 700, textDecoration: 'none',
+        }}
+      >
+        Open the browser scanner
+        {/* Marked because it opens a full-screen kiosk in a new tab — an organizer
+            mid-setup should not lose this page to it. */}
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ opacity: 0.6 }}>
+          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+          <polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+        </svg>
+      </Link>
+    </div>
+  );
+}
+
 export default function CheckinSetupPage() {
   const router = useRouter();
   const isClient = useIsClient();
@@ -229,7 +289,12 @@ export default function CheckinSetupPage() {
                 {active?.label}
               </p>
 
-              {tab === 'app' && <CheckinAppDownload eventId={eventId} />}
+              {tab === 'app' && (
+                <>
+                  <CheckinAppDownload eventId={eventId} />
+                  <BrowserFallback eventId={eventId} />
+                </>
+              )}
               {tab === 'devices' && <DeviceManagement eventId={eventId} />}
               {tab === 'team' && <TeamManagement eventId={eventId} />}
               {tab === 'live' && <CheckinLive eventId={eventId} />}

@@ -275,8 +275,71 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * @returns {Promise<{code?:string, message:string, sent?:number, skipped?:number,
  *                    failed?:number, breakdown?:Array}>}
  */
-async function sendInvitationSmsBulk(eventId, partyIds, { user = null } = {}) {
+/**
+ * The context for the full-detail confirmation text.
+ *
+ * Everything comes from the committed party row, so what the message says and what
+ * the page behind its link shows are derived from the same data. The table is read
+ * from the LIVE seating assignment rather than anything cached: between a stored
+ * value and the chart, the chart is the one that cannot be stale.
+ */
+function buildDetailContext(party, event) {
+  const members = party.guests || [];
+  const companions = members
+    .filter((g) => !g.is_primary_contact && g.full_name)
+    .map((g) => g.full_name);
+
+  // A tally, not a dish per person. "Beef Steak x2, Fish x1" answers "what did we
+  // order" in a fraction of the characters, and characters are segments.
+  const tally = {};
+  for (const g of members) {
+    if (g.meal_selection) tally[g.meal_selection] = (tally[g.meal_selection] || 0) + 1;
+  }
+  for (const [meal, n] of Object.entries(party.companion_meal_counts || {})) {
+    if (meal && Number(n) > 0) tally[meal] = (tally[meal] || 0) + Number(n);
+  }
+  const meals = Object.entries(tally)
+    .sort((a, b) => b[1] - a[1])
+    .map(([meal, n]) => (n > 1 ? `${meal} x${n}` : meal));
+
+  const seat = Array.isArray(party.seating_assignments) ? party.seating_assignments[0] : party.seating_assignments;
+  const tableName = seat?.tables?.table_name || null;
+
+  let ticketUrl = null;
+  try {
+    const token = tokenService.signQrTicketForResponse({
+      response: party.response,
+      partyId: party.id,
+      eventId: event.id,
+      tableName,
+      partySize: members.length || 1,
+      eventDate: event.event_date,
+    });
+    if (token) ticketUrl = buildTicketLinks(token).ticketUrl;
+  } catch {
+    // A missing link degrades the message; it must not fail the send.
+  }
+
+  return {
+    guestName: party.label || 'Guest',
+    eventTitle: event.title,
+    dateLabel: formatEventDate ? formatEventDate(event.event_date) : null,
+    venue: event.location_name || event.location_address || null,
+    tableName,
+    companions,
+    meals,
+    ticketUrl,
+  };
+}
+
+/**
+ * @param {object}  [opts]
+ * @param {string}  [opts.type='invitation']  'invitation' | 'rsvp_confirmation'
+ */
+async function sendInvitationSmsBulk(eventId, partyIds, { user = null, type = 'invitation' } = {}) {
   const ids = [...new Set(partyIds || [])];
+  const refPrefix = type === 'rsvp_confirmation' ? 'detail' : 'inv';
+  const what = type === 'rsvp_confirmation' ? 'Details' : 'Invitation';
 
   if (ids.length === 0) {
     return { code: 'NO_RECIPIENTS', message: 'Choose at least one guest to text.' };
@@ -290,7 +353,21 @@ async function sendInvitationSmsBulk(eventId, partyIds, { user = null } = {}) {
 
   const { data: event } = await supabase
     .from('events')
-    .select('id, title, slug, sms_addon_purchased_at, sms_settings')
+    /**
+     * `event_date`, `location_name` and `location_address` are here for the
+     * DETAIL type, and leaving them out is a silent content bug rather than a
+     * crash — which is how it got shipped.
+     *
+     * buildDetailContext reads all three: the first for the "on Sat 12 Sep" clause
+     * AND for the entry-pass token's expiry (signQrTicket falls back to a flat 30
+     * days when eventDate is undefined, so the link still worked and nothing
+     * complained), the other two for the venue. Without them the manual "All their
+     * details" text sent with no date and no venue — the two facts the message
+     * exists to carry — while the automatic path, which loads its own event row,
+     * included them. The same button producing a different message depending on who
+     * triggered it is exactly the kind of thing a template test does not catch.
+     */
+    .select('id, title, slug, event_date, location_name, location_address, sms_addon_purchased_at, sms_settings')
     .eq('id', eventId)
     .single();
   if (!event) return { code: 'EVENT_NOT_FOUND', message: 'That event could not be found.' };
@@ -310,18 +387,31 @@ async function sendInvitationSmsBulk(eventId, partyIds, { user = null } = {}) {
     };
   }
 
-  // One query for every recipient's name and language rather than one per guest
-  // inside the send loop. preferred_lang is why it matters: a guest who filled the
-  // form in Arabic must not receive an English invitation.
+  /**
+   * One query for every recipient rather than one per guest inside the send loop.
+   *
+   * The column list covers BOTH message types this function can send. Two of them
+   * matter for reasons that are easy to miss:
+   *   • preferred_lang — a guest who filled the form in Arabic must not get an
+   *     English message days later;
+   *   • response + guests + seating — the detail text names who is coming and what
+   *     they ordered, and reads it from the committed party so the text and the
+   *     page it links to can never disagree.
+   */
   const { data: parties } = await supabase
     .from('rsvp_parties')
-    .select('id, label, preferred_lang')
+    .select(`
+      id, label, preferred_lang, response, companion_meal_counts,
+      guests(full_name, is_primary_contact, meal_selection),
+      seating_assignments(tables(table_name))
+    `)
     .eq('event_id', eventId)
     .in('id', ids);
   const byId = new Map((parties || []).map((p) => [p.id, p]));
 
   const { sendTransactionalSms } = require('./smsDispatch');
-  const { buildGuestRsvpUrl } = require('../utils/emailTemplates');
+  const { buildGuestRsvpUrl, buildTicketLinks, formatEventDate } = require('../utils/emailTemplates');
+  const tokenService = require('./tokenService');
   const { explainSkip } = require('../utils/smsUsage');
 
   const chunk = (arr, size) => {
@@ -340,22 +430,42 @@ async function sendInvitationSmsBulk(eventId, partyIds, { user = null } = {}) {
       // for — a stale browser tab holds one very easily.
       if (!party) return { sent: false, reason: 'NOT_FOUND' };
 
+      /**
+       * The detail text is only meaningful for a guest who accepted.
+       *
+       * It names their table and links to an entry pass, and
+       * signQrTicketForResponse mints nothing for a maybe or a no — so without
+       * this the message would go out with an empty link slot. Refused here with
+       * a reason the organizer can read, rather than sent broken.
+       */
+      if (type === 'rsvp_confirmation' && party.response !== 'yes') {
+        return { sent: false, reason: 'NOT_ATTENDING' };
+      }
+
+      const context = type === 'rsvp_confirmation'
+        ? buildDetailContext(party, event)
+        : {
+          guestName: party.label || 'Guest',
+          eventTitle: event.title,
+          rsvpUrl: buildGuestRsvpUrl(event.slug, partyId),
+        };
+
       return sendTransactionalSms({
-        type: 'invitation',
+        type,
         eventId,
         partyId,
         // Timestamped, so a deliberate re-send is never swallowed by the
         // (kind, ref) idempotency guard. That guard exists to stop a SCHEDULER
-        // re-sending on every tick; an organizer pressing the button again is
-        // stating intent, and the confirm dialog already told them the cost.
-        ref: `inv:${partyId}:${Date.now()}`,
+        // re-sending on every tick; an organizer pressing this button is stating
+        // intent, and the confirm dialog tells them what it will cost.
+        //
+        // NOTE the automatic path uses `rsvpconf:<party>` with no timestamp, so
+        // the once-per-guest guarantee holds there while a manual resend stays
+        // possible here. Two refs, two different jobs, on purpose.
+        ref: `${refPrefix}:${partyId}:${Date.now()}`,
         event,
         lang: party.preferred_lang || 'en',
-        context: {
-          guestName: party.label || 'Guest',
-          eventTitle: event.title,
-          rsvpUrl: buildGuestRsvpUrl(event.slug, partyId),
-        },
+        context,
       });
     }));
 
@@ -383,7 +493,7 @@ async function sendInvitationSmsBulk(eventId, partyIds, { user = null } = {}) {
     failed,
     breakdown,
     message: sent === ids.length
-      ? `Invitation texted to ${sent} ${sent === 1 ? 'guest' : 'guests'}.`
+      ? `${what} texted to ${sent} ${sent === 1 ? 'guest' : 'guests'}.`
       : `Texted ${sent} of ${ids.length}. ${skipped + failed} could not be reached.`,
   };
 }

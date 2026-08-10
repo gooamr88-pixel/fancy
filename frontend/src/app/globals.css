@@ -1410,3 +1410,81 @@ html.fx-debug-overflow *:not(html):not(body) { outline-offset: -1px; }
   .fx-alert__message { font-size: 14.5px; }
   .fx-alert__icon { width: 30px; height: 30px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DASHBOARD NAVIGATION  (.dnav-*)
+
+   Lives here, not in a <style jsx> block, and that is not a preference.
+
+   The dashboard's sidebar used to be markup inside dashboard/page.js styled by
+   that file's own <style jsx>. Moving it into the layout (so it survives
+   navigating to /dashboard/campaigns et al) puts it in a DIFFERENT component
+   function — and a styled-jsx rule never reaches an element rendered by another
+   function. The old classes would have compiled to `.foo.jsx-<hash>` and matched
+   nothing at any viewport: the sidebar would have been unstyled and the mobile
+   bar permanently visible. See frontend/AGENTS.md, styled-jsx failure mode 3.
+
+   Geometry is deliberately identical to what page.js had, so this change is
+   structural only and any visual difference is a bug rather than a redesign.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* The 240px gutter the fixed sidebar occupies. Applied by the layout to the
+   content wrapper, because the sidebar is position:fixed and would otherwise sit
+   on top of every page that is not dashboard/page.js — which is every page that
+   previously had no sidebar at all. */
+.dnav-content {
+  margin-left: 240px;
+  min-height: 100dvh;
+}
+
+.dnav-bottombar {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 55;
+  background: #FFFFFF;
+  border-top: 1px solid #E8E2D6;
+  padding: 6px 4px max(6px, env(safe-area-inset-bottom));
+  justify-content: space-around;
+  align-items: stretch;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.04);
+}
+
+.dnav-bottomtab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  flex: 1;
+  min-height: 48px;
+  padding: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* Below lg the sidebar becomes an off-canvas drawer and the bottom bar appears.
+   1023.98 rather than 1024 — see the breakpoint note in AGENTS.md. */
+@media (max-width: 1023.98px) {
+  .dnav-sidebar {
+    transform: translateX(-100%);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.08);
+  }
+  .dnav-close { display: flex !important; }
+  .dnav-overlay { display: block !important; }
+  .dnav-bottombar { display: flex !important; }
+
+  /* The gutter collapses, and the content gains room for the bottom bar so the
+     last row of any list is not permanently hidden behind it. */
+  .dnav-content {
+    margin-left: 0;
+    padding-bottom: calc(60px + env(safe-area-inset-bottom));
+  }
+}

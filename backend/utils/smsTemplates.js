@@ -49,6 +49,31 @@ function clip(value, max) {
 const NAME_MAX = 24;
 const TITLE_MAX = 40;
 const TABLE_MAX = 20;
+/* Only the confirmation template uses these — it is the one message that carries
+   a venue and lists of people and dishes. */
+const VENUE_MAX = 48;
+const COMPANION_MAX = 18;
+const MEAL_MAX = 22;
+
+/**
+ * Join a list for a text message, capped in BOTH directions.
+ *
+ * Each entry is clipped, and the list itself stops at `max` with a "+N more"
+ * tail. Uncapped, a party of twelve with long names takes the confirmation from
+ * 3 segments to 9 — tripling the bill for the whole guest list, and doing it
+ * worst for exactly the large families who most want to read the names.
+ *
+ * Returns '' for nothing usable, so the caller can omit the clause entirely
+ * rather than emitting "With you: ." — an empty label still costs characters.
+ */
+function clipList(values, each, max) {
+  const list = (Array.isArray(values) ? values : [])
+    .map((v) => clip(v, each))
+    .filter(Boolean);
+  if (list.length === 0) return '';
+  if (list.length <= max) return list.join(', ');
+  return `${list.slice(0, max).join(', ')} +${list.length - max} more`;
+}
 
 /**
  * body builders, keyed by message type then language.
@@ -117,6 +142,66 @@ const TEMPLATES = {
   },
 
   /**
+   * THE CONFIRMATION, WITH THE DETAIL IN IT.
+   *
+   * ── This one breaks the one-segment rule on purpose ──
+   *
+   * Every other template here is terse because a segment costs money and the link
+   * can carry the detail. This one was asked for the other way round: the
+   * organizer wants the guest to be able to READ their table, their companions and
+   * their meals in the notification shade without tapping anything, because the
+   * alternative is answering the same questions by hand on WhatsApp, one guest at
+   * a time.
+   *
+   * The cost of that decision was measured, not guessed, with utils/smsSegments
+   * and the real 78-character footer:
+   *
+   *   full detail  EN  3 segments   9c/guest    200 guests = $18.00
+   *   full detail  AR  6 segments  18c/guest    200 guests = $36.00
+   *   short + link EN  2 segments   6c/guest    200 guests = $12.00
+   *   short + link AR  3 segments   9c/guest    200 guests = $18.00
+   *
+   * So roughly 1.5x in English and 2x in Arabic — a real cost, and a modest one
+   * against the support burden it removes. The registry weight (1.6) is set from
+   * these numbers so the allowance estimator quotes for it honestly.
+   *
+   * ── What it still refuses to do ──
+   *
+   * Every interpolated value is clipped and every LIST is capped. A party of
+   * twelve with long names would otherwise walk this from 3 segments to 9 — and
+   * the guest who most needs to read their companions is in exactly that party.
+   * Past the cap it says "+4 more", and the link carries the rest.
+   */
+  rsvp_confirmation: {
+    [EN]: ({ guestName, eventTitle, dateLabel, venue, tableName, companions, meals, ticketUrl }) => {
+      const parts = [`${clip(guestName, NAME_MAX)}, you're confirmed for ${clip(eventTitle, TITLE_MAX)}`];
+      if (dateLabel) parts.push(` on ${clip(dateLabel, 34)}`);
+      if (venue) parts.push(`, ${clip(venue, VENUE_MAX)}`);
+      parts.push('.');
+      if (tableName) parts.push(` Your table: ${clip(tableName, TABLE_MAX)}.`);
+      const withYou = clipList(companions, COMPANION_MAX, 3);
+      if (withYou) parts.push(` With you: ${withYou}.`);
+      const food = clipList(meals, MEAL_MAX, 4);
+      if (food) parts.push(` Meals: ${food}.`);
+      if (ticketUrl) parts.push(` Your pass and seating map: ${ticketUrl}`);
+      return parts.join('');
+    },
+    [AR]: ({ guestName, eventTitle, dateLabel, venue, tableName, companions, meals, ticketUrl }) => {
+      const parts = [`${clip(guestName, NAME_MAX)}، تم تأكيد حضورك لـ ${clip(eventTitle, TITLE_MAX)}`];
+      if (dateLabel) parts.push(` ${clip(dateLabel, 34)}`);
+      if (venue) parts.push(`، ${clip(venue, VENUE_MAX)}`);
+      parts.push('.');
+      if (tableName) parts.push(` طاولتك: ${clip(tableName, TABLE_MAX)}.`);
+      const withYou = clipList(companions, COMPANION_MAX, 3);
+      if (withYou) parts.push(` معك: ${withYou}.`);
+      const food = clipList(meals, MEAL_MAX, 4);
+      if (food) parts.push(` الوجبات: ${food}.`);
+      if (ticketUrl) parts.push(` تذكرتك وخريطة الجلوس: ${ticketUrl}`);
+      return parts.join('');
+    },
+  },
+
+  /**
    * CHANGE OR CANCELLATION. The only type where being slightly over budget would
    * be the right call — and it still is not, because the link carries the detail
    * and the reason.
@@ -181,4 +266,4 @@ function normalizeLang(lang) {
   return String(lang || '').toLowerCase().startsWith('ar') ? AR : EN;
 }
 
-module.exports = { renderSmsBody, normalizeLang, clip, TEMPLATES };
+module.exports = { renderSmsBody, normalizeLang, clip, clipList, TEMPLATES };

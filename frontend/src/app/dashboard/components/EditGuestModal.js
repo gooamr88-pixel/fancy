@@ -20,6 +20,7 @@ const GUEST_CATEGORIES = [
 import { sideLabel } from '../../utils/sideLabel';
 import PhoneNumberInput from '../../components/PhoneNumberInput';
 import { useModalA11y } from '../../hooks/useModalA11y';
+import { useConfirm } from '../../components/useConfirm';
 
 /** Normalize legacy response values to the canonical set the backend accepts. */
 function normalizeResponse(response) {
@@ -47,6 +48,8 @@ const COLORS = {
  * which expects camelCase fields.
  */
 export default function EditGuestModal({ isOpen, onClose, eventId, event, customFields, rsvp, onGuestUpdated }) {
+  // Renders ABOVE this modal (z-index 2000) — see useConfirm.
+  const [confirm, confirmDialog] = useConfirm();
   const [formData, setFormData] = useState({
     guest_name: '', email: '', phone: '', party_size: 1, response: 'pending', notes: '', side: '', meal: '', category: 'standard',
   });
@@ -172,11 +175,25 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
     // Don't let a saved contact detail vanish without the organizer noticing —
     // Add Guest requires email/phone up front, so silently wiping them here
     // (a stray backspace, an accidental blur) was an easy way to lose them.
-    if (rsvp.email && rsvp.email !== '-' && !formData.email.trim()) {
-      if (!window.confirm("This guest already has an email on file. Save with the email removed?")) return;
-    }
-    if (rsvp.phone && rsvp.phone !== '-' && !formData.phone.trim()) {
-      if (!window.confirm("This guest already has a phone number on file. Save with the phone removed?")) return;
+    // ONE question, not two sequential native prompts. Clearing both used to
+    // stack two dialogs an organizer had to dismiss in turn, each naming a
+    // single field; asking once and listing what goes is the same guard with a
+    // quarter of the friction — and it is a real dialog, like the rest of the
+    // dashboard, rather than browser chrome layered over an open modal.
+    const clearing = [];
+    if (rsvp.email && rsvp.email !== '-' && !formData.email.trim()) clearing.push('email address');
+    if (rsvp.phone && rsvp.phone !== '-' && !formData.phone.trim()) clearing.push('phone number');
+    if (clearing.length > 0) {
+      const ok = await confirm({
+        title: clearing.length === 1
+          ? `Save without their ${clearing[0]}?`
+          : 'Save without their email address and phone number?',
+        body: 'They are on file now and this removes them. Without a contact detail this guest cannot be sent their invitation or their entry pass.',
+        confirmLabel: 'Save anyway',
+        cancelLabel: 'Go back',
+        tone: 'danger',
+      });
+      if (!ok) return;
     }
 
     const companionPayload = [];
@@ -549,6 +566,7 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
           .eg-companion-row { grid-template-columns: 1fr !important; }
         }
       `}</style>
+      {confirmDialog}
     </div>
   );
 }

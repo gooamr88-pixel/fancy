@@ -114,7 +114,17 @@ const DEFAULT_SMS_PRICING = Object.freeze({
    */
   type_weights: {
     invitation: 1.0,
-    // The heaviest: fires when the guest is seated, and again just before the day.
+    /**
+     * The heaviest of all, and measured rather than guessed.
+     *
+     * It carries the date, venue, table, companions and meals, so a realistic body
+     * is 3 GSM-7 segments (6 in Arabic) against seating_reminder's 2 — verified
+     * with utils/smsSegments and the real 78-character compliance footer, not
+     * estimated. Under-weighting it here would quote every organizer short for the
+     * one message that goes to every guest who accepts.
+     */
+    rsvp_confirmation: 1.6,
+    // Fires when the guest is seated, and again just before the day.
     seating_reminder: 1.2,
     // Most events never change. Small, but never zero — the one time it is needed
     // is the worst possible moment to discover the allowance did not cover it.

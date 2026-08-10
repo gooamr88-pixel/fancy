@@ -83,6 +83,46 @@ const SMS_MESSAGE_TYPES = [
     weight: 1.2,
   },
   {
+    /**
+     * THE CONFIRMATION, WITH THE DETAIL IN IT.
+     *
+     * ── This key existed, was retired, and is deliberately back ──
+     *
+     * The four-type rebuild deleted `rsvp_confirmation` with the reasoning that it
+     * "told the guest something they had just done themselves, and charged for
+     * it". That was true of what it used to send — a bare "thanks, you're
+     * confirmed" — and it is not true of this one.
+     *
+     * This carries the things the guest cannot already know at the moment they
+     * reply: when and where, which table, who is sitting with them, what was
+     * ordered for each of them, and the link to their own entry pass and seating
+     * map. It is the message an organizer would otherwise be answering by hand,
+     * one guest at a time, on WhatsApp.
+     *
+     * ── The cost, measured rather than assumed ──
+     *
+     * With the compliance footer, a realistic full-detail body is 3 segments in
+     * English and 6 in Arabic (utils/smsSegments, not an estimate). At the 3.0c
+     * list price that is 9c and 18c per guest — about 1.5x and 2x what the same
+     * message would cost as a short line plus a link. The weight below reflects
+     * that: this is the most expensive guest type per send, and the estimator has
+     * to quote for it honestly rather than discovering it mid-event.
+     */
+    key: 'rsvp_confirmation',
+    label: 'Confirmation with their details',
+    description: 'When a guest accepts, texts them the date, venue, their table, who is with them, the meals and their entry-pass link.',
+    audience: 'guest',
+    trigger: 'automatic',
+    defaultEnabled: true,
+    // The email confirmation carries the scannable pass as an image; a text can
+    // only ever link to it. Both go, as with every other type here.
+    replacesEmail: false,
+    // The heaviest weight of any guest type, because it is the longest message
+    // and it fires for every guest who says yes. Above seating_reminder's 1.2 on
+    // segments alone: 3 English segments against that type's 2.
+    weight: 1.6,
+  },
+  {
     key: 'event_update',
     label: 'Change or cancellation',
     description: 'Tells guests when the date, time or venue changes — or that the event has been called off.',
@@ -145,7 +185,12 @@ const SMS_MESSAGE_TYPES = [
  * on UNKNOWN_TYPE, and the audit row is already gone. Guard on the way in.
  */
 const RETIRED_SMS_TYPE_LABELS = Object.freeze({
-  rsvp_confirmation: 'RSVP confirmation (no longer sent)',
+  // `rsvp_confirmation` is NOT listed here any more — it is a live type again,
+  // carrying the guest's table, companions, meals and pass link rather than the
+  // bare "you're confirmed" that got it retired. Leaving it here would be
+  // harmless to labelForKind (the live registry is consulted first) but would
+  // make isRetiredSmsType's intent unreadable, and a future reader would have to
+  // work out which of the two lists wins.
   rsvp_reminder: 'RSVP reminder (no longer sent)',
   event_reminder: 'Event reminder (no longer sent)',
   qr_ticket: 'Entry pass link (no longer sent)',
@@ -156,6 +201,18 @@ const RETIRED_SMS_TYPE_LABELS = Object.freeze({
 /* ── Derived lookups (computed once at require-time) ── */
 
 const _byKey = new Map(SMS_MESSAGE_TYPES.map((t) => [t.key, t]));
+
+/**
+ * Keys that exist ONLY in the post-rebuild shape, and therefore prove a settings
+ * object has already been migrated.
+ *
+ * `rsvp_confirmation` and `organizer_report` are excluded because they appear in
+ * BOTH shapes — the first as a revived type, the second because it was never
+ * retired — so neither can distinguish an old object from a new one. Hard-coded
+ * rather than derived from SMS_MESSAGE_TYPES: this is a statement about history,
+ * and adding a sixth type in future must not quietly join the sentinel set.
+ */
+const POST_REBUILD_ONLY_KEYS = ['invitation', 'seating_reminder', 'event_update'];
 
 const SMS_TYPE_KEYS = SMS_MESSAGE_TYPES.map((t) => t.key);
 
@@ -239,13 +296,36 @@ function migrateLegacySmsSettings(raw) {
   const on = (key, fallback = true) => (
     src[key] === undefined || src[key] === null ? fallback : !!src[key]
   );
-  // Already migrated: leave it alone rather than re-deriving from keys that are
-  // no longer there and would all fall back to their defaults.
-  if (SMS_TYPE_KEYS.some((k) => Object.prototype.hasOwnProperty.call(src, k))) {
+  /**
+   * Already migrated: leave it alone rather than re-deriving from keys that are
+   * no longer there and would all fall back to their defaults.
+   *
+   * Tested against POST_REBUILD_ONLY_KEYS, not SMS_TYPE_KEYS, and that distinction
+   * became load-bearing the moment `rsvp_confirmation` came back as a live type.
+   * A pre-rebuild object contains `rsvp_confirmation` AND `organizer_report`, so a
+   * SMS_TYPE_KEYS test would classify every legacy event as already migrated and
+   * skip the mapping below — silently replacing the organizer's real choices with
+   * defaults, in the one direction (things switched back ON) nobody would notice
+   * until the messages went out.
+   */
+  if (POST_REBUILD_ONLY_KEYS.some((k) => Object.prototype.hasOwnProperty.call(src, k))) {
     return sanitizeSmsSettings(src);
   }
   return {
     invitation: on('campaign'),
+    /**
+     * The revived type inherits the legacy switch of the SAME NAME.
+     *
+     * A pre-rebuild event had an `rsvp_confirmation` toggle, and an organizer who
+     * turned it off was saying "do not text my guests when they reply". The
+     * message is richer now, but that instruction still stands — starting to text
+     * them again because we changed the body would be deciding on their behalf.
+     * Defaults ON only for an event that never expressed a preference.
+     */
+    rsvp_confirmation: on('rsvp_confirmation'),
+    // The same legacy key ALSO feeds seating_reminder, which is correct rather
+    // than a copy-paste: it was merged into that type by 20260822000000, and one
+    // retired switch is allowed to inform two successors.
     seating_reminder: on('rsvp_confirmation') || on('event_reminder') || on('qr_ticket'),
     event_update: true,
     organizer_report: on('organizer_report'),

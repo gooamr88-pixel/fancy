@@ -94,7 +94,7 @@ test('labelForKind names live types, retired types, and anything unknown', () =>
 
 /* ── The settings migration ──────────────────────────────────────────────── */
 
-test('legacy settings map onto the four current keys', () => {
+test('legacy settings map onto every current key', () => {
   const migrated = migrateLegacySmsSettings({
     rsvp_confirmation: true, rsvp_reminder: true, event_reminder: true,
     qr_ticket: true, decline_ack: false, organizer_report: true, campaign: true,
@@ -105,6 +105,37 @@ test('legacy settings map onto the four current keys', () => {
   assert.equal(migrated.seating_reminder, true);
   assert.equal(migrated.organizer_report, true);
   assert.equal(migrated.event_update, true, 'a new type with no predecessor defaults ON');
+  assert.equal(migrated.rsvp_confirmation, true, 'the revived type inherits its own legacy switch');
+});
+
+// The revived type carries a richer message than the one that was retired, but a
+// legacy "off" was an instruction about texting guests on reply — not about
+// wording — so it has to survive the revival.
+test('a legacy event that switched rsvp_confirmation OFF stays off after it is revived', () => {
+  const migrated = migrateLegacySmsSettings({
+    rsvp_confirmation: false, event_reminder: true, qr_ticket: true, campaign: true,
+  });
+
+  assert.equal(migrated.rsvp_confirmation, false,
+    'reviving the type must not re-enable it for someone who turned it off');
+  assert.equal(migrated.seating_reminder, true,
+    'and the same legacy key still OR-feeds seating_reminder, which the others keep on');
+});
+
+/**
+ * A pre-rebuild settings object contains `rsvp_confirmation` AND
+ * `organizer_report`, so neither can prove an object has already been migrated.
+ * Testing "already migrated" against the full key list would classify every
+ * legacy event as done and skip the mapping entirely — silently replacing real
+ * choices with defaults, in the direction (switches back ON) nobody checks.
+ */
+test('a legacy object is still migrated even though it contains a revived key', () => {
+  const migrated = migrateLegacySmsSettings({
+    campaign: false, rsvp_confirmation: true, organizer_report: true,
+  });
+
+  assert.equal(migrated.invitation, false,
+    'the legacy campaign switch must still map onto invitation');
 });
 
 test('the three merged types are OR-ed, not AND-ed', () => {
@@ -125,10 +156,20 @@ test('the three merged types are OR-ed, not AND-ed', () => {
     'but an organizer who switched off ALL three did mean it');
 });
 
-test('an already-migrated object is left alone', () => {
+test('an already-migrated object keeps its switches, and gains new types at their default', () => {
   const current = { invitation: false, seating_reminder: true, event_update: true, organizer_report: false };
-  assert.deepEqual(migrateLegacySmsSettings(current), current,
-    're-deriving from keys that are no longer present would reset every switch to its default');
+
+  const out = migrateLegacySmsSettings(current);
+
+  // Every choice they made survives. Re-deriving from keys that are no longer
+  // present would reset each of these to its default.
+  for (const [key, value] of Object.entries(current)) {
+    assert.equal(out[key], value, `${key} must be left exactly as the organizer set it`);
+  }
+  // A type shipped after this object was written defaults ON rather than absent.
+  // Treating "absent" as "off" would silently disable every newly-shipped type
+  // for the entire existing customer base.
+  assert.equal(out.rsvp_confirmation, true);
 });
 
 test('sanitize cannot resurrect a retired key', () => {

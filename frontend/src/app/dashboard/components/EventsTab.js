@@ -1133,11 +1133,22 @@ function EmptyState() {
 }
 
 /* ═══ Main ═══ */
-export default function EventsTab({ events = [], activeEventId, onSelectEvent, onRefresh }) {
+export default function EventsTab({ events = [], activeEventId, onSelectEvent, onRefresh, onOpenDrafts }) {
   const [refreshSpin, setRefreshSpin] = useState(false);
 
-  // Unfinished drafts live in their own Drafts tab — keep this list to real events only.
+  /**
+   * Drafts are still excluded from this LIST — they have a purpose-built editor in
+   * DraftsTab, and mixing half-made events into the live list is what that split
+   * exists to avoid.
+   *
+   * But the sidebar no longer has a Drafts entry: it was folded into "Your events",
+   * and the unfinished count now rides on THIS item. So this list became the only
+   * place a draft can be reached from, while continuing to filter every draft out —
+   * the badge said "3", the list showed none of them, and nothing linked anywhere.
+   * The banner below is the missing door.
+   */
   const visibleEvents = events.filter(e => !(e && e.status === 'draft' && !e.is_paid));
+  const draftCount = events.filter(e => e && e.status === 'draft' && !e.is_paid).length;
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
@@ -1180,13 +1191,54 @@ export default function EventsTab({ events = [], activeEventId, onSelectEvent, o
               background: C.white, color: C.stone, cursor: 'pointer',
               transition: 'all 0.3s ease',
               transform: refreshSpin ? 'rotate(180deg)' : 'rotate(0)',
-            }} title="Refresh">
+            }} title="Refresh" aria-label="Refresh your events list">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
             </button>
           )}
           <Link href="/dashboard/create-event" className="evt2-create-btn"><PlusIcon /> Create Event</Link>
         </div>
       </div>
+
+      {/**
+        * THE DRAFTS DOOR.
+        *
+        * The sidebar's "Your events" carries the unfinished count now that Drafts is
+        * no longer its own entry — but this list filters every draft out, so without
+        * this the badge pointed at a screen that deliberately hid what it counted.
+        *
+        * Deliberately above the list and not styled as a warning: an unfinished
+        * event is a normal state, not a problem. It is also the one place in the
+        * product where a half-created event can hide from its own owner, which is
+        * why it gets a row of its own rather than a link in a corner.
+        */}
+      {draftCount > 0 && (
+        <button
+          type="button"
+          onClick={onOpenDrafts}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 14, width: '100%', textAlign: 'left',
+            padding: '14px 16px', borderRadius: 12, cursor: 'pointer',
+            background: 'rgba(184,148,79,0.05)', border: '1px solid rgba(184,148,79,0.22)',
+            fontFamily: 'var(--font-sans)',
+          }}
+        >
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            width: 34, height: 34, borderRadius: 10, flexShrink: 0,
+            background: 'rgba(184,148,79,0.12)', color: C.gold,
+            fontSize: 14, fontWeight: 800,
+          }}>{draftCount}</span>
+          <span style={{ minWidth: 0, flex: 1 }}>
+            <span style={{ display: 'block', fontSize: 13.5, fontWeight: 700, color: C.charcoal }}>
+              {draftCount === 1 ? 'You have an unfinished event' : `You have ${draftCount} unfinished events`}
+            </span>
+            <span style={{ display: 'block', fontSize: 12, color: C.stone, marginTop: 2 }}>
+              Pick up where you left off — nothing is published until you finish and pay.
+            </span>
+          </span>
+          <span style={{ color: C.gold, fontSize: 13, fontWeight: 700, flexShrink: 0 }}>Continue &rarr;</span>
+        </button>
+      )}
 
       {/* Event List */}
       {visibleEvents.length === 0 ? <EmptyState /> : (

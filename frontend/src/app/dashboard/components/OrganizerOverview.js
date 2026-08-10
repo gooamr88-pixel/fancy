@@ -338,6 +338,114 @@ function ReferralBanner({ onNavigate }) {
   );
 }
 
+/* ═══ First Run ═══
+   What an organizer with no events should see, and previously did not.
+
+   Before this, a brand-new account's very first screen was: a black banner
+   offering to open the door-scanner kiosk (for no event, with no guests), a gold
+   banner offering affiliate credit for referring other hosts (before they had
+   used the product once), then six stat cards reading 0, two empty charts and two
+   empty lists. Nothing anywhere said "create an event" — the one thing that had
+   to happen next, and the only thing that makes any of the rest appear.
+
+   Three steps rather than one button because the question a new organizer
+   actually has is not "how do I click create" — it is "what is this going to ask
+   of me". Naming the shape of the job up front is what makes it feel small. */
+function FirstRun() {
+  const steps = [
+    {
+      title: 'Create your event',
+      body: 'Name it, set the date and venue, and pick how the invitation looks. You can change all of it later.',
+    },
+    {
+      title: 'Add your guests',
+      body: 'Type them in, or upload a spreadsheet. Names and one contact each is enough to start.',
+    },
+    {
+      title: 'Send the invitations',
+      body: 'By email, or by text if you add messaging. Replies land back here as they come in.',
+    },
+  ];
+
+  return (
+    <div className="ov-section" style={{
+      background: '#FFFFFF', border: '1px solid #E8E2D6', borderRadius: 18,
+      padding: '40px 32px', fontFamily: 'var(--font-sans)',
+    }}>
+      <div style={{ maxWidth: 680, margin: '0 auto', textAlign: 'center' }}>
+        <h2 style={{
+          fontFamily: 'var(--font-serif)', fontSize: 24, fontWeight: 600,
+          color: '#191B1E', margin: 0, letterSpacing: '-0.01em',
+        }}>
+          Let’s set up your first event
+        </h2>
+        <p style={{ fontSize: 14, color: '#77736A', margin: '10px 0 0', lineHeight: 1.65 }}>
+          Three steps, and none of them are final — everything here can be edited afterwards.
+        </p>
+
+        <ol style={{
+          listStyle: 'none', margin: '30px 0 0', padding: 0,
+          display: 'grid', gap: 14, textAlign: 'left',
+        }}>
+          {steps.map((s, i) => (
+            <li key={s.title} style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+              <span style={{
+                flexShrink: 0, width: 26, height: 26, borderRadius: '50%',
+                background: 'rgba(184, 148, 79, 0.12)', color: '#B8944F',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 12, fontWeight: 700,
+              }}>{i + 1}</span>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#191B1E' }}>{s.title}</div>
+                <div style={{ fontSize: 13, color: '#77736A', lineHeight: 1.6, marginTop: 2 }}>{s.body}</div>
+              </div>
+            </li>
+          ))}
+        </ol>
+
+        <Link href="/dashboard/create-event" style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 30,
+          padding: '13px 28px', borderRadius: 30, textDecoration: 'none',
+          background: 'linear-gradient(135deg, #D7BE80 0%, #B8944F 100%)',
+          color: '#FFFFFF', fontSize: 13.5, fontWeight: 700,
+          boxShadow: '0 4px 15px rgba(184, 148, 79, 0.25)',
+        }}>
+          Create your first event
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
+          </svg>
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Is an event close enough that the door scanner is worth offering?
+ *
+ * The check-in banner used to render unconditionally, which put "Ready for guests
+ * to arrive?" at the top of the screen every day of the months of planning that
+ * precede arrival — and on day one, before an event existed at all. A banner that
+ * is always there is not a prompt, it is furniture, and it pushed the organizer's
+ * own numbers below the fold to say nothing.
+ */
+const DOOR_WINDOW_DAYS = 3;
+
+function hasImminentEvent(upcomingEvents) {
+  const now = Date.now();
+  const horizon = now + DOOR_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  return (upcomingEvents || []).some((e) => {
+    if ((e.status || '') === 'draft') return false;
+    const raw = e.event_date || e.date || e.startDate || e.start_date;
+    if (!raw) return false;
+    const t = new Date(raw).getTime();
+    if (Number.isNaN(t)) return false;
+    // A live event does not stop needing the door open the moment it starts, so
+    // the window runs from "yesterday" rather than "now".
+    return t >= now - 24 * 60 * 60 * 1000 && t <= horizon;
+  });
+}
+
 /* ═══ Main Component ═══ */
 export default function OrganizerOverview({ onNavigateToReferrals }) {
   const [data, setData] = useState(null);
@@ -409,40 +517,62 @@ export default function OrganizerOverview({ onNavigateToReferrals }) {
             page.js) — a second in-content header here just duplicated it and, on
             mobile, ate the whole first screen before any real data. */}
 
-        {/* ── Check-In Kiosk CTA ── */}
-        <CheckInBanner />
+        {/**
+          * ORDER: the organizer's own data first, prompts afterwards.
+          *
+          * This was the other way round — two full-width promotional banners, then
+          * the numbers. On a phone that is the entire first screen spent on things
+          * the organizer did not come here for. Reporting is why they opened this
+          * page; the kiosk and the referral link are things we want to tell them.
+          * Ours goes below theirs.
+          */}
+        {totalEvents === 0 ? (
+          <FirstRun />
+        ) : (
+          <>
+            {/* ── Stat Cards ── */}
+            <div className="ov-section" style={{ animationDelay: '100ms' }}>
+              <OverviewStatCards
+                totalEvents={totalEvents}
+                activeEvents={activeEvents}
+                totalGuests={totalGuests}
+                rsvpOverview={rsvpOverviewMapped}
+                checkedIn={checkedIn}
+                notArrived={notArrived}
+                totalGuestsAccepted={totalGuestsAccepted}
+              />
+            </div>
 
-        {/* ── Referral Program CTA ── */}
-        <ReferralBanner onNavigate={onNavigateToReferrals} />
+            {/* ── Door scanner, only when the door is nearly open ── */}
+            {hasImminentEvent(upcomingEvents) && <CheckInBanner />}
 
-        {/* ── Stat Cards ── */}
-        <div className="ov-section" style={{ animationDelay: '100ms' }}>
-          <OverviewStatCards
-            totalEvents={totalEvents}
-            activeEvents={activeEvents}
-            totalGuests={totalGuests}
-            rsvpOverview={rsvpOverviewMapped}
-            checkedIn={checkedIn}
-            notArrived={notArrived}
-            totalGuestsAccepted={totalGuestsAccepted}
-          />
-        </div>
+            {/* ── Bottom Row ──
+                Moved above the charts. "What is coming up" and "what just
+                happened" are things an organizer acts on; the donut and the trend
+                line are things they look at. Actionable before decorative. */}
+            <div className="ov-section" style={{ animationDelay: '250ms' }}>
+              <div className="ov-bottom-grid">
+                <UpcomingEventsCards upcomingEvents={upcomingEvents} />
+                <RecentActivityFeed recentActivity={recentActivity} />
+              </div>
+            </div>
 
-        {/* ── Charts Row ── */}
-        <div className="ov-section" style={{ animationDelay: '250ms' }}>
-          <div className="ov-charts-grid">
-            <RsvpProgressDonut rsvpOverview={rsvpOverviewMapped} />
-            <RsvpTrendChart rsvpTrend={rsvpTrend} />
-          </div>
-        </div>
+            {/* ── Charts Row ── */}
+            <div className="ov-section" style={{ animationDelay: '400ms' }}>
+              <div className="ov-charts-grid">
+                <RsvpProgressDonut rsvpOverview={rsvpOverviewMapped} />
+                <RsvpTrendChart rsvpTrend={rsvpTrend} />
+              </div>
+            </div>
 
-        {/* ── Bottom Row ── */}
-        <div className="ov-section" style={{ animationDelay: '400ms' }}>
-          <div className="ov-bottom-grid">
-            <UpcomingEventsCards upcomingEvents={upcomingEvents} />
-            <RecentActivityFeed recentActivity={recentActivity} />
-          </div>
-        </div>
+            {/* ── Referral, last ──
+                An affiliate offer is the least urgent thing on this page and was
+                the second thing on it. It also has no business greeting somebody
+                who has not run an event yet, which is why it now sits inside this
+                branch at all. */}
+            <ReferralBanner onNavigate={onNavigateToReferrals} />
+          </>
+        )}
       </div>
     </div>
   );

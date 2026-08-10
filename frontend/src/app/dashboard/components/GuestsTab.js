@@ -6,10 +6,12 @@ import { smsReachability } from '../../utils/smsReachability';
 import { isAccepted, isDeclined, isMaybe } from '../../utils/responseHelpers';
 import { findMealField } from '../../utils/mealField';
 import { sideLabel } from '../../utils/sideLabel';
+import { matchesGuestSearch } from '../../utils/guestSearch';
 import FeatureGate from './FeatureGate';
 import EditGuestModal from './EditGuestModal';
 import SmsBalanceBanner from './SmsBalanceBanner';
 import ClearGuestListModal from './ClearGuestListModal';
+import ConfirmRemoveGuestModal from './ConfirmRemoveGuestModal';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -19,27 +21,70 @@ const COLORS = {
 const PAGE_SIZE = 20;
 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
-/* ── Stat Mini Card ── */
-function StatMini({ icon, value, label, accent }) {
+/**
+ * "on 40 invitations" — the party count, shown only when it differs from the head
+ * count above it. On a list where every guest comes alone the two are identical and
+ * repeating it would be noise.
+ */
+const partySub = (parties, people) => (
+  parties === people ? null : `on ${parties} ${parties === 1 ? 'invitation' : 'invitations'}`
+);
+
+
+/* ── Stat Mini Card ──
+ *
+ * The tile IS the filter.
+ *
+ * There used to be six of these showing counts, and directly beneath them a
+ * <select> offering the same six categories by the same names. So the numbers
+ * were decoration: an organizer reading "Declined 12" and wanting to see those
+ * twelve had to look away, find a dropdown, and re-pick the word they were
+ * already looking at. Two controls for one intention.
+ *
+ * Making them buttons deletes the dropdown, turns every number into the answer to
+ * "show me these", and means the current filter is legible from across the room
+ * rather than collapsed inside a closed select.
+ */
+function StatMini({ icon, value, sub, label, accent, active, onClick, title }) {
   return (
-    <div style={{
-      background: COLORS.white, border: `1px solid ${COLORS.border}`, borderRadius: '12px',
-      padding: '18px 20px', display: 'flex', alignItems: 'center', gap: '14px',
-      borderLeft: `3px solid ${accent}`, transition: 'box-shadow 0.25s ease',
-    }}
-      onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.05)'; }}
-      onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; }}
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      aria-pressed={active}
+      style={{
+        background: active ? `${accent}0F` : COLORS.white,
+        border: `1px solid ${active ? accent : COLORS.border}`,
+        borderRadius: '12px',
+        padding: '18px 20px', display: 'flex', alignItems: 'center', gap: '14px',
+        borderLeft: `3px solid ${accent}`,
+        transition: 'box-shadow 0.25s ease, background 0.2s ease, border-color 0.2s ease',
+        cursor: 'pointer', textAlign: 'left', width: '100%',
+        font: 'inherit',
+        boxShadow: active ? `0 2px 10px ${accent}22` : 'none',
+      }}
+      onMouseEnter={e => { if (!active) e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.05)'; }}
+      onMouseLeave={e => { if (!active) e.currentTarget.style.boxShadow = 'none'; }}
     >
       <div style={{
         width: '40px', height: '40px', borderRadius: '10px',
         background: `${accent}14`, display: 'flex', alignItems: 'center', justifyContent: 'center',
         color: accent, flexShrink: 0,
       }}>{icon}</div>
-      <div>
+      <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: '22px', fontWeight: 800, color: COLORS.charcoal, fontFamily: 'var(--font-sans)', lineHeight: 1 }}>{value}</div>
-        <div style={{ fontSize: '10px', fontWeight: 600, color: COLORS.stone, textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: '4px', fontFamily: 'var(--font-sans)' }}>{label}</div>
+        <div style={{ fontSize: '10px', fontWeight: 600, color: active ? accent : COLORS.stone, textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: '4px', fontFamily: 'var(--font-sans)' }}>{label}</div>
+        {/* The second unit, only when it differs. Every headline here is a
+            headcount; this says how many invitations those people arrived on, so
+            a row of numbers that sums to the total cannot be mistaken for a row
+            of party counts that does not. */}
+        {sub && (
+          <div style={{ fontSize: '10.5px', color: COLORS.stone, marginTop: '3px', fontFamily: 'var(--font-sans)', fontWeight: 500 }}>
+            {sub}
+          </div>
+        )}
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -124,7 +169,16 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, custom
             }}>
               {(guest.response || 'pending').toUpperCase()}
             </span>
-            <button onClick={() => onEdit(guest)} title="Edit guest" style={{
+            {/* aria-label as well as title. `title` is a desktop hover tooltip:
+                it is never shown on touch and is not reliably announced, so on a
+                phone these were two unlabelled squares — one of which deletes
+                somebody. The label names the guest so it is unambiguous in a
+                screen reader's list of buttons, where "Edit" x 20 is not. */}
+            <button
+              onClick={() => onEdit(guest)}
+              title="Edit guest"
+              aria-label={`Edit ${guest.guest_name || 'guest'}`}
+              style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center', width: '44px', height: '44px',
               borderRadius: '6px', border: 'none', background: 'transparent', cursor: 'pointer', color: COLORS.stone,
             }}
@@ -133,7 +187,12 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, custom
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
             </button>
-            <button onClick={() => onDelete(guest.id)} title="Delete guest" disabled={deleting} style={{
+            <button
+              onClick={() => onDelete(guest)}
+              title="Remove guest"
+              aria-label={`Remove ${guest.guest_name || 'guest'} from this event`}
+              disabled={deleting}
+              style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center', width: '44px', height: '44px',
               borderRadius: '6px', border: 'none', background: 'transparent', cursor: deleting ? 'wait' : 'pointer',
               color: COLORS.stone, opacity: deleting ? 0.4 : 1,
@@ -315,46 +374,171 @@ export default function GuestsTab({
   const [editingGuest, setEditingGuest] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [clearOpen, setClearOpen] = useState(false);
+  // The guest awaiting removal, captured when the row button was pressed.
+  const [removing, setRemoving] = useState(null);
+
+  /**
+   * DOWNLOADING THE LIST — one control, in the section that holds the detail.
+   *
+   * Export used to exist in three places and nowhere useful:
+   *
+   *   • a header button on the RSVPs tab hitting `/export` with no parameters —
+   *     every guest, unordered, saved as `guest-list.csv`;
+   *   • a block inside the RSVPs tab hitting the same endpoint with
+   *     `attending=true&sort=…` — a different file, from a button labelled the
+   *     same way, sitting a few pixels away;
+   *   • and nothing at all HERE, in the section that actually carries party
+   *     sizes, meals, dietary notes, tables, sides and texting permission.
+   *
+   * So the two visible buttons quietly produced different files, and the list
+   * with the detail in it could not be downloaded. Both scope choices are now
+   * explicit inputs rather than hidden defaults.
+   */
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportWho, setExportWho] = useState('all');
+  const [exportSort, setExportSort] = useState('name');
+  const [downloading, setDownloading] = useState(null); // 'csv' | 'excel' | null
+
+  const handleDownload = useCallback(async (format) => {
+    if (downloading) return;
+    setDownloading(format);
+    try {
+      const path = format === 'excel' ? 'export-excel' : 'export';
+      const qs = new URLSearchParams({ sort: exportSort });
+      // Only sent when true — the endpoint reads `attending === 'true'`, so
+      // sending `attending=false` would be indistinguishable from sending it.
+      if (exportWho === 'attending') qs.set('attending', 'true');
+
+      const res = await fetch(`${apiUrl}/events/${eventId}/rsvps/${path}?${qs}`, { credentials: 'include' });
+      if (!res.ok) {
+        // 403 is the tier gate (guest_export_csv / guest_export_excel are
+        // separate features), and its message is the useful one.
+        const msg = await res.json().then((d) => d?.message).catch(() => null);
+        throw new Error(msg || 'Could not prepare the download.');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const who = exportWho === 'attending' ? 'attending' : 'all-guests';
+      a.download = `${who}-by-${exportSort}.${format === 'excel' ? 'xlsx' : 'csv'}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      // The export is capped server-side; the header says so when it bit.
+      if (res.headers.get('X-Export-Truncated')) {
+        toast(`Only the first ${res.headers.get('X-Export-Truncated')} guests are in this file.`, { icon: 'ℹ️' });
+      }
+    } catch (err) {
+      toast.error(err.message || 'Could not prepare the download.');
+    } finally {
+      setDownloading(null);
+    }
+  }, [downloading, eventId, exportWho, exportSort]);
+
+  /**
+   * Delete one guest.
+   *
+   * The confirmation NAMES them, and says what goes with them.
+   *
+   * It used to read "Are you sure you want to delete this guest?" — which, on a
+   * two-column grid of visually similar cards reached by a 44px icon with no
+   * label, is a dialog that cannot catch the mistake it exists to catch. If the
+   * finger landed on the wrong card, nothing in the prompt would tell you.
+   *
+   * `guest` rather than `guestId`, because the name is the whole point.
+   */
+  /**
+   * ASK, then delete — two steps, because the asking is now a real dialog.
+   *
+   * `window.confirm` blocked here until the rest of the dashboard had moved to
+   * modals for every other destructive action. See ConfirmRemoveGuestModal for why
+   * the native one had to go beyond consistency.
+   */
+  const askRemoveGuest = useCallback((guest) => {
+    const guestId = typeof guest === 'string' ? guest : guest?.id;
+    if (!guestId) return;
+    setRemoving({
+      id: guestId,
+      name: (typeof guest === 'object' && guest?.guest_name) || '',
+      partySize: (typeof guest === 'object' && guest?.party_size) || 1,
+    });
+  }, []);
 
   const handleDeleteGuest = useCallback(async (guestId) => {
-    if (!window.confirm('Are you sure you want to delete this guest? This action cannot be undone.')) return;
+    if (!guestId) return;
     setDeletingId(guestId);
     try {
       const res = await fetch(`${apiUrl}/events/${eventId}/rsvps/${guestId}`, { method: 'DELETE', credentials: 'include' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.success === false) throw new Error(data.message || 'Delete failed');
+      setRemoving(null);
       onRefresh?.();
     } catch (err) {
       toast.error(err.message || 'Failed to delete this guest. Please try again.');
+      // The dialog stays open on failure: closing it would leave the error in a
+      // toast with no way to retry the thing that produced it.
     } finally {
       setDeletingId(null);
     }
   }, [eventId, onRefresh]);
 
+  /**
+   * COUNTS — every tile in the same unit, so the row adds up.
+   *
+   * ── The bug ──
+   *
+   * `total` summed `party_size` (PEOPLE) while accepted/declined/maybe/pending each
+   * used `.length` (PARTIES). On a list of 120 people in 50 invitations the row read
+   *
+   *     Total Guests 120 · Accepted 40 · Declined 5 · Maybe 2 · Pending 3
+   *
+   * — four numbers that sum to 50 sitting under one that says 120, with nothing
+   * anywhere naming the unit. Every tile is now counted BOTH ways: the headline is
+   * people (the section is a guest list, and its total always said "Guests"), and
+   * the party count rides underneath whenever the two differ.
+   *
+   * The four response states are mutually exclusive and exhaustive — `pending` is
+   * the negation of the other three — so people across them sum exactly to `total`.
+   *
+   * `invited` is the exception and stays a PARTY count: an invitation goes to one
+   * primary contact, not to each person in the family. Its tile says so.
+   */
   const counts = useMemo(() => {
-    const total = rsvps.reduce((sum, r) => sum + (r.party_size || 1), 0);
+    const heads = (list) => list.reduce((sum, r) => sum + (r.party_size || 1), 0);
+
     const acceptedRsvps = rsvps.filter(r => isAccepted(r.response));
-    const seated = acceptedRsvps.filter(r => r.tableId).reduce((sum, r) => sum + (r.party_size || 1), 0);
+    const declinedRsvps = rsvps.filter(r => isDeclined(r.response));
+    const maybeRsvps = rsvps.filter(r => isMaybe(r.response));
+    const pendingRsvps = rsvps.filter(r => !isAccepted(r.response) && !isDeclined(r.response) && !isMaybe(r.response));
+    const invitedRsvps = rsvps.filter(r => r.invitation_sent);
+
     return {
-      total,
-      parties: rsvps.length,
-      invited: rsvps.filter(r => r.invitation_sent).length,
-      accepted: acceptedRsvps.length,
-      declined: rsvps.filter(r => isDeclined(r.response)).length,
-      maybe: rsvps.filter(r => isMaybe(r.response)).length,
-      pending: rsvps.filter(r => !isAccepted(r.response) && !isDeclined(r.response) && !isMaybe(r.response)).length,
-      seated,
+      total: heads(rsvps),
+      accepted: heads(acceptedRsvps),
+      declined: heads(declinedRsvps),
+      maybe: heads(maybeRsvps),
+      pending: heads(pendingRsvps),
+      // One invitation per party, so this one is genuinely not a headcount.
+      invited: invitedRsvps.length,
+      seated: heads(acceptedRsvps.filter(r => r.tableId)),
+      parties: {
+        total: rsvps.length,
+        accepted: acceptedRsvps.length,
+        declined: declinedRsvps.length,
+        maybe: maybeRsvps.length,
+        pending: pendingRsvps.length,
+      },
     };
   }, [rsvps]);
 
   const filtered = useMemo(() => {
     return rsvps.filter(r => {
-      const q = search.toLowerCase();
-      const matchesSearch = !q ||
-        (r.guest_name || '').toLowerCase().includes(q) ||
-        (r.email || '').toLowerCase().includes(q);
-
-      if (!matchesSearch) return false;
+      // Name, email, phone, meal, notes, side and every companion's name — see
+      // matchesGuestSearch. It was name and email only.
+      if (!matchesGuestSearch(r, search)) return false;
 
       switch (filter) {
         case 'attending': return isAccepted(r.response);
@@ -440,6 +624,22 @@ export default function GuestsTab({
               NOT behind a FeatureGate. Every other button here is, because they
               add capability; removing your own data is not a paid feature, and
               gating it would mean a downgraded organizer could not clean up. */}
+          {/* Download — beside Import, because they are the two halves of the
+              same round trip, and an organizer looking for one is looking for
+              the other. Hidden on an empty list: there is nothing to download. */}
+          {rsvps.length > 0 && (
+            <button onClick={() => setExportOpen(o => !o)} aria-expanded={exportOpen} style={{
+              padding: '9px 18px', background: COLORS.white, color: COLORS.stone, border: `1px solid ${COLORS.border}`,
+              borderRadius: '8px', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-sans)',
+              cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px',
+            }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = COLORS.gold; e.currentTarget.style.color = COLORS.gold; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = COLORS.border; e.currentTarget.style.color = COLORS.stone; }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+              Download list
+            </button>
+          )}
           {rsvps.length > 0 && (
             <button onClick={() => setClearOpen(true)} style={{
               padding: '9px 18px', background: COLORS.white, color: '#C45E5E', border: '1px solid #FECACA',
@@ -474,56 +674,244 @@ export default function GuestsTab({
         topUpHref="/dashboard/campaigns"
       />
 
-      {/* Stats Row */}
+      {/* ── Download panel ──
+          Both choices are inputs, and the sentence says exactly what the file
+          will contain — including the one thing that would otherwise surprise
+          someone: it ignores the filter currently on screen. */}
+      {exportOpen && rsvps.length > 0 && (
+        <div style={{
+          background: COLORS.white, border: `1px solid ${COLORS.border}`,
+          borderRadius: 12, padding: '16px 18px', fontFamily: 'var(--font-sans)',
+        }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+            <select
+              value={exportWho}
+              onChange={e => setExportWho(e.target.value)}
+              aria-label="Which guests to include"
+              style={{ ...inputStyle, cursor: 'pointer' }}
+            >
+              <option value="all">Everyone on the list</option>
+              <option value="attending">Only guests who accepted</option>
+            </select>
+            <select
+              value={exportSort}
+              onChange={e => setExportSort(e.target.value)}
+              aria-label="Order of the downloaded list"
+              style={{ ...inputStyle, cursor: 'pointer' }}
+            >
+              <option value="name">Ordered by name (A–Z)</option>
+              <option value="table">Ordered by table</option>
+            </select>
+
+            {/* Two separate tier features server-side (guest_export_csv and
+                guest_export_excel), so they are gated separately here too — one
+                being locked must not imply the other is. */}
+            <FeatureGate tierFeatures={tierFeatures} isPaid={isPaid} feature="guest_export_csv" onUpgrade={onUpgrade}>
+              <button
+                type="button"
+                onClick={() => handleDownload('csv')}
+                disabled={!!downloading}
+                style={{
+                  padding: '9px 18px', borderRadius: 8, border: 'none',
+                  background: COLORS.gold, color: COLORS.white,
+                  fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-sans)',
+                  cursor: downloading ? 'wait' : 'pointer', whiteSpace: 'nowrap',
+                  opacity: downloading ? 0.7 : 1,
+                }}
+              >
+                {downloading === 'csv' ? 'Preparing…' : 'Download CSV'}
+              </button>
+            </FeatureGate>
+            <FeatureGate tierFeatures={tierFeatures} isPaid={isPaid} feature="guest_export_excel" onUpgrade={onUpgrade}>
+              <button
+                type="button"
+                onClick={() => handleDownload('excel')}
+                disabled={!!downloading}
+                style={{
+                  padding: '9px 18px', borderRadius: 8,
+                  border: `1px solid ${COLORS.border}`, background: COLORS.white,
+                  color: COLORS.charcoal, fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-sans)',
+                  cursor: downloading ? 'wait' : 'pointer', whiteSpace: 'nowrap',
+                  opacity: downloading ? 0.7 : 1,
+                }}
+              >
+                {downloading === 'excel' ? 'Preparing…' : 'Download Excel'}
+              </button>
+            </FeatureGate>
+          </div>
+
+          <p style={{ margin: '12px 0 0', fontSize: 12, color: COLORS.stone, lineHeight: 1.6 }}>
+            Downloads your whole list — the search and filters above do not change the file.
+            The <strong>CSV</strong> carries everything and imports straight back here, replies
+            included. The <strong>Excel</strong> file is formatted for reading and printing, so
+            re-importing it loses some detail.
+          </p>
+        </div>
+      )}
+
+      {/* Stats Row — also the filter. Tapping a tile shows those guests;
+          tapping the active one again clears it. */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }}>
-        <StatMini accent={COLORS.gold} value={counts.total} label="Total Guests"
-          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>} />
-        <StatMini accent="#0EA5E9" value={counts.invited} label="Invitations Sent"
-          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>} />
-        <StatMini accent="#22C55E" value={counts.accepted} label="Accepted"
-          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 13l4 4L19 7"/></svg>} />
-        <StatMini accent="#C45E5E" value={counts.declined} label="Declined"
-          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>} />
-        <StatMini accent="#6366F1" value={counts.maybe} label="Maybe"
-          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>} />
-        <StatMini accent="#77736A" value={counts.pending} label="Pending"
-          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>} />
+        {[
+          { key: 'all', label: 'Total Guests', value: counts.total, sub: partySub(counts.parties.total, counts.total), accent: COLORS.gold,
+            icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg> },
+          // No filter for this one: "invitations sent" is a delivery fact, not a
+          // slice of the list, and the filter has no equivalent. Left inert
+          // rather than inventing a category that would not match the dropdown
+          // this replaces.
+          { key: null, label: 'Invitations Sent', value: counts.invited, sub: 'one per invitation', accent: '#0EA5E9',
+            icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> },
+          { key: 'attending', label: 'Accepted', value: counts.accepted, sub: partySub(counts.parties.accepted, counts.accepted), accent: '#22C55E',
+            icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 13l4 4L19 7"/></svg> },
+          { key: 'declined', label: 'Declined', value: counts.declined, sub: partySub(counts.parties.declined, counts.declined), accent: '#C45E5E',
+            icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> },
+          { key: 'maybe', label: 'Maybe', value: counts.maybe, sub: partySub(counts.parties.maybe, counts.maybe), accent: '#6366F1',
+            icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> },
+          { key: 'pending', label: 'Pending', value: counts.pending, sub: partySub(counts.parties.pending, counts.pending), accent: '#77736A',
+            icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> },
+        ].map((t, i) => (
+          <StatMini
+            key={t.key || `stat-${i}`}
+            accent={t.accent}
+            value={t.value}
+            label={t.label}
+            icon={t.icon}
+            sub={t.sub}
+            active={!!t.key && filter === t.key && t.key !== 'all'}
+            title={t.key ? `Show only ${t.label.toLowerCase()}` : undefined}
+            onClick={t.key
+              ? () => { setFilter(filter === t.key ? 'all' : t.key); setPage(1); }
+              : undefined}
+          />
+        ))}
       </div>
 
-      {/* Search + Filter */}
+      {/* Search + the two filters the tiles cannot express */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
         <div style={{ position: 'relative', flex: '1 1 200px' }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={COLORS.stone} strokeWidth="2" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <input
-            type="text" placeholder="Search by name or email..." value={search}
+            type="text" placeholder="Search name, email or phone..." value={search}
             onChange={e => { setSearch(e.target.value); setPage(1); }}
             style={{ ...inputStyle, width: '100%', paddingLeft: '34px' }}
             onFocus={e => { e.target.style.borderColor = COLORS.gold; }}
             onBlur={e => { e.target.style.borderColor = COLORS.border; }}
           />
         </div>
-        <select value={filter} onChange={e => { setFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, cursor: 'pointer' }}>
-          <option value="all">All Guests</option>
-          <option value="attending">Accepted</option>
-          <option value="declined">Declined</option>
-          <option value="maybe">Maybe</option>
-          <option value="pending">Pending</option>
-          <option value="seated">Seated</option>
-          <option value="unseated">Unseated</option>
+        {/* Seated/Unseated stay here rather than becoming tiles: they are about
+            the seating chart rather than about replies, and a seventh and eighth
+            tile would bury the six that answer "how is my list doing". */}
+        <select
+          value={['seated', 'unseated'].includes(filter) ? filter : ''}
+          onChange={e => { setFilter(e.target.value || 'all'); setPage(1); }}
+          aria-label="Filter by seating"
+          style={{ ...inputStyle, cursor: 'pointer' }}
+        >
+          <option value="">Any seating</option>
+          <option value="seated">Seated only</option>
+          <option value="unseated">Not seated yet</option>
         </select>
         <span style={{ fontSize: '11px', color: COLORS.stone, fontFamily: 'var(--font-sans)' }}>
           {filtered.length} of {rsvps.length} shown
         </span>
+        {(search || filter !== 'all') && (
+          <button
+            type="button"
+            onClick={() => { setSearch(''); setFilter('all'); setPage(1); }}
+            style={{
+              padding: '7px 12px', borderRadius: 8, border: `1px solid ${COLORS.border}`,
+              background: COLORS.white, color: COLORS.stone, cursor: 'pointer',
+              fontSize: 11.5, fontWeight: 600, fontFamily: 'var(--font-sans)',
+            }}
+          >
+            Clear filters
+          </button>
+        )}
       </div>
 
       {/* Guest Cards Grid */}
       {filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '48px 24px', background: COLORS.white, border: `1px solid ${COLORS.border}`, borderRadius: '12px' }}>
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={COLORS.border} strokeWidth="1.5" style={{ margin: '0 auto 16px', display: 'block' }}><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-          <p style={{ color: COLORS.stone, fontSize: '13px', fontStyle: 'italic', fontFamily: 'var(--font-sans)' }}>
-            {search || filter !== 'all' ? 'No guests match your search or filter.' : 'No guests added yet.'}
-          </p>
-        </div>
+        /**
+         * Two genuinely different empties, and they used to share one sentence.
+         *
+         * "No guests added yet." in grey italic, with no action, was what a brand
+         * new organizer saw on the screen whose entire purpose is adding guests —
+         * while the two buttons that do it sat in the page header, above and away
+         * from where the eye lands. The filtered-to-nothing case is a different
+         * problem with a different fix (clear the filter), and saying the same
+         * thing for both left each one unanswered.
+         */
+        rsvps.length === 0 ? (
+          <div style={{
+            padding: '44px 28px', background: COLORS.white,
+            border: `1px solid ${COLORS.border}`, borderRadius: '12px',
+            fontFamily: 'var(--font-sans)', textAlign: 'center',
+          }}>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={COLORS.champagne} strokeWidth="1.4" style={{ margin: '0 auto 16px', display: 'block' }}>
+              <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M19 8v6M22 11h-6" />
+            </svg>
+            <h3 style={{ margin: 0, fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 600, color: COLORS.charcoal }}>
+              No guests yet
+            </h3>
+            <p style={{ margin: '8px auto 0', maxWidth: 430, fontSize: 13.5, lineHeight: 1.65, color: COLORS.stone }}>
+              Add them one at a time, or upload a list you already have. A spreadsheet can
+              carry names, contacts, party sizes and sides — and if you export from here
+              later, that file imports straight back with the replies included.
+            </p>
+            {/* Both gated exactly as the header buttons are. Ungated, these would
+                open a modal whose submit comes back 403 — a dead end reached by
+                following the screen's own primary instruction. FeatureGate shows
+                the lock and explains the tier instead. */}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', marginTop: 22 }}>
+              <FeatureGate tierFeatures={tierFeatures} isPaid={isPaid} feature="add_guest_manual" onUpgrade={onUpgrade}>
+                <button
+                  type="button"
+                  onClick={onOpenAddGuest}
+                  style={{
+                    padding: '11px 22px', borderRadius: 30, border: 'none', cursor: 'pointer',
+                    background: 'linear-gradient(135deg, #D7BE80 0%, #B8944F 100%)',
+                    color: COLORS.white, fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-sans)',
+                    boxShadow: '0 4px 15px rgba(184, 148, 79, 0.25)',
+                  }}
+                >
+                  Add a guest
+                </button>
+              </FeatureGate>
+              <FeatureGate tierFeatures={tierFeatures} isPaid={isPaid} feature="import_guests_csv" onUpgrade={onUpgrade}>
+                <button
+                  type="button"
+                  onClick={onOpenImport}
+                  style={{
+                    padding: '11px 22px', borderRadius: 30, cursor: 'pointer',
+                    border: `1px solid ${COLORS.border}`, background: COLORS.white,
+                    color: COLORS.charcoal, fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-sans)',
+                  }}
+                >
+                  Upload a list
+                </button>
+              </FeatureGate>
+            </div>
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '48px 24px', background: COLORS.white, border: `1px solid ${COLORS.border}`, borderRadius: '12px' }}>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={COLORS.border} strokeWidth="1.5" style={{ margin: '0 auto 16px', display: 'block' }}><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+            <p style={{ color: COLORS.stone, fontSize: '13.5px', fontFamily: 'var(--font-sans)', margin: 0 }}>
+              None of your {rsvps.length} guests match this search or filter.
+            </p>
+            <button
+              type="button"
+              onClick={() => { setSearch(''); setFilter('all'); setPage(1); }}
+              style={{
+                marginTop: 16, padding: '9px 18px', borderRadius: 8,
+                border: `1px solid ${COLORS.border}`, background: COLORS.white,
+                color: COLORS.charcoal, cursor: 'pointer',
+                fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-sans)',
+              }}
+            >
+              Show all guests
+            </button>
+          </div>
+        )
       ) : (
         <>
           <div className="guests-cards-grid" style={{ display: 'grid', gap: '12px' }}>
@@ -531,7 +919,7 @@ export default function GuestsTab({
               <GuestCard
                 key={guest.id} guest={guest} tables={tables} onAssignTable={onAssignTable}
                 customFields={customFields} event={event}
-                onEdit={setEditingGuest} onDelete={handleDeleteGuest} deleting={deletingId === guest.id}
+                onEdit={setEditingGuest} onDelete={askRemoveGuest} deleting={deletingId === guest.id}
               />
             ))}
           </div>
@@ -571,6 +959,16 @@ export default function GuestsTab({
         rsvp={editingGuest}
         onGuestUpdated={onRefresh}
       />
+      {removing && (
+        <ConfirmRemoveGuestModal
+          guestName={removing.name}
+          partySize={removing.partySize}
+          busy={deletingId === removing.id}
+          onCancel={() => setRemoving(null)}
+          onConfirm={() => handleDeleteGuest(removing.id)}
+        />
+      )}
+
       {/* Mounted only while open, so each visit starts with an empty
           confirmation box — see the note in the component. */}
       {clearOpen && (
