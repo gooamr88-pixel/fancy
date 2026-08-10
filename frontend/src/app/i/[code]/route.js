@@ -48,19 +48,45 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1
  * failing, the difference between "no such code" and "could not reach the API"
  * is the whole diagnosis.
  */
-function notFound(request, reason) {
+function notFound(reason) {
   console.warn(`[short-link] ${reason}`);
-  return NextResponse.redirect(new URL('/?link=invalid', request.url), 307);
+  return relativeRedirect('/?link=invalid');
 }
 
 /**
- * A hostname with any leading `www.` folded away, for comparison only.
+ * Redirect to a path on WHATEVER origin the browser is already using.
  *
- * nginx serves fancyrsvp.com and www.fancyrsvp.com from the same application,
- * so they are not different sites and must not be treated as a redirect off our
- * own domain.
+ * ── Why not NextResponse.redirect ──
+ *
+ * That helper requires an absolute URL, and the only origin available here is
+ * `request.url` — which is not this site's. Next builds it from the socket the
+ * Node process is listening on, so behind nginx it is `http://localhost:3000`
+ * even though nginx forwards `Host: fancyrsvp.com` correctly. Production proved
+ * it:
+ *
+ *     [short-link] target host fancyrsvp.com is not localhost
+ *
+ * An absolute redirect built from that sends the guest to `localhost:3000` — their
+ * own device. So no comparison against `request.url`, and nothing derived from it,
+ * can be trusted for identity: not the scheme, not the host, not the port.
+ *
+ * ── Why a relative Location is the right answer ──
+ *
+ * RFC 7231 allows a relative reference in `Location`, and the browser resolves it
+ * against the page it is already on. That makes this correct on apex and www, on
+ * http and https, on any port, and on a laptop running `next dev` — without the
+ * server needing to know its own name.
+ *
+ * It also makes an open redirect impossible BY CONSTRUCTION rather than by a check
+ * somebody has to keep correct: only a path survives, so a hostile `target_url`
+ * pointing at another domain can at worst land the guest on a 404 of ours.
  */
-const bareHost = (host) => String(host || '').toLowerCase().replace(/^www\./, '');
+function relativeRedirect(pathAndQuery) {
+  return new NextResponse(null, {
+    status: 307,
+    headers: { Location: pathAndQuery, 'Cache-Control': 'no-store' },
+  });
+}
 
 export async function GET(request, { params }) {
   const { code } = await params;
@@ -69,7 +95,7 @@ export async function GET(request, { params }) {
   // lowercase alphanumeric and codes are 8 characters; anything else is a
   // scanner, and scanners should not get to make us do work.
   if (!code || code.length > 32 || !/^[a-z0-9]+$/i.test(code)) {
-    return notFound(request, `malformed code: ${String(code).slice(0, 40)}`);
+    return notFound(`malformed code: ${String(code).slice(0, 40)}`);
   }
 
   try {
@@ -81,51 +107,41 @@ export async function GET(request, { params }) {
       signal: AbortSignal.timeout(5000),
     });
 
-    if (!res.ok) return notFound(request, `api returned ${res.status} for ${code}`);
+    if (!res.ok) return notFound(`api returned ${res.status} for ${code}`);
 
     const data = await res.json();
-    if (!data?.url) return notFound(request, `api returned no url for ${code}`);
-
-    // Resolve against the current origin so a stored relative target can never
-    // become an open redirect to another host. Targets are written server-side
-    // and should always be absolute and ours, but this endpoint is anonymous and
-    // "should always be" is not a security control.
-    const target = new URL(data.url, request.url);
-    const here = new URL(request.url);
+    if (!data?.url) return notFound(`api returned no url for ${code}`);
 
     /**
-     * HOSTNAME, not origin — and that distinction was breaking every link in
-     * production.
+     * Keep only the PATH. The host is deliberately thrown away.
      *
-     * `request.url` is built by Next from the connection it actually received.
-     * Behind nginx that connection is plain HTTP to 127.0.0.1:3000, and Next
-     * does not rewrite the scheme from X-Forwarded-Proto, so `here.origin` is
-     * "http://fancyrsvp.com". Every stored target, meanwhile, is minted by
-     * backend/utils/publicUrl.getPublicBaseUrl, which STRICTLY PREFERS the
-     * https origin — "https://fancyrsvp.com".
+     * Two previous attempts compared the stored target against `request.url` —
+     * first by origin, then by hostname. Both were wrong for the same underlying
+     * reason, and production said so plainly:
      *
-     * Those two strings can never be equal in production, so the old
-     * `target.origin !== here.origin` rejected 100% of valid links and sent
-     * every guest to the homepage. It passed in local development, where both
-     * sides are http://localhost:3000, which is why it shipped.
+     *     [short-link] target host fancyrsvp.com is not localhost
      *
-     * Scheme and port are therefore not comparable behind a proxy. The question
-     * this check exists to ask is "could this send a guest somewhere that is not
-     * us", and the hostname is the part that answers it — an attacker still
-     * cannot point a code at another domain.
+     * `request.url` is built from the socket Next is listening on, so it is
+     * `http://localhost:3000` no matter what nginx forwards. Nothing derived from
+     * it identifies this site — not the scheme, not the host, not the port — so
+     * every comparison against it rejected every real link.
+     *
+     * Discarding the host removes the comparison rather than fixing it. The
+     * browser resolves a relative Location against the origin it is already on, so
+     * the guest lands on the site they came from, and a `target_url` pointing
+     * anywhere else can only ever produce a path on ours.
+     *
+     * `new URL(data.url, 'http://x')` is a parser, not a destination — the base is
+     * a throwaway that lets a stored relative path parse identically to an
+     * absolute one.
      */
-    if (bareHost(target.hostname) !== bareHost(here.hostname)) {
-      return notFound(request, `target host ${target.hostname} is not ${here.hostname}`);
-    }
+    const target = new URL(data.url, 'http://placeholder.invalid');
+    const path = `${target.pathname}${target.search}${target.hash}`;
 
-    // Redirect to the STORED target, so the guest lands on the canonical https
-    // origin rather than being bounced through http by whatever scheme this
-    // handler happened to observe.
-    //
     // 307, not 301: a permanent redirect would be cached by the guest's browser
     // forever, and these targets legitimately move.
-    return NextResponse.redirect(target, 307);
+    return relativeRedirect(path || '/');
   } catch (err) {
-    return notFound(request, `lookup failed for ${code}: ${err?.message || err}`);
+    return notFound(`lookup failed for ${code}: ${err?.message || err}`);
   }
 }
