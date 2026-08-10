@@ -19,10 +19,15 @@
  * ── Why codes are 8 characters of this particular alphabet ──
  *
  * A short link exposes exactly what the URL it replaces exposes — so a guessable
- * code is a guessable RSVP link. The alphabet below is 32 symbols, so 8 characters
- * is 32^8 ≈ 1.1 x 10^12 possibilities. Against even a million live links that is
- * roughly a one-in-a-million chance per blind guess, and the redirect route is
+ * code is a guessable RSVP link. The alphabet below is 30 symbols, so 8 characters
+ * is 30^8 ≈ 6.6 x 10^11 possibilities. Against even a million live links that is
+ * roughly a one-in-660,000 chance per blind guess, and the redirect route is
  * rate-limited on top.
+ *
+ * (This said "32 symbols" and "1.1 x 10^12" while the alphabet had 30 — the
+ * generateCode comment below always said 30, and it is the one that was right.
+ * The margin is comfortable either way, but a security rationale that cannot
+ * count its own alphabet is not one anybody can check.)
  *
  * The alphabet deliberately omits `0/O`, `1/l/I` and `u` (which turns innocent
  * strings into words nobody wants printed on a wedding invitation). Codes get read

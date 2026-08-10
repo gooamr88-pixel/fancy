@@ -9,7 +9,9 @@ import FAQSection from "./components/landing/FAQSection";
 import CTASection from "./components/landing/CTASection";
 import FooterSection from "./components/landing/FooterSection";
 import ScrollReveal from "./components/landing/ScrollReveal";
+import LinkNoticeBanner from "./components/landing/LinkNoticeBanner";
 import { safeJsonLdHtml } from "./utils/jsonLdSafe.mjs";
+import { Suspense } from "react";
 
 export const metadata = {
   title: 'Fancy RSVP — Elegant RSVPs. Effortless Planning.',
@@ -68,6 +70,13 @@ export default function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLdHtml(jsonLd) }}
       />
+      {/* Above the navbar, because a guest who arrived here from a dead
+          invitation link is not browsing — they are looking for an answer, and
+          it has to be the first thing on the page. Suspense keeps the rest of
+          this page statically generated despite the client-side query read. */}
+      <Suspense fallback={null}>
+        <LinkNoticeBanner />
+      </Suspense>
       <Navbar />
       <main>
         {/* Hero — no scroll reveal (above fold, loads immediately) */}

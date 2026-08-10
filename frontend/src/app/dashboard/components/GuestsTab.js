@@ -9,6 +9,7 @@ import { sideLabel } from '../../utils/sideLabel';
 import FeatureGate from './FeatureGate';
 import EditGuestModal from './EditGuestModal';
 import SmsBalanceBanner from './SmsBalanceBanner';
+import ClearGuestListModal from './ClearGuestListModal';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -313,6 +314,7 @@ export default function GuestsTab({
   const [page, setPage] = useState(1);
   const [editingGuest, setEditingGuest] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [clearOpen, setClearOpen] = useState(false);
 
   const handleDeleteGuest = useCallback(async (guestId) => {
     if (!window.confirm('Are you sure you want to delete this guest? This action cannot be undone.')) return;
@@ -426,6 +428,31 @@ export default function GuestsTab({
             Import CSV
           </button>
           </FeatureGate>
+          {/* Clearing the list, next to Import because that is the workflow it
+              belongs to: export, edit, clear, re-import. Deliberately last, in
+              plain red-on-white rather than a filled button — it must be
+              findable without competing with Add Guest for a glance.
+
+              Hidden on an empty list: an organizer who has not added anyone has
+              nothing to clear, and offering a destructive action as one of three
+              buttons on an empty screen is an invitation to explore it.
+
+              NOT behind a FeatureGate. Every other button here is, because they
+              add capability; removing your own data is not a paid feature, and
+              gating it would mean a downgraded organizer could not clean up. */}
+          {rsvps.length > 0 && (
+            <button onClick={() => setClearOpen(true)} style={{
+              padding: '9px 18px', background: COLORS.white, color: '#C45E5E', border: '1px solid #FECACA',
+              borderRadius: '8px', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-sans)',
+              cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px',
+            }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#FEF2F2'; e.currentTarget.style.borderColor = '#C45E5E'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = COLORS.white; e.currentTarget.style.borderColor = '#FECACA'; }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+              Clear list
+            </button>
+          )}
           {/* "Send Invitations" was here. It opened a modal that asked the
               organizer to pick an audience, search it, tick a consent box and
               choose a channel — four decisions to do the thing they had come to
@@ -544,6 +571,15 @@ export default function GuestsTab({
         rsvp={editingGuest}
         onGuestUpdated={onRefresh}
       />
+      {/* Mounted only while open, so each visit starts with an empty
+          confirmation box — see the note in the component. */}
+      {clearOpen && (
+        <ClearGuestListModal
+          onClose={() => setClearOpen(false)}
+          eventId={eventId}
+          onCleared={(message) => { toast.success(message); onRefresh?.(); }}
+        />
+      )}
     </div>
   );
 }

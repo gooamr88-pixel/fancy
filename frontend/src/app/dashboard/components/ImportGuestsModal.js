@@ -3,6 +3,7 @@
 import React, { useState, useRef } from 'react';
 import { useModalA11y } from '../../hooks/useModalA11y';
 import Icon from '../../components/icons/Icon';
+import { sideLabel } from '../../utils/sideLabel';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -203,10 +204,11 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
     letterSpacing: '0.08em', fontFamily: 'var(--font-sans)',
   };
 
-  const isWedding = event?.event_type === 'wedding';
-  const sideHint = event?.track_guest_side
-    ? (isWedding ? 'side (optional — groom/bride)' : "side (optional — partner1/partner2)")
-    : 'side (optional — partner1/partner2 or groom/bride)';
+  // Name the labels THIS event's export actually writes, because that is the
+  // file organizers re-import most often and the generic hint ("groom/bride")
+  // made its own export look unsupported. sideLabel is the same helper the
+  // export and the backend importer resolve through, so all three agree.
+  const sideHint = `side (optional — ${sideLabel('partner1', event)} / ${sideLabel('partner2', event)})`;
   const isXlsxSelected = fileName.toLowerCase().endsWith('.xlsx');
 
   return (
@@ -392,7 +394,20 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
                       Drop your CSV or Excel file here or <span style={{ color: COLORS.gold, fontWeight: 600 }}>browse</span>
                     </p>
                     <p style={{ fontSize: '12px', color: COLORS.stone, fontFamily: 'var(--font-sans)', margin: 0 }}>
-                      Accepts .csv or .xlsx files · Columns: guest_name, email, phone, party_size, notes, {sideHint}
+                      Accepts .csv or .xlsx files · Columns: guest_name, email, phone, party_size, notes,
+                      response (optional — yes/no/maybe), table_name, meal_selections, {sideHint}
+                    </p>
+                    {/* Said out loud because `response` is the one column that
+                        writes a decision on a guest's behalf, and because the
+                        round trip is the reason most people are on this screen.
+                        Anything unrecognised or blank stays pending, which is
+                        also what a file with no such column gets. */}
+                    <p style={{ fontSize: '11.5px', color: COLORS.stone, fontFamily: 'var(--font-sans)', margin: '6px 0 0', opacity: 0.9 }}>
+                      A file exported from this event imports back as it was — answers, sides, tables, meals and
+                      texting permission included. Guests with no <strong>response</strong> value come in as
+                      pending, and a <strong>table_name</strong> is matched against your existing tables (none
+                      are created). Check-in columns are never imported — arrivals are only ever recorded at
+                      the door.
                     </p>
                     {/* Documented HERE rather than in a help page, because this
                         is the one moment an organizer is looking at their column

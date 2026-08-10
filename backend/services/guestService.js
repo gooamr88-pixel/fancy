@@ -101,6 +101,53 @@ function formatCompanionMealCounts(counts) {
     .join(', ');
 }
 
+/**
+ * The exact inverse of the export's `meal_selections` column.
+ *
+ * exportParties writes `"Jane: Chicken; Bob: Fish; Guests: 2 x Beef, 1 x Fish"`:
+ * named people first, then the companion tally under the literal key "Guests".
+ * Nothing read that string back, so downloading a list and re-uploading it
+ * dropped every meal — and, worse, dropped the companions' NAMES too, because
+ * this column is the only place the export records them.
+ *
+ * Returns `{ named: [{ name, meal }], counts: { meal: n } }`.
+ *
+ * Deliberately forgiving about whitespace and case in the "Guests" key, since an
+ * organizer editing the file in Excel will retype it. Deliberately NOT forgiving
+ * about the shape: an unparseable fragment is skipped rather than guessed at, so
+ * a mangled cell costs one meal rather than inventing a guest named after a dish.
+ */
+function parseMealSelections(raw) {
+  const out = { named: [], counts: {} };
+  const text = String(raw == null ? '' : raw).trim();
+  if (!text) return out;
+
+  for (const chunk of text.split(';')) {
+    const part = chunk.trim();
+    if (!part) continue;
+    const at = part.indexOf(':');
+    if (at < 0) continue;
+    const who = part.slice(0, at).trim();
+    const what = part.slice(at + 1).trim();
+    if (!who || !what) continue;
+
+    if (who.toLowerCase() === 'guests') {
+      // "2 x Beef, 1 x Fish" — the tally half.
+      for (const tally of what.split(',')) {
+        const m = tally.trim().match(/^(\d+)\s*[x×]\s*(.+)$/i);
+        if (!m) continue;
+        const n = parseInt(m[1], 10);
+        const meal = m[2].trim();
+        if (!meal || !Number.isInteger(n) || n <= 0) continue;
+        out.counts[meal] = (out.counts[meal] || 0) + n;
+      }
+      continue;
+    }
+    out.named.push({ name: who, meal: what });
+  }
+  return out;
+}
+
 /** Locale-aware natural comparator: "Table 2" < "Table 10", and orders Arabic names. */
 function naturalCompare(a, b) {
   return String(a == null ? '' : a)
@@ -244,12 +291,41 @@ async function addGuest({
   eventId, actorUserId, fullName, phone, partyId = null, email = null, response = 'pending',
   partySize = 1, notes = null, side = null, primaryMeal = null,
   smsConsentAttested = false, consentSource = 'host_manual_add',
+  /**
+   * Optional `[{ fullName, meal }]` for the companions, in seating order.
+   *
+   * Without it every companion is a placeholder — "Guest 2", "Guest 3" — which
+   * is right for a manual add (the organizer knows the headcount, not the
+   * names) but wrong for an import, where the file already carries the names.
+   * Shorter than partySize is fine: the remainder falls back to placeholders.
+   */
+  companions = null,
+  /** `{ meal: n }` tally for companions who are counted rather than named. */
+  companionMealCounts = null,
 }) {
   const isNewParty = !partyId;
   const extraCount = isNewParty ? Math.min(Math.max(partySize, 1), MAX_ADDITIONAL_GUESTS) - 1 : 0;
 
+  /**
+   * The cap check counts the WHOLE new party, not just its companions.
+   *
+   * Two guards cover this call and they overlap by exactly one person:
+   * add_guest_to_party checks `committed + 1` atomically for the row it creates,
+   * and this one covers the companions that go in afterwards on a second round
+   * trip the RPC knows nothing about.
+   *
+   * Passing `extraCount` let a party of three land on a cap of 100 with 98
+   * already committed: this check saw 98 + 2 = 100 and passed, the RPC then saw
+   * a still-unchanged 98 + 1 = 99 and passed, and the companions took the event
+   * to 101. Both guards were individually right and jointly off by one, because
+   * this one runs BEFORE the primary exists and was not counting them.
+   *
+   * `extraCount + 1` is the real headcount this call adds. Still skipped
+   * entirely for a party of one, where the RPC's own check is exact and a second
+   * query would buy nothing — which matters on an import of several hundred rows.
+   */
   if (extraCount > 0) {
-    const capacity = await checkGuestCapacity(eventId, response, extraCount);
+    const capacity = await checkGuestCapacity(eventId, response, extraCount + 1);
     if (!capacity.ok) {
       return { success: false, error: 'GUEST_LIMIT_REACHED', message: "This event has reached its plan's guest limit." };
     }
@@ -291,19 +367,33 @@ async function addGuest({
     if (mealErr) logger.error({ err: mealErr, guestId: data.guest_id }, '[addGuest] failed to set primary meal_selection');
   }
 
-  if (isNewParty && (notes || extraCount > 0)) {
+  const tally = sanitizeCompanionMealCounts(companionMealCounts, extraCount);
+  if (isNewParty && (notes || tally || extraCount > 0)) {
     const updates = {};
     if (notes) updates.notes = notes;
+    // Capped at extraCount by sanitize above, so an import cannot record more
+    // meals than the party has people.
+    if (tally) updates.companion_meal_counts = tally;
     if (Object.keys(updates).length > 0) {
       const { error: notesErr } = await supabase.from('rsvp_parties').update(updates).eq('id', data.party_id);
       if (notesErr) logger.error({ err: notesErr, partyId: data.party_id }, '[addGuest] failed to save party notes');
     }
     if (extraCount > 0) {
-      const companions = Array.from({ length: extraCount }, (_, i) => ({
-        party_id: data.party_id, event_id: eventId, full_name: `Guest ${i + 2}`, is_primary_contact: false,
-      }));
-      const { error: companionsErr } = await supabase.from('guests').insert(companions);
-      if (companionsErr) logger.error({ err: companionsErr, partyId: data.party_id }, '[addGuest] failed to insert placeholder companions');
+      // A supplied name wins; anything past the end of the list stays a
+      // placeholder, so a file naming two of a party of four still improves on
+      // "Guest 2, Guest 3, Guest 4" rather than being discarded for being partial.
+      const named = Array.isArray(companions) ? companions : [];
+      const rows = Array.from({ length: extraCount }, (_, i) => {
+        const supplied = named[i] || {};
+        const name = String(supplied.fullName || '').trim();
+        return {
+          party_id: data.party_id, event_id: eventId, is_primary_contact: false,
+          full_name: name || `Guest ${i + 2}`,
+          meal_selection: supplied.meal ? String(supplied.meal).trim().slice(0, 120) : null,
+        };
+      });
+      const { error: companionsErr } = await supabase.from('guests').insert(rows);
+      if (companionsErr) logger.error({ err: companionsErr, partyId: data.party_id }, '[addGuest] failed to insert companions');
     }
   }
   return data;
@@ -893,6 +983,70 @@ async function deleteParty(eventId, partyId) {
   if (error) throw error;
 }
 
+/**
+ * What clearing the guest list would destroy, counted before anything is.
+ *
+ * The confirm dialog is only worth interrupting someone for if it can state the
+ * damage, and the damage here is not one number: an organizer thinking "I'll
+ * just re-upload my file" is usually not thinking about the seating chart they
+ * spent an evening on, or about the arrivals already scanned at the door.
+ */
+async function summarizeGuestList(eventId) {
+  const count = async (table, extra = (q) => q) => {
+    const { count: n } = await extra(
+      supabase.from(table).select('id', { count: 'exact', head: true }).eq('event_id', eventId),
+    );
+    return n || 0;
+  };
+  const [parties, guests, seated, checkedIn, textable] = await Promise.all([
+    count('rsvp_parties'),
+    count('guests'),
+    count('seating_assignments'),
+    count('check_ins', (q) => q.is('deleted_at', null)),
+    count('rsvp_parties', (q) => q.eq('sms_consent', true)),
+  ]);
+  return { parties, guests, seated, checkedIn, textable };
+}
+
+/**
+ * Delete every party on an event — the "start the guest list again" action.
+ *
+ * Exists for one workflow: export, edit in Excel, clear, re-import. Without it
+ * the alternative is deleting guests one row at a time, or deleting the whole
+ * EVENT, and organizers were reaching for the second one.
+ *
+ * Deliberately does NOT touch:
+ *   • `tables` — the seating chart's furniture and layout survive, which is what
+ *     makes a re-import able to put everyone back on the same tables;
+ *   • `sms_consent_log` / `sms_log` — neither has a foreign key to
+ *     rsvp_parties, by design (see migration 20260811010000). They are the
+ *     append-only record of what was consented to and what was sent, and a
+ *     product action must not be able to erase a compliance history.
+ *
+ * Everything keyed to a party DOES go, by cascade: guests, seating assignments,
+ * check-ins, the invitation ledger, custom answers and response history. The
+ * caller is responsible for having said so.
+ */
+async function deleteAllParties(eventId) {
+  const before = await summarizeGuestList(eventId);
+
+  // Explicit, before the cascade. seating_assignments cascades from rsvp_parties
+  // anyway, but deleteParty clears it first too and the seating chart reads this
+  // table directly — leaving the ordering to the database is a difference worth
+  // not having between the one-party and all-parties paths.
+  await supabase.from('seating_assignments').delete().eq('event_id', eventId);
+
+  const { error } = await supabase.from('rsvp_parties').delete().eq('event_id', eventId);
+  if (error) throw error;
+
+  // Orphaned queue rows would otherwise be reconsidered every fifteen minutes
+  // forever, each one loading a party that no longer exists.
+  await supabase.from('seating_notify_queue').delete().eq('event_id', eventId)
+    .then(() => {}, () => {});
+
+  return before;
+}
+
 /** Aggregated stats for the dashboard cards. */
 async function getStats(eventId) {
   const { data: parties, error } = await supabase
@@ -949,29 +1103,84 @@ async function importGuests(eventId, actorUserId, rows, { smsConsentAttested = f
   const errors = [];
   let skippedExisting = 0;
 
+  // party_id per seated row, collected for the seating pass below. Kept out of
+  // the import loop because seating needs the event's table list, which is one
+  // query for the whole file rather than one per guest.
+  const toSeat = [];
+
   for (let i = 0; i < rows.length; i += CONCURRENCY) {
     const batch = rows.slice(i, i + CONCURRENCY);
-    const results = await Promise.allSettled(batch.map((row) => addGuest({
-      eventId,
-      actorUserId,
-      fullName: row.guest_name || 'Unnamed Guest',
-      phone: row.phone || null,
-      email: row.email || null,
-      response: 'pending',
-      partySize: row.party_size || 1,
-      notes: row.notes || null,
-      side: row.side || null,
-      // ?? not ||, so an explicit per-row `false` is honoured rather than falling
-      // through to the file-level flag — which is the entire reason the column
-      // exists.
-      smsConsentAttested: row.sms_consent_attested ?? smsConsentAttested,
-      consentSource: 'host_csv_import',
-    })));
+    const results = await Promise.allSettled(batch.map((row) => {
+      /**
+       * The export folds every meal into one cell, and it is also the only place
+       * it records a companion's NAME. Splitting it back out is what turns a
+       * re-import from "party of seven, six of them called Guest N with no
+       * meals" into the party that was exported.
+       *
+       * The named entry matching the party label is the primary contact; the
+       * rest are companions, in file order. Matching by name rather than by
+       * position because the export's guests array has no guaranteed order.
+       */
+      const meals = parseMealSelections(row.meal_selections);
+      const size = row.party_size || 1;
+      const label = String(row.guest_name || '').trim().toLowerCase();
+      let primaryIdx = meals.named.findIndex((m) => m.name.trim().toLowerCase() === label);
+
+      /**
+       * When no named meal matches the party label, fall back to "the first
+       * named entry is the primary" — but ONLY if there are more names than
+       * there are companion slots.
+       *
+       * The party label and the primary guest's full_name are separate columns
+       * and can drift apart (an organizer renaming one on the edit screen).
+       * Without this, primaryIdx stays -1, the primary is treated as a
+       * companion, and on a party of two the REAL companion is pushed past the
+       * end of the list and silently dropped — the primary ends up duplicated
+       * and nobody has the right meal.
+       *
+       * Conditioned on the count because the opposite case is just as real: a
+       * party of three with only one meal recorded should keep that person as a
+       * companion, not promote them to primary on a guess.
+       */
+      if (primaryIdx < 0 && meals.named.length > Math.max(0, size - 1)) primaryIdx = 0;
+
+      const primaryMeal = primaryIdx >= 0 ? meals.named[primaryIdx].meal : null;
+      const companions = meals.named
+        .filter((_, idx) => idx !== primaryIdx)
+        .map((m) => ({ fullName: m.name, meal: m.meal }));
+
+      return addGuest({
+        eventId,
+        actorUserId,
+        fullName: row.guest_name || 'Unnamed Guest',
+        phone: row.phone || null,
+        email: row.email || null,
+        // Was the literal 'pending', which discarded the answer column outright —
+        // so re-importing this platform's own export reset every RSVP the
+        // organizer had already collected. The caller normalizes the cell (see
+        // rsvpController.normalizeResponseCsvValue) and 'pending' remains the
+        // fallback for a file that carries no answers, which is most of them.
+        response: row.response || 'pending',
+        partySize: size,
+        notes: row.notes || null,
+        side: row.side || null,
+        primaryMeal,
+        companions,
+        companionMealCounts: meals.counts,
+        // ?? not ||, so an explicit per-row `false` is honoured rather than falling
+        // through to the file-level flag — which is the entire reason the column
+        // exists.
+        smsConsentAttested: row.sms_consent_attested ?? smsConsentAttested,
+        consentSource: 'host_csv_import',
+      });
+    }));
 
     results.forEach((r, idx) => {
       const row = batch[idx];
       if (r.status === 'fulfilled' && r.value?.success) {
         imported.push({ id: r.value.guest_id, guest_name: row.guest_name });
+        const table = String(row.table_name || '').trim();
+        if (table && r.value.party_id) toSeat.push({ partyId: r.value.party_id, table, guestName: row.guest_name });
       } else if (r.status === 'fulfilled' && r.value?.error === 'DUPLICATE_GUEST') {
         skippedExisting++;
       } else if (r.status === 'rejected' && r.reason?.code === 'P0001' && /GUEST_LIMIT_REACHED/.test(r.reason.message || '')) {
@@ -982,7 +1191,88 @@ async function importGuests(eventId, actorUserId, rows, { smsConsentAttested = f
     });
   }
 
-  return { imported, skippedExisting, errors };
+  const seating = await seatImportedParties(eventId, actorUserId, toSeat);
+
+  return { imported, skippedExisting, errors, seating };
+}
+
+/**
+ * Put freshly imported parties back on the tables their file named.
+ *
+ * Runs AFTER the import rather than inside it, for two reasons: the table list
+ * is one query for the whole file instead of one per guest, and a seating
+ * failure must never cost the organizer the guest. A party that cannot be seated
+ * is still imported — it simply shows up unassigned on the chart, which is
+ * exactly where it would be if the column had been blank.
+ *
+ * Tables are matched, never CREATED. An import that invented tables would put
+ * furniture on the seating map at position (0,0) with a guessed capacity, and
+ * the organizer would have to find and delete it. The normal flow this exists
+ * for — clear the guest list, re-upload the file — leaves the tables untouched,
+ * so matching is sufficient.
+ *
+ * ── Every refusal is counted ──
+ *
+ * assign_seat has SIX failure modes, not one. An earlier version of this
+ * function counted `success` and `CAPACITY_EXCEEDED` and dropped the other four
+ * on the floor, which reproduced the exact class of bug this whole import fix
+ * exists to remove: the organizer is told "imported!", the chart is empty, and
+ * nothing anywhere says why.
+ *
+ * The one that actually bites is RSVP_NOT_FOUND. assign_seat requires
+ * `response = 'yes'`, so re-importing a guest who was seated but answered
+ * "maybe" silently leaves them unassigned. FEATURE_REQUIRES_PAYMENT is the other
+ * realistic one — on an unpaid event, seating silently does nothing at all.
+ *
+ * @returns {{ seated:number, unknownTables:string[], refused:Record<string,number> }}
+ */
+async function seatImportedParties(eventId, actorUserId, wanted) {
+  const result = { seated: 0, unknownTables: [], refused: {} };
+  if (!Array.isArray(wanted) || wanted.length === 0) return result;
+
+  const refuse = (code) => { result.refused[code] = (result.refused[code] || 0) + 1; };
+
+  const { data: tables } = await supabase
+    .from('tables').select('id, table_name').eq('event_id', eventId);
+
+  // Case- and whitespace-insensitive: "table 5" in a hand-edited file is the
+  // same furniture as "Table 5" on the chart, and refusing to see that would
+  // make the feature look broken for the most ordinary edit there is.
+  const byName = new Map();
+  for (const t of (tables || [])) {
+    const key = String(t.table_name || '').trim().toLowerCase();
+    if (key && !byName.has(key)) byName.set(key, t.id);
+  }
+
+  const missing = new Set();
+  for (const row of wanted) {
+    const tableId = byName.get(row.table.toLowerCase());
+    if (!tableId) { missing.add(row.table); continue; }
+    try {
+      // The same RPC the seating chart uses. Capacity is enforced inside it,
+      // atomically — a JS pre-check here would be a TOCTOU race against the
+      // organizer dragging guests around in another tab.
+      const { data } = await supabase.rpc('assign_seat', {
+        p_event_id: eventId,
+        p_party_id: row.partyId,
+        p_table_id: tableId,
+        p_assigned_by: actorUserId,
+        // Never force. A file that overfills a table is a mistake worth
+        // reporting, not one worth silently baking into the chart.
+        p_force: false,
+      });
+      if (data?.success) result.seated += 1;
+      // Every non-success is counted under its own code, including one we did
+      // not anticipate — an unknown refusal must still show up as a number
+      // rather than as nothing.
+      else refuse(data?.error || 'UNKNOWN');
+    } catch (err) {
+      logger.warn({ err, partyId: row.partyId, table: row.table }, '[importGuests] could not seat an imported party');
+      refuse('ERROR');
+    }
+  }
+  result.unknownTables = [...missing];
+  return result;
 }
 
 /** Export dataset for CSV/Excel. */
@@ -996,7 +1286,7 @@ async function exportParties(eventId, { attendingOnly, sort } = {}) {
   const { data: parties, error } = await supabase
     .from('rsvp_parties')
     .select(`
-      id, label, response, notes, side, companion_meal_counts,
+      id, label, response, notes, side, companion_meal_counts, sms_consent,
       guests(full_name, email, phone, is_primary_contact, meal_selection),
       seating_assignments(table_id, tables(table_name)),
       check_ins(checked_in_at, method, deleted_at, undo_reason)
@@ -1061,6 +1351,22 @@ async function exportParties(eventId, { attendingOnly, sort } = {}) {
       response: p.response,
       party_size: partySize,
       side: sideLabelForEvent(p.side, event) || '',
+      /**
+       * Whether this guest may be texted.
+       *
+       * Exported so the clear-and-re-upload flow does not silently strip
+       * permission from an entire guest list: consent lives on the party row, so
+       * it dies with the party, and nothing in the file used to carry it.
+       *
+       * Re-importing it records `host_attested` — the organizer uploading the
+       * file is asserting they hold the permission, dated and attributed to them.
+       * It does NOT restore an original `guest_optin`, and deliberately cannot:
+       * letting a hand-editable CSV claim that the GUEST personally opted in
+       * would let a spreadsheet manufacture the strongest form of consent we
+       * hold. An organizer's own attestation is the strongest thing a file is
+       * allowed to assert.
+       */
+      sms_consent: p.sms_consent ? 'yes' : 'no',
       table_name: tableName,
       meal_selections: meals,
       checked_in: checkIns.length > 0 ? 'Yes' : 'No',
@@ -1382,6 +1688,9 @@ module.exports = {
   deleteParty,
   getStats,
   importGuests,
+  parseMealSelections,
+  summarizeGuestList,
+  deleteAllParties,
   exportParties,
   checkInParty,
   undoPartyCheckIn,

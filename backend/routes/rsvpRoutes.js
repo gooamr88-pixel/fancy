@@ -31,6 +31,23 @@ router.get('/export', requireFeature('guest_export_csv'), rsvpController.exportG
 // Route to export guests to downloadable Excel stream — paid feature
 router.get('/export-excel', requireFeature('guest_export_excel'), rsvpController.exportGuestsExcel);
 
+// What clearing the whole list would remove — read-only, powers the confirm dialog.
+router.get('/clear-preview', rsvpController.previewClearGuests);
+
+/**
+ * Clear the entire guest list.
+ *
+ * Mounted BEFORE '/:partyId' deliberately. Express matches in order, and while
+ * these two cannot actually collide today (the param route is a DELETE on a
+ * sub-path, and :partyId is UUID-validated above), keeping the specific route
+ * above the parameterised one is the rule that stops the next added path from
+ * being swallowed silently.
+ *
+ * Free, like the single delete: removing your own data must never be gated
+ * behind a plan. The confirmation guards live in the controller.
+ */
+router.delete('/', rsvpController.deleteAllRSVPs);
+
 // Route to update a single party (organizer edit — free, basic RSVP management)
 router.patch('/:partyId', rsvpController.updateRSVP);
 
