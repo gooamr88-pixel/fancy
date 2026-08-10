@@ -8,6 +8,7 @@ import { findMealField } from '../../utils/mealField';
 import { sideLabel } from '../../utils/sideLabel';
 import FeatureGate from './FeatureGate';
 import EditGuestModal from './EditGuestModal';
+import SmsBalanceBanner from './SmsBalanceBanner';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -299,7 +300,14 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, custom
 });
 
 /* ── Main Component ── */
-export default function GuestsTab({ rsvps, tables, customFields, eventId, event, onAssignTable, onRefresh, onOpenAddGuest, onOpenImport, onOpenSendInvitations, isPaid, tierFeatures, onUpgrade }) {
+export default function GuestsTab({
+  rsvps, tables, customFields, eventId, event, onAssignTable, onRefresh,
+  onOpenAddGuest, onOpenImport, isPaid, tierFeatures, onUpgrade,
+  // Balance figures for the banner, passed down rather than refetched — the
+  // dashboard already holds them, and two fetches would eventually show two
+  // different numbers on the same screen.
+  smsAddonActive = false, smsRemaining = 0, smsPurchased = 0, smsCoverage = null,
+}) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [page, setPage] = useState(1);
@@ -418,23 +426,26 @@ export default function GuestsTab({ rsvps, tables, customFields, eventId, event,
             Import CSV
           </button>
           </FeatureGate>
-          {onOpenSendInvitations && (
-            <button onClick={onOpenSendInvitations} title="Send invitations via Email or SMS" style={{
-              padding: '9px 18px', background: 'linear-gradient(135deg, #191B1E 0%, #2d2f34 100%)', color: COLORS.white, border: 'none',
-              borderRadius: '8px', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-sans)',
-              cursor: 'pointer',
-              transition: 'all 0.25s cubic-bezier(0.4,0,0.2,1)', display: 'flex', alignItems: 'center', gap: '6px',
-              boxShadow: '0 2px 10px rgba(25,27,30,0.18)',
-            }}
-              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(25,27,30,0.25)'; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 10px rgba(25,27,30,0.18)'; }}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
-              Send Invitations
-            </button>
-          )}
+          {/* "Send Invitations" was here. It opened a modal that asked the
+              organizer to pick an audience, search it, tick a consent box and
+              choose a channel — four decisions to do the thing they had come to
+              this screen to do.
+              Sending now lives in the RSVPs tab, on the rows themselves: tick
+              the guests, press Email or Text. This tab is for BUILDING the list;
+              that one is for reaching it. */}
         </div>
       </div>
+
+      {/* ── SMS status ───────────────────────────────────────
+          Between the header and the stats, so the first thing an organizer sees
+          after "here are your guests" is whether they can reach them. */}
+      <SmsBalanceBanner
+        active={smsAddonActive}
+        remaining={smsRemaining}
+        purchased={smsPurchased}
+        coverage={smsCoverage}
+        topUpHref="/dashboard/campaigns"
+      />
 
       {/* Stats Row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }}>

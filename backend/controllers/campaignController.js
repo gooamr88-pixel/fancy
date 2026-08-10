@@ -1,5 +1,7 @@
 const crypto = require('crypto');
-const { SMS_MESSAGE_TYPES, sanitizeSmsSettings } = require('../config/smsMessageTypes');
+const {
+  SMS_MESSAGE_TYPES, sanitizeSmsSettings, isRetiredSmsType, labelForKind,
+} = require('../config/smsMessageTypes');
 const { resolveProvider, resolveWebhookProvider } = require('../services/smsProviders');
 const { normalizeSmsPricing, maxPerSendFor } = require('../config/smsPricing');
 const { getPlatformConfig } = require('../utils/configCache');
@@ -8,12 +10,12 @@ const { normalizeToE164 } = require('../utils/phone');
 const { SMS_CONSENT_TEXT_VERSION, logSmsConsentDecision } = require('../utils/smsConsent');
 const { describeSmsCharge, volumeDiscountsFromConfig } = require('../utils/pricing');
 const { getPublicBaseUrl } = require('../utils/publicUrl');
+const tokenService = require('../services/tokenService');
 const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
 const {
-  chunk, sleep, normalizePhone, isValidPhone,
-  normalizeAudiences, fetchRecipients, getTableMap, personalize, sendRecipient,
-  getOptedOutSet, canonicalPhone, getConsentedPhoneSet, COMPLIANCE_FOOTER, HELP_REPLY,
+  normalizePhone, isValidPhone,
+  sendTransactionalSms, canonicalPhone, COMPLIANCE_FOOTER, HELP_REPLY,
 } = require('../services/smsDispatch');
 
 /**
@@ -47,306 +49,8 @@ async function resolveSendLimit(eventId, user, preloadedConfig = null) {
   }
 }
 
-/* ─── Tunables ─────────────────────────────────────────────────────────── */
-const SYNC_MAX = 50;        // ≤ this many recipients → send inline; else enqueue async
-const MAX_TOTAL = 20000;    // absolute upper bound on a single campaign
-const BATCH_SIZE = 10;      // concurrent sends per batch (sync path)
-const BATCH_PAUSE_MS = 1000;
-
 /**
- * Launch an SMS campaign. Small sends run inline; large ones are enqueued to the
- * async worker and return 202 immediately (no HTTP timeout). Both paths share the
- * exact same atomic, idempotent, segment-accurate billing via smsDispatch.
- *
- * POST /api/v1/events/:eventId/campaigns/send-sms
- * body: { messageTemplate, audience?|audiences?, guestIds?, clientToken?, async? }
- */
-const sendBulkSMSCampaign = async (req, res, next) => {
-  const { eventId } = req.params;
-  const { messageTemplate, audience, audiences, guestIds, clientToken } = req.body || {};
-  const forceAsync = req.body?.async === true || req.query?.async === 'true';
-
-  if (!messageTemplate || typeof messageTemplate !== 'string' || !messageTemplate.trim()) {
-    return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'messageTemplate string is required.' });
-  }
-  if (messageTemplate.length > 1600) {
-    return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'Message template exceeds the maximum length of 1600 characters.' });
-  }
-
-  const useCustom = Array.isArray(guestIds) && guestIds.length > 0;
-  const segments = normalizeAudiences(audiences != null ? audiences : audience);
-  if (!useCustom && segments.length === 0) {
-    return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'Select at least one valid audience segment.' });
-  }
-
-  // Terms §5 ("Host Consent Obligations"): every launch requires the organizer's
-  // recorded attestation. Recorded on the campaign row (async) or in
-  // activity_logs metadata (sync). String 'true' is tolerated for
-  // form-encoded/hand-rolled API clients.
-  //
-  // This is an ADDITIONAL gate, never a substitute for the guest's own consent.
-  // Since 2026-08-04 the audience query and sendRecipient both require
-  // rsvp_parties.sms_consent = true, so an attestation cannot authorize a send
-  // to anyone who did not personally opt in (Twilio TFV 30475).
-  const consentAttested = req.body?.consentAttested === true || req.body?.consentAttested === 'true';
-  if (!consentAttested) {
-    return res.status(400).json({
-      success: false, error: 'CONSENT_ATTESTATION_REQUIRED',
-      message: "Confirm you have each recipient's prior consent to receive texts about this event before sending.",
-    });
-  }
-
-  try {
-    const { data: event, error: eventError } = await supabase
-      .from('events').select('slug, title').eq('id', eventId).single();
-    if (eventError || !event) {
-      return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND', message: 'Event not found.' });
-    }
-
-    let recipients = await fetchRecipients(eventId, {
-      audiences: segments, guestIds: useCustom ? guestIds : null, limit: MAX_TOTAL + 1,
-    });
-
-    // Opted-out numbers are removed up front so recipient counts and the credit
-    // pre-check reflect reality; sendRecipient re-checks per message as the
-    // final guard (covers a STOP that arrives after a campaign is queued).
-    const optedOut = await getOptedOutSet(recipients.map((r) => r.phone));
-    const suppressedCount = recipients.filter((r) => optedOut.has(canonicalPhone(r.phone))).length;
-    if (suppressedCount > 0) recipients = recipients.filter((r) => !optedOut.has(canonicalPhone(r.phone)));
-
-    if (recipients.length === 0) {
-      return res.status(200).json({
-        success: true,
-        message: suppressedCount > 0
-          ? 'Every matching guest has opted out of SMS — nothing was sent.'
-          : 'No matching guests have a recorded SMS consent. A guest can be texted once they opt in on their RSVP form, or once you confirm their consent when adding or importing them.',
-        sentCount: 0, failedCount: 0, skippedCount: 0, creditsUsed: 0, recipientCount: 0, suppressedCount,
-      });
-    }
-    if (recipients.length > MAX_TOTAL) {
-      return res.status(413).json({
-        success: false, error: 'TOO_MANY_RECIPIENTS',
-        message: `This audience has ${recipients.length} recipients, above the ${MAX_TOTAL} per-campaign limit.`,
-        recipientCount: recipients.length, maxRecipients: MAX_TOTAL,
-      });
-    }
-
-    // Anti-abuse ramp-up, enforced HERE for audience-based sends. The middleware
-    // can only check an explicit recipient list; an audience ("everyone who
-    // hasn't replied") has no knowable size until it is resolved, which is now.
-    // Same limit, same message, applied at the first point the number exists.
-    const sendLimit = await resolveSendLimit(eventId, req.user);
-    if (sendLimit.maxPerSend > 0 && recipients.length > sendLimit.maxPerSend) {
-      return res.status(429).json({
-        success: false, error: 'SEND_LIMIT_EXCEEDED',
-        maxPerSend: sendLimit.maxPerSend, requested: recipients.length,
-        message: `You can send up to ${sendLimit.maxPerSend} messages at a time while your account is new. This group has ${recipients.length} — send it in smaller batches, or pick a narrower audience. The limit lifts automatically as you send more.`,
-      });
-    }
-
-    // Fast-fail wallet pre-check (atomic per-message deduction remains the real guard).
-    const { data: wallet, error: walletError } = await supabase
-      .from('sms_credit_wallets').select('credits_remaining').eq('event_id', eventId).single();
-    if (walletError || !wallet) {
-      return res.status(402).json({ success: false, error: 'NO_CREDIT_WALLET', message: 'No SMS credit wallet exists for this event. Purchase credits first.' });
-    }
-    if (wallet.credits_remaining < recipients.length) {
-      return res.status(402).json({
-        success: false, error: 'INSUFFICIENT_CREDITS',
-        message: `This campaign needs at least ${recipients.length} credits (more for multi-segment messages); your wallet has ${wallet.credits_remaining}.`,
-        availableCredits: wallet.credits_remaining,
-      });
-    }
-
-    const audienceLabel = useCustom ? 'custom' : segments.join('+');
-
-    // ── Large (or explicitly async) → enqueue and return immediately ──
-    if (recipients.length > SYNC_MAX || forceAsync) {
-      return await enqueueCampaign(req, res, { eventId, event, recipients, messageTemplate, audienceLabel, clientToken, suppressedCount });
-    }
-
-    // ── Small → synchronous bounded/paced dispatch ──
-    // Preloaded consent set: sendRecipient re-verifies consent per message, and
-    // without this it would issue one lookup per recipient. Not a substitute for
-    // that check — just the batched form of it.
-    const consented = await getConsentedPhoneSet(eventId);
-    return await dispatchInline(res, { eventId, event, recipients, messageTemplate, audienceLabel, clientToken, suppressedCount, attestedBy: req.user?.id || null, optedOut, consented });
-  } catch (err) {
-    next(err);
-  }
-};
-
-/** Synchronous path for small campaigns. */
-async function dispatchInline(res, { eventId, event, recipients, messageTemplate, audienceLabel, clientToken, suppressedCount = 0, attestedBy = null, optedOut = null, consented = null }) {
-  const tableMap = await getTableMap(eventId);
-  const campaignToken = (typeof clientToken === 'string' && clientToken.trim())
-    ? clientToken.trim().slice(0, 80)
-    : crypto.randomUUID();
-
-  const prepared = recipients.map((g) => {
-    const { body, segments } = personalize(messageTemplate, {
-      slug: event.slug, guestName: g.guest_name, rsvpId: g.id, tableName: tableMap[g.id], eventTitle: event.title,
-    });
-    return { guest: g, body, segments };
-  });
-
-  // Whatever the active carrier hands back; null when unconfigured, which
-  // sendRecipient's transport gate turns into a skip rather than a charge.
-  const twilio = resolveProvider().getTransport();
-  const fromNumber = null;
-  const sent = [], failed = [], skipped = [];
-  let creditsUsed = 0;
-
-  const batches = chunk(prepared, BATCH_SIZE);
-  for (let i = 0; i < batches.length; i++) {
-    const results = await Promise.allSettled(batches[i].map(async ({ guest, body, segments }) => {
-      const result = await sendRecipient({
-        eventId, phone: guest.phone, body, segments,
-        idemKey: `sms:${campaignToken}:${guest.id}`, twilio, fromNumber, optedOut, consented,
-      });
-      return { guest, result };
-    }));
-    for (const r of results) {
-      if (r.status !== 'fulfilled') { failed.push({ guestId: 'unknown', error: String(r.reason) }); continue; }
-      const { guest, result } = r.value;
-      if (result.kind === 'sent') { sent.push({ guestId: guest.id, guestName: guest.guest_name }); creditsUsed += result.credits || 0; }
-      else if (result.kind === 'skipped') skipped.push({ guestId: guest.id });
-      else failed.push({ guestId: guest.id, guestName: guest.guest_name, error: result.error });
-    }
-    if (twilio && i < batches.length - 1) await sleep(BATCH_PAUSE_MS);
-  }
-
-  try {
-    await supabase.from('activity_logs').insert({
-      event_id: eventId, action: 'sms_campaign_sent', entity_type: 'campaign',
-      // consent_attested_*: the sync path creates no sms_campaigns row, so the
-      // organizer's Terms §5 consent attestation is recorded here instead.
-      metadata: { audience: audienceLabel, total_recipients: recipients.length, sent: sent.length, failed: failed.length, skipped: skipped.length, suppressed: suppressedCount, credits_used: creditsUsed, mode: 'sync', consent_attested: true, consent_attested_by: attestedBy, consent_attested_at: new Date().toISOString() },
-    });
-  } catch (e) { logger.warn({ err: e }, 'SMS campaign audit log failed (non-fatal).'); }
-
-  return res.status(200).json({
-    success: true, async: false,
-    message: `Campaign complete — sent ${sent.length}, failed ${failed.length}${skipped.length ? `, skipped ${skipped.length}` : ''}.`,
-    sentCount: sent.length, failedCount: failed.length, skippedCount: skipped.length,
-    creditsUsed, recipientCount: recipients.length, suppressedCount,
-    failedMessages: failed.slice(0, 100),
-  });
-}
-
-/** Async path — create the campaign + recipient job rows, then nudge the worker. */
-async function enqueueCampaign(req, res, { eventId, event, recipients, messageTemplate, audienceLabel, clientToken, suppressedCount = 0 }) {
-  const token = (typeof clientToken === 'string' && clientToken.trim())
-    ? clientToken.trim().slice(0, 80)
-    : crypto.randomUUID();
-
-  // Idempotent enqueue: an existing campaign for this token is returned as-is.
-  const { data: existing } = await supabase
-    .from('sms_campaigns').select('id, status, total_recipients').eq('client_token', token).maybeSingle();
-  if (existing) {
-    return res.status(202).json({
-      success: true, async: true, duplicate: true,
-      campaignId: existing.id, status: existing.status, recipientCount: existing.total_recipients,
-      message: 'This campaign was already queued.',
-    });
-  }
-
-  const tableMap = await getTableMap(eventId);
-  const rows = recipients
-    .map((g) => ({ g, norm: normalizePhone(g.phone) }))
-    .filter((x) => isValidPhone(x.norm))
-    .map(({ g, norm }) => {
-      const { segments } = personalize(messageTemplate, {
-        slug: event.slug, guestName: g.guest_name, rsvpId: g.id, tableName: tableMap[g.id], eventTitle: event.title,
-      });
-      return {
-        event_id: eventId, rsvp_id: g.id, guest_name: g.guest_name, phone: norm,
-        segments, idempotency_key: `sms:${token}:${g.id}`, status: 'queued',
-      };
-    });
-
-  if (rows.length === 0) {
-    return res.status(200).json({ success: true, async: false, message: 'No recipients with a valid phone number.', recipientCount: 0, sentCount: 0, failedCount: 0, skippedCount: 0, creditsUsed: 0 });
-  }
-  const estimatedCredits = rows.reduce((s, r) => s + r.segments, 0);
-
-  const baseCampaign = { event_id: eventId, message_template: messageTemplate, audience: audienceLabel, status: 'queued', total_recipients: rows.length, client_token: token };
-  // Persist the organizer's Terms §5 consent attestation on the campaign row.
-  let { data: campaign, error: cErr } = await supabase
-    .from('sms_campaigns')
-    .insert({ ...baseCampaign, consent_attested_at: new Date().toISOString(), consent_attested_by: req.user?.id || null })
-    .select('id')
-    .single();
-
-  // Pre-migration tolerance: if consent_attested_* don't exist yet, record the
-  // attestation in the log and insert without them (matches the missing-RPC
-  // fallbacks elsewhere in the SMS stack).
-  if (cErr && /consent_attested/i.test(cErr.message || '')) {
-    logger.warn('sms_campaigns.consent_attested_* missing — apply 20260809000000_sms_compliance.sql (attestation recorded in logs only).');
-    logger.info({ eventId, attestedBy: req.user?.id || null }, 'SMS campaign consent attestation (schema fallback)');
-    ({ data: campaign, error: cErr } = await supabase
-      .from('sms_campaigns').insert(baseCampaign).select('id').single());
-  }
-
-  if (cErr) {
-    // Lost an enqueue race on the unique client_token → return the winner.
-    if (cErr.code === '23505') {
-      const { data: winner } = await supabase.from('sms_campaigns').select('id, status, total_recipients').eq('client_token', token).maybeSingle();
-      if (winner) {
-        return res.status(202).json({ success: true, async: true, duplicate: true, campaignId: winner.id, status: winner.status, recipientCount: winner.total_recipients });
-      }
-    }
-    throw cErr;
-  }
-
-  // Bulk insert recipient job rows (chunked; idempotent on the unique key).
-  for (const part of chunk(rows.map((r) => ({ ...r, campaign_id: campaign.id })), 500)) {
-    const { error: rErr } = await supabase.from('sms_campaign_recipients').upsert(part, { onConflict: 'idempotency_key', ignoreDuplicates: true });
-    if (rErr) logger.warn({ err: rErr, campaignId: campaign.id }, 'recipient batch insert had errors');
-  }
-
-  // Nudge the worker so processing starts now rather than at the next interval.
-  try { require('../services/smsCampaignWorker').kick(); } catch (e) { logger.warn({ err: e }, 'sms-worker kick failed'); }
-
-  return res.status(202).json({
-    success: true, async: true,
-    campaignId: campaign.id, status: 'queued',
-    recipientCount: rows.length, estimatedCredits, suppressedCount,
-    message: `Queued ${rows.length} messages for delivery.`,
-  });
-}
-
-/**
- * Live status of one async campaign (for the dashboard progress UI).
- * GET /api/v1/events/:eventId/campaigns/status/:campaignId
- */
-const getCampaignStatus = async (req, res, next) => {
-  const { eventId, campaignId } = req.params;
-  try {
-    const { data: c, error } = await supabase
-      .from('sms_campaigns').select('*').eq('id', campaignId).eq('event_id', eventId).single();
-    if (error || !c) return res.status(404).json({ success: false, error: 'CAMPAIGN_NOT_FOUND' });
-
-    const processed = (c.sent_count || 0) + (c.failed_count || 0) + (c.skipped_count || 0);
-    const total = c.total_recipients || 0;
-    return res.json({
-      success: true,
-      campaign: {
-        id: c.id, status: c.status, audience: c.audience,
-        totalRecipients: total, sentCount: c.sent_count, failedCount: c.failed_count,
-        skippedCount: c.skipped_count, creditsUsed: c.credits_used,
-        progress: total > 0 ? Math.round((processed / total) * 100) : 100,
-        createdAt: c.created_at, startedAt: c.started_at, completedAt: c.completed_at,
-        lastError: c.last_error || null,
-      },
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
-/**
- * Fetch wallet, recent campaigns, and the credit ledger.
+ * Fetch the wallet and the credit ledger.
  * GET /api/v1/events/:eventId/campaigns/history
  */
 const getCampaignHistory = async (req, res, next) => {
@@ -364,11 +68,6 @@ const getCampaignHistory = async (req, res, next) => {
       .from('super_admin_config').select('sms_rate_cents_per_credit')
       .eq('id', '00000000-0000-0000-0000-000000000000').single();
 
-    const { data: campaigns } = await supabase
-      .from('sms_campaigns')
-      .select('id, status, audience, total_recipients, sent_count, failed_count, skipped_count, credits_used, created_at, completed_at')
-      .eq('event_id', eventId).order('created_at', { ascending: false }).limit(10);
-
     const { data: ledger, error, count: totalCount } = await supabase
       .from('sms_credit_ledger')
       .select('*', { count: 'exact' })
@@ -380,13 +79,19 @@ const getCampaignHistory = async (req, res, next) => {
     return res.json({
       success: true,
       wallet: wallet || { credits_purchased: 0, credits_used: 0, credits_remaining: 0 },
-      campaigns: campaigns || [],
       history: ledger || [],
-      smsRateCents: config?.sms_rate_cents_per_credit || 8,
-      // The composer needs the EXACT footer the server appends in order to
-      // estimate segments — and therefore cost — correctly. It used to keep its
-      // own copy of the string, so editing one side silently made every price
-      // shown to the organizer wrong. Served from the one definition instead.
+      // ?? not ||, and 1.1 not 8, and both corrections matter.
+      //
+      // The old default of 8 was the INTEGER column's default, which was itself
+      // about seven times the real carrier cost. And `||` treats a legitimate 0 —
+      // a platform running SMS at cost, or on a carrier plan with no per-message
+      // fee — as "unset", silently substituting a price nobody chose.
+      smsRateCents: config?.sms_rate_cents_per_credit ?? 1.1,
+      // Kept even though the composer is gone: the top-up screen still shows what
+      // a message costs, and the footer is what makes a one-segment message
+      // two. Served from the one definition rather than copied client-side, so
+      // editing the compliance wording cannot silently make every quoted price
+      // wrong.
       complianceFooter: COMPLIANCE_FOOTER,
       pagination: { page, limit, count: (ledger || []).length, total: totalCount },
     });
@@ -485,10 +190,13 @@ const handleSmsStatusCallback = async (req, res) => {
       throw error;
     }
     if (data && data.refunded) {
-      logger.info({ sid, status, credits: data.credits, campaignId: data.campaign_id }, 'SMS delivery failed → credits refunded');
-      if (data.campaign_id) {
-        try { await require('../services/smsCampaignWorker').refreshCampaignProgress(data.campaign_id); } catch (e) { /* best-effort */ }
-      }
+      // campaign_id is still returned by reconcile_sms_delivery, and still
+      // populated for sends made before the four-type rebuild — carrier delivery
+      // receipts arrive for days, so historic campaign sends keep reporting in
+      // long after the feature was removed. The refund below is what matters and
+      // it works identically either way; there is simply no longer a campaign
+      // progress row to refresh, so the id is logged and nothing else.
+      logger.info({ sid, status, credits: data.credits, campaignId: data.campaign_id || null }, 'SMS delivery failed → credits refunded');
     }
     return res.status(200).send('ok');
   } catch (err) {
@@ -639,6 +347,7 @@ const getSmsSettings = async (req, res, next) => {
       { count: guestCount },
       { data: skipRows },
       organization,
+      { count: reachableCount },
     ] = await Promise.all([
       supabase.from('sms_credit_wallets')
         .select('credits_purchased, credits_used, credits_remaining, last_used_at')
@@ -655,6 +364,18 @@ const getSmsSettings = async (req, res, next) => {
           const o = r.data?.organizations;
           return Array.isArray(o) ? o[0] : o;
         }, () => null),
+      /**
+       * How many parties can ACTUALLY be texted about this event.
+       *
+       * Distinct from `coverage.invitations`, which is every invitation on the
+       * list. Callers that need to promise a number before a broadcast — the
+       * cancel dialog, above all — were using the invitation count as a stand-in
+       * and therefore telling the organizer that guests who never consented would
+       * be texted. A head-only count, so it costs one cheap query.
+       */
+      supabase.from('rsvp_parties').select('id', { count: 'exact', head: true })
+        .eq('event_id', eventId).eq('sms_consent', true).in('response', ['yes', 'maybe'])
+        .then((r) => r, () => ({ count: 0 })),
     ]);
 
     // Everything already translated into the customer's terms — messages left, a
@@ -684,6 +405,9 @@ const getSmsSettings = async (req, res, next) => {
       wallet: wallet || { credits_purchased: 0, credits_used: 0, credits_remaining: 0 },
       balance,
       coverage,
+      // Parties that would actually receive a text right now — consented, not
+      // opted out by us, and still attending. What a confirm dialog may promise.
+      smsReachableParties: reachableCount || 0,
       sendLimit,
       // The organizer's own opt-in. Without this the settings panel cannot show
       // the state of the one message type addressed to them — which is how it
@@ -891,6 +615,25 @@ const resendSmsMessage = async (req, res, next) => {
     if (error || !row) {
       return res.status(404).json({ success: false, error: 'MESSAGE_NOT_FOUND', message: 'That message could not be found.' });
     }
+    // A type this platform no longer sends can never be resent, and this check
+    // MUST come before the delete below.
+    //
+    // The order is the whole point. The delete is correct for a live type — the
+    // (kind, ref) unique index would otherwise make a deliberate retry a silent
+    // no-op — but for a retired kind the re-dispatch that follows fails on
+    // UNKNOWN_TYPE, and by then the row is gone. The organizer would get an error
+    // and we would have destroyed a compliance record to produce it.
+    //
+    // isResendable already returns false for these, so this is the second of two
+    // guards rather than the only one. It is here because the cost of the two
+    // disagreeing is an unrecoverable deletion, and belt-and-braces is cheap.
+    if (isRetiredSmsType(row.kind)) {
+      return res.status(400).json({
+        success: false, error: 'RETIRED_TYPE',
+        message: 'That kind of message is no longer sent. It is kept here for your records.',
+      });
+    }
+
     if (!isResendable(row)) {
       return res.status(400).json({
         success: false, error: 'NOT_RESENDABLE',
@@ -900,13 +643,12 @@ const resendSmsMessage = async (req, res, next) => {
       });
     }
 
-    // Clear the old attempt first. sendTransactionalSms refuses duplicates on
+    // Clear the old attempt. sendTransactionalSms refuses duplicates on
     // (kind, ref), which is exactly right for a scheduler re-run and exactly
     // wrong for a deliberate retry — without this the resend would report
     // "already sent" and do nothing.
     await supabase.from('sms_log').delete().eq('id', row.id);
 
-    const { sendTransactionalSms } = require('../services/smsDispatch');
     const result = await sendTransactionalSms({
       type: row.kind,
       eventId,
@@ -942,35 +684,64 @@ async function buildResendContext(eventId, row) {
   // "undefined" into a message a guest receives — and an organizer report resent
   // without stats would read "Gala: undefined attending, undefined awaiting
   // reply." Defaults first, real values over the top.
+  const base = getPublicBaseUrl();
   const ctx = {
     guestName: 'Guest',
     eventTitle: '',
     response: null,
     tableName: null,
     ticketUrl: null,
-    dateLabel: 'soon',
+    url: base,
+    cancelled: false,
+    dateLabel: null,
     attending: 0,
     pending: 0,
-    rsvpUrl: `${getPublicBaseUrl()}/dashboard`,
-    dashboardUrl: `${getPublicBaseUrl()}/dashboard`,
+    rsvpUrl: `${base}/dashboard`,
+    dashboardUrl: `${base}/dashboard`,
   };
 
   try {
     const { data: event } = await supabase
-      .from('events').select('title, slug, event_date').eq('id', eventId).single();
+      .from('events').select('title, slug, event_date, status').eq('id', eventId).single();
     ctx.eventTitle = event?.title || '';
-    if (event?.slug && row.party_id) {
-      ctx.rsvpUrl = `${getPublicBaseUrl()}/${event.slug}/rsvp?g=${row.party_id}`;
+    if (event?.slug) {
+      ctx.url = `${base}/${event.slug}`;
+      if (row.party_id) ctx.rsvpUrl = `${base}/${event.slug}/rsvp?g=${row.party_id}`;
     }
+    // A change notice resent after the event was called off must say "cancelled",
+    // not "the details have changed" — re-deriving from CURRENT state is exactly
+    // why this rebuilds rather than replays.
+    ctx.cancelled = event?.status === 'cancelled';
 
+    let party = null;
     if (row.party_id) {
-      const { data: party } = await supabase
+      const { data } = await supabase
         .from('rsvp_parties')
-        .select('label, response, seating_assignments(tables(table_name))')
+        .select('label, response, party_size, seating_assignments(tables(table_name))')
         .eq('id', row.party_id).maybeSingle();
+      party = data;
       if (party?.label) ctx.guestName = party.label;
       ctx.response = party?.response ?? null;
       ctx.tableName = party?.seating_assignments?.[0]?.tables?.table_name || null;
+    }
+
+    // The entry-pass link is a signed token, not a derivable URL, so it costs a
+    // mint — and only the type that actually shows one pays for it.
+    //
+    // signQrTicketForResponse returns null for anyone who is not a confirmed
+    // 'yes', which is precisely the gate wanted here: a guest who declined has no
+    // pass, and the template's no-link shape is the correct message for them.
+    if (row.kind === 'seating_reminder' && row.party_id && party) {
+      const { buildTicketLinks } = require('../utils/emailTemplates');
+      const token = tokenService.signQrTicketForResponse({
+        response: party.response,
+        partyId: row.party_id,
+        eventId,
+        tableName: ctx.tableName,
+        partySize: party.party_size,
+        eventDate: event?.event_date,
+      });
+      if (token) ctx.ticketUrl = buildTicketLinks(token).ticketUrl;
     }
 
     // Only the organizer-facing report needs live counts, and only it pays for
@@ -1055,6 +826,12 @@ const getSmsLog = async (req, res, next) => {
     const entries = rows.map((r) => ({
       ...r,
       guestName: r.party_id ? (names[r.party_id] || null) : null,
+      // What KIND of message this was, in words. The log keeps history for types
+      // the platform has since retired, and a row reading "campaign" or
+      // "qr_ticket" means nothing to an organizer — labelForKind resolves live
+      // types to their current label and retired ones to a name that says so.
+      typeLabel: labelForKind(r.kind),
+      retiredType: isRetiredSmsType(r.kind),
       // The whole outcome in one readable phrase.
       outcome: r.status === 'sent' ? 'Delivered' : 'Not sent',
       reason: r.status === 'sent' ? null : explainSkip(r.skip_reason || r.error),
@@ -1071,8 +848,10 @@ const getSmsLog = async (req, res, next) => {
 };
 
 module.exports = {
-  sendBulkSMSCampaign,
-  getCampaignStatus,
+  // Not a route handler — exported so invitationService can apply the identical
+  // ramp-up rule the middleware applies, rather than growing a second opinion
+  // about how many messages a new account may send at once.
+  resolveSendLimit,
   getCampaignHistory,
   getSmsSettings,
   updateSmsSettings,

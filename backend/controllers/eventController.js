@@ -465,6 +465,31 @@ const getPublicEventBySlug = async (req, res, next) => {
       });
     }
 
+    /**
+     * A cancelled event answers differently from a merely closed one.
+     *
+     * Someone arriving here is a guest holding a link from a text or an email,
+     * and they are almost certainly checking because they heard something. A flat
+     * "no longer available" makes them wonder whether the link broke; naming the
+     * cancellation, and carrying the organizer's own words when they left any, is
+     * the entire reason the cancelled state exists rather than a DELETE.
+     *
+     * Still a 403 — the event is genuinely not open — but with an error code the
+     * front end can render as a real page instead of a dead end.
+     */
+    if (!isDemo && event.status === 'cancelled') {
+      return res.status(403).json({
+        success: false,
+        error: 'EVENT_CANCELLED',
+        message: 'This event has been cancelled.',
+        event: {
+          title: event.title,
+          cancelledAt: event.cancelled_at || null,
+          reason: event.cancellation_reason || null,
+        },
+      });
+    }
+
     // INV-1: any other non-active state (paused / completed / draft) is "closed".
     // This makes the organizer's "Close Event" action actually stop guests — the
     // landing page, RSVP form, resolver, and seating now all agree (see
@@ -773,21 +798,225 @@ const updateEvent = async (req, res, next) => {
       throw error;
     }
 
-    // Notify confirmed/maybe guests if a LIVE event's date or venue actually moved
-    // (best-effort, non-blocking; itself gated by EMAIL_AUTOMATION_ENABLED).
+    /**
+     * PROPOSE, DO NOT BLAST.
+     *
+     * This used to dispatch the guest notification straight from here. That was
+     * tolerable while it was email-only — an unwanted email is free and mildly
+     * annoying. It is not tolerable now that the same moment can text several
+     * hundred people: saving a typo'd venue, noticing, and saving the correction
+     * would spend an organizer's allowance twice before any dialog appeared.
+     *
+     * So the PATCH reports what changed and how many it would reach, and the
+     * organizer confirms on POST /notify-change. The changeKey travels with the
+     * proposal so a stale dialog cannot blast about a change that has since been
+     * superseded — see notifyGuestsOfChange.
+     */
+    let changeNotice = null;
     if (event && event.status === 'active') {
       const newWhere = event.location_name || event.location_address || null;
       const dateChanged = priorWhen !== null && String(priorWhen) !== String(event.event_date);
       const venueChanged = (filteredUpdates.location_name !== undefined || filteredUpdates.location_address !== undefined) && priorWhere !== newWhere;
       if (dateChanged || venueChanged) {
-        require('../services/emailScheduler').notifyGuestsOfEventChange(eventId).catch(() => {});
+        const changed = [];
+        if (dateChanged) changed.push('date');
+        if (venueChanged) changed.push('venue');
+        changeNotice = {
+          changed,
+          changeKey: computeChangeKey(event),
+          ...(await countNotifiableGuests(eventId)),
+        };
       }
     }
 
     return res.json({
       success: true,
       message: 'Event updated successfully.',
-      event
+      event,
+      // null unless a live event's date or venue actually moved. The dashboard
+      // opens its confirm dialog on this being present.
+      changeNotice,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * The dedupe key for one set of event details.
+ *
+ * Deliberately identical to the hash emailScheduler builds, and computed from the
+ * SAME two fields, because the two have to agree: the PATCH hands this to the
+ * dashboard, the dashboard hands it back on confirm, and the scheduler recomputes
+ * it to build the per-guest ref. If they ever diverge, a confirm would either
+ * blast a second time or silently do nothing.
+ */
+function computeChangeKey(event) {
+  const where = event.location_name || event.location_address || '';
+  return require('crypto').createHash('sha1')
+    .update(`${event.event_date}|${where}`).digest('hex').slice(0, 12);
+}
+
+/**
+ * How many guests a notification would actually reach, split by channel.
+ *
+ * The confirm dialog exists to make a broadcast a decision rather than an
+ * accident, and a decision needs numbers. "118 guests will be emailed, 74 will
+ * also get a text" is a decision; "notify guests?" is a coin flip.
+ *
+ * Counts only — no rows are read into memory, because this runs on a PATCH that
+ * an organizer may repeat many times while editing.
+ */
+async function countNotifiableGuests(eventId) {
+  try {
+    const [{ count: parties }, { count: reachable }] = await Promise.all([
+      supabase.from('rsvp_parties').select('id', { count: 'exact', head: true })
+        .eq('event_id', eventId).in('response', ['yes', 'maybe']),
+      supabase.from('rsvp_parties').select('id', { count: 'exact', head: true })
+        .eq('event_id', eventId).in('response', ['yes', 'maybe']).eq('sms_consent', true),
+    ]);
+    return { parties: parties || 0, smsReachable: reachable || 0 };
+  } catch {
+    // A failed count must not block the save that triggered it. The dialog can
+    // still ask; it just cannot promise a number.
+    return { parties: null, smsReachable: null };
+  }
+}
+
+/**
+ * Tell guests about a change the organizer has already made and confirmed.
+ * POST /api/v1/events/:eventId/notify-change   body: { changeKey, channels? }
+ */
+const notifyGuestsOfChange = async (req, res, next) => {
+  const { eventId } = req.params;
+  const { changeKey, channels } = req.body || {};
+  const wanted = Array.isArray(channels) && channels.length ? channels : ['email', 'sms'];
+
+  try {
+    const { data: event, error } = await supabase
+      .from('events').select('id, status, event_date, location_name, location_address').eq('id', eventId).single();
+    if (error || !event) {
+      return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND' });
+    }
+
+    /**
+     * The stale-dialog guard.
+     *
+     * An organizer can leave the confirm open, change the venue again in another
+     * tab, and then press Send. Without this they would broadcast the FIRST
+     * change's key — deduping against a state that no longer exists, and telling
+     * guests to expect a venue nobody is using. Recomputing and comparing turns
+     * that into a 409 they can act on.
+     */
+    const current = computeChangeKey(event);
+    if (changeKey && changeKey !== current) {
+      return res.status(409).json({
+        success: false,
+        error: 'CHANGE_SUPERSEDED',
+        message: 'These details changed again since you opened this. Review them and send once more.',
+      });
+    }
+
+    const result = await require('../services/emailScheduler')
+      .notifyGuestsOfEventChange(eventId, { includeSms: wanted.includes('sms'), force: true });
+
+    return res.json({
+      success: true,
+      emailed: result.sent,
+      texted: result.texted,
+      message: `Told ${result.sent} ${result.sent === 1 ? 'guest' : 'guests'} by email`
+        + (result.texted ? `, and ${result.texted} by text` : '') + '.',
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Call the event off.
+ * POST /api/v1/events/:eventId/cancel   body: { reason?, notify? }
+ *
+ * A DEDICATED endpoint, not a status string in updateEvent's allowedFields, and
+ * that separation is deliberate. Cancelling is irreversible from a guest's point
+ * of view — once several hundred people have been told, un-telling them is not a
+ * thing that exists. It must never become reachable by a generic PATCH that has
+ * no confirmation semantics and no notification step.
+ */
+const cancelEvent = async (req, res, next) => {
+  const { eventId } = req.params;
+  const { reason = null, notify = true, channels } = req.body || {};
+
+  // The organizer's channel choice is HONOURED, not assumed.
+  //
+  // This used to hardcode includeSms: true and ignore `channels` entirely — so an
+  // organizer who deliberately unticked "also send a text" in the confirm dialog
+  // had every consenting guest texted anyway, spending their balance against the
+  // explicit choice they had just made. Defaulting to both when nothing is
+  // specified is right; overriding a stated preference is not.
+  const wanted = Array.isArray(channels) && channels.length ? channels : ['email', 'sms'];
+
+  try {
+    const { data: event, error } = await supabase
+      .from('events').select('id, title, status, is_paid').eq('id', eventId).single();
+    if (error || !event) {
+      return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND' });
+    }
+    if (event.status === 'cancelled') {
+      return res.status(409).json({
+        success: false, error: 'ALREADY_CANCELLED',
+        message: 'This event has already been cancelled.',
+      });
+    }
+    if (event.status === 'draft') {
+      return res.status(400).json({
+        success: false, error: 'NOT_LIVE',
+        message: 'This event was never published, so there is nothing to cancel. Delete it instead.',
+      });
+    }
+
+    const { error: updateErr } = await supabase
+      .from('events')
+      .update({
+        status: 'cancelled',
+        cancelled_at: new Date().toISOString(),
+        cancellation_reason: reason ? String(reason).slice(0, 500) : null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', eventId);
+    if (updateErr) throw updateErr;
+
+    // Everything else follows from the status: isEventLiveForGuests returns false
+    // so the RSVP form closes, and every scheduler job filters on 'active' so
+    // reminders and reports stop on their own.
+
+    let emailed = 0, texted = 0;
+    if (notify) {
+      // force: true — this is the one notification that must survive
+      // EMAIL_AUTOMATION_ENABLED being unset. An organizer who cancels and is
+      // told "done" while nobody was contacted is the worst failure this feature
+      // can have, and it would be completely silent.
+      const result = await require('../services/emailScheduler')
+        .notifyGuestsOfEventChange(eventId, { includeSms: wanted.includes('sms'), force: true });
+      emailed = result.sent;
+      texted = result.texted;
+    }
+
+    await supabase.from('activity_logs').insert({
+      event_id: eventId,
+      action: 'event_cancelled',
+      entity_type: 'event',
+      entity_id: eventId,
+      metadata: { reason: reason || null, emailed, texted },
+    }).then(() => {}, () => {});
+
+    return res.json({
+      success: true,
+      emailed,
+      texted,
+      message: notify
+        ? `Event cancelled. ${emailed} ${emailed === 1 ? 'guest was' : 'guests were'} emailed`
+          + (texted ? `, and ${texted} texted` : '') + '.'
+        : 'Event cancelled. No guests were notified.',
     });
   } catch (err) {
     next(err);
@@ -987,6 +1216,41 @@ const getAdminEvents = async (req, res, next) => {
 const deleteEvent = async (req, res, next) => {
   try {
     const { eventId } = req.params;
+    const force = req.query.force === 'true' || req.query.force === '1';
+
+    /**
+     * A LIVE EVENT WITH GUESTS CANNOT BE DELETED SILENTLY.
+     *
+     * This is a hard delete that cascades through every related table, and until
+     * now it was also the only way to call an event off. So an organizer whose
+     * venue flooded pressed Delete, several hundred people were never told
+     * anything, and every RSVP, seating chart and consent record went with them —
+     * including the records we are required to be able to produce.
+     *
+     * Cancelling is what they actually want: guests get told, the RSVP form
+     * closes, and the history survives. Delete stays available for the case it
+     * was designed for — clearing out something nobody was ever invited to — and
+     * `?force=true` remains for an organizer who genuinely means it.
+     */
+    if (!force) {
+      const { data: event } = await supabase
+        .from('events').select('status, is_paid').eq('id', eventId).maybeSingle();
+
+      if (event && event.is_paid && (event.status === 'active' || event.status === 'paused')) {
+        const { count } = await supabase
+          .from('rsvp_parties').select('id', { count: 'exact', head: true })
+          .eq('event_id', eventId);
+
+        if ((count || 0) > 0) {
+          return res.status(409).json({
+            success: false,
+            error: 'CANCEL_FIRST',
+            guestCount: count,
+            message: `This event has ${count} ${count === 1 ? 'guest' : 'guests'}. Cancel it instead — your guests will be told, and the event stays in your records. Deleting removes everything and tells nobody.`,
+          });
+        }
+      }
+    }
 
     // Delete event (cascades to all related tables via FK ON DELETE CASCADE)
     const { error } = await supabase
@@ -1042,5 +1306,7 @@ module.exports = {
   getEventStats,
   getAdminEvents,
   deleteEvent,
+  cancelEvent,
+  notifyGuestsOfChange,
   getActivityLog
 };

@@ -12,9 +12,9 @@ test('applies the platform markup', () => {
   assert.equal(computeSmsChargeCents({ unitPriceCents: 5, creditCount: 100, markupPct: 20 }), 600);
 });
 
-test('applies the 12.5% volume discount at the 500-credit threshold', () => {
-  // 5¢ × 500 × 0.875 = 2187.5 → 2188¢ (rounded once at the end)
-  assert.equal(computeSmsChargeCents({ unitPriceCents: 5, creditCount: 500 }), 2188);
+test('applies the 10% volume discount at the 500-message threshold', () => {
+  // 5¢ × 500 × 0.90 = 2250¢
+  assert.equal(computeSmsChargeCents({ unitPriceCents: 5, creditCount: 500 }), 2250);
 });
 
 test('does not apply the volume discount just below the threshold', () => {
@@ -23,17 +23,48 @@ test('does not apply the volume discount just below the threshold', () => {
 });
 
 test('markup and volume discount compose, rounding only once', () => {
-  // 5¢ × 500 × 1.20 × 0.875 = 2625¢
-  assert.equal(computeSmsChargeCents({ unitPriceCents: 5, creditCount: 500, markupPct: 20 }), 2625);
+  // 5¢ × 500 × 1.20 × 0.90 = 2700¢
+  assert.equal(computeSmsChargeCents({ unitPriceCents: 5, creditCount: 500, markupPct: 20 }), 2700);
+});
+
+test('deeper tiers apply as the order grows', () => {
+  // The ladder exists so a large order is cheaper PER MESSAGE, not merely bigger.
+  const per = (n) => computeSmsChargeCents({ unitPriceCents: 5, creditCount: n }) / n;
+  assert.ok(per(10000) < per(5000));
+  assert.ok(per(5000) < per(2000));
+  assert.ok(per(2000) < per(500));
+});
+
+test('a FRACTIONAL carrier rate survives to the total', () => {
+  // The whole reason sms_rate_cents_per_credit became NUMERIC. The real rate is
+  // 1.1¢; as an INTEGER column it stored 1, understating cost by ~9% everywhere.
+  // 1.1¢ × 400 × 2.7273 = 1200.01 → 1200¢ = exactly $12.00, no discount at 400.
+  assert.equal(
+    computeSmsChargeCents({ unitPriceCents: 1.1, creditCount: 400, markupPct: 172.73 }),
+    1200,
+  );
 });
 
 test('discount cents are NOT lost (regression for the per-unit rounding bug)', () => {
-  // The old code charged round(total/count) × count. For this input that path
-  // yielded 2000¢ instead of the intended discounted total. Guard against it.
-  const total = computeSmsChargeCents({ unitPriceCents: 5, creditCount: 500 });
-  const oldPerUnitCharge = Math.round(total / 500) * 500;
-  assert.equal(total, 2188);
+  // The old code charged round(total/count) × count. That path discards the
+  // fractional cents a discount creates — guard against its return.
+  const total = computeSmsChargeCents({ unitPriceCents: 5, creditCount: 2000 });
+  const oldPerUnitCharge = Math.round(total / 2000) * 2000;
   assert.notEqual(total, oldPerUnitCharge);
+});
+
+test('belowCost flags an order that earns less than it costs to deliver', () => {
+  const { describeSmsCharge } = require('../utils/pricing');
+
+  const healthy = describeSmsCharge({ unitPriceCents: 1.1, creditCount: 400, markupPct: 172.73 });
+  assert.equal(healthy.belowCost, false);
+  assert.ok(healthy.marginPct > 50);
+
+  // A markup below zero sells under cost. The admin form CLAMPS bad input rather
+  // than rejecting it, so a loss can be saved silently — this flag is what paints
+  // the offending row red instead of leaving it to a monthly total.
+  const loss = describeSmsCharge({ unitPriceCents: 1.1, creditCount: 400, markupPct: -50 });
+  assert.equal(loss.belowCost, true);
 });
 
 test('treats a null/invalid markup as zero', () => {

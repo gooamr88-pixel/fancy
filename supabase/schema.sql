@@ -1812,7 +1812,10 @@ CREATE TABLE public.events (
     guest_list_visibility public.guest_list_visibility_type DEFAULT 'none'::public.guest_list_visibility_type NOT NULL,
     comp_reason text,
     CONSTRAINT events_privacy_mode_check CHECK ((privacy_mode = ANY (ARRAY['public'::text, 'private'::text, 'password'::text]))),
-    CONSTRAINT events_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'pending_review'::text, 'active'::text, 'paused'::text, 'completed'::text])))
+    -- 'cancelled' added by 20260822000000_sms_rebuild: distinct from 'paused'
+    -- (temporarily hidden, resumable) and from a DELETE (silent, unrecoverable,
+    -- and tells no guest anything).
+    CONSTRAINT events_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'pending_review'::text, 'active'::text, 'paused'::text, 'completed'::text, 'cancelled'::text])))
 );
 
 -- Name: guests; Type: TABLE; Schema: public
@@ -2068,8 +2071,10 @@ CREATE TABLE public.sms_credit_wallets (
 CREATE TABLE public.super_admin_config (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     pricing_tiers jsonb DEFAULT '[{"name": "Essential", "max_guests": 100, "price_cents": 7900}, {"name": "Premium", "max_guests": 300, "price_cents": 14900}, {"name": "Enterprise", "max_guests": 1000, "price_cents": 24900}]'::jsonb NOT NULL,
-    sms_rate_cents_per_credit integer DEFAULT 8,
-    sms_markup_percentage numeric DEFAULT 40.0,
+    -- NUMERIC since 20260822000000_sms_rebuild: the real carrier cost is 1.1
+    -- cents per segment, and the previous INTEGER column silently rounded it to 1.
+    sms_rate_cents_per_credit numeric(10,4) DEFAULT 1.1,
+    sms_markup_percentage numeric DEFAULT 172.73,
     platform_commission_pct numeric DEFAULT 0.0,
     updated_at timestamp with time zone DEFAULT now(),
     updated_by uuid,

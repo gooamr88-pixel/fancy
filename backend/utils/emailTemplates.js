@@ -1160,6 +1160,57 @@ const getEventUpdatedTemplate = (rsvp, event, changes, eventUrl, lang = 'en') =>
   });
 };
 
+/**
+ * Sent to attending guests when an organizer CANCELS the event.
+ *
+ * A separate template rather than a flag on the one above, because almost nothing
+ * carries over. That one is built around "please review the latest details" and
+ * signs off with "See you there!" — sentences that are actively cruel attached to
+ * a cancellation, and the kind of thing a guest screenshots.
+ *
+ * Three deliberate choices:
+ *   • The word "cancelled" is in the eyebrow, the heading area and the first
+ *     sentence. A guest skim-reading on a lock screen must not come away thinking
+ *     something merely moved.
+ *   • No button. There is nothing to view and nothing to do; a gold call-to-action
+ *     under this news reads as a product asking for engagement at a bad moment.
+ *   • The organizer's own reason, when they gave one, is quoted verbatim and
+ *     attributed. It is the only part of this message a guest actually wants, and
+ *     it is not ours to paraphrase.
+ */
+const getEventCancelledTemplate = (rsvp, event, eventUrl, lang = 'en', reason = null) => {
+  const when = event.event_date ? formatEventDate(event.event_date) : null;
+  const rows = when ? [[pick(lang, { en: 'Was scheduled for', ar: 'كان مقررًا في' }), escapeHtml(when)]] : [];
+  return emailShell({
+    lang,
+    preheader: pick(lang, {
+      en: `${event.title} has been cancelled`,
+      ar: `تم إلغاء ${event.title}`,
+    }),
+    eyebrow: pick(lang, { en: 'Event cancelled', ar: 'تم إلغاء المناسبة' }),
+    // Not the gold accent. This is the one message in the system that should not
+    // look celebratory.
+    accent: BRAND.stone,
+    heading: escapeHtml(event.title),
+    contentHtml: `
+      ${greeting(rsvp.guest_name, lang)}
+      ${para(pick(lang, {
+        en: `We're sorry to let you know that <strong>${escapeHtml(event.title)}</strong> has been cancelled. You do not need to do anything — your RSVP has been closed.`,
+        ar: `يؤسفنا إبلاغك بأنه تم إلغاء <strong>${escapeHtml(event.title)}</strong>. لا حاجة لاتخاذ أي إجراء — تم إغلاق تسجيل حضورك.`,
+      }))}
+      ${rows.length ? dataTable(rows, lang) : ''}
+      ${reason ? para(pick(lang, {
+        en: `A message from the host:<br><em>${escapeHtml(reason)}</em>`,
+        ar: `رسالة من المضيف:<br><em>${escapeHtml(reason)}</em>`,
+      })) : ''}
+      ${para(pick(lang, {
+        en: 'If you have questions, please contact the host directly.',
+        ar: 'إذا كان لديك أي استفسار، يُرجى التواصل مع المضيف مباشرةً.',
+      }), { size: 13, color: BRAND.stone, align: 'center', mb: 0 })}
+    `,
+  });
+};
+
 /* ═══════════════════════════════════════════════════════════════════════════
    ORGANIZER LIFECYCLE & REPORTS
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -1332,6 +1383,7 @@ module.exports = {
   getEventReminderTemplate,
   getPostEventThankYouTemplate,
   getEventUpdatedTemplate,
+  getEventCancelledTemplate,
   // Organizer
   getNewRsvpOrganizerTemplate,
   getOrganizerWelcomeTemplate,

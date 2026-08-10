@@ -29,7 +29,6 @@ import FeatureGate from './components/FeatureGate';
 import OrganizerOverview from './components/OrganizerOverview';
 import OrganizerProfile from './components/OrganizerProfile';
 import ReferralsTab from './components/ReferralsTab';
-import SendInvitationModal from './components/SendInvitationModal';
 
 /* ═══════════════════════════════════════════════
    Brand Design Tokens
@@ -130,8 +129,16 @@ const sidebarNav = [
   // "SMS Campaigns" named the one manual feature and hid the six automatic ones,
   // so the page most organizers needed — their message balance and history —
   // was behind a label that sounded like marketing software they had not bought.
+  // The campaign composer is now gone entirely; the page is balance, history and
+  // the four switches, which is what the label promised all along.
   { key: 'campaigns', label: 'Text messages', icon: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+  )},
+  // The explanation, separate from the controls. An organizer deciding WHETHER to
+  // buy has different questions from one who already has and wants to check a
+  // balance, and putting both on one page served neither.
+  { key: 'sms-plans', label: 'Texting & pricing', icon: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
   )},
   { key: 'referrals', label: 'Referrals', icon: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
@@ -253,14 +260,19 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState('overview');
   const [showAddGuestModal, setShowAddGuestModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
-  const [showSendInvitationModal, setShowSendInvitationModal] = useState(false);
-  // What the RSVPs list asked us to send to, and on which channel. Seeds the
-  // modal so the organizer's filtering and ticking travels with them.
-  const [sendSeed, setSendSeed] = useState({ ids: null, channel: null });
-  // Whether this event can text at all, and the current per-send cap — both
-  // needed BEFORE the modal opens so the action bar can say so up front instead
-  // of the organizer discovering it from a 402/429 at the end.
-  const [smsAddon, setSmsAddon] = useState({ active: false, maxPerSend: 0, remaining: 0 });
+  /**
+   * Everything the tabs need to say about text messaging, held once here.
+   *
+   * Loaded BEFORE the organizer presses anything, so the action bar can say "you
+   * can text 74 of these 118" up front rather than letting them discover it from
+   * a 402 or a 429 after the fact. `coverage` is the server's own judgement of
+   * whether the balance covers the real guest list — computed from the same
+   * ladder that priced the purchase, so the banner and the checkout can never
+   * quote two different models.
+   */
+  const [smsAddon, setSmsAddon] = useState({
+    active: false, maxPerSend: 0, remaining: 0, purchased: 0, coverage: null,
+  });
   const [showQRModal, setShowQRModal] = useState(false);
   const [qrModalTab, setQrModalTab] = useState('qr');
   const [copyTooltip, setCopyTooltip] = useState(false);
@@ -298,6 +310,12 @@ export default function DashboardPage() {
             active: !!data.addonActive,
             maxPerSend: Number(data.sendLimit?.maxPerSend) || 0,
             remaining: Number(data.balance?.remaining) || 0,
+            purchased: Number(data.balance?.purchased) || 0,
+            // Server-computed against the real guest count and the same guest
+            // ladder that priced the purchase. Deliberately NOT re-derived on the
+            // client: a second implementation of "is this enough?" is a second
+            // answer waiting to disagree with the one on the checkout screen.
+            coverage: data.coverage || null,
           });
         }
       } catch { /* defaults stand */ }
@@ -751,6 +769,11 @@ export default function DashboardPage() {
               <button key={item.key} data-testid={`tab-${item.key}`} onClick={() => {
                 if (item.key === 'campaigns') {
                   router.push('/dashboard/campaigns');
+                } else if (item.key === 'sms-plans') {
+                  // A real route, not a client-state tab. Without this branch it
+                  // would fall through to setActiveTab and render nothing, since
+                  // there is no matching case in the tab ternary.
+                  router.push(`/dashboard/sms-plans${eventId ? `?event=${eventId}` : ''}`);
                 } else if (item.key === 'checkin') {
                   router.push('/checkin');
                 } else if (item.key === 'checkin-setup') {
@@ -1305,11 +1328,10 @@ export default function DashboardPage() {
               onRefresh={loadDashboardData}
               smsAddonActive={smsAddon.active}
               smsMaxPerSend={smsAddon.maxPerSend}
-              onBuySms={() => router.push('/dashboard/campaigns')}
-              onSendToSelection={(ids, channel) => {
-                setSendSeed({ ids, channel });
-                setShowSendInvitationModal(true);
-              }}
+              smsRemaining={smsAddon.remaining}
+              smsPurchased={smsAddon.purchased}
+              smsCoverage={smsAddon.coverage}
+              onBuySms={() => router.push('/dashboard/sms-plans?event=' + eventId)}
             />
           ) : activeTab === 'guests' ? (
             <GuestsTab
@@ -1322,7 +1344,10 @@ export default function DashboardPage() {
               onRefresh={loadDashboardData}
               onOpenAddGuest={() => setShowAddGuestModal(true)}
               onOpenImport={() => setShowImportModal(true)}
-              onOpenSendInvitations={() => setShowSendInvitationModal(true)}
+              smsAddonActive={smsAddon.active}
+              smsRemaining={smsAddon.remaining}
+              smsPurchased={smsAddon.purchased}
+              smsCoverage={smsAddon.coverage}
               isPaid={!!activeEvent?.is_paid || !!activeEvent?.manual_override}
               tierFeatures={activeEvent?.tier_features}
               onUpgrade={() => setActiveTab('events')}
@@ -1387,19 +1412,6 @@ export default function DashboardPage() {
         event={activeEvent}
         onImportComplete={loadDashboardData}
       />
-      <SendInvitationModal
-        isOpen={showSendInvitationModal}
-        onClose={() => { setShowSendInvitationModal(false); setSendSeed({ ids: null, channel: null }); }}
-        rsvps={rsvps}
-        eventId={eventId}
-        apiUrl={apiUrl}
-        onSuccess={loadDashboardData}
-        initialSelectedIds={sendSeed.ids}
-        initialChannel={sendSeed.channel}
-        smsRemaining={smsAddon.remaining}
-        smsAddonActive={smsAddon.active}
-      />
-
       {/* ═══ QR CODE MODAL ═══ */}
       {showQRModal && activeEvent && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(25,27,30,0.6)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>

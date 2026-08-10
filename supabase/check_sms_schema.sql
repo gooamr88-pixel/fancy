@@ -33,7 +33,11 @@ WITH expected(sort_key, object_name, kind, supplied_by) AS (VALUES
   (22, 'organizations.sms_consent_ip',            'column', '20260821000000_sms_organizer_optin_and_perf'),
   (23, 'rsvp_parties.preferred_lang',             'column', '20260821000000_sms_organizer_optin_and_perf'),
   (24, 'event_payments.sms_addon_segments',       'column', '20260821000000_sms_organizer_optin_and_perf'),
-  (25, 'sms_skip_summary',                        'function', '20260821000000_sms_organizer_optin_and_perf')
+  (25, 'sms_skip_summary',                        'function', '20260821000000_sms_organizer_optin_and_perf'),
+  (26, 'seating_notify_queue',                    'table',  '20260822000000_sms_rebuild'),
+  (27, 'events.cancelled_at',                     'column', '20260822000000_sms_rebuild'),
+  (28, 'events.cancellation_reason',              'column', '20260822000000_sms_rebuild'),
+  (29, 'short_links',                             'table',  '20260822000000_sms_rebuild')
 )
 SELECT
   e.object_name,
@@ -60,3 +64,38 @@ SELECT
   e.supplied_by
 FROM expected e
 ORDER BY e.sort_key;
+
+
+-- ─── The one thing an existence check cannot see ─────────────────────────────
+--
+-- sms_rate_cents_per_credit EXISTS whether or not 20260822000000 ran — it has
+-- existed since 20260607100000. What changed is its TYPE, and that change is the
+-- entire point: as an INTEGER the column accepted the true carrier rate of 1.1
+-- and silently stored 1, understating our cost by about 9% everywhere it is used.
+-- The failure is invisible in the UI, in the API and in this script's table above.
+-- So assert the type, and assert the stored value is not the old rounded one.
+
+SELECT
+  'super_admin_config.sms_rate_cents_per_credit' AS object_name,
+  data_type,
+  CASE WHEN data_type = 'numeric' THEN 'ok'
+       ELSE 'MISSING — still INTEGER; 20260822000000_sms_rebuild has not run, and every fractional rate is being rounded on write'
+  END AS status
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name   = 'super_admin_config'
+  AND column_name  = 'sms_rate_cents_per_credit';
+
+SELECT
+  sms_rate_cents_per_credit AS carrier_cost_cents_per_segment,
+  sms_markup_percentage     AS markup_pct,
+  ROUND(sms_rate_cents_per_credit * (1 + sms_markup_percentage / 100), 2) AS list_price_cents_per_segment,
+  CASE
+    WHEN sms_rate_cents_per_credit = 8 THEN 'stale — pre-rebuild default (8 cents) is ~7x the real carrier cost'
+    WHEN sms_rate_cents_per_credit = 1 THEN 'ROUNDED — someone saved 1.1 into an INTEGER column'
+    ELSE 'ok'
+  END AS status,
+  sms_pricing_config ? 'guest_bands'  AS has_guest_bands,
+  sms_pricing_config ? 'type_weights' AS has_type_weights
+FROM super_admin_config
+WHERE id = '00000000-0000-0000-0000-000000000000';

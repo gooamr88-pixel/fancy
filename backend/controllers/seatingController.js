@@ -4,6 +4,44 @@ const invitationService = require('../services/invitationService');
 const { broadcast } = require('../utils/realtime');
 
 /**
+ * Queue a guest to be TEXTED their table — later, once the organizer stops moving
+ * people around.
+ *
+ * Every seating endpoint calls this instead of sending. The queue is keyed on
+ * (event_id, party_id), so each move overwrites the previous row and the last
+ * table wins; emailScheduler.jobSeatingNotices sweeps rows that have been still
+ * for ten minutes and sends once.
+ *
+ * Why not just send here: a drag-and-drop session on a 200-guest chart issues one
+ * request per drop. Sending inline meant an organizer tidying their layout for
+ * twenty minutes spent hundreds of charged messages, and a guest moved four times
+ * got four texts, three of them naming a table they are not sitting at.
+ *
+ * Best-effort by design. A queue failure must never fail the seating operation
+ * itself — the organizer's chart is the thing they are actually doing, and the
+ * email carrying the real pass has already gone.
+ */
+async function queueSeatingNotice(eventId, partyId, tableId) {
+  if (!eventId || !partyId) return;
+  try {
+    await supabase.from('seating_notify_queue').upsert(
+      {
+        event_id: eventId,
+        party_id: partyId,
+        table_id: tableId || null,
+        queued_at: new Date().toISOString(),
+        // Reset on every move: a guest already texted about table 7 who is moved
+        // to table 3 is owed a new message.
+        notified_at: null,
+      },
+      { onConflict: 'event_id,party_id' },
+    );
+  } catch (err) {
+    logger.warn({ err, eventId, partyId }, 'Could not queue the seating text (seating itself succeeded)');
+  }
+}
+
+/**
  * Assigns a guest party to a table atomically.
  * POST /api/v1/events/:eventId/seating/assign
  */
@@ -55,12 +93,16 @@ const assignSeat = async (req, res, next) => {
     // Broadcast the update (fire-and-forget REST broadcast — no per-request socket).
     broadcast(eventId, 'seating_update', { rsvpId, tableId, seatsRemaining: data.seats_remaining });
 
-    // Auto-fire QR ticket email on successful seating assignment
+    // The EMAIL goes immediately — it is free, and it is the thing that actually
+    // carries the scannable pass.
     try {
       await invitationService.sendQrTicketEmail(eventId, rsvpId);
     } catch (emailErr) {
       logger.error({ err: emailErr, rsvpId }, 'Failed to auto-send QR ticket email');
     }
+
+    // The TEXT is queued, not sent. See queueSeatingNotice.
+    await queueSeatingNotice(eventId, rsvpId, tableId);
 
     return res.status(200).json({
       success: true,
@@ -124,12 +166,17 @@ const reassignSeat = async (req, res, next) => {
       seatsRemainingNewTable: data.seats_remaining_new_table,
     });
 
-    // Deliberately NOT auto-emailing here. Only the guest's first seating
-    // assignment sends automatically (see assignSeat / saveSeatingBatch);
-    // every move after that is silent by design, so an organizer rearranging
-    // a table doesn't spam already-seated guests. The organizer can notify
-    // the guest of a change with the explicit "resend" action (POST
-    // /notifications/send-qr-ticket) whenever they actually want to.
+    // Still deliberately NOT auto-emailing: a move is not worth a second email
+    // carrying a pass the guest already has.
+    //
+    // But it IS worth a text, because the text is the thing that names the table,
+    // and a guest holding a message that says "table 7" when they have been moved
+    // to table 3 is worse off than one holding no message at all.
+    //
+    // Queued rather than sent — which is what makes this safe to do on every move
+    // where it previously could not be done at all. Ten drags of the same guest
+    // collapse to one row, and one text naming where they finally ended up.
+    await queueSeatingNotice(eventId, rsvpId, req.body?.tableId || data.to_table || null);
 
     return res.status(200).json({
       success: true,
@@ -185,9 +232,19 @@ const unassignSeat = async (req, res, next) => {
     // Broadcast the update (fire-and-forget REST broadcast — no per-request socket).
     broadcast(eventId, 'seating_update', { rsvpId, tableId: '', seatsRemaining: data.seats_remaining });
 
-    // Auto-fire updated ticket email (no seating details / unseated notice if needed, or skip)
-    // For now we don't need to auto-fire a ticket since they are unseated, but they can be notified.
-    
+    // Drop any pending seating text for this guest.
+    //
+    // If they were queued a minute ago and have now been unseated, the message
+    // waiting to go out names a table they no longer have. Deleting the row is
+    // the whole reason the queue is a table rather than a fired-and-forgotten
+    // send: an unsent message can still be recalled.
+    try {
+      await supabase.from('seating_notify_queue')
+        .delete().eq('event_id', eventId).eq('party_id', rsvpId);
+    } catch (err) {
+      logger.warn({ err, rsvpId }, 'Could not clear the queued seating text after unseating');
+    }
+
     return res.status(200).json({
       success: true,
       message: 'Guest unassigned from table successfully.',
@@ -278,12 +335,10 @@ const saveSeatingBatch = async (req, res, next) => {
     // 3. Broadcast (fire-and-forget REST broadcast — no per-request socket).
     broadcast(eventId, 'seating_update', { batch: true, results });
 
-    // Auto-fire the seating-location email, but ONLY for guests newly seated
-    // in this batch (action === 'assign' — they had no table before). Batch
-    // reassignments are deliberately silent, same as reassignSeat above, so
-    // dragging an already-seated guest to a different table doesn't re-email
-    // them; the organizer uses the explicit resend action for that. Fired
-    // without awaiting so a large batch doesn't hold up the response.
+    // EMAIL: only for guests NEWLY seated in this batch (action === 'assign' —
+    // they had no table before). Batch reassignments stay silent on email, same
+    // as reassignSeat, because the pass a moved guest already holds is still
+    // valid. Fired without awaiting so a large batch doesn't hold up the response.
     results
       .filter((r) => r.action === 'assign' && r.success)
       .forEach((r) => {
@@ -291,6 +346,31 @@ const saveSeatingBatch = async (req, res, next) => {
           logger.error({ err: emailErr, rsvpId: r.rsvpId }, 'Failed to auto-send QR ticket email (batch)');
         });
       });
+
+    // TEXT: queued for BOTH assign and reassign — this is the case the debounce
+    // was built for.
+    //
+    // A batch save is the seating screen handing over a whole afternoon of
+    // rearranging at once, so it is simultaneously the most valuable moment to
+    // tell guests where they are sitting and the most dangerous moment to send
+    // anything. The queue resolves it: 200 rows here collapse to 200 upserts, one
+    // per guest, and each guest is texted once with wherever they finally landed.
+    await Promise.all(
+      results
+        .filter((r) => (r.action === 'assign' || r.action === 'reassign') && r.success)
+        .map((r) => queueSeatingNotice(eventId, r.rsvpId, r.tableId)),
+    );
+
+    // An unseated guest's pending text is withdrawn — see unassignSeat.
+    const unseated = results.filter((r) => r.action === 'unassign' && r.success).map((r) => r.rsvpId);
+    if (unseated.length > 0) {
+      try {
+        await supabase.from('seating_notify_queue')
+          .delete().eq('event_id', eventId).in('party_id', unseated);
+      } catch (err) {
+        logger.warn({ err, eventId }, 'Could not clear queued seating texts for unseated guests');
+      }
+    }
 
     // Check if there was any failure in the batch
     const failures = results.filter(r => !r.success);

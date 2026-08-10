@@ -52,13 +52,11 @@ const server = app.listen(PORT, () => {
     logger.warn({ err }, 'Email scheduler failed to start (non-fatal)');
   }
 
-  // Async SMS campaign worker (drains large queued campaigns). On by default;
-  // single-leader + idempotent (see smsCampaignWorker). Disable with SMS_WORKER_ENABLED=false.
-  try {
-    require('./services/smsCampaignWorker').start();
-  } catch (err) {
-    logger.warn({ err }, 'SMS campaign worker failed to start (non-fatal)');
-  }
+  // The async SMS campaign worker used to start here. It drained free-text
+  // campaigns, which no longer exist — the four-type rebuild replaced them with
+  // templated messages that send inline or from the email scheduler, so there is
+  // no queue left to drain. SMS_WORKER_ENABLED is now unread; remove it from any
+  // deployment env file you still have it in.
 
   // Daily revenue rollup refresher — keeps mv_daily_revenue (Financial Command
   // Center §22) current. On by default; single-leader + idempotent (see
@@ -83,7 +81,6 @@ const server = app.listen(PORT, () => {
 function gracefulShutdown(signal) {
   logger.info(`${signal} signal received: closing HTTP server`);
   try { require('./services/emailScheduler').stop(); } catch { /* ignore */ }
-  try { require('./services/smsCampaignWorker').stop(); } catch { /* ignore */ }
   try { require('./services/revenueRollup').stop(); } catch { /* ignore */ }
   try { require('./services/draftCleanup').stop(); } catch { /* ignore */ }
   server.close(() => {

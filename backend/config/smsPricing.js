@@ -21,39 +21,116 @@
  *   • on WRITE, so what the admin saves is already clamped, and the dashboard
  *     reflects back exactly what will be charged.
  *
- * Every default reproduces the constant the code used before these values became
- * editable, so an unconfigured platform behaves exactly as it always did.
+ * ── The economics these defaults encode ──
+ *
+ * One segment costs us about 1.1 cents all-in: Vonage US outbound is $0.00809,
+ * and US carriers add roughly $0.002-0.003 of pass-through fees on top. That
+ * figure lives in `super_admin_config.sms_rate_cents_per_credit`, not here.
+ *
+ * List price is 3.0 cents a segment — a markup of 172.73%, or about 63% gross
+ * margin on revenue. Two mechanisms then push the effective price DOWN as an
+ * event grows, and they compound:
+ *
+ *   1. `guest_bands` — messages budgeted per invitation falls from 3 to 1.5 as
+ *      the guest list grows. The third text is worth less at 3,000 guests than
+ *      at 200, but costs exactly the same.
+ *   2. `volume_discounts` — the price of each segment falls with order size.
+ *
+ * Together they take the per-guest cost of an English event from about $0.060 at
+ * 200 guests to about $0.032 at 3,000 — a 47% drop — while the gross margin never
+ * falls below roughly 51%.
  */
 
 /** The shipped model. Also the fallback for any field an admin leaves unset. */
 const DEFAULT_SMS_PRICING = Object.freeze({
   // Tiered, NOT cumulative: the single best-matching tier applies. Cumulative
   // stacking is the classic way a discount table quietly reaches 100% off.
-  volume_discounts: [{ min_segments: 500, discount_pct: 12.5 }],
+  volume_discounts: [
+    { min_segments: 10000, discount_pct: 30 },
+    { min_segments: 5000, discount_pct: 25 },
+    { min_segments: 2000, discount_pct: 18 },
+    { min_segments: 500, discount_pct: 10 },
+  ],
   bounds: { min: 50, max: 50000, step: 50 },
   estimator: {
     // Invitations go to households and couples, and SMS reaches one primary
     // contact per party — so a 200-guest cap is nowhere near 200 recipients.
     guests_per_party: 2.2,
-    // A typical body plus the mandatory 77-character compliance footer lands just
-    // over one 160-character GSM-7 segment.
-    segments_per_message_latin: 1.4,
-    // Arabic forces UCS-2, where a segment holds only 70 characters — so the same
-    // message costs two to three times as much.
-    segments_per_message_arabic: 2.6,
+    /**
+     * MEASURED, not assumed. These were 1.4 and 2.6, and both were wrong — which
+     * meant the platform under-quoted every allowance it ever sold by about 40%,
+     * and organizers ran out of messages partway through their own event.
+     *
+     * The arithmetic is unforgiving and worth writing down. A GSM-7 segment holds
+     * 160 characters. The mandatory compliance footer is 78 of them. A short link
+     * is 32. That leaves about 50 characters for a guest's name, the event title
+     * and the words joining them — and "Alexandra Whitmore, you're invited to The
+     * Whitmore-Hassan Wedding." is 66 on its own.
+     *
+     * So two segments is the floor for a personalised English message carrying a
+     * link, not the ceiling. Measured across a realistic spread of names and event
+     * titles, ZERO of them fit in one segment. Pretending otherwise does not make
+     * messages cheaper; it makes the number we quote wrong.
+     */
+    segments_per_message_latin: 2.0,
+    /**
+     * Arabic forces UCS-2, where a segment holds only 70 characters and the
+     * (English, unavoidable) compliance footer alone consumes more than one.
+     *
+     * 3.0 assumes short links are in use. With the raw 89-character RSVP URL it
+     * measures 4.0 — which is the whole reason short links exist: they are a
+     * permanent 25% cut on every Arabic event.
+     */
+    segments_per_message_arabic: 3.0,
     unlimited_tier_assumed_guests: 500,
   },
-  // Messages per PARTY over the event's life, except organizer_report which is
-  // per EVENT (the registry marks which is which).
-  type_frequencies: {
-    rsvp_confirmation: 1,
-    rsvp_reminder: 0.6,
-    event_reminder: 0.7,
-    qr_ticket: 0.7,
-    decline_ack: 0.2,
-    organizer_report: 3,
-    campaign: 2,
+
+  /**
+   * THE ALLOWANCE LADDER — messages budgeted per INVITATION, by guest count.
+   *
+   * The model this replaced multiplied a flat per-type frequency by party count,
+   * so a 3,000-guest event was quoted almost exactly ten times a 300-guest one.
+   * That is arithmetically consistent and commercially useless: large events are
+   * where texting has to feel affordable, and it made them look ruinous.
+   *
+   * Ascending by threshold. The LAST entry must have `max_guests: null` — the
+   * open band — or an event above every threshold prices at zero messages.
+   * normalizeSmsPricing enforces that rather than trusting it.
+   */
+  guest_bands: [
+    { max_guests: 300, messages_per_party: 3 },
+    { max_guests: 1000, messages_per_party: 2.5 },
+    { max_guests: 3000, messages_per_party: 2 },
+    { max_guests: null, messages_per_party: 1.5 },
+  ],
+
+  /**
+   * How a band's budget is split between the GUEST message types.
+   *
+   * RELATIVE shares, not absolutes — only the ratios matter, and scaling all
+   * three by the same factor changes nothing. Kept separate from
+   * `type_frequencies` below because the two mean genuinely different things, and
+   * one key meaning both is how a wrong invoice gets written two years from now.
+   */
+  type_weights: {
+    invitation: 1.0,
+    // The heaviest: fires when the guest is seated, and again just before the day.
+    seating_reminder: 1.2,
+    // Most events never change. Small, but never zero — the one time it is needed
+    // is the worst possible moment to discover the allowance did not cover it.
+    event_update: 0.3,
   },
+
+  /**
+   * ABSOLUTE messages per EVENT, for ORGANIZER-audience types only.
+   *
+   * An organizer gets the same handful of reports whether they invite 20 people
+   * or 2,000, so this must never be multiplied by party count.
+   */
+  type_frequencies: {
+    organizer_report: 3,
+  },
+
   limits: {
     /**
      * Anti-abuse ramp-up: the most messages one request may send, rising with the
@@ -94,17 +171,32 @@ const DEFAULT_SMS_PRICING = Object.freeze({
  * or, worse, taking checkout down.
  */
 const LIMITS = {
-  discountPct: { min: 0, max: 90 },        // 100% would make messages free
+  /**
+   * 50, not 90.
+   *
+   * At 1.1c cost and a 3.0c list price, the break-even discount is 63.3%. The old
+   * cap of 90% meant a mistyped `85` would clamp to 85, save without complaint,
+   * and lose money on every large order — the exact orders the tier exists to
+   * win. 50% leaves real room to discount (down to 1.5c a segment, still a 27%
+   * margin) while making a below-cost tier unreachable by typo.
+   *
+   * An admin who genuinely wants to sell at a loss has to change this constant,
+   * which is a code review rather than a keystroke.
+   */
+  discountPct: { min: 0, max: 50 },
   minSegments: { min: 1, max: 1000000 },
-  bound:       { min: 1, max: 1000000 },
-  step:        { min: 1, max: 10000 },
-  guestsPerParty:   { min: 1, max: 20 },   // < 1 would invent recipients
-  segmentsPerMsg:   { min: 1, max: 10 },   // a segment is the indivisible unit
-  assumedGuests:    { min: 1, max: 1000000 },
-  frequency:        { min: 0, max: 100 },
-  deliveredMin:     { min: 0, max: 10000000 },
-  maxPerSend:       { min: 0, max: 1000000 }, // 0 = unlimited
-  lowBalancePct:    { min: 1, max: 90 },      // 0 would never warn; 100 always would
+  bound: { min: 1, max: 1000000 },
+  step: { min: 1, max: 10000 },
+  guestsPerParty: { min: 1, max: 20 },     // < 1 would invent recipients
+  segmentsPerMsg: { min: 1, max: 10 },     // a segment is the indivisible unit
+  assumedGuests: { min: 1, max: 1000000 },
+  frequency: { min: 0, max: 100 },
+  bandGuests: { min: 1, max: 10000000 },
+  messagesPerParty: { min: 0, max: 20 },
+  typeWeight: { min: 0, max: 100 },
+  deliveredMin: { min: 0, max: 10000000 },
+  maxPerSend: { min: 0, max: 1000000 },    // 0 = unlimited
+  lowBalancePct: { min: 1, max: 90 },      // 0 would never warn; 100 always would
 };
 
 const num = (v, fallback) => {
@@ -163,11 +255,63 @@ function normalizeSmsPricing(raw) {
     unlimited_tier_assumed_guests: Math.round(clamp(num(e.unlimited_tier_assumed_guests, D.estimator.unlimited_tier_assumed_guests), LIMITS.assumedGuests)),
   };
 
-  /* ── Per-type frequencies ──
-   * Keyed off the DEFAULTS, not off the submitted object: that way an admin
-   * payload can never introduce an unknown message type, and a type added in a
-   * later release automatically appears with its shipped frequency instead of
-   * silently costing zero. */
+  /* ── The allowance ladder ──
+   * Ascending, deduplicated on threshold, and guaranteed to END in an open band.
+   * A table whose every entry has a finite max_guests would price an event above
+   * the top threshold at zero messages — a free "purchase" that unlocks the
+   * add-on and then cannot send anything. Rather than reject the save (which
+   * would leave the admin unable to fix a bad row through the UI), the last entry
+   * is coerced open, which is what every sane version of the table means anyway. */
+  const rawBands = Array.isArray(src.guest_bands) && src.guest_bands.length
+    ? src.guest_bands
+    : D.guest_bands;
+  const seenBandKeys = new Set();
+  const guest_bands = rawBands
+    .filter((b) => b && typeof b === 'object')
+    .map((b) => ({
+      // null / undefined / '' all mean "the open band". Number('') is 0, so this
+      // has to be tested before coercion or an empty field becomes a band that
+      // matches nothing.
+      max_guests: (b.max_guests === null || b.max_guests === undefined || b.max_guests === '')
+        ? null
+        : Math.round(clamp(num(b.max_guests, 0), LIMITS.bandGuests)),
+      messages_per_party: round2(clamp(num(b.messages_per_party, 0), LIMITS.messagesPerParty)),
+    }))
+    .filter((b) => {
+      const key = b.max_guests === null ? 'open' : b.max_guests;
+      if (seenBandKeys.has(key)) return false;
+      seenBandKeys.add(key);
+      return true;
+    })
+    // Ascending, with the open band last — so band selection is "the first one
+    // you fit inside", mirroring how volume discounts resolve in the other
+    // direction.
+    .sort((a, b) => {
+      if (a.max_guests === null) return 1;
+      if (b.max_guests === null) return -1;
+      return a.max_guests - b.max_guests;
+    });
+
+  if (guest_bands.length === 0) {
+    guest_bands.push(...D.guest_bands.map((b) => ({ ...b })));
+  } else if (guest_bands[guest_bands.length - 1].max_guests !== null) {
+    guest_bands[guest_bands.length - 1] = {
+      ...guest_bands[guest_bands.length - 1],
+      max_guests: null,
+    };
+  }
+
+  /* ── Per-type weights and frequencies ──
+   * Both keyed off the DEFAULTS, not off the submitted object: that way an admin
+   * payload can never introduce an unknown message type or resurrect a retired
+   * one, and a type added in a later release automatically appears with its
+   * shipped value instead of silently costing zero. */
+  const w = src.type_weights || {};
+  const type_weights = {};
+  for (const [key, fallback] of Object.entries(D.type_weights)) {
+    type_weights[key] = round2(clamp(num(w[key], fallback), LIMITS.typeWeight));
+  }
+
   const f = src.type_frequencies || {};
   const type_frequencies = {};
   for (const [key, fallback] of Object.entries(D.type_frequencies)) {
@@ -179,9 +323,9 @@ function normalizeSmsPricing(raw) {
    * qualify for", matching how volume discounts resolve. An empty table means no
    * cap at all, which is a legitimate configuration (a private deployment with no
    * untrusted signups) — but the shipped default is not empty. */
-  const rawBands = Array.isArray(src.limits?.ramp_up) ? src.limits.ramp_up : D.limits.ramp_up;
+  const rawBandsRamp = Array.isArray(src.limits?.ramp_up) ? src.limits.ramp_up : D.limits.ramp_up;
   const seenBands = new Set();
-  const ramp_up = rawBands
+  const ramp_up = rawBandsRamp
     .filter((b) => b && typeof b === 'object')
     .map((b) => ({
       delivered_min: Math.round(clamp(num(b.delivered_min, 0), LIMITS.deliveredMin)),
@@ -203,6 +347,8 @@ function normalizeSmsPricing(raw) {
     volume_discounts,
     bounds: { min, max, step },
     estimator,
+    guest_bands,
+    type_weights,
     type_frequencies,
     limits: { ramp_up },
     alerts: { low_balance_pct },
@@ -243,6 +389,49 @@ function discountPctFor(segments, volumeDiscounts) {
 }
 
 /**
+ * The band an event of `guestCount` guests falls into.
+ *
+ * Bands are pre-sorted ascending with the open band last, so the first band whose
+ * ceiling the event fits under is the right one. Accepts either a normalized
+ * model's `guest_bands` array or nothing at all.
+ */
+function bandForGuests(guestCount, guestBands) {
+  const bands = (Array.isArray(guestBands) && guestBands.length)
+    ? guestBands
+    : DEFAULT_SMS_PRICING.guest_bands;
+  const guests = Math.max(0, Number(guestCount) || 0);
+  for (const band of bands) {
+    if (band.max_guests === null || guests <= band.max_guests) return band;
+  }
+  // Only reachable if the table has no open band and normalization was skipped.
+  return bands[bands.length - 1];
+}
+
+/**
+ * Messages budgeted per INVITATION for an event of this size.
+ *
+ * The single number the estimator and the coverage check both build on. They must
+ * agree: if the purchase screen quotes one model and the "your balance covers 90
+ * of your 240 guests" banner quotes another, one of them is lying to a customer
+ * who is looking at both.
+ */
+function messagesPerPartyFor(guestCount, pricingConfigOrNormalized) {
+  /**
+   * ALWAYS normalize. The previous version skipped it when the argument merely
+   * *had* a `guest_bands` key — which is true of a raw jsonb column straight out
+   * of the database, where the bands may be unsorted, may duplicate a threshold,
+   * or may have no open band at all.
+   *
+   * bandForGuests relies on ascending order with the open band last, so an
+   * unsorted raw config would silently return the wrong band and misprice the
+   * event. Normalizing twice costs a few object allocations; getting the band
+   * wrong costs the customer money.
+   */
+  const cfg = normalizeSmsPricing(pricingConfigOrNormalized);
+  return bandForGuests(guestCount, cfg.guest_bands).messages_per_party;
+}
+
+/**
  * Human-readable problems with a submitted model — for the admin form to show as
  * warnings. Deliberately NOT used to reject a save: normalizeSmsPricing has
  * already made the value safe, and blocking a save would leave the admin unable
@@ -261,9 +450,26 @@ function describeSmsPricingAdjustments(raw, normalized) {
   }
   for (const tier of (Array.isArray(src.volume_discounts) ? src.volume_discounts : [])) {
     if (num(tier?.discount_pct, 0) > LIMITS.discountPct.max) {
-      notes.push(`A discount of ${tier.discount_pct}% was capped at ${LIMITS.discountPct.max}% — a full discount would make messages free.`);
+      notes.push(`A discount of ${tier.discount_pct}% was capped at ${LIMITS.discountPct.max}% — beyond that a large order starts costing us more than it earns.`);
     }
   }
+
+  const submittedBands = Array.isArray(src.guest_bands) ? src.guest_bands : null;
+  if (submittedBands) {
+    if (submittedBands.length > normalized.guest_bands.length) {
+      notes.push(`${submittedBands.length - normalized.guest_bands.length} guest band(s) were dropped — two bands cannot share the same guest ceiling.`);
+    }
+    const last = submittedBands[submittedBands.length - 1];
+    const lastIsOpen = last && (last.max_guests === null || last.max_guests === undefined || last.max_guests === '');
+    if (submittedBands.length > 0 && !lastIsOpen) {
+      notes.push('The largest guest band was made open-ended — without one, an event bigger than every band would be quoted zero messages.');
+    }
+  }
+
+  if (Array.isArray(src.guest_bands) && src.guest_bands.some((b) => num(b?.messages_per_party, 1) === 0)) {
+    notes.push('A band set to 0 messages per invitation will quote nothing for events of that size — check that is what you meant.');
+  }
+
   return notes;
 }
 
@@ -273,5 +479,7 @@ module.exports = {
   normalizeSmsPricing,
   discountPctFor,
   maxPerSendFor,
+  bandForGuests,
+  messagesPerPartyFor,
   describeSmsPricingAdjustments,
 };

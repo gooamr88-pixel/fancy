@@ -65,7 +65,7 @@ async function sendMany(count, eventId = EVENT_A) {
   const twilio = { messages: { create: async () => ({ sid: 'SM_x' }) } };
 
   for (let i = 0; i < count; i++) {
-    await smsDispatch.sendRecipient({
+    await smsDispatch.__sendRecipientForTests({
       eventId, phone: PHONE, body: 'hi', segments: 1,
       idemKey: `k-${eventId}-${i}`, twilio, fromNumber: '+15550000000',
       optedOut: new Set(), consented,

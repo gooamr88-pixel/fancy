@@ -1,5 +1,5 @@
 /**
- * SMS bodies for every lifecycle message type, in English and Arabic.
+ * SMS bodies for every message type, in English and Arabic.
  *
  * ── Why these are terse to the point of looking unfinished ──
  *
@@ -15,16 +15,19 @@
  * segments is the practical floor for an Arabic message, which is exactly what
  * smsEstimator prices in.
  *
- * So: no pleasantries, no restating the event's full title, no "we look forward
- * to seeing you". Every template is a fact plus a link.
+ * ── "Make them beautiful" and "keep them one segment" are the same instruction ──
  *
- * ── The link is the payload ──
+ * The obvious way to make a text feel premium is to put more in it: the venue,
+ * the dress code, the timings, a warm sentence. Every one of those is three to
+ * four segments in English and six to eight in Arabic — which triples an
+ * organizer's bill to produce a wall of grey text in a notification shade, which
+ * is the opposite of premium.
  *
- * SMS cannot carry an image, a button, or formatting. Where the email equivalent
- * embeds a QR pass or a formatted table, the text carries a short link to the
- * page that has it. That is why qr_ticket and rsvp_confirmation do NOT suppress
- * their emails (see smsMessageTypes.replacesEmail) — the email is still the thing
- * holding the actual pass.
+ * So the craft goes somewhere better. The SMS carries the guest's name, the one
+ * fact that moment is about, and a link — and the LINK opens the full invitation
+ * reveal, which is already the most polished thing this product makes. A phone
+ * that opens a wax seal and an animated card is a far stronger impression than
+ * any amount of text could be, and it costs one segment to deliver.
  *
  * ── Truncation ──
  *
@@ -55,57 +58,96 @@ const TABLE_MAX = 20;
  * duplicated.
  */
 const TEMPLATES = {
-  rsvp_confirmation: {
-    [EN]: ({ guestName, eventTitle, response, ticketUrl }) => {
+  /**
+   * THE INVITATION. Sent when the organizer presses send, never automatically.
+   *
+   * Deliberately says almost nothing beyond who it is from and where to look.
+   * The date, the venue, the dress code, the RSVP form and the reveal animation
+   * are all on the other side of the link, laid out properly, in the event's own
+   * design. Repeating any of them here costs a segment per guest to say something
+   * worse than the page already says.
+   */
+  invitation: {
+    [EN]: ({ guestName, eventTitle, rsvpUrl }) => {
       const who = clip(guestName, NAME_MAX);
       const what = clip(eventTitle, TITLE_MAX);
-      if (response === 'maybe') return `${who}, we've noted your tentative reply for ${what}.`;
-      return ticketUrl
-        ? `${who}, your RSVP for ${what} is confirmed. Entry pass: ${ticketUrl}`
-        : `${who}, your RSVP for ${what} is confirmed.`;
+      return `${who}, you're invited to ${what}. Open your invitation: ${rsvpUrl}`;
     },
-    [AR]: ({ guestName, eventTitle, response, ticketUrl }) => {
+    [AR]: ({ guestName, eventTitle, rsvpUrl }) => {
       const who = clip(guestName, NAME_MAX);
       const what = clip(eventTitle, TITLE_MAX);
-      if (response === 'maybe') return `${who}، سجّلنا ردك المبدئي لـ ${what}.`;
-      return ticketUrl
-        ? `${who}، تم تأكيد حضورك لـ ${what}. تذكرة الدخول: ${ticketUrl}`
-        : `${who}، تم تأكيد حضورك لـ ${what}.`;
+      return `${who}، أنت مدعو إلى ${what}. دعوتك هنا: ${rsvpUrl}`;
     },
   },
 
-  rsvp_reminder: {
-    [EN]: ({ guestName, eventTitle, rsvpUrl }) =>
-      `${clip(guestName, NAME_MAX)}, please RSVP for ${clip(eventTitle, TITLE_MAX)}: ${rsvpUrl}`,
-    [AR]: ({ guestName, eventTitle, rsvpUrl }) =>
-      `${clip(guestName, NAME_MAX)}، برجاء تأكيد حضورك لـ ${clip(eventTitle, TITLE_MAX)}: ${rsvpUrl}`,
-  },
-
-  event_reminder: {
-    [EN]: ({ guestName, eventTitle, dateLabel, tableName }) => {
-      const base = `${clip(guestName, NAME_MAX)}, ${clip(eventTitle, TITLE_MAX)} is ${dateLabel}.`;
-      return tableName ? `${base} Your table: ${clip(tableName, TABLE_MAX)}.` : base;
+  /**
+   * TABLE & ENTRY PASS. Fires twice in an event's life, from the same template:
+   * once when the organizer seats the guest, and again a day or two before.
+   *
+   * Three shapes, because three genuinely different things can be true:
+   *   • seated, and the event is imminent  → date + table + pass
+   *   • seated, weeks out                  → table + pass
+   *   • no seating chart at all            → pass only
+   *
+   * The third is why this type replaced the old entry-pass type rather than
+   * sitting beside it. A standing reception has no tables, and a guest there
+   * still needs the thing that gets them through the door.
+   */
+  seating_reminder: {
+    [EN]: ({ guestName, eventTitle, tableName, ticketUrl, dateLabel }) => {
+      const who = clip(guestName, NAME_MAX);
+      const what = clip(eventTitle, TITLE_MAX);
+      const table = tableName ? clip(tableName, TABLE_MAX) : null;
+      const when = dateLabel ? ` is ${dateLabel}` : '';
+      if (table && when) return `${who}, ${what}${when}. Your table: ${table}. Entry pass: ${ticketUrl}`;
+      if (table) return `${who}, your table for ${what} is ${table}. Entry pass: ${ticketUrl}`;
+      if (when) return `${who}, ${what}${when}. Your entry pass: ${ticketUrl}`;
+      return `${who}, your entry pass for ${what}: ${ticketUrl}`;
     },
-    [AR]: ({ guestName, eventTitle, dateLabel, tableName }) => {
-      const base = `${clip(guestName, NAME_MAX)}، ${clip(eventTitle, TITLE_MAX)} ${dateLabel}.`;
-      return tableName ? `${base} طاولتك: ${clip(tableName, TABLE_MAX)}.` : base;
+    [AR]: ({ guestName, eventTitle, tableName, ticketUrl, dateLabel }) => {
+      const who = clip(guestName, NAME_MAX);
+      const what = clip(eventTitle, TITLE_MAX);
+      const table = tableName ? clip(tableName, TABLE_MAX) : null;
+      const when = dateLabel ? ` ${dateLabel}` : '';
+      if (table && when) return `${who}، ${what}${when}. طاولتك: ${table}. تذكرة الدخول: ${ticketUrl}`;
+      if (table) return `${who}، طاولتك في ${what}: ${table}. تذكرة الدخول: ${ticketUrl}`;
+      if (when) return `${who}، ${what}${when}. تذكرة دخولك: ${ticketUrl}`;
+      return `${who}، تذكرة دخولك لـ ${what}: ${ticketUrl}`;
     },
   },
 
-  qr_ticket: {
-    [EN]: ({ guestName, eventTitle, ticketUrl }) =>
-      `${clip(guestName, NAME_MAX)}, your entry pass for ${clip(eventTitle, TITLE_MAX)}: ${ticketUrl}`,
-    [AR]: ({ guestName, eventTitle, ticketUrl }) =>
-      `${clip(guestName, NAME_MAX)}، تذكرة دخولك لـ ${clip(eventTitle, TITLE_MAX)}: ${ticketUrl}`,
+  /**
+   * CHANGE OR CANCELLATION. The only type where being slightly over budget would
+   * be the right call — and it still is not, because the link carries the detail
+   * and the reason.
+   *
+   * `cancelled` is a separate sentence rather than a variation on "changed". A
+   * guest skim-reading "there's been an update to the wedding" and arriving at an
+   * empty venue is the precise failure this type exists to prevent, so the word
+   * has to be in the first six.
+   */
+  event_update: {
+    [EN]: ({ guestName, eventTitle, url, cancelled }) => {
+      const who = clip(guestName, NAME_MAX);
+      const what = clip(eventTitle, TITLE_MAX);
+      return cancelled
+        ? `${who}, ${what} has been cancelled. Details: ${url}`
+        : `${who}, the details for ${what} have changed. See what's new: ${url}`;
+    },
+    [AR]: ({ guestName, eventTitle, url, cancelled }) => {
+      const who = clip(guestName, NAME_MAX);
+      const what = clip(eventTitle, TITLE_MAX);
+      return cancelled
+        ? `${who}، تم إلغاء ${what}. التفاصيل: ${url}`
+        : `${who}، تغيّرت تفاصيل ${what}. التفاصيل الجديدة: ${url}`;
+    },
   },
 
-  decline_ack: {
-    [EN]: ({ guestName, eventTitle }) =>
-      `${clip(guestName, NAME_MAX)}, thank you for letting us know about ${clip(eventTitle, TITLE_MAX)}.`,
-    [AR]: ({ guestName, eventTitle }) =>
-      `${clip(guestName, NAME_MAX)}، شكرًا لإخبارنا بخصوص ${clip(eventTitle, TITLE_MAX)}.`,
-  },
-
+  /**
+   * THE ORGANIZER'S OWN ALERT. The only type addressed to the customer rather
+   * than to a guest, and the only one where the numbers themselves are the
+   * message — so it carries them, and links to the dashboard for the rest.
+   */
   organizer_report: {
     [EN]: ({ eventTitle, attending, pending, dashboardUrl }) =>
       `${clip(eventTitle, TITLE_MAX)}: ${attending} attending, ${pending} awaiting reply. ${dashboardUrl}`,
@@ -121,9 +163,10 @@ const TEMPLATES = {
  * a guest receiving the message in the wrong language is a far smaller failure
  * than a scheduled send silently producing an empty body.
  *
- * Returns null only when the TYPE is unknown, which is a programming error the
- * caller should surface rather than paper over. `campaign` has no entry here at
- * all: its body is written by the organizer and rendered by smsDispatch.personalize.
+ * Returns null when the TYPE is unknown, which now includes every RETIRED type.
+ * That is the correct behaviour and the caller must surface it: a resend of a
+ * retired kind has to fail visibly rather than send an empty message. See
+ * smsUsage.isResendable, which stops it reaching here at all.
  */
 function renderSmsBody(type, lang, context = {}) {
   const byLang = TEMPLATES[type];

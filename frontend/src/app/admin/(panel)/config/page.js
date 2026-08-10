@@ -247,12 +247,19 @@ function SmsRateCard({ rate, onRate, markup, onMarkup }) {
       {smsCardHeader('Rate & Margin', 'What one message costs us, and what we add on top. These two drive every price below.')}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 20 }}>
         <Field label="Carrier cost per message (cents)">
-          <input type="number" step="0.1" min="0" value={rate} onChange={(e) => onRate(e.target.value)} style={smsInput} />
-          <span style={smsHint}>What the carrier bills us per segment. Not shown to customers.</span>
+          {/* step 0.01, not 0.1 — the real figure is 1.1 and the column was
+              INTEGER until 20260822000000, which silently rounded it to 1 and
+              made every margin on this page ~9% too optimistic. The input had
+              always ACCEPTED a fraction; only the storage refused it. */}
+          <input type="number" step="0.01" min="0" value={rate} onChange={(e) => onRate(e.target.value)} style={smsInput} />
+          <span style={smsHint}>
+            What the carrier bills us per segment. Vonage US outbound is $0.00809 plus
+            roughly $0.002–0.003 of carrier pass-through fees, so ≈ <strong>1.1</strong>. Not shown to customers.
+          </span>
         </Field>
         <Field label="Fancy markup (%)">
           <input type="number" step="0.1" value={markup} onChange={(e) => onMarkup(e.target.value)} style={smsInput} />
-          <span style={smsHint}>Added to the carrier cost. 40% on an 8¢ message sells it at 11.2¢.</span>
+          <span style={smsHint}>Added to the carrier cost. 172.73% on a 1.1¢ message sells it at 3.0¢.</span>
         </Field>
       </div>
     </div>
@@ -291,7 +298,7 @@ function SmsDiscountTiers({ tiers, onChange }) {
           </div>
           <div style={{ flex: '1 1 160px' }}>
             <label style={{ fontSize: 11, color: T.text500, fontWeight: 600, display: 'block', marginBottom: 4 }}>Discount (%)</label>
-            <input type="number" step="0.5" min="0" max="90" value={tier.discount_pct} onChange={(e) => update(idx, 'discount_pct', e.target.value)} style={smsInput} />
+            <input type="number" step="0.5" min="0" max="50" value={tier.discount_pct} onChange={(e) => update(idx, 'discount_pct', e.target.value)} style={smsInput} />
           </div>
           <button
             type="button"
@@ -313,7 +320,11 @@ function SmsDiscountTiers({ tiers, onChange }) {
 
       <p style={{ ...smsHint, marginTop: 12 }}>
         A tier with a 0% discount, or one reusing a threshold another tier already claims, is
-        dropped on save — the applicable tier has to be unambiguous. Discounts are capped at 90%.
+        dropped on save — the applicable tier has to be unambiguous.
+        {' '}
+        <strong>Discounts are capped at 50%</strong>, not 90%: at a 1.1¢ cost and a 3.0¢ list price
+        the break-even discount is 63%, so a mistyped 65 would have saved without complaint and lost
+        money on exactly the large orders these tiers exist to win.
       </p>
     </div>
   );
@@ -374,39 +385,162 @@ function SmsEstimatorCard({ estimator, onChange }) {
   );
 }
 
-/** How many of each message type an average invitation receives. */
-function SmsFrequencyCard({ frequencies, messageTypes, onChange }) {
-  const types = messageTypes.length ? messageTypes : Object.keys(frequencies).map((key) => ({ key, label: key, audience: 'guest' }));
+/**
+ * THE ALLOWANCE LADDER — messages budgeted per invitation, by guest count.
+ *
+ * The control that decides whether a large event is affordable. The model this
+ * replaced multiplied a flat frequency by party count, so a 3,000-guest event
+ * was quoted almost exactly ten times a 300-guest one — arithmetically
+ * consistent and commercially useless.
+ */
+function SmsGuestBands({ bands, onChange }) {
+  const rows = Array.isArray(bands) ? bands : [];
+
+  const set = (i, key, value) => {
+    const next = rows.map((r, idx) => (idx === i ? { ...r, [key]: value } : r));
+    onChange(next);
+  };
 
   return (
     <div style={{ ...card, padding: 28 }}>
       {smsCardHeader(
-        'Messages Per Invitation',
-        'How many of each type an average invitation receives over an event\'s life. This is what the recommended bundle is actually built from.',
+        'Messages Per Invitation, By Event Size',
+        'The bigger the guest list, the fewer messages each invitation is budgeted. Run alongside the volume discounts below, this is what stops a 3,000-guest event costing ten times a 300-guest one.',
       )}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
-        {types.map((t) => (
-          <div key={t.key}>
+
+      {rows.map((b, i) => (
+        <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-end', marginBottom: 12, flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 180px' }}>
             <label style={{ fontSize: 11.5, color: T.text900, fontWeight: 600, display: 'block', marginBottom: 4 }}>
-              {t.label}
-              {t.audience === 'organizer' && (
-                <span style={{ marginLeft: 6, fontSize: 10, color: T.text400, fontWeight: 500 }}>per event</span>
-              )}
+              Up to this many guests
+            </label>
+            <input
+              type="number" min="1"
+              value={b.max_guests ?? ''}
+              placeholder="No limit"
+              onChange={(e) => set(i, 'max_guests', e.target.value === '' ? null : Number(e.target.value))}
+              style={smsInput}
+            />
+          </div>
+          <div style={{ flex: '1 1 180px' }}>
+            <label style={{ fontSize: 11.5, color: T.text900, fontWeight: 600, display: 'block', marginBottom: 4 }}>
+              Messages per invitation
             </label>
             <input
               type="number" step="0.1" min="0"
-              value={frequencies[t.key] ?? 0}
-              onChange={(e) => onChange(t.key, Number(e.target.value))}
+              value={b.messages_per_party ?? 0}
+              onChange={(e) => set(i, 'messages_per_party', Number(e.target.value))}
+              style={smsInput}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => onChange(rows.filter((_, idx) => idx !== i))}
+            style={{ padding: '9px 14px', borderRadius: 8, border: `1px solid ${T.border}`, background: 'transparent', color: '#C45E5E', fontSize: 12, fontWeight: 700, cursor: 'pointer', marginBottom: 2 }}
+          >
+            Remove
+          </button>
+        </div>
+      ))}
+
+      <button
+        type="button"
+        onClick={() => onChange([...rows, { max_guests: 500, messages_per_party: 2 }])}
+        style={{ marginTop: 6, padding: '9px 16px', borderRadius: 8, border: `1px dashed ${T.border}`, background: 'transparent', color: T.primary, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}
+      >
+        + Add a band
+      </button>
+
+      <p style={{ ...smsHint, marginTop: 12 }}>
+        The LAST band must be open-ended — leave its guest limit blank. Without one, an event
+        bigger than every band would be quoted zero messages, which unlocks the add-on and then
+        cannot send anything. If you forget, it is forced open on save and you will be told.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * How a band's budget is split across the guest message types.
+ *
+ * RELATIVE shares. Doubling every weight changes nothing — only the ratios
+ * matter. Deliberately a separate control from the organizer frequency below,
+ * because the two mean genuinely different things and one input meaning both is
+ * how a wrong invoice gets written two years from now.
+ */
+function SmsTypeWeights({ weights, frequencies, messageTypes, onWeight, onFrequency }) {
+  /**
+   * Fall back to the keys in the stored config when the type catalogue has not
+   * arrived (or the endpoint stopped sending it).
+   *
+   * The card this replaced had exactly this fallback, and dropping it meant a
+   * failed or slow `smsMessageTypes` fetch rendered an EMPTY panel — an admin
+   * looking at a pricing screen with a silently missing control, unable to tell
+   * whether the weights were unset or the page was broken.
+   */
+  const types = messageTypes.length
+    ? messageTypes
+    : [
+      ...Object.keys(weights || {}).map((key) => ({ key, label: key, audience: 'guest' })),
+      ...Object.keys(frequencies || {}).map((key) => ({ key, label: key, audience: 'organizer' })),
+    ];
+
+  const guestTypes = types.filter((t) => t.audience === 'guest');
+  const orgTypes = types.filter((t) => t.audience === 'organizer');
+  const totalWeight = guestTypes.reduce((s, t) => s + Number(weights[t.key] ?? 0), 0) || 1;
+
+  return (
+    <div style={{ ...card, padding: 28 }}>
+      {smsCardHeader(
+        'How The Budget Is Split',
+        'Relative shares, not absolute counts. Only the ratios matter — the share column shows what each type actually gets.',
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
+        {guestTypes.map((t) => (
+          <div key={t.key}>
+            <label style={{ fontSize: 11.5, color: T.text900, fontWeight: 600, display: 'block', marginBottom: 4 }}>
+              {t.label}
+              <span style={{ marginLeft: 6, fontSize: 10, color: T.text400, fontWeight: 500 }}>
+                {Math.round((Number(weights[t.key] ?? 0) / totalWeight) * 100)}% of the budget
+              </span>
+            </label>
+            <input
+              type="number" step="0.1" min="0"
+              value={weights[t.key] ?? 0}
+              onChange={(e) => onWeight(t.key, Number(e.target.value))}
               style={smsInput}
             />
           </div>
         ))}
       </div>
-      <p style={{ ...smsHint, marginTop: 12 }}>
-        Fractions are meaningful: 0.6 means roughly 6 in 10 invitations receive that message —
-        not every guest is sent a reminder, and only attendees get an entry pass. Organizer alerts
-        are counted once per event rather than per invitation.
-      </p>
+
+      {orgTypes.length > 0 && (
+        <>
+          <div style={{ height: 1, background: T.border, margin: '20px 0 16px' }} />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
+            {orgTypes.map((t) => (
+              <div key={t.key}>
+                <label style={{ fontSize: 11.5, color: T.text900, fontWeight: 600, display: 'block', marginBottom: 4 }}>
+                  {t.label}
+                  <span style={{ marginLeft: 6, fontSize: 10, color: T.text400, fontWeight: 500 }}>per event, absolute</span>
+                </label>
+                <input
+                  type="number" step="0.5" min="0"
+                  value={frequencies[t.key] ?? 0}
+                  onChange={(e) => onFrequency(t.key, Number(e.target.value))}
+                  style={smsInput}
+                />
+              </div>
+            ))}
+          </div>
+          <p style={{ ...smsHint, marginTop: 12 }}>
+            Organizer messages are counted once per EVENT, never per invitation — the same few
+            reports go out whether they invite 20 people or 2,000, so multiplying them by the
+            guest list would overcharge every large event.
+          </p>
+        </>
+      )}
     </div>
   );
 }
@@ -526,8 +660,22 @@ function SmsPriceTable({ preview, loading }) {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.segments} style={{ borderBottom: `1px solid ${T.border}` }}>
-                  <td style={{ padding: '8px 10px', color: T.text900, fontWeight: 700 }}>{r.segments.toLocaleString()}</td>
+                /* A loss is painted in the row that causes it, not discovered in
+                   a monthly total three weeks later. `belowCost` comes from the
+                   same describeSmsCharge the checkout uses, so a red row here is
+                   a real order that would really lose money. */
+                <tr key={r.segments} style={{
+                  borderBottom: `1px solid ${T.border}`,
+                  background: r.belowCost ? 'rgba(196,94,94,0.07)' : 'transparent',
+                }}>
+                  <td style={{ padding: '8px 10px', color: T.text900, fontWeight: 700 }}>
+                    {r.segments.toLocaleString()}
+                    {r.belowCost && (
+                      <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: '#C45E5E', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        below cost
+                      </span>
+                    )}
+                  </td>
                   <td style={{ padding: '8px 10px', textAlign: 'right', color: T.text900, fontWeight: 700 }}>{money(r.chargeCents)}</td>
                   <td style={{ padding: '8px 10px', textAlign: 'right', color: T.text500 }}>{r.effectiveCentsPerSegment}¢</td>
                   <td style={{ padding: '8px 10px', textAlign: 'right', color: r.discountPct > 0 ? '#3B9B6D' : T.text400 }}>
@@ -940,10 +1088,17 @@ export default function ConfigPage() {
                       onChange={(key, value) => patchSmsSection('estimator', key, value)}
                     />
 
-                    <SmsFrequencyCard
-                      frequencies={smsPricing.type_frequencies}
+                    <SmsGuestBands
+                      bands={smsPricing.guest_bands}
+                      onChange={(next) => patchSmsPricing({ guest_bands: next })}
+                    />
+
+                    <SmsTypeWeights
+                      weights={smsPricing.type_weights || {}}
+                      frequencies={smsPricing.type_frequencies || {}}
                       messageTypes={smsMessageTypes}
-                      onChange={(key, value) => patchSmsSection('type_frequencies', key, value)}
+                      onWeight={(key, value) => patchSmsSection('type_weights', key, value)}
+                      onFrequency={(key, value) => patchSmsSection('type_frequencies', key, value)}
                     />
 
                     <SmsLimitsCard

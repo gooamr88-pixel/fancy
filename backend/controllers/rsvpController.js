@@ -5,8 +5,12 @@ const guestService = require('../services/guestService');
 const tokenService = require('../services/tokenService');
 const invitationService = require('../services/invitationService');
 const { parseCSV, generateCSV } = require('../utils/csvHelper');
-const { escapeHtml, getDeclineConfirmationTemplate, getNewRsvpOrganizerTemplate, getRsvpClaimTemplate, buildTicketLinks } = require('../utils/emailTemplates');
-const { sendTransactionalSms, getOptedOutSet, canonicalPhone } = require('../services/smsDispatch');
+const { escapeHtml, getDeclineConfirmationTemplate, getNewRsvpOrganizerTemplate, getRsvpClaimTemplate } = require('../utils/emailTemplates');
+// This controller no longer SENDS any SMS — both of its send sites (the RSVP
+// confirmation and the decline acknowledgement) were retired with their types.
+// It still needs the opt-out helpers, which it uses to report reachability back
+// to the organizer's guest list rather than to send anything.
+const { getOptedOutSet, canonicalPhone } = require('../services/smsDispatch');
 const { getPublicBaseUrl } = require('../utils/publicUrl');
 const { isEventLiveForGuests } = require('../utils/eventAccess');
 const { normalizeToE164 } = require('../utils/phone');
@@ -295,31 +299,24 @@ const submitPublicRSVP = async (req, res, next) => {
     } else if (result.response === 'no' && !result.guest_email) {
       logger.warn({ partyId: result.party_id, eventId }, 'Decline recorded without a guest email — thank-you email skipped');
     } else if (result.response === 'no') {
-      // The decline acknowledgement is the one type whose SMS REPLACES its email
-      // (smsMessageTypes.replacesEmail), so the text is attempted first and the
-      // mail only goes if it did not. Two messages telling someone "thanks for
-      // not coming" is the definition of noise.
-      const declineSms = await sendTransactionalSms({
-        type: 'decline_ack',
-        eventId,
-        partyId: result.party_id,
-        ref: `rsvp:${result.party_id}`,
-        lang: guestLang,
-        context: { guestName, eventTitle: result.event_title },
-      });
-
-      if (!declineSms.sent) {
-        const declineHtml = getDeclineConfirmationTemplate(
-          { guest_name: guestName },
-          { title: result.event_title, event_date: result.event_date, slug: result.event_slug },
-          guestLang,
-        );
-        const declineSubject = guestLang === 'ar'
-          ? `شكرًا لإخبارنا – ${escapeHtml(result.event_title)}`
-          : `Thank You – ${escapeHtml(result.event_title)}`;
-        notificationService.sendEmailViaBrevo(result.guest_email, declineSubject, declineHtml)
-          .catch((err) => logger.error({ err }, 'Decline email error'));
-      }
+      // Email only. The decline acknowledgement used to try SMS first and fall
+      // back to mail; that type is retired.
+      //
+      // Of the seven types, this was the one whose text form most reliably read
+      // as unwanted — the guest has just said they are not coming, and a CHARGED
+      // message telling them "thanks anyway" spends an organizer's allowance to
+      // send something nobody asked for. The email costs nothing and says the same
+      // thing, so it simply goes.
+      const declineHtml = getDeclineConfirmationTemplate(
+        { guest_name: guestName },
+        { title: result.event_title, event_date: result.event_date, slug: result.event_slug },
+        guestLang,
+      );
+      const declineSubject = guestLang === 'ar'
+        ? `شكرًا لإخبارنا – ${escapeHtml(result.event_title)}`
+        : `Thank You – ${escapeHtml(result.event_title)}`;
+      notificationService.sendEmailViaBrevo(result.guest_email, declineSubject, declineHtml)
+        .catch((err) => logger.error({ err }, 'Decline email error'));
     }
 
 
@@ -395,34 +392,21 @@ const submitPublicRSVP = async (req, res, next) => {
       tableName: null, partySize: computedPartySize, eventDate: result.event_date,
     });
 
-    // RSVP confirmation by text — sent HERE, after the pass exists, so the one
-    // message can carry the entry-pass link rather than promising it separately.
-    // Sending a `rsvp_confirmation` and a `qr_ticket` on the same submission would
-    // put two texts on the guest's phone and charge the organizer twice for one
-    // event; `qr_ticket` is reserved for an explicit resend.
+    // NO TEXT IS SENT ON SUBMISSION ANY MORE.
     //
-    // ADDITIVE to the confirmation email, not a replacement (see
-    // smsMessageTypes.replacesEmail): the email carries the scannable QR image and
-    // full logistics, which SMS structurally cannot.
+    // The `rsvp_confirmation` type is retired, absorbed into `seating_reminder`.
+    // The confirmation EMAIL still goes out above and still carries the scannable
+    // pass, the full logistics and the entry-pass link — everything a text could
+    // have said and several things it structurally could not.
     //
-    // Fire-and-forget: the RSVP is already committed and the guest is waiting on
-    // this response — a texting problem must never delay or fail it.
-    if (result.response === 'yes' || result.response === 'maybe') {
-      sendTransactionalSms({
-        type: 'rsvp_confirmation',
-        eventId,
-        partyId: result.party_id,
-        ref: `rsvp:${result.party_id}`,
-        lang: guestLang,
-        context: {
-          guestName,
-          eventTitle: result.event_title,
-          response: result.response,
-          // A 'maybe' has no pass to link to; the template omits it.
-          ticketUrl: (result.response === 'yes' && qrToken) ? buildTicketLinks(qrToken).ticketUrl : null,
-        },
-      }).catch((err) => logger.warn({ err, partyId: result.party_id }, 'RSVP confirmation SMS failed'));
-    }
+    // What the guest gets by text instead is one message that is worth paying
+    // for: their table and their pass link, sent once the organizer has actually
+    // seated them, and again in the day or two before the event. A text at
+    // submission time said "we got it" — which the guest already knew, having
+    // just pressed the button, and which cost the organizer a message to say.
+    //
+    // The pass token is still minted here (above), unchanged: the success screen
+    // shows it immediately, and jobSeatingNotices re-derives it when it texts.
 
     return sendOk(res, {
       partyId: result.party_id,
@@ -587,6 +571,17 @@ const importGuestsCSV = async (req, res, next) => {
             party_size: rowObj.party_size || '',
             side: rowObj.side || '',
           };
+
+          // Three spellings accepted because organizers build these files by hand
+          // and none of the three is obviously the right one to guess.
+          //
+          // Assigned only when one of them is actually PRESENT. Defaulting it to
+          // '' made the key always exist, so `consentColumnPresent` was true for
+          // every .xlsx ever imported — which silently disabled the whole-file
+          // consent checkbox and attested nobody. "Absent" and "present but
+          // blank" mean different things and must stay distinguishable.
+          const consentCell = rowObj.sms_consent ?? rowObj.sms_ok ?? rowObj.can_text;
+          if (consentCell !== undefined) mappedRow.sms_consent = consentCell;
           if (mappedRow.guest_name) parsedRows.push(mappedRow);
         });
       } else {
@@ -605,6 +600,25 @@ const importGuestsCSV = async (req, res, next) => {
 
     // Dedup within the file by email (case-insensitive); rows without an email are
     // always kept — the per-event unique index only collides on non-null emails.
+    /**
+     * Did the file carry a per-row SMS-permission column at all?
+     *
+     * Presence has to be detected across the WHOLE file, not per row. An empty
+     * cell in a file that has the column means "this guest, no" — the organizer
+     * answered for the others and left this one blank. An absent column means
+     * "not stated", and the file-level checkbox applies. Testing row-by-row would
+     * conflate the two and quietly attest guests the organizer left out.
+     */
+    //
+    // All three spellings are read HERE rather than only in the .xlsx branch
+    // above. parseCSV keys rows by their raw header, so a CSV carrying `can_text`
+    // reached this point with the column intact and was then ignored — while the
+    // import modal, which checks all three client-side, had already told the
+    // organizer "12 of 40 marked OK to text". One of the two was lying.
+    const consentOf = (r) => (r.sms_consent ?? r.sms_ok ?? r.can_text);
+    const consentColumnPresent = parsedRows.some((r) => consentOf(r) !== undefined);
+    const TRUTHY_CONSENT = new Set(['yes', 'y', 'true', '1', 'x', '✓', 'ok']);
+
     const seenEmails = new Set();
     let skippedInFile = 0;
     const dedupedRows = [];
@@ -622,6 +636,11 @@ const importGuestsCSV = async (req, res, next) => {
         notes: row.notes || null,
         party_size: Number.isInteger(parsedSize) && parsedSize > 0 ? Math.min(parsedSize, 20) : 1,
         side: normalizeSideCsvValue(row.side),
+        // null = "the column was not in this file", which is what tells
+        // guestService.importGuests to fall back to the file-level checkbox.
+        sms_consent_attested: consentColumnPresent
+          ? TRUTHY_CONSENT.has(String(consentOf(row) || '').trim().toLowerCase())
+          : null,
       });
     }
 
@@ -640,13 +659,27 @@ const importGuestsCSV = async (req, res, next) => {
     );
     const skippedCount = skippedInFile + skippedExisting;
 
+    // Count from the RESOLVED per-row value, not from `attested && rowsWithPhone`.
+    // With a consent column in play those two numbers are different, and the one
+    // the organizer needs is the number of guests who can actually be texted.
+    const textable = dedupedRows.filter(
+      (r) => r.phone && (r.sms_consent_attested ?? attested),
+    ).length;
+
     // Tell the organizer plainly what the import did to SMS eligibility, so the
-    // consequence of the checkbox is visible at the moment it took effect.
-    const smsNote = rowsWithPhone === 0
-      ? null
-      : attested
-        ? `${rowsWithPhone} guest(s) with a phone number were recorded as consenting to event texts, based on your confirmation.`
-        : `${rowsWithPhone} guest(s) have a phone number but were not marked as consenting to texts, so they can't be sent an SMS. They can opt in themselves on their RSVP form.`;
+    // consequence of the checkbox — or the column — is visible at the moment it
+    // took effect, rather than discovered later as messages that did not send.
+    let smsNote = null;
+    if (rowsWithPhone > 0) {
+      if (consentColumnPresent) {
+        smsNote = `${textable} of ${rowsWithPhone} guest(s) with a phone number were marked in your file as OK to text.`
+          + (textable < rowsWithPhone ? ' The rest can opt in themselves on their RSVP form.' : '');
+      } else if (attested) {
+        smsNote = `${rowsWithPhone} guest(s) with a phone number were recorded as consenting to event texts, based on your confirmation.`;
+      } else {
+        smsNote = `${rowsWithPhone} guest(s) have a phone number but were not marked as consenting to texts, so they can't be sent an SMS. They can opt in themselves on their RSVP form.`;
+      }
+    }
 
     return sendOk(res, {
       message: `Imported ${imported.length} guest record(s) in pending state`

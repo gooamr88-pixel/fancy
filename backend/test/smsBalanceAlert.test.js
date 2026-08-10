@@ -80,7 +80,7 @@ async function sendOnLowBalance({ alreadyNotified = false } = {}) {
     return {};
   });
 
-  await smsDispatch.sendRecipient({
+  await smsDispatch.__sendRecipientForTests({
     eventId: EVENT, phone: PHONE, body: 'hi', segments: 1,
     idemKey: `k-${Math.random()}`, twilio: { messages: { create: async () => ({ sid: 'SM_x' }) } },
     fromNumber: '+15550000000', optedOut: new Set(), consented: new Set([PHONE]),
@@ -170,7 +170,7 @@ test('a missing organizer email releases the claim rather than burning it', asyn
     return {};
   });
 
-  await smsDispatch.sendRecipient({
+  await smsDispatch.__sendRecipientForTests({
     eventId: EVENT, phone: PHONE, body: 'hi', segments: 1,
     idemKey: `k-${Math.random()}`, twilio: { messages: { create: async () => ({ sid: 'SM_x' }) } },
     fromNumber: '+15550000000', optedOut: new Set(), consented: new Set([PHONE]),

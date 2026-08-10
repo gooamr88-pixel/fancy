@@ -38,12 +38,29 @@ test('counts PARTIES, not guests — SMS reaches one primary contact per party',
     'a 220-guest cap is ~100 messageable contacts; estimating per guest would more than double every quote');
 });
 
-test('Arabic costs roughly double Latin for the same guest list', () => {
+test('Arabic costs materially more than Latin for the same guest list', () => {
   const latin = estimateAllowance({ maxGuests: 300, script: 'latin' });
   const arabic = estimateAllowance({ maxGuests: 300, script: 'arabic' });
 
-  assert.ok(arabic.recommendedSegments > latin.recommendedSegments * 1.5,
-    'UCS-2 segments are less than half the size, and the estimate must reflect that');
+  /**
+   * The multiplier is ~1.5x, not the ~1.9x this test used to assert, and the
+   * change is real rather than a loosened expectation.
+   *
+   * Both figures are now MEASURED against the actual templates rather than
+   * assumed. A UCS-2 segment holds 70 characters to GSM-7's 160, so the raw ratio
+   * is brutal — but the compliance footer is a fixed 78 characters in BOTH
+   * encodings, and short links cut another ~57 from every URL. Fixed overhead
+   * that does not scale with the encoding compresses the gap.
+   *
+   * Asserted as a band: below 1.3x means somebody has quietly reverted to pricing
+   * Arabic like Latin, which under-funds those events by a third. Above 2.5x
+   * means the short links have stopped being applied and every Arabic organizer
+   * is being overcharged.
+   */
+  const ratio = arabic.recommendedSegments / latin.recommendedSegments;
+  assert.ok(ratio > 1.3, `Arabic must cost materially more; got ${ratio.toFixed(2)}x`);
+  assert.ok(ratio < 2.5, `Arabic should not cost this much with short links; got ${ratio.toFixed(2)}x`);
+
   assert.equal(arabic.script, 'arabic');
   assert.equal(latin.segmentsPerMessage < arabic.segmentsPerMessage, true);
 });
@@ -58,24 +75,67 @@ test('an unlimited tier (null cap) still produces a finite, sane number', () => 
 test('the breakdown lists every type, including disabled ones', () => {
   const est = estimateAllowance({
     maxGuests: 200,
-    smsSettings: { campaign: false, decline_ack: false },
+    smsSettings: { invitation: false },
   });
 
-  const campaign = est.breakdown.find((b) => b.key === 'campaign');
-  assert.equal(campaign.enabled, false);
-  assert.equal(campaign.segments, 0, 'a disabled type costs nothing');
-  assert.ok(est.breakdown.length >= 7,
-    'disabled types still appear so the organizer can see what enabling one would add');
+  const invitation = est.breakdown.find((b) => b.key === 'invitation');
+  assert.equal(invitation.enabled, false);
+  assert.equal(invitation.segments, 0, 'a disabled type costs nothing');
+  assert.equal(est.breakdown.length, 4,
+    'exactly four types, and disabled ones still appear so the organizer can see what enabling one would add');
 });
 
-test('disabling types lowers the recommendation', () => {
+test('disabling a type LOWERS the total rather than redistributing it', () => {
   const all = estimateAllowance({ maxGuests: 200 });
   const fewer = estimateAllowance({
     maxGuests: 200,
-    smsSettings: { campaign: false, rsvp_reminder: false, event_reminder: false },
+    smsSettings: { event_update: false },
   });
 
-  assert.ok(fewer.recommendedSegments < all.recommendedSegments);
+  assert.ok(fewer.recommendedSegments < all.recommendedSegments,
+    'quoting for messages that can never send is overcharging — the denominator is every '
+    + 'guest type\'s weight, not just the enabled ones, precisely so this holds');
+
+  // And the survivors must be unchanged, not inflated to absorb the freed share.
+  const invitationOf = (e) => e.breakdown.find((b) => b.key === 'invitation').segments;
+  assert.equal(invitationOf(fewer), invitationOf(all),
+    'switching one type off must not silently make the others more expensive');
+});
+
+/* ── The guest-count ladder ─────────────────────────────────────────────────
+ *
+ * The model this replaced multiplied a flat frequency by party count, so a
+ * 3,000-guest event was quoted almost exactly ten times a 300-guest one —
+ * arithmetically consistent and commercially useless. These are the boundaries
+ * the ladder turns on, and an off-by-one at any of them silently misprices every
+ * event that lands on it.
+ */
+
+test('messages per invitation steps DOWN at every band boundary', () => {
+  const mpp = (g) => estimateAllowance({ maxGuests: g }).messagesPerParty;
+
+  assert.equal(mpp(300), 3, 'the boundary belongs to the band it names');
+  assert.equal(mpp(301), 2.5);
+  assert.equal(mpp(1000), 2.5);
+  assert.equal(mpp(1001), 2);
+  assert.equal(mpp(3000), 2);
+  assert.equal(mpp(3001), 1.5);
+});
+
+test('a bigger event costs LESS per guest', () => {
+  const perGuest = (g) => estimateAllowance({ maxGuests: g }).recommendedSegments / g;
+
+  assert.ok(perGuest(3000) < perGuest(1000),
+    'the whole point of the ladder: scale must make texting cheaper per head, not merely bigger');
+  assert.ok(perGuest(1000) < perGuest(200));
+});
+
+test('the open band catches an event above every threshold', () => {
+  const huge = estimateAllowance({ maxGuests: 500000 });
+  assert.ok(huge.messagesPerParty > 0,
+    'a table with no open band would quote zero messages — a free purchase that unlocks '
+    + 'the add-on and then cannot send anything');
+  assert.ok(huge.recommendedSegments > 0);
 });
 
 test('the organizer-directed type is costed per EVENT, not per party', () => {

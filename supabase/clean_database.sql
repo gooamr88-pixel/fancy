@@ -37,6 +37,16 @@ DECLARE
     tbls text[] := ARRAY[
         'sms_campaign_recipients',
         'sms_campaigns',
+        -- The compliance-era SMS tables. Every one of these was missing until the
+        -- four-type rebuild, so a "clean" database still carried live STOP records
+        -- and consent history from the previous tenant — which is both a privacy
+        -- problem and a very confusing one to debug, because sends would silently
+        -- skip for guests who had never existed in the new data.
+        'seating_notify_queue',
+        'sms_log',
+        'sms_opt_outs',
+        'sms_optin_submissions',
+        'sms_consent_log',
         'email_log',
         'guest_analytics',
         'admin_audit_logs',
@@ -97,8 +107,12 @@ BEGIN
                 {"name": "Premium", "price_cents": 14900, "max_guests": 300, "max_events": 0, "remove_watermark": true, "recommended": true, "is_custom": false, "features": []},
                 {"name": "Enterprise", "price_cents": 24900, "max_guests": 1000, "max_events": 0, "remove_watermark": true, "recommended": false, "is_custom": false, "features": []}
             ]'::jsonb,
-            8,
-            40.0,
+            -- Cents per SEGMENT that the carrier charges us: Vonage US outbound
+            -- $0.00809 plus roughly $0.002-0.003 of carrier pass-through fees.
+            -- Fractional on purpose; the column is NUMERIC since 20260822000000.
+            1.1,
+            -- 1.1 x 2.7273 = 3.00 cents list price to the organizer.
+            172.73,
             0.0
         ) ON CONFLICT (id) DO NOTHING;
     END IF;

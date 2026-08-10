@@ -28,19 +28,21 @@ const { estimateAllowance, sanitizeAllowanceRequest } = require('../utils/smsEst
 
 /* ── Defaults must be a no-op ───────────────────────────────────────────── */
 
-test('the shipped defaults reproduce the OLD hard-coded pricing exactly', () => {
-  const rate = 8, markup = 40;
+test('the shipped defaults reproduce the SHIPPED pricing exactly', () => {
+  // The real economics: 1.1c carrier cost, 172.73% markup, 3.0c list price.
+  const rate = 1.1, markup = 172.73;
 
-  // Below the old 500 threshold: markup only.
+  // Below the 500 threshold: markup only.
   assert.equal(
-    computeSmsChargeCents({ unitPriceCents: rate, creditCount: 100, markupPct: markup }),
-    Math.round(8 * 100 * 1.4),
+    computeSmsChargeCents({ unitPriceCents: rate, creditCount: 400, markupPct: markup }),
+    1200,
+    '400 messages at 3.0c is exactly $12.00 — and only a NUMERIC rate column can hold the 1.1',
   );
 
-  // At and above it: the old 12.5% volume discount.
+  // At and above it: the 10% volume discount.
   assert.equal(
     computeSmsChargeCents({ unitPriceCents: rate, creditCount: 500, markupPct: markup }),
-    Math.round(8 * 500 * 1.4 * 0.875),
+    Math.round(1.1 * 500 * 2.7273 * 0.90),
   );
 });
 
@@ -48,7 +50,65 @@ test('an unconfigured platform (null config) still yields a complete model', () 
   const cfg = normalizeSmsPricing(null);
   assert.deepEqual(cfg, normalizeSmsPricing(DEFAULT_SMS_PRICING));
   assert.ok(cfg.bounds.min > 0 && cfg.bounds.max > cfg.bounds.min);
-  assert.ok(Object.keys(cfg.type_frequencies).length >= 7);
+  assert.ok(cfg.guest_bands.length > 0, 'the ladder must always exist');
+  assert.ok(Object.keys(cfg.type_weights).length >= 3, 'every guest type needs a share');
+  assert.ok(Object.keys(cfg.type_frequencies).length >= 1, 'the organizer type is absolute, per event');
+});
+
+/* ── The ladder ─────────────────────────────────────────────────────────── */
+
+test('guest bands are sorted ascending with the open band forced last', () => {
+  const cfg = normalizeSmsPricing({
+    guest_bands: [
+      { max_guests: null, messages_per_party: 1 },   // deliberately first
+      { max_guests: 1000, messages_per_party: 2 },
+      { max_guests: 100, messages_per_party: 3 },
+    ],
+  });
+
+  assert.deepEqual(cfg.guest_bands.map((b) => b.max_guests), [100, 1000, null],
+    'band selection is "the first one you fit inside", so order is load-bearing');
+});
+
+test('a table with NO open band gets one anyway', () => {
+  const cfg = normalizeSmsPricing({
+    guest_bands: [
+      { max_guests: 100, messages_per_party: 3 },
+      { max_guests: 500, messages_per_party: 2 },
+    ],
+  });
+
+  assert.equal(cfg.guest_bands[cfg.guest_bands.length - 1].max_guests, null,
+    'without an open band, an event above every threshold prices at ZERO messages — '
+    + 'a free purchase that unlocks the add-on and then cannot send anything');
+});
+
+test('a broken or empty ladder falls back to the shipped one', () => {
+  for (const bad of [{ guest_bands: [] }, { guest_bands: 'nonsense' }, { guest_bands: [null, 3] }]) {
+    const cfg = normalizeSmsPricing(bad);
+    assert.ok(cfg.guest_bands.length > 0);
+    assert.ok(cfg.guest_bands.every((b) => b.messages_per_party >= 0));
+  }
+});
+
+test('duplicate band thresholds are dropped rather than resolved arbitrarily', () => {
+  const cfg = normalizeSmsPricing({
+    guest_bands: [
+      { max_guests: 300, messages_per_party: 3 },
+      { max_guests: 300, messages_per_party: 1 },
+      { max_guests: null, messages_per_party: 1.5 },
+    ],
+  });
+  assert.equal(cfg.guest_bands.filter((b) => b.max_guests === 300).length, 1);
+});
+
+test('type weights are keyed off the DEFAULTS, so an unknown type cannot be injected', () => {
+  const cfg = normalizeSmsPricing({
+    type_weights: { invitation: 2, some_type_we_never_shipped: 99 },
+  });
+  assert.equal(cfg.type_weights.invitation, 2, 'a known weight is honoured');
+  assert.equal(cfg.type_weights.some_type_we_never_shipped, undefined,
+    'an admin payload must not be able to introduce a message type');
 });
 
 test('a PARTIAL config keeps defaults for everything it omits', () => {
@@ -77,7 +137,9 @@ test('negative and absurd values are clamped, not stored', () => {
     volume_discounts: [{ min_segments: -5, discount_pct: -20 }],
     bounds: { min: -100, max: 99999999, step: 0 },
     estimator: { guests_per_party: 0, segments_per_message_latin: -3 },
-    type_frequencies: { campaign: -10 },
+    type_frequencies: { organizer_report: -10 },
+    type_weights: { invitation: -5 },
+    guest_bands: [{ max_guests: -50, messages_per_party: -2 }],
   });
 
   assert.ok(cfg.bounds.min >= LIMITS.bound.min);
@@ -85,7 +147,10 @@ test('negative and absurd values are clamped, not stored', () => {
   assert.ok(cfg.estimator.guests_per_party >= LIMITS.guestsPerParty.min,
     'zero guests per party would divide by nothing and produce Infinity recipients');
   assert.ok(cfg.estimator.segments_per_message_latin >= LIMITS.segmentsPerMsg.min);
-  assert.ok(cfg.type_frequencies.campaign >= 0);
+  assert.ok(cfg.type_frequencies.organizer_report >= 0);
+  assert.ok(cfg.type_weights.invitation >= 0,
+    'a negative weight would hand another type more than 100% of the budget');
+  assert.ok(cfg.guest_bands.every((b) => b.messages_per_party >= 0));
 });
 
 test('an inverted min/max is swapped rather than making every purchase impossible', () => {
@@ -147,12 +212,22 @@ test('changing guests-per-party changes the recommendation', () => {
   assert.ok(tight.recommendedSegments > loose.recommendedSegments);
 });
 
-test('changing a per-type frequency changes the recommendation', () => {
+test('changing the guest ladder changes the recommendation', () => {
   const base = estimateAllowance({ maxGuests: 200 });
-  const noCampaigns = estimateAllowance({
-    maxGuests: 200, pricingConfig: { type_frequencies: { campaign: 0 } },
+  const leaner = estimateAllowance({
+    maxGuests: 200,
+    pricingConfig: { guest_bands: [{ max_guests: null, messages_per_party: 1 }] },
   });
-  assert.ok(noCampaigns.recommendedSegments < base.recommendedSegments);
+  assert.ok(leaner.recommendedSegments < base.recommendedSegments,
+    'the ladder is what the whole quote is built from — lowering it must lower the price');
+});
+
+test('changing the organizer frequency changes the recommendation', () => {
+  const base = estimateAllowance({ maxGuests: 200 });
+  const noReports = estimateAllowance({
+    maxGuests: 200, pricingConfig: { type_frequencies: { organizer_report: 0 } },
+  });
+  assert.ok(noReports.recommendedSegments < base.recommendedSegments);
 });
 
 test('admin bounds drive both the recommendation and the purchase clamp', () => {
@@ -185,10 +260,11 @@ test('describeSmsCharge itemizes cost, charge and margin', () => {
 
   assert.equal(d.segments, 1000);
   assert.equal(d.baseCostCents, 8000, 'what the carrier charges us');
-  assert.equal(d.discountPct, 12.5, 'the default tier applies at 1000');
+  assert.equal(d.discountPct, 10, 'the 500-message tier applies at 1000');
   assert.ok(d.chargeCents > d.baseCostCents, 'and we are still profitable at the default markup');
   assert.equal(d.profitCents, d.chargeCents - d.baseCostCents);
   assert.ok(d.marginPct > 0 && d.marginPct < 100);
+  assert.equal(d.belowCost, false);
 });
 
 test('a below-cost markup surfaces as a NEGATIVE margin rather than looking fine', () => {
@@ -196,6 +272,24 @@ test('a below-cost markup surfaces as a NEGATIVE margin rather than looking fine
 
   assert.ok(d.profitCents < 0, 'selling under carrier cost must be visible as a loss');
   assert.ok(d.marginPct < 0, 'this is the number the dashboard turns red');
+  assert.equal(d.belowCost, true,
+    'and the flag the admin price table paints red must agree with the margin');
+});
+
+test('the discount cap keeps a large order above cost', () => {
+  // Break-even at 1.1c cost and 3.0c list is a 63% discount. LIMITS.discountPct
+  // caps tiers at 50 precisely so a mistyped 65 cannot save and quietly lose
+  // money on the largest orders — the ones the tier exists to win.
+  const cfg = normalizeSmsPricing({
+    volume_discounts: [{ min_segments: 500, discount_pct: 85 }],
+  });
+  assert.ok(cfg.volume_discounts[0].discount_pct <= LIMITS.discountPct.max);
+
+  const d = describeSmsCharge({
+    unitPriceCents: 1.1, creditCount: 10000, markupPct: 172.73,
+    volumeDiscounts: cfg.volume_discounts,
+  });
+  assert.equal(d.belowCost, false, 'the clamp must leave even the deepest tier profitable');
 });
 
 test('margin is expressed on revenue, not as markup on cost', () => {

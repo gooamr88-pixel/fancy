@@ -926,11 +926,22 @@ async function getStats(eventId) {
  * table, but correct: a partial chunk failure can no longer leave an
  * orphaned party with no guest row.
  *
- * `smsConsentAttested` is the organizer's per-import declaration that they hold
- * prior express consent for every phone number in the file. It applies only to
- * rows that actually carry a number, and only to genuinely new parties — a
- * duplicate row is skipped entirely, so it can never retro-attest over a guest
- * who already answered our own consent checkbox.
+ * ── Two levels of SMS consent, and the precedence between them ──
+ *
+ * `smsConsentAttested` is the organizer's whole-file declaration that they hold
+ * prior express consent for every number in it. A row may ALSO carry its own
+ * answer in an `sms_consent` column, exposed as `row.sms_consent_attested`
+ * (true / false / null for "the column was not present").
+ *
+ * The per-row value wins when it exists, and it wins in BOTH directions — but the
+ * asymmetry is the point: a row that says NO is never attested, not even when the
+ * file-level box is ticked. Someone who took the trouble to mark one guest as
+ * off-limits has said something more specific than the blanket claim, and the
+ * safe direction to resolve a conflict about consent is always the narrower one.
+ *
+ * Either way it applies only to rows carrying a number, and only to genuinely new
+ * parties — a duplicate row is skipped entirely, so it can never retro-attest
+ * over a guest who already answered our own consent checkbox.
  */
 async function importGuests(eventId, actorUserId, rows, { smsConsentAttested = false } = {}) {
   const CONCURRENCY = 20;
@@ -950,7 +961,10 @@ async function importGuests(eventId, actorUserId, rows, { smsConsentAttested = f
       partySize: row.party_size || 1,
       notes: row.notes || null,
       side: row.side || null,
-      smsConsentAttested,
+      // ?? not ||, so an explicit per-row `false` is honoured rather than falling
+      // through to the file-level flag — which is the entire reason the column
+      // exists.
+      smsConsentAttested: row.sms_consent_attested ?? smsConsentAttested,
       consentSource: 'host_csv_import',
     })));
 

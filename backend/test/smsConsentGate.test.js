@@ -25,7 +25,7 @@ const mock = createMockSupabase();
 injectModule('../../config/supabase', { supabase: mock.supabase });
 
 const {
-  fetchRecipients, sendRecipient, getConsentedPhoneSet, hasSmsConsent,
+  __sendRecipientForTests, getConsentedPhoneSet, hasSmsConsent,
 } = require('../services/smsDispatch');
 
 const EVENT = '11111111-1111-4111-8111-111111111111';
@@ -34,33 +34,20 @@ t.beforeEach(() => mock.reset());
 
 /* ── Audience resolution ───────────────────────────────────────────────── */
 
-test('fetchRecipients requires sms_consent = true (never an .or() fallback)', async () => {
-  let seen = null;
-  mock.setResolver((s) => {
-    if (s.table === 'rsvp_parties') { seen = s.filters; return { data: [] }; }
-    return {};
-  });
-
-  await fetchRecipients(EVENT, { audiences: ['pending'] });
-
-  assert.equal(eqVal(seen, 'sms_consent'), true,
-    'the audience query must filter on sms_consent = true');
-  assert.equal(seen.or, undefined,
-    'no .or() escape hatch: "never asked" (sms_consent_at IS NULL) must NOT be sendable');
-});
-
-test('fetchRecipients still scopes to the event and to primary contacts with a phone', async () => {
-  let seen = null;
-  mock.setResolver((s) => {
-    if (s.table === 'rsvp_parties') { seen = s.filters; return { data: [] }; }
-    return {};
-  });
-
-  await fetchRecipients(EVENT, { audiences: ['attending'] });
-
-  assert.equal(eqVal(seen, 'event_id'), EVENT);
-  assert.equal(eqVal(seen, 'guests.is_primary_contact'), true);
-});
+/**
+ * The two `fetchRecipients` tests that stood here are gone with the function.
+ *
+ * It resolved a campaign's audience — "everyone who hasn't replied", "everyone
+ * attending" — and the tests guarded the one thing that mattered about it: that
+ * the query filtered on `sms_consent = true` with no `.or()` escape hatch
+ * treating "never asked" as sendable. That exact loosening is what got the
+ * toll-free number rejected (Twilio TFV 30475).
+ *
+ * There is no audience resolver any more. The organizer ticks the guests they
+ * mean, and consent is checked per party inside sendTransactionalSms — which the
+ * getConsentedPhoneSet and send-path tests below cover directly, closer to the
+ * carrier than the old query-shape assertions ever were.
+ */
 
 /* ── Consent set / lookup ──────────────────────────────────────────────── */
 
@@ -110,7 +97,7 @@ const sendArgs = (over = {}) => ({
 test('sendRecipient refuses a number that has not opted in, and never bills it', async () => {
   mock.setResolver(() => ({}));
 
-  const res = await sendRecipient(sendArgs({ consented: new Set() }));
+  const res = await __sendRecipientForTests(sendArgs({ consented: new Set() }));
 
   assert.equal(res.kind, 'skipped');
   assert.equal(res.error, 'NO_SMS_CONSENT');
@@ -126,7 +113,7 @@ test('sendRecipient sends when the number is in the consented set', async () => 
     return {};
   });
 
-  const res = await sendRecipient(sendArgs({ consented: new Set(['+15551234567']) }));
+  const res = await __sendRecipientForTests(sendArgs({ consented: new Set(['+15551234567']) }));
 
   assert.equal(res.kind, 'sent');
 });
@@ -136,7 +123,7 @@ test('sendRecipient verifies consent itself when no set is preloaded', async () 
   // an empty consent table must stop the send.
   mock.setResolver((s) => (s.table === 'rsvp_parties' ? { data: [] } : {}));
 
-  const res = await sendRecipient(sendArgs());
+  const res = await __sendRecipientForTests(sendArgs());
 
   assert.equal(res.kind, 'skipped');
   assert.equal(res.error, 'NO_SMS_CONSENT');
@@ -151,7 +138,7 @@ test('sendRecipient FAILS CLOSED when the consent lookup errors', async () => {
     return {};
   });
 
-  const res = await sendRecipient(sendArgs());
+  const res = await __sendRecipientForTests(sendArgs());
 
   assert.equal(res.kind, 'skipped');
   assert.equal(res.error, 'CONSENT_CHECK_FAILED');
@@ -161,7 +148,7 @@ test('sendRecipient FAILS CLOSED when the consent lookup errors', async () => {
 test('consent is checked BEFORE billing and before the opt-out lookup', async () => {
   mock.setResolver(() => ({}));
 
-  await sendRecipient(sendArgs({ consented: new Set() }));
+  await __sendRecipientForTests(sendArgs({ consented: new Set() }));
 
   assert.equal(mock.calls.some(c => c.table === 'sms_opt_outs'), false,
     'a non-consenting number should short-circuit before any further work');

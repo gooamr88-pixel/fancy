@@ -107,12 +107,21 @@ const requireSendLimit = async (req, res, next) => {
   const { eventId } = req.params;
 
   try {
-    // How many this request is actually asking to send. An explicit recipient
-    // list is exact; an audience segment is not knowable here without running the
-    // audience query, so those are checked against the cap inside the controller
-    // once the recipient count is known (see sendBulkSMSCampaign).
-    const guestIds = req.body?.guestIds;
-    const requested = Array.isArray(guestIds) ? guestIds.length : null;
+    // How many this request is actually asking to send.
+    //
+    // BOTH key names are read, and that is not defensive habit — it is a bug this
+    // middleware actually had. It only ever looked at `guestIds`, which was the
+    // campaign blaster's field name. When the four-type rebuild replaced that
+    // route with POST /invitations carrying `partyIds`, this check quietly fell
+    // through to `return next()` on the only bulk send path left in the platform:
+    // still mounted, still passing, enforcing nothing.
+    //
+    // A cap that silently stops capping is worse than no cap, because the route
+    // still looks guarded. `partyIds` is the current name; `guestIds` is kept so
+    // any caller still using it is bounded rather than exempt.
+    const list = Array.isArray(req.body?.partyIds) ? req.body.partyIds
+      : (Array.isArray(req.body?.guestIds) ? req.body.guestIds : null);
+    const requested = list ? list.length : null;
     if (requested === null) return next();
 
     const [{ data: event }, config] = await Promise.all([

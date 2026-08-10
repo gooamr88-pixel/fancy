@@ -2,21 +2,32 @@ const invitationService = require('../services/invitationService');
 const { sendOk, sendFail } = require('../utils/responseEnvelope');
 
 /**
- * Unified invitation dispatch — one endpoint, one response shape, regardless
- * of channel. Replaces the old two-endpoint split (POST .../send-invitations
- * for email, POST .../campaigns/send-sms for SMS) whose result shapes
- * disagreed (sync counts vs. an async 202 with no counts at all).
+ * Unified invitation dispatch — one endpoint, one response shape, regardless of
+ * channel. Replaces the old two-endpoint split (POST .../send-invitations for
+ * email, POST .../campaigns/send-sms for SMS) whose result shapes disagreed
+ * (sync counts vs. an async 202 with no counts at all).
  *
- * `channel: 'sms'` forwards to the existing campaign dispatcher — that
- * subsystem owns segment-accurate atomic credit billing and sync/async
- * dispatch, and is deliberately not re-derived here (see invitationService.js
- * header comment). Its response is normalized into the same envelope before
- * returning.
+ * ── What changed in the four-type rebuild ──
+ *
+ * The `sms` branch used to FORWARD to the campaign blaster, which wrote directly
+ * to `res` — so this file monkey-patched `res.json` and `res.status`, ran the
+ * other controller, and rewrote its response on the way out. The restore path
+ * lived inside the patched function, which meant any early return that never
+ * reached it left `res.json` patched for the rest of the request.
+ *
+ * It also carried a body shape that made no sense here: `messageTemplate`,
+ * `audience`, `clientToken`, `async` — an invitation endpoint accepting free text
+ * and an audience segment, because that was what the thing underneath wanted.
+ *
+ * Now all three channels do the same thing in the same way: take a list of
+ * parties, send one templated message each, count the outcomes. The proxy is
+ * gone rather than fixed, which is the better outcome — there is no longer
+ * anything to keep in sync.
  *
  * POST /api/v1/events/:eventId/invitations/send
  * body (channel: 'email'): { partyIds?: string[], resend?: boolean }
  * body (channel: 'qr'):    { partyIds: string[] }
- * body (channel: 'sms'):   { messageTemplate, audience?|audiences?, guestIds?, clientToken?, async? }
+ * body (channel: 'sms'):   { partyIds: string[] }
  */
 const sendInvitations = async (req, res, next) => {
   const { eventId } = req.params;
@@ -61,47 +72,33 @@ const sendInvitations = async (req, res, next) => {
       return sendOk(res, { channel: 'qr', async: false, queued: partyIds.length, sent, skipped, failed, failures });
     }
 
-    // channel === 'sms' — delegate to the existing campaign dispatcher, then
-    // normalize whatever it sent into the unified envelope. It writes directly
-    // to `res`, so we intercept via a thin response proxy.
-    // Wrapped in try-finally to guarantee cleanup of monkey-patched methods.
-    const campaignController = require('./campaignController');
-    const originalJson = res.json.bind(res);
-    const originalStatus = res.status.bind(res);
-    let statusCode = 200;
-    res.status = (code) => { statusCode = code; return res; };
-    res.json = (body) => {
-      // Restore original methods before writing the response
-      res.status = originalStatus;
-      res.json = originalJson;
-      const normalized = {
-        success: body.success,
-        data: body.success ? {
-          channel: 'sms',
-          async: !!body.async,
-          queued: body.recipientCount ?? 0,
-          sent: body.sentCount ?? 0,
-          skipped: body.skippedCount ?? 0,
-          failed: body.failedCount ?? 0,
-          creditsUsed: body.creditsUsed,
-          campaignId: body.campaignId,
-          message: body.message,
-        } : undefined,
-        error: body.success ? undefined : body.error,
-        message: body.success ? undefined : body.message,
-      };
-      
-      originalStatus(statusCode);
-      return originalJson(normalized);
-    };
-    try {
-      return await campaignController.sendBulkSMSCampaign(req, res, next);
-    } catch (smsErr) {
-      // Restore original methods on error so downstream error handlers work
-      res.status = originalStatus;
-      res.json = originalJson;
-      throw smsErr;
+    // channel === 'sms'
+    const { partyIds } = req.body || {};
+    if (!Array.isArray(partyIds) || partyIds.length === 0) {
+      return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'partyIds is required for the sms channel.' });
     }
+
+    const result = await invitationService.sendInvitationSmsBulk(eventId, partyIds, { user: req.user });
+    if (result.code) {
+      const status = result.code === 'EVENT_NOT_FOUND' ? 404
+        : result.code === 'ADDON_INACTIVE' ? 402
+          : result.code === 'SEND_LIMIT' ? 429
+            : 400;
+      return sendFail(res, { status, error: result.code, message: result.message });
+    }
+
+    return sendOk(res, {
+      channel: 'sms', async: false,
+      queued: partyIds.length,
+      sent: result.sent, skipped: result.skipped, failed: result.failed,
+      // Grouped and already in plain language — "3 haven't agreed to receive
+      // texts" rather than NO_CONSENT × 3. The email channel returns per-recipient
+      // `failures`; SMS returns a grouped `breakdown` because its failures are
+      // overwhelmingly one of five shared reasons, and 200 identical rows is not a
+      // more useful answer than one row saying 200.
+      breakdown: result.breakdown || [],
+      message: result.message,
+    });
   } catch (err) {
     next(err);
   }

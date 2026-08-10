@@ -4,6 +4,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { smsReachability, countReachable } from '../../utils/smsReachability';
 import { isAccepted, isDeclined } from '../../utils/responseHelpers';
 import EditGuestModal from './EditGuestModal';
+import SmsBalanceBanner from './SmsBalanceBanner';
 
 const COLORS = {
   gold: '#B8944F',
@@ -70,6 +71,23 @@ const TicketIcon = ({ color = COLORS.stone }) => (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z" />
     <path d="M13 5v14" />
+  </svg>
+);
+
+/* Send an invitation by email — a paper plane, distinct from the envelope used
+   for "resend the confirmation". The two sit next to each other in the same row,
+   so they must not share a glyph. */
+const SendIcon = ({ color = COLORS.stone }) => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 2 11 13" />
+    <path d="M22 2 15 22l-4-9-9-4Z" />
+  </svg>
+);
+
+/* Send an invitation by text. */
+const ChatIcon = ({ color = COLORS.stone }) => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z" />
   </svg>
 );
 
@@ -152,7 +170,14 @@ const SummaryCard = React.memo(function SummaryCard({ count, label, accent }) {
 });
 
 /* ── main component ──────────────────────────────────────────── */
-export default function RSVPsTab({ rsvps = [], eventId, event, customFields, onRefresh, onSendToSelection, smsAddonActive = false, smsMaxPerSend = 0, onBuySms }) {
+export default function RSVPsTab({
+  rsvps = [], eventId, event, customFields, onRefresh,
+  smsAddonActive = false, smsMaxPerSend = 0, onBuySms,
+  // Balance figures for the banner. Supplied by the dashboard, which already
+  // holds them for the sidebar — refetching here would put a second, slightly
+  // different number on the same screen as the first.
+  smsRemaining = 0, smsPurchased = 0, smsCoverage = null,
+}) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('newest');
@@ -162,6 +187,10 @@ export default function RSVPsTab({ rsvps = [], eventId, event, customFields, onR
   const [exportingExcel, setExportingExcel] = useState(false);
   const [exportSort, setExportSort] = useState('name'); // 'name' (A–Z) | 'table'
   const [resending, setResending] = useState(null); // `${rsvpId}:${type}` while a resend is in flight
+  // `${rsvpId}:invite-${channel}` or `bulk:${channel}` while an invitation send
+  // is in flight. Separate from `resending` so a per-guest spinner and a bulk
+  // send can never disable each other's button.
+  const [sending, setSending] = useState(null);
   const [editingGuest, setEditingGuest] = useState(null);
 
   // Party ids the organizer has ticked. A Set because every operation here is a
@@ -329,6 +358,57 @@ export default function RSVPsTab({ rsvps = [], eventId, event, customFields, onR
     }
   }, [eventId]);
 
+  /**
+   * Send the INVITATION to a set of guests, by one channel.
+   *
+   * The one send path in this tab, used by both the bulk bar and the per-guest
+   * buttons — a bulk send is just this with more ids. The modal that used to sit
+   * between the organizer and this call is gone: it asked them to pick an
+   * audience and tick a consent box they had already answered per guest, which
+   * was three screens of friction in front of a decision they had already made
+   * by ticking the rows.
+   *
+   * `channel` is the only discriminator; the server picks the wording. There is
+   * no message box anywhere in this flow, deliberately — see the note on the
+   * invitations route.
+   */
+  const handleSendInvitations = useCallback(async (partyIds, channel) => {
+    const ids = Array.isArray(partyIds) ? partyIds : [partyIds];
+    if (ids.length === 0) return;
+
+    const key = ids.length === 1 ? `${ids[0]}:invite-${channel}` : `bulk:${channel}`;
+    setSending(key);
+    try {
+      const res = await fetch(`${apiUrl}/events/${eventId}/invitations/send`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel, partyIds: ids }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || data.success === false) {
+        throw new Error(data.message || 'Could not send the invitations.');
+      }
+
+      const d = data.data || data;
+      // The server already grouped skip reasons into plain sentences. Surfacing
+      // them is the difference between "12 of 15 sent" — which reads as a fault —
+      // and "3 haven't agreed to receive texts", which reads as a fact the
+      // organizer can act on.
+      toast.success(d.message || `Invitation sent to ${d.sent ?? ids.length}.`);
+      if (Array.isArray(d.breakdown) && d.breakdown.length > 0) {
+        const worst = d.breakdown[0];
+        toast(`${worst.count} not sent — ${worst.message.toLowerCase()}.`, { icon: 'ℹ️' });
+      }
+      onRefresh?.();
+    } catch (err) {
+      toast.error(err.message || 'Could not send the invitations.');
+    } finally {
+      setSending(null);
+    }
+  }, [apiUrl, eventId, onRefresh]);
+
   /* delete RSVP */
   const handleDelete = useCallback(async (rsvpId) => {
     if (!window.confirm('Are you sure you want to delete this RSVP? This action cannot be undone.')) return;
@@ -369,6 +449,18 @@ export default function RSVPsTab({ rsvps = [], eventId, event, customFields, onR
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+
+      {/* ── SMS status ───────────────────────────────────────
+          Above everything, because the question it answers — "will I have
+          enough messages for these people?" — is asked while looking at this
+          list, and answering it anywhere else means answering it too late. */}
+      <SmsBalanceBanner
+        active={smsAddonActive}
+        remaining={smsRemaining}
+        purchased={smsPurchased}
+        coverage={smsCoverage}
+        topUpHref="/dashboard/campaigns"
+      />
 
       {/* ── Summary Bar ─────────────────────────────────────── */}
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
@@ -523,38 +615,52 @@ export default function RSVPsTab({ rsvps = [], eventId, event, customFields, onR
             </div>
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {/* The two send buttons. They go straight to the server now —
+                  the modal that used to sit in between asked the organizer to
+                  choose an audience they had already chosen by ticking rows,
+                  and to attest consent they had already recorded per guest. */}
               <button
                 type="button"
                 onClick={() => (smsAddonActive
-                  ? onSendToSelection?.([...selectedIds], 'sms')
+                  ? handleSendInvitations([...selectedIds], 'sms')
                   : onBuySms?.())}
-                disabled={reach.reachable === 0}
+                disabled={sending !== null || (smsAddonActive && reach.reachable === 0)}
                 title={smsAddonActive
-                  ? undefined
+                  ? `Text the invitation to ${reach.reachable} of the ${selectedIds.size} selected`
                   : 'Text messaging is not switched on for this event yet.'}
                 style={{
                   padding: '9px 18px', borderRadius: 9, border: 'none',
-                  background: reach.reachable === 0
+                  background: (smsAddonActive && reach.reachable === 0)
                     ? '#C9C4BA'
                     : 'linear-gradient(135deg, #D7BE80 0%, #B8944F 100%)',
                   color: COLORS.white, fontSize: 12.5, fontWeight: 700,
-                  cursor: reach.reachable === 0 ? 'not-allowed' : 'pointer',
+                  cursor: sending !== null ? 'wait'
+                    : (smsAddonActive && reach.reachable === 0) ? 'not-allowed' : 'pointer',
                   fontFamily: 'var(--font-sans)',
+                  opacity: sending !== null ? 0.7 : 1,
                 }}
               >
-                {smsAddonActive ? 'Text them' : 'Add texting'}
+                {sending === 'bulk:sms'
+                  ? 'Texting…'
+                  : smsAddonActive
+                    ? `Text invitation${reach.reachable !== selectedIds.size ? ` (${reach.reachable})` : ''}`
+                    : 'Add texting'}
               </button>
               <button
                 type="button"
-                onClick={() => onSendToSelection?.([...selectedIds], 'email')}
+                onClick={() => handleSendInvitations([...selectedIds], 'email')}
+                disabled={sending !== null}
+                title={`Email the invitation to the ${selectedIds.size} selected`}
                 style={{
                   padding: '9px 18px', borderRadius: 9,
                   border: `1px solid ${COLORS.border}`, background: 'transparent',
                   color: COLORS.charcoal, fontSize: 12.5, fontWeight: 700,
-                  cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                  cursor: sending !== null ? 'wait' : 'pointer',
+                  fontFamily: 'var(--font-sans)',
+                  opacity: sending !== null ? 0.7 : 1,
                 }}
               >
-                Email them
+                {sending === 'bulk:email' ? 'Emailing…' : 'Email invitation'}
               </button>
               <button
                 type="button"
@@ -635,6 +741,9 @@ export default function RSVPsTab({ rsvps = [], eventId, event, customFields, onR
                     onEdit={setEditingGuest}
                     selected={selectedIds.has(rsvp.id)}
                     onToggleSelect={toggleOne}
+                    sending={sending}
+                    onSendInvitation={handleSendInvitations}
+                    smsAddonActive={smsAddonActive}
                   />
                 ))}
               </tbody>
@@ -653,6 +762,9 @@ export default function RSVPsTab({ rsvps = [], eventId, event, customFields, onR
                 onEdit={setEditingGuest}
                 selected={selectedIds.has(rsvp.id)}
                 onToggleSelect={toggleOne}
+                sending={sending}
+                onSendInvitation={handleSendInvitations}
+                smsAddonActive={smsAddonActive}
               />
             ))}
           </div>
@@ -719,10 +831,11 @@ export default function RSVPsTab({ rsvps = [], eventId, event, customFields, onR
 }
 
 /* ── Table Row ───────────────────────────────────────────────── */
-const RSVPRow = React.memo(function RSVPRow({ rsvp, isEven, deletingId, onDelete, resending, onResend, onEdit, selected, onToggleSelect }) {
+const RSVPRow = React.memo(function RSVPRow({ rsvp, isEven, deletingId, onDelete, resending, onResend, onEdit, selected, onToggleSelect, sending, onSendInvitation, smsAddonActive }) {
   const [hovered, setHovered] = useState(false);
   const badge = responseBadge(rsvp.response);
   const reach = smsReachability(rsvp);
+  const reachability = reach;
 
   return (
     <tr
@@ -847,6 +960,21 @@ const RSVPRow = React.memo(function RSVPRow({ rsvp, isEven, deletingId, onDelete
       }}>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
           <IconActionButton title="Edit guest" onClick={() => onEdit(rsvp)} icon={PencilIcon} />
+          {/* Send this ONE guest their invitation, by either channel. The two
+              buttons below them resend the confirmation and the entry pass —
+              different messages, deliberately kept apart, because "invite them"
+              and "send their pass again" are not the same intent. */}
+          <InviteButton
+            channel="email" rsvpId={rsvp.id} sending={sending} onSend={onSendInvitation}
+            title="Email this guest their invitation"
+          />
+          <InviteButton
+            channel="sms" rsvpId={rsvp.id} sending={sending} onSend={onSendInvitation}
+            title={smsAddonActive
+              ? (reachability?.reachable ? 'Text this guest their invitation' : `Cannot text — ${reachability?.label || 'no permission on file'}`)
+              : 'Text messaging is not switched on for this event yet'}
+            disabled={!smsAddonActive || !reachability?.reachable}
+          />
           <ResendButton
             type="confirmation"
             rsvpId={rsvp.id}
@@ -869,7 +997,7 @@ const RSVPRow = React.memo(function RSVPRow({ rsvp, isEven, deletingId, onDelete
 });
 
 /* ── Mobile Card (same data/actions as RSVPRow, stacked instead of tabular) ── */
-const RSVPCard = React.memo(function RSVPCard({ rsvp, deletingId, onDelete, resending, onResend, onEdit, selected, onToggleSelect }) {
+const RSVPCard = React.memo(function RSVPCard({ rsvp, deletingId, onDelete, resending, onResend, onEdit, selected, onToggleSelect, sending, onSendInvitation, smsAddonActive }) {
   const badge = responseBadge(rsvp.response);
   const reach = smsReachability(rsvp);
   return (
@@ -920,8 +1048,23 @@ const RSVPCard = React.memo(function RSVPCard({ rsvp, deletingId, onDelete, rese
         <span>· {formatTime(rsvp.timestamp)}</span>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4, borderTop: `1px solid ${COLORS.border}`, paddingTop: 10 }}>
+      {/* Identical actions to the desktop row, in the same order. The two views
+          are one workflow rendered twice — a guest reachable on a laptop and not
+          on a phone would be a bug, not a simplification. flexWrap because five
+          buttons plus a delete do not fit 320px on one line. */}
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4, borderTop: `1px solid ${COLORS.border}`, paddingTop: 10 }}>
         <IconActionButton title="Edit guest" onClick={() => onEdit(rsvp)} icon={PencilIcon} />
+        <InviteButton
+          channel="email" rsvpId={rsvp.id} sending={sending} onSend={onSendInvitation}
+          title="Email this guest their invitation"
+        />
+        <InviteButton
+          channel="sms" rsvpId={rsvp.id} sending={sending} onSend={onSendInvitation}
+          title={smsAddonActive
+            ? (reach.reachable ? 'Text this guest their invitation' : `Cannot text — ${reach.label || 'no permission on file'}`)
+            : 'Text messaging is not switched on for this event yet'}
+          disabled={!smsAddonActive || !reach.reachable}
+        />
         <ResendButton type="confirmation" rsvpId={rsvp.id} resending={resending} onResend={onResend} title="Resend confirmation email" />
         <ResendButton type="qr" rsvpId={rsvp.id} resending={resending} onResend={onResend} title="Send check-in QR pass to this guest" />
         <DeleteButton rsvpId={rsvp.id} deletingId={deletingId} onDelete={onDelete} />
@@ -978,6 +1121,53 @@ function IconActionButton({ title, onClick, icon: Icon }) {
       }}
     >
       <Icon color={hovered ? COLORS.gold : COLORS.stone} />
+    </button>
+  );
+}
+
+/* ── Send-Invitation Button ──────────────────────────────────────
+ *
+ * Deliberately shaped like ResendButton below, and deliberately NOT merged with
+ * it. They look alike because they belong to the same row of controls, but they
+ * mean different things — this one INVITES someone, that one re-sends a message
+ * they were already sent. Collapsing them into one component with a mode flag
+ * would make the next person adding a state have to work out which of two
+ * unrelated intents they were changing.
+ *
+ * 44x44 to match the rest of the row: that is the minimum comfortable touch
+ * target, and this row is six buttons wide on a phone.
+ */
+function InviteButton({ channel, rsvpId, sending, onSend, title, disabled = false }) {
+  const [hovered, setHovered] = useState(false);
+  const isBusy = sending === `${rsvpId}:invite-${channel}`;
+  // Any send in flight locks the rest, so a double-tap on a slow connection
+  // cannot bill an organizer twice for the same guest.
+  const isBlocked = disabled || (sending !== null && !isBusy);
+  const Icon = channel === 'sms' ? ChatIcon : SendIcon;
+
+  return (
+    <button
+      onClick={() => !isBlocked && onSend(rsvpId, channel)}
+      disabled={isBusy || isBlocked}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      title={title}
+      aria-label={title}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 44,
+        height: 44,
+        borderRadius: 8,
+        border: 'none',
+        cursor: isBusy ? 'wait' : isBlocked ? 'not-allowed' : 'pointer',
+        background: hovered && !isBlocked ? COLORS.champagneLight : 'transparent',
+        transition: 'all 0.2s ease',
+        opacity: isBusy ? 0.4 : isBlocked ? 0.3 : 1,
+      }}
+    >
+      <Icon color={hovered && !isBlocked ? COLORS.gold : COLORS.stone} />
     </button>
   );
 }

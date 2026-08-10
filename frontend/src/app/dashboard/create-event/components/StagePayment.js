@@ -168,6 +168,30 @@ function SmsAddonCard({
             </p>
           )}
 
+          {/* The ladder, said out loud.
+              The single most reassuring fact about this purchase is that the
+              budget is per INVITATION and gets smaller as the event grows — and
+              it is invisible in a total. An organizer who can see "about 3
+              messages each" can check the arithmetic against their own guest
+              list, which is the difference between a price and a quote. */}
+          {estimate?.messagesPerParty && (
+            <p style={{ fontSize: 12, color: C.stone, lineHeight: 1.65, margin: '7px 0 0', fontFamily: 'var(--font-sans)' }}>
+              <strong style={{ color: C.charcoal }}>That is about {estimate.messagesPerParty} messages per invitation</strong>
+              {' '}over the life of your event. Bigger events need fewer each, and pay less per message.
+            </p>
+          )}
+
+          <p style={{ fontSize: 12, margin: '10px 0 0', fontFamily: 'var(--font-sans)' }}>
+            <a
+              href="/dashboard/sms-plans"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: C.gold, fontWeight: 700, textDecoration: 'underline' }}
+            >
+              See exactly what your guests receive, and how this is priced
+            </a>
+          </p>
+
           {/* Adjusting is deliberately quiet — a link, not a control competing
               with the number above it. */}
           {!showAdjust ? (

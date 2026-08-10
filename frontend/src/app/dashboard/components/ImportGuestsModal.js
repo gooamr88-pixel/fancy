@@ -47,6 +47,17 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
   // is offered anyway (it would otherwise be impossible to attest for an .xlsx
   // import); the server applies it only to rows that actually have a number.
   const [phonesUnknown, setPhonesUnknown] = useState(false);
+  /**
+   * Per-row SMS permission read from an `sms_consent` column, when the file has
+   * one. `present: false` means the column was absent and the whole-file
+   * checkbox below is the only signal.
+   *
+   * Detected client-side for CSV only. An .xlsx arrives as opaque base64 with no
+   * parser in the browser, so its column is found server-side and this stays
+   * empty — which is why the checkbox remains on offer for those files rather
+   * than being replaced by the count.
+   */
+  const [rowConsent, setRowConsent] = useState({ present: false, yes: 0, total: 0 });
   const fileRef = useRef(null);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
@@ -60,6 +71,10 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
       setFileContent(''); setFileName(''); setPreview([]); setTotalRows(0);
       setError(''); setResult(null); setLoading(false); setDragOver(false);
       setConsentAttested(false); setCsvHasPhones(false); setPhonesUnknown(false);
+      // Reset with the rest. Left stale, a previous file's consent column would
+      // keep the whole-file checkbox hidden on the NEXT import and show that
+      // file's counts against this one's rows.
+      setRowConsent({ present: false, yes: 0, total: 0 });
     }
   }
 
@@ -94,6 +109,32 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
         const phoneIdx = header.indexOf('phone');
         setCsvHasPhones(phoneIdx >= 0 && dataRows.some((r) => String(r[phoneIdx] || '').trim()));
         setPhonesUnknown(false);
+
+        /**
+         * Per-row SMS permission, if the file carries it.
+         *
+         * Three spellings, because organizers build these files by hand and none
+         * of the three is the obviously correct one to guess.
+         *
+         * When the column IS present it answers per guest and the whole-file
+         * checkbox becomes a fallback for rows it does not cover. Counting the
+         * yes-rows here lets the modal say "12 of 40 marked OK to text" BEFORE
+         * the import runs, rather than leaving the organizer to discover the
+         * number afterwards as messages that did not send.
+         */
+        const consentIdx = ['sms_consent', 'sms_ok', 'can_text']
+          .map((n) => header.indexOf(n)).find((i) => i >= 0) ?? -1;
+        if (consentIdx >= 0 && phoneIdx >= 0) {
+          const TRUTHY = new Set(['yes', 'y', 'true', '1', 'x', '✓', 'ok']);
+          const withPhone = dataRows.filter((r) => String(r[phoneIdx] || '').trim());
+          setRowConsent({
+            present: true,
+            yes: withPhone.filter((r) => TRUTHY.has(String(r[consentIdx] || '').trim().toLowerCase())).length,
+            total: withPhone.length,
+          });
+        } else {
+          setRowConsent({ present: false, yes: 0, total: 0 });
+        }
       };
       reader.onerror = () => setError('Failed to read file');
       reader.readAsText(file);
@@ -112,6 +153,10 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
         setPreview([]);
         setCsvHasPhones(false);
         setPhonesUnknown(true); // columns are invisible client-side; offer the attestation regardless
+        // An .xlsx cannot be inspected in the browser, so we genuinely do not know
+        // whether it has a consent column — the server decides. Clearing this is
+        // what keeps the checkbox on offer after a CSV that DID have one.
+        setRowConsent({ present: false, yes: 0, total: 0 });
       };
       reader.onerror = () => setError('Failed to read file');
       reader.readAsArrayBuffer(file);
@@ -349,6 +394,13 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
                     <p style={{ fontSize: '12px', color: COLORS.stone, fontFamily: 'var(--font-sans)', margin: 0 }}>
                       Accepts .csv or .xlsx files · Columns: guest_name, email, phone, party_size, notes, {sideHint}
                     </p>
+                    {/* Documented HERE rather than in a help page, because this
+                        is the one moment an organizer is looking at their column
+                        headers and can still change them. */}
+                    <p style={{ fontSize: '11.5px', color: COLORS.stone, fontFamily: 'var(--font-sans)', margin: '6px 0 0', opacity: 0.9 }}>
+                      Optional: add an <strong>sms_consent</strong> column with <em>yes</em> or <em>no</em> to say, per guest,
+                      whether you have their permission to text them.
+                    </p>
                   </div>
                 )}
               </div>
@@ -417,7 +469,29 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
                   there is nothing to attest about otherwise. Unchecked by
                   default and never blocks the import: without it the numbers
                   still import, they simply stay un-messageable. */}
-              {fileContent && (csvHasPhones || phonesUnknown) && (
+              {/* THE COLUMN WINS. When the file answers per guest, showing the
+                  whole-file checkbox as well would invite an organizer to tick a
+                  blanket claim over answers they already gave individually — and
+                  the blanket claim is the weaker evidence of the two. So the
+                  checkbox is replaced by what their own file said. */}
+              {fileContent && rowConsent.present && (
+                <div style={{
+                  marginTop: '16px', padding: '12px 14px', borderRadius: '10px',
+                  background: 'rgba(184,148,79,0.08)', border: `1px solid ${COLORS.champagne}`,
+                }}>
+                  <div style={{ fontSize: '12.5px', fontWeight: 700, color: COLORS.charcoal, fontFamily: 'var(--font-sans)' }}>
+                    {rowConsent.yes} of {rowConsent.total} guests with a phone number are marked OK to text
+                  </div>
+                  <p style={{ margin: '7px 0 0', fontSize: '11.5px', lineHeight: 1.6, color: COLORS.stone, fontFamily: 'var(--font-sans)' }}>
+                    Read from the <code>sms_consent</code> column in your file. The rest are still
+                    imported — they simply will not be texted until they opt in themselves on their
+                    RSVP form. Recorded with your name and the date, as required by our{' '}
+                    <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: COLORS.gold, fontWeight: 700, textDecoration: 'underline' }}>Terms of Service</a>.
+                  </p>
+                </div>
+              )}
+
+              {fileContent && !rowConsent.present && (csvHasPhones || phonesUnknown) && (
                 <div style={{
                   marginTop: '16px', padding: '12px 14px', borderRadius: '10px',
                   background: consentAttested ? 'rgba(184,148,79,0.08)' : COLORS.softBg,

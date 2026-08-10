@@ -1,14 +1,23 @@
 /**
- * Shared SMS dispatch primitives — the single source of truth for audience
- * resolution, personalization, segment-accurate atomic credit billing, and the
- * actual Twilio send. Used by BOTH the synchronous controller path (small sends)
- * and the asynchronous worker (large queued campaigns) so the safety guarantees
- * are identical everywhere.
+ * Shared SMS dispatch primitives — consent and opt-out resolution,
+ * segment-accurate atomic credit billing, and the actual carrier send.
+ *
+ * `sendTransactionalSms` is the ONLY way a message leaves this platform. It used
+ * to have a sibling: free-text campaigns resolved their own audience, rendered
+ * their own body and called `sendRecipient` directly, bypassing the entitlement,
+ * per-type and idempotency gates entirely and relying on route middleware to
+ * substitute for them. That path is gone with the four-type rebuild, and its
+ * removal is the point rather than a side effect — two ways to send meant two
+ * places for a consent rule to be enforced, and one of them was always going to
+ * fall behind the other.
+ *
+ * `sendRecipient` survives as the one-recipient primitive underneath, but it is
+ * no longer exported: nothing outside this file should be able to reach the
+ * carrier without passing the gate chain first.
  */
 const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
-const { buildGuestRsvpUrl } = require('../utils/emailTemplates');
-const { computeSmsSegments, renderTemplate } = require('../utils/smsSegments');
+const { computeSmsSegments } = require('../utils/smsSegments');
 const { normalizeToE164 } = require('../utils/phone');
 const { smsMockBillingEnabled } = require('../config/features');
 const { resolveProvider } = require('./smsProviders');
@@ -27,16 +36,6 @@ const COMPLIANCE_FOOTER = `${BRANDING}. Msg&data rates may apply. Reply STOP to 
 // it is a single GSM-7 segment, which is what carriers require of a HELP response.
 const HELP_REPLY = 'Fancy RSVP: help with event texts? Email info@fancyrsvp.com. Msg&data rates may apply. Reply STOP to opt out.';
 
-// Stored response values are yes/no/maybe/pending; aliases tolerated defensively.
-const AUDIENCE_RESPONSES = {
-  pending: ['pending'],
-  attending: ['yes', 'accepted', 'attending'],
-  maybe: ['maybe'],
-  declined: ['no', 'declined'],
-};
-const VALID_AUDIENCES = ['pending', 'attending', 'maybe', 'declined', 'all'];
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const chunk = (arr, size) => {
   const out = [];
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
@@ -48,41 +47,20 @@ const isUndefinedFunction = (error) =>
   !!error && (error.code === '42883' || error.code === 'PGRST202' ||
     /Could not find the function|does not exist/i.test(error.message || ''));
 
-/** Normalize the requested audience(s) into a clean array of valid segment keys. */
-function normalizeAudiences(input) {
-  let list = [];
-  if (Array.isArray(input)) list = input;
-  else if (typeof input === 'string' && input.trim()) list = input.split(/[+,]/);
-  list = list.map((s) => String(s).trim().toLowerCase()).filter(Boolean);
-  const valid = list.filter((s) => VALID_AUDIENCES.includes(s));
-  if (valid.includes('all')) return ['all'];
-  return [...new Set(valid)];
-}
-
-/** Build the UNION of response values for the selected segments (null = no filter / all). */
-function resolveResponses(audiences) {
-  if (!audiences.length || audiences.includes('all')) return null;
-  const set = new Set();
-  for (const a of audiences) (AUDIENCE_RESPONSES[a] || []).forEach((r) => set.add(r));
-  return [...set];
-}
-
-/**
- * Fetch phone-bearing recipients for the chosen audience or an explicit
- * party-id list. SMS targets a party's primary contact, mirroring how email
- * invitations target the primary contact's email — `id`/`guest_name` below
- * are the party id and label (the historical "rsvp"/"guest" naming downstream
- * in this file is kept as-is; only the underlying query changed).
+/* ═══ THE EXPRESS-CONSENT GATE (TCPA / Twilio TFV rejection 30475) ═══════════
  *
- * EXPRESS-CONSENT GATE (TCPA / Twilio TFV rejection 30475). A party is a valid
- * SMS recipient only when `sms_consent = true`. That single flag has FOUR
- * possible provenances, distinguished by `sms_consent_method`:
+ * This is the rule the whole subsystem exists to obey, so it is written down
+ * once, here, rather than restated at each place that enforces it.
+ *
+ * A party is a valid SMS recipient only when `rsvp_parties.sms_consent = true`.
+ * That single flag has several possible provenances, distinguished by
+ * `sms_consent_method`:
  *
  *   true  + guest_optin     → the guest personally ticked the optional, unbundled
  *                             checkbox on an RSVP form. Send.
  *   true  + host_attested   → the organizer formally attested, per guest, that
  *                             they hold this person's prior express consent
- *                             (Terms §5, migration 20260812000000). Send.
+ *                             (Terms §5, migration 20260812010000). Send.
  *   true  + <null>/other    → legacy or /sms-opt-in propagation. Send.
  *   false + sms_consent_at SET   → asked and DECLINED, or consent revoked because
  *                             the number changed. NEVER send.
@@ -95,73 +73,14 @@ function resolveResponses(audiences) {
  * `.is('sms_consent_at', null)`, so it can only ever write to a party that has
  * NEVER recorded a decision. A guest who declined cannot be attested over.
  *
- * Two things sit OUTSIDE this flag and override it regardless of provenance:
- *   • sms_opt_outs — a STOP reply suppresses the number globally, across events.
- *   • the per-campaign organizer attestation — an ADDITIONAL gate on launch,
- *     never a substitute for a per-guest record.
+ * One thing sits OUTSIDE this flag and overrides it regardless of provenance:
+ * `sms_opt_outs` — a STOP reply suppresses the number globally, across every
+ * event, permanently, until they text START.
  *
- * Do NOT loosen this to an `.or()` that treats a NULL timestamp as sendable.
- */
-async function fetchRecipients(eventId, { audiences = ['pending'], guestIds = null, limit = 100000 } = {}) {
-  let query = supabase
-    .from('rsvp_parties')
-    .select('id, label, response, guests!inner(is_primary_contact, phone)')
-    .eq('event_id', eventId)
-    .eq('sms_consent', true)
-    .eq('guests.is_primary_contact', true)
-    .not('guests.phone', 'is', null);
-
-  if (Array.isArray(guestIds) && guestIds.length > 0) {
-    query = query.in('id', guestIds);
-  } else {
-    const responses = resolveResponses(audiences);
-    if (responses) query = query.in('response', responses);
-  }
-  const { data, error } = await query.limit(limit);
-  if (error) throw error;
-  return (data || []).map((p) => {
-    const primary = Array.isArray(p.guests) ? p.guests[0] : p.guests;
-    return { id: p.id, guest_name: p.label, phone: primary?.phone, response: p.response };
-  });
-}
-
-/** party_id → assigned table name, for the {table_number} tag (best-effort, never fatal). */
-async function getTableMap(eventId) {
-  const map = {};
-  try {
-    const { data: seats } = await supabase
-      .from('seating_assignments')
-      .select('party_id, tables(table_name)')
-      .eq('event_id', eventId);
-    for (const s of (seats || [])) {
-      const name = s.tables && s.tables.table_name;
-      if (s.party_id && name) map[s.party_id] = name;
-    }
-  } catch (e) {
-    logger.warn({ err: e, eventId }, 'getTableMap failed; {table_number} will render empty.');
-  }
-  return map;
-}
-
-/** Personalize + measure one message (segments are computed on the FINAL body). */
-function personalize(template, { slug, guestName, rsvpId, tableName, eventTitle }) {
-  // INV-3: SMS taps land directly on the RSVP form (`/{slug}/rsvp?g={rsvpId}`) — no
-  // landing-page detour and no resolver redirect.
-  const url = buildGuestRsvpUrl(slug, rsvpId);
-  const values = {
-    name: guestName || 'Guest',
-    url, rsvp_link: url,
-    table_number: tableName || '', table: tableName || '',
-    event: eventTitle || '', event_name: eventTitle || '',
-  };
-  let body = renderTemplate(template, values);
-  // A template ending in the bare brand suffix (the pre-compliance-footer
-  // convention) would otherwise render "…- Fancy RSVP - Fancy RSVP. Msg&data…".
-  if (body.endsWith(BRANDING)) body = body.slice(0, -BRANDING.length);
-  if (!body.endsWith(COMPLIANCE_FOOTER)) body = `${body}${COMPLIANCE_FOOTER}`;
-  const seg = computeSmsSegments(body);
-  return { body, segments: seg.segments };
-}
+ * Do NOT loosen any consent query to an `.or()` that treats a NULL timestamp as
+ * sendable. That exact loosening is what got the toll-free number rejected, and
+ * a deregistration stops SMS for every customer on the platform at once.
+ * ═════════════════════════════════════════════════════════════════════════ */
 
 /* ─── Opt-out suppression (sms_opt_outs, written by the inbound STOP webhook) ─── */
 
@@ -587,6 +506,51 @@ async function flushUsage() {
 
 const { isTypeEnabled, getSmsType } = require('../config/smsMessageTypes');
 const { renderSmsBody, normalizeLang } = require('../utils/smsTemplates');
+const shortLinks = require('../utils/shortLinks');
+
+/**
+ * The context fields that hold a URL, and what each link is FOR.
+ *
+ * The `kind` is not decoration — it is the idempotency key. Combined with the
+ * party id it means re-sending an invitation reuses the code that guest already
+ * has, rather than minting a second one at the same destination. A guest who kept
+ * the first text and taps it a month later must still land somewhere.
+ */
+const LINK_FIELDS = [
+  ['rsvpUrl', 'rsvp'],
+  ['ticketUrl', 'ticket'],
+  ['url', 'event'],
+  ['dashboardUrl', null], // organizer-facing, one per event — not worth a row
+];
+
+/**
+ * Replace every long URL in a template context with a short one.
+ *
+ * Runs the links in parallel: a message carries at most two, and doing them in
+ * series would put a second network round trip in front of every send for no
+ * reason. `shorten` never throws and never returns empty, so Promise.all is safe
+ * here without a settled-wrapper.
+ */
+async function shortenContextLinks(context, { eventId, partyId }) {
+  if (!context || typeof context !== 'object') return context;
+
+  const present = LINK_FIELDS.filter(([field]) => typeof context[field] === 'string' && context[field]);
+  if (present.length === 0) return context;
+
+  const shortened = await Promise.all(
+    present.map(([field, kind]) => shortLinks.shorten(context[field], {
+      eventId,
+      // A null kind means "do not deduplicate this one" — pass no party either,
+      // so the partial unique index does not treat them as the same link.
+      partyId: kind ? partyId : null,
+      kind,
+    })),
+  );
+
+  const out = { ...context };
+  present.forEach(([field], i) => { out[field] = shortened[i]; });
+  return out;
+}
 
 
 /** Append one attempt (sent, failed OR skipped) to sms_log. Never throws. */
@@ -859,9 +823,19 @@ async function sendTransactionalSms({ type, eventId, partyId = null, ref, event 
     //    organizer setting, on every event.
     if (await isOptedOut(phone)) return skip('OPTED_OUT', { recipient: phone });
 
-    // ⑥ Body + true segment count (measured AFTER the compliance footer, which is
-    //    what actually gets billed).
-    const rendered = renderSmsBody(type, normalizeLang(lang), context);
+    // ⑥ Shorten every link in the context, THEN render, THEN measure.
+    //
+    //    Order matters and the reason is money. A GSM-7 segment holds 160
+    //    characters, the compliance footer claims 78, and the raw RSVP URL is
+    //    another 89 — so an unshortened message is two segments before the
+    //    guest's name and four in Arabic. Shortening first is the difference
+    //    between billing three segments and billing four on every Arabic event.
+    //
+    //    Never fatal: shorten() returns the original URL on any failure, so a
+    //    short-link outage makes messages more expensive, never undelivered.
+    const linkedContext = await shortenContextLinks(context, { eventId, partyId });
+
+    const rendered = renderSmsBody(type, normalizeLang(lang), linkedContext);
     if (!rendered) return skip('NO_BODY');
     const body = `${rendered}${COMPLIANCE_FOOTER}`;
     const { segments } = computeSmsSegments(body);
@@ -927,15 +901,42 @@ async function sendTransactionalSms({ type, eventId, partyId = null, ref, event 
   }
 }
 
-// logSmsAttempt / alreadySent / resolveRecipient are deliberately NOT exported:
-// they are internals of sendTransactionalSms, and exporting them invites a caller
-// to log a send or resolve a recipient while bypassing the gate chain that makes
-// either safe.
+/**
+ * logSmsAttempt / alreadySent / resolveRecipient are deliberately NOT exported:
+ * they are internals of sendTransactionalSms, and exporting them invites a caller
+ * to log a send or resolve a recipient while bypassing the gate chain that makes
+ * either safe.
+ *
+ * `sendRecipient` joined them in the four-type rebuild, and that is the single
+ * most important line in this block. It was exported so free-text campaigns could
+ * reach the carrier directly — which meant the entitlement check, the per-type
+ * switch and the (kind, ref) idempotency guard were all optional, enforced for
+ * one caller by route middleware and for the other by the function itself. With
+ * campaigns gone there is exactly one door, and closing this export is what keeps
+ * it that way: a future caller who wants to send has to go through
+ * sendTransactionalSms, and therefore through every gate.
+ */
 module.exports = {
   sendTransactionalSms,
   // Exported for the batching test only — nothing in the application calls it.
   // The flush is timer-driven, and a test cannot wait 5 seconds per assertion.
   __flushUsageForTests: flushUsage,
+  /**
+   * The one-recipient send primitive, for tests ONLY.
+   *
+   * Named with the __ prefix rather than exported plainly, and the distinction is
+   * the point. This used to be a public export so free-text campaigns could reach
+   * the carrier directly, which meant the entitlement, per-type and idempotency
+   * gates were optional — enforced for one caller by route middleware and for the
+   * other by sendTransactionalSms itself.
+   *
+   * Application code must go through sendTransactionalSms and therefore through
+   * every gate. Tests that exercise BILLING specifically (the transport gate, the
+   * usage batching, the low-balance alert) need to reach the debit path without
+   * standing up an event, a party and a consent record for each assertion — so
+   * they get this, under a name no reviewer will mistake for an API.
+   */
+  __sendRecipientForTests: sendRecipient,
   BRANDING,
   COMPLIANCE_FOOTER,
   HELP_REPLY,
@@ -944,18 +945,9 @@ module.exports = {
   isOptedOut,
   getConsentedPhoneSet,
   hasSmsConsent,
-  VALID_AUDIENCES,
-  AUDIENCE_RESPONSES,
-  sleep,
   chunk,
   normalizePhone,
   isValidPhone,
-  normalizeAudiences,
-  resolveResponses,
-  fetchRecipients,
-  getTableMap,
-  personalize,
   deductCredits,
   refundCredits,
-  sendRecipient,
 };

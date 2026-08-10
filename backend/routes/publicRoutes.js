@@ -12,6 +12,7 @@ const { verifyTurnstile } = require('../middleware/captcha');
 const { generateQRCodeBuffer } = require('../utils/qrHelper');
 const { getPlatformConfig } = require('../utils/configCache');
 const { getPublicBaseUrl } = require('../utils/publicUrl');
+const shortLinks = require('../utils/shortLinks');
 const { supabase } = require('../config/supabase');
 
 const router = express.Router();
@@ -47,6 +48,40 @@ router.post('/sms/status', handleSmsStatusCallback);
 // suppression list every SMS send path enforces. Point the Twilio number's
 // "A message comes in" hook here.
 router.post('/sms/inbound', handleInboundSms);
+
+// Short-link resolution for /i/:code.
+//
+// The short domain is the SITE, not the API — `fancyrsvp.com/i/k7m2xq4p`, because
+// putting the API hostname in the link would give back most of the characters the
+// short link exists to save. So the public-facing hop is a Next.js route handler
+// (frontend/src/app/i/[code]/route.js) and this is what it asks.
+//
+// Rate-limited because a code is the only thing guarding the RSVP page it points
+// at. 8 characters of a 30-symbol alphabet is ~10^11 combinations, which is not
+// brute-forceable at 60 tries a minute, and is the reason for the cap rather than
+// an afterthought to it.
+const shortLinkLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'TOO_MANY_REQUESTS', message: 'Too many requests.' },
+});
+
+router.get('/links/:code', shortLinkLimiter, async (req, res) => {
+  try {
+    const target = await shortLinks.resolve(req.params.code);
+    if (!target) {
+      return res.status(404).json({ success: false, error: 'NOT_FOUND', message: 'That link is not valid.' });
+    }
+    return res.json({ success: true, url: target });
+  } catch {
+    // Deliberately indistinguishable from a genuine miss: a different response for
+    // "exists but we broke" would turn this endpoint into an oracle for probing
+    // which codes are real.
+    return res.status(404).json({ success: false, error: 'NOT_FOUND', message: 'That link is not valid.' });
+  }
+});
 
 // Public landing-page stat counters (admin-editable via super_admin_config.landing_stats).
 // Reads the cached config and exposes ONLY this column — never the rest of the row

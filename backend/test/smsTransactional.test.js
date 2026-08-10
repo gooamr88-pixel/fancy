@@ -35,7 +35,7 @@ const PHONE = '+15551234567';
 const paidEvent = (settings = {}) => ({
   id: EVENT,
   sms_addon_purchased_at: '2026-08-04T00:00:00.000Z',
-  sms_settings: { rsvp_reminder: true, organizer_report: true, ...settings },
+  sms_settings: { invitation: true, organizer_report: true, ...settings },
 });
 
 /**
@@ -88,7 +88,7 @@ function scriptHappyPath({
 }
 
 const reminder = (overrides = {}) => ({
-  type: 'rsvp_reminder',
+  type: 'invitation',
   eventId: EVENT,
   partyId: PARTY,
   ref: `rsvp:${PARTY}`,
@@ -114,7 +114,7 @@ test('an event without the add-on sends nothing and bills nothing', async () => 
 test('a type the organizer switched off is skipped, with a distinct reason', async () => {
   const state = scriptHappyPath();
   const res = await sendTransactionalSms(reminder({
-    event: paidEvent({ rsvp_reminder: false }),
+    event: paidEvent({ invitation: false }),
   }));
 
   assert.equal(res.sent, false);
@@ -172,7 +172,7 @@ test('a fully-permitted message is sent, billed once, and logged', async () => {
 
   const sentLog = state.logs.find((l) => l.status === 'sent');
   assert.ok(sentLog, 'a successful send must leave an audit row');
-  assert.equal(sentLog.kind, 'rsvp_reminder');
+  assert.equal(sentLog.kind, 'invitation');
   assert.equal(sentLog.ref, `rsvp:${PARTY}`);
   assert.equal(sentLog.recipient, PHONE);
 });

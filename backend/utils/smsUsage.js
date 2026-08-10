@@ -16,7 +16,8 @@
  * disagree, which reads to a customer as the platform not knowing its own state.
  */
 
-const { normalizeSmsPricing } = require('../config/smsPricing');
+const { normalizeSmsPricing, messagesPerPartyFor } = require('../config/smsPricing');
+const { isRetiredSmsType } = require('../config/smsMessageTypes');
 
 /**
  * Turn a wallet row into everything the UI and the alerts need.
@@ -116,7 +117,8 @@ function relativeTime(iso) {
  * @param {object|null} pricingConfig
  */
 function coverageForGuests(remaining, guestCount, pricingConfig = null) {
-  const { estimator, type_frequencies } = normalizeSmsPricing(pricingConfig);
+  const cfg = normalizeSmsPricing(pricingConfig);
+  const { estimator } = cfg;
 
   const guests = Math.max(0, Number(guestCount) || 0);
   const left = Math.max(0, Number(remaining) || 0);
@@ -126,19 +128,19 @@ function coverageForGuests(remaining, guestCount, pricingConfig = null) {
   // organizer they are short when they are fine.
   const invitations = guests > 0 ? Math.ceil(guests / estimator.guests_per_party) : 0;
 
-  // What one invitation consumes over the event's whole life, using the same
-  // per-type frequencies the purchase recommendation is built from — so the two
-  // screens cannot contradict each other.
+  // What one invitation consumes over the event's whole life, taken from the SAME
+  // guest-count ladder the purchase recommendation is built from.
   //
-  // Organizer-addressed types are excluded by AUDIENCE, not by name. Filtering on
-  // the literal 'organizer_report' would silently start counting the next
-  // organizer-facing type as if every invitation received it, inflating coverage
-  // for every customer at once.
-  const { getSmsType } = require('../config/smsMessageTypes');
-  const perInvitation = Object.entries(type_frequencies)
-    .filter(([key]) => getSmsType(key)?.audience !== 'organizer')
-    .reduce((sum, [, freq]) => sum + (Number(freq) || 0), 0)
-    * estimator.segments_per_message_latin;
+  // This used to sum the per-type frequency table instead. That was already a
+  // second definition of the same idea, and the ladder made it a divergent one:
+  // the purchase screen would recommend against a falling per-invitation budget
+  // while this banner judged the same balance against a flat one. An organizer
+  // looking at both would be told two different things about one wallet.
+  //
+  // Coverage is also the one place the REAL guest count is known rather than a
+  // plan's cap — which is exactly what the ladder keys on, so this is the more
+  // accurate of the two callers, not merely the consistent one.
+  const perInvitation = messagesPerPartyFor(guests, cfg) * estimator.segments_per_message_latin;
 
   const coversInvitations = perInvitation > 0 ? Math.floor(left / perInvitation) : 0;
   const enough = invitations === 0 || coversInvitations >= invitations;
@@ -226,6 +228,15 @@ const RESENDABLE = new Set(['NO_ALLOWANCE', 'INSUFFICIENT_CREDITS', 'SMS_TRANSPO
 function isResendable(row) {
   if (!row) return false;
   if (row.status === 'sent') return false;
+
+  // A message of a type this platform no longer sends can never be resent, and
+  // offering the button is worse than useless: resendSmsMessage DELETES the
+  // sms_log row before re-dispatching — correct, because the (kind, ref) unique
+  // index would otherwise make the retry a silent no-op — and the re-dispatch
+  // then fails on UNKNOWN_TYPE. The organizer would get an error and we would
+  // have destroyed a compliance record to produce it.
+  if (isRetiredSmsType(row.kind)) return false;
+
   return RESENDABLE.has(row.skip_reason) || (row.status === 'failed' && !row.skip_reason);
 }
 

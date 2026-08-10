@@ -139,6 +139,16 @@ test('BOTH the campaigns and invitations routes mount the same gate', () => {
 
 test('the invitations gate applies to the sms channel ONLY', () => {
   const src = require('fs').readFileSync(require.resolve('../routes/invitationRoutes'), 'utf8');
-  assert.match(src, /channel\s*===\s*'sms'/,
+  // Either polarity is correct — the gate now early-returns on the negative
+  // (`!== 'sms'`) rather than branching on the positive, because it applies TWO
+  // middlewares in sequence rather than one.
+  assert.match(src, /channel\s*(===|!==)\s*'sms'/,
     'email and qr invitations must stay reachable without the SMS add-on');
+
+  // The ramp-up must be here too. This is now the ONLY bulk SMS door in the
+  // platform: the campaign route that used to carry the cap is gone, so missing
+  // it here would silently stop capping how many messages a brand-new account
+  // can fire in one request.
+  assert.match(src, /requireSendLimit/,
+    'the anti-abuse ramp-up must guard the sms channel, not just the add-on gate');
 });

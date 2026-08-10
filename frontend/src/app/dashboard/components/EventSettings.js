@@ -7,6 +7,7 @@ import FontPicker from './FontPicker';
 import { supabase } from '../../utils/supabaseClient';
 import { extractYouTubeId, checkYouTubeEmbeddable } from '../../utils/youtube';
 import RepeatableListEditor from './RepeatableListEditor';
+import ConfirmGuestNotifyModal from './ConfirmGuestNotifyModal';
 import Icon from '../../components/icons/Icon';
 import EventCategoryIcon from '../../components/icons/EventCategoryIcon';
 import TagListEditor, { toTagArray } from './TagListEditor';
@@ -316,6 +317,14 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
   const [heroVideoUploading, setHeroVideoUploading] = useState(false);
   const [galleryUploading, setGalleryUploading] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  // Cancelling is a different action from deleting, so it gets its own state
+  // rather than sharing the delete confirmation's — the two must never be one
+  // keystroke apart.
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelBusy, setCancelBusy] = useState(false);
+  // How many guests a cancellation would reach, fetched when the dialog opens so
+  // the confirm can name real numbers instead of asking blind.
+  const [cancelReach, setCancelReach] = useState({ parties: null, smsReachable: null, smsRemaining: null });
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
   // Custom dress-code text mode — starts on if the saved value isn't one of
@@ -857,11 +866,78 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         credentials: 'include',
       });
       const data = await res.json().catch(() => ({}));
+      // The server refuses to hard-delete a live event that has guests, and says
+      // so with CANCEL_FIRST. Surfacing its message verbatim is the point — it
+      // names the guest count and explains that cancelling tells them, which is
+      // the choice the organizer almost certainly meant to make.
       if (!res.ok) throw new Error(data.message || 'Failed to delete event');
       onEventDeleted?.(eventId);
     } catch (err) {
       setError(err.message || 'Something went wrong');
       setDeleting(false);
+    }
+  };
+
+  /**
+   * Load who a cancellation would actually reach, when the dialog opens.
+   *
+   * Fetched here rather than held permanently: it is two counts and a balance,
+   * needed on one rare screen, and keeping them live for every settings visit
+   * would be three queries per page load to answer a question nobody asked.
+   *
+   * An inline async IIFE rather than a useCallback the effect then calls — the
+   * lint rule in this repo treats the latter as a set-state-in-effect violation.
+   */
+  useEffect(() => {
+    if (!cancelOpen || !eventId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${apiUrl}/events/${eventId}/campaigns/settings`, { credentials: 'include' });
+        const data = await res.json();
+        if (cancelled || !data?.success) return;
+        setCancelReach({
+          parties: data.coverage?.invitations ?? null,
+          // The REAL consented count, not the invitation count.
+          //
+          // This used to reuse coverage.invitations, which is every invitation on
+          // the list — so the dialog promised to text guests who had never agreed
+          // to be texted, and the number it showed was always too high.
+          smsReachable: data.addonActive ? (data.smsReachableParties ?? 0) : 0,
+          smsRemaining: data.addonActive ? (data.balance?.remaining ?? 0) : null,
+        });
+      } catch { /* the dialog still works, it just cannot promise numbers */ }
+    })();
+    return () => { cancelled = true; };
+  }, [cancelOpen, eventId, apiUrl]);
+
+  /**
+   * Call the event off, and tell the guests.
+   *
+   * A dedicated endpoint rather than a status PATCH: cancelling notifies
+   * everyone and cannot be undone from a guest's side, so it must never be
+   * reachable by the generic settings save.
+   */
+  const handleCancelEvent = async ({ sendSms, reason }) => {
+    setCancelBusy(true);
+    setError('');
+    try {
+      const res = await fetch(`${apiUrl}/events/${eventId}/cancel`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason, notify: true, channels: sendSms ? ['email', 'sms'] : ['email'] }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false) throw new Error(data.message || 'Could not cancel the event.');
+      setCancelOpen(false);
+      // Same callback the ordinary save uses, so the dashboard re-reads the event
+      // and the status badge, the RSVP form state and this panel all agree.
+      onEventUpdated?.(data.message || 'Event cancelled.');
+    } catch (err) {
+      setError(err.message || 'Could not cancel the event.');
+    } finally {
+      setCancelBusy(false);
     }
   };
 
@@ -2416,6 +2492,20 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         )}
       </div>
 
+      {/* The confirm that stands between "cancel this event" and several hundred
+          people being told. It names the numbers before it acts — see the
+          component for why that sentence is the whole point. */}
+      <ConfirmGuestNotifyModal
+        open={cancelOpen}
+        onClose={() => setCancelOpen(false)}
+        onConfirm={handleCancelEvent}
+        mode="cancel"
+        parties={cancelReach.parties}
+        smsReachable={cancelReach.smsReachable}
+        smsRemaining={cancelReach.smsRemaining}
+        busy={cancelBusy}
+      />
+
       {/* ═══ DANGER ZONE ═══ */}
       <div style={{ ...sectionStyle, border: '1px solid #FECACA' }}>
         <h3 style={{ ...sectionTitleStyle, color: '#C45E5E', borderBottomColor: '#FECACA' }}>
@@ -2425,10 +2515,50 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           </span>
         </h3>
 
+        {/* CANCEL, offered above DELETE and described first.
+            Until now, calling an event off and deleting it were the same button.
+            An organizer whose venue floods pressed Delete: several hundred guests
+            were never told anything, and every RSVP, seating chart and consent
+            record went with it. Cancelling tells the guests, closes the RSVP
+            form, and keeps the records. It is what almost everyone reaching this
+            section actually wants, so it goes first. */}
+        {!deleteConfirmOpen && event?.status !== 'cancelled' && event?.status !== 'draft' && (
+          <div style={{
+            background: COLORS.softBg || '#FAFAF8', border: `1px solid ${COLORS.border}`,
+            borderRadius: '12px', padding: '16px', marginBottom: '18px',
+          }}>
+            <p style={{ fontSize: '13px', color: COLORS.charcoal, lineHeight: 1.6, margin: '0 0 12px', fontFamily: 'var(--font-sans)' }}>
+              <strong>Need to call it off?</strong> Cancelling tells every guest who said yes or
+              maybe — by email, and by text if you have messaging — closes your RSVP form, and
+              keeps your guest list and records intact.
+            </p>
+            <button
+              onClick={() => setCancelOpen(true)}
+              style={{
+                padding: '8px 20px', borderRadius: '8px', border: `1px solid ${COLORS.stone}`,
+                background: COLORS.white, color: COLORS.charcoal, fontSize: '12px', fontWeight: 700,
+                fontFamily: 'var(--font-sans)', cursor: 'pointer',
+              }}
+            >
+              Cancel this event
+            </button>
+          </div>
+        )}
+
+        {event?.status === 'cancelled' && (
+          <div style={{
+            background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '12px',
+            padding: '14px', marginBottom: '18px', fontSize: '13px', lineHeight: 1.6,
+            color: COLORS.charcoal, fontFamily: 'var(--font-sans)',
+          }}>
+            This event was cancelled{event.cancelled_at ? ` on ${new Date(event.cancelled_at).toLocaleDateString()}` : ''}. Your guests have been told.
+          </div>
+        )}
+
         {!deleteConfirmOpen ? (
           <>
             <p style={{ fontSize: '13px', color: COLORS.stone, lineHeight: 1.6, marginBottom: '14px', fontFamily: 'var(--font-sans)' }}>
-              Permanently delete this event and all related data — guests, RSVPs, tables, and the activity log. <strong>This cannot be undone.</strong>
+              Permanently delete this event and all related data — guests, RSVPs, tables, and the activity log. <strong>This cannot be undone, and no guest is told anything.</strong>
             </p>
             <button onClick={() => setDeleteConfirmOpen(true)}
               style={{

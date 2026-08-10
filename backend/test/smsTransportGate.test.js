@@ -73,7 +73,7 @@ test('no transport and no explicit opt-in => skipped, and the wallet is NEVER de
     return {};
   });
 
-  const res = await withMockBilling(undefined, ({ sendRecipient }) => sendRecipient({
+  const res = await withMockBilling(undefined, ({ __sendRecipientForTests }) => __sendRecipientForTests({
     eventId: EVENT, phone: PHONE, body: 'hi', segments: 1,
     idemKey: 'k1', twilio: null, fromNumber: '+15550000000',
     optedOut: notOptedOut, consented,
@@ -97,7 +97,7 @@ test('the skip is not recorded as a send (no fabricated mock SID reaches the led
     return {};
   });
 
-  const res = await withMockBilling(undefined, ({ sendRecipient }) => sendRecipient({
+  const res = await withMockBilling(undefined, ({ __sendRecipientForTests }) => __sendRecipientForTests({
     eventId: EVENT, phone: PHONE, body: 'hi', segments: 1,
     idemKey: 'k2', twilio: null, fromNumber: '+15550000000',
     optedOut: notOptedOut, consented,
@@ -119,7 +119,7 @@ test('SMS_MOCK_BILLING=true restores the billable mock transport the suite relie
     return {};
   });
 
-  const res = await withMockBilling('true', ({ sendRecipient }) => sendRecipient({
+  const res = await withMockBilling('true', ({ __sendRecipientForTests }) => __sendRecipientForTests({
     eventId: EVENT, phone: PHONE, body: 'hi', segments: 1,
     idemKey: 'k3', twilio: null, fromNumber: '+15550000000',
     optedOut: notOptedOut, consented,
@@ -139,7 +139,7 @@ test('a real transport is unaffected by the gate', async () => {
   });
 
   const twilio = { messages: { create: async () => ({ sid: 'SM_real_123' }) } };
-  const res = await withMockBilling(undefined, ({ sendRecipient }) => sendRecipient({
+  const res = await withMockBilling(undefined, ({ __sendRecipientForTests }) => __sendRecipientForTests({
     eventId: EVENT, phone: PHONE, body: 'hi', segments: 1,
     idemKey: 'k4', twilio, fromNumber: '+15550000000',
     optedOut: notOptedOut, consented,

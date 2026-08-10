@@ -200,36 +200,22 @@ async function sendQrTicketEmail(eventId, partyId) {
 
   const links = buildTicketLinks(token);
 
-  // Text the pass link alongside the email.
+  // NO SMS IS SENT FROM HERE ANY MORE.
   //
-  // ADDITIVE, not a replacement (smsMessageTypes.replacesEmail = false): an SMS
-  // cannot carry the scannable QR image itself, only a link to the page holding
-  // it — so the email remains the thing that actually contains the pass.
+  // This used to fire the `qr_ticket` text alongside the email. That type is gone,
+  // absorbed into `seating_reminder`, and — more importantly — the text is no
+  // longer sent at the moment of seating at all. It is QUEUED.
   //
-  // This is the ONE place the qr_ticket type fires. The RSVP confirmation already
-  // includes the pass link on first submission, so sending qr_ticket there too
-  // would put two texts on the guest's phone and charge the organizer twice for
-  // one event. Here the organizer has explicitly asked to re-send the pass, which
-  // is exactly when a guest wants it on their phone rather than buried in mail.
+  // The reason is cost. Seating fires this function once per guest, and a
+  // drag-and-drop session on a 200-guest chart issues one call per drop, so
+  // texting inline meant an organizer tidying their layout for twenty minutes
+  // spent hundreds of messages and a guest moved four times received four texts,
+  // three of them naming the wrong table.
   //
-  // Fire-and-forget: a texting problem must never fail the email that carries the
-  // actual pass. Every gate (add-on purchased, type enabled, guest consented, not
-  // opted out, balance available) is enforced inside sendTransactionalSms.
-  try {
-    const { sendTransactionalSms } = require('./smsDispatch');
-    sendTransactionalSms({
-      type: 'qr_ticket',
-      eventId,
-      partyId,
-      // Not keyed on partyId alone: a resend is a deliberate repeat, and the
-      // (kind, ref) idempotency guard would otherwise refuse every one after the
-      // first as a duplicate.
-      ref: `qr:${partyId}:${Date.now()}`,
-      context: { guestName: party.label, eventTitle: event.title, ticketUrl: links.ticketUrl },
-    }).catch((err) => logger.warn({ err, partyId }, 'entry-pass SMS failed (email still sent)'));
-  } catch (err) {
-    logger.warn({ err, partyId }, 'entry-pass SMS dispatch threw (email still sent)');
-  }
+  // seatingController now upserts into seating_notify_queue instead, and
+  // emailScheduler.jobSeatingNotices sweeps it after a quiet period and sends once
+  // with the final table. The EMAIL below stays immediate — it is free, and it is
+  // what actually carries the scannable pass.
 
   const shimParty = { id: party.id, guest_name: party.label, email: primaryEmail, party_size: partySize };
   // The data model has no table→zone relationship (zones are standalone venue
@@ -254,10 +240,159 @@ async function sendQrTicketEmail(eventId, partyId) {
   return { sent: success };
 }
 
+/* ─── SMS invitations ──────────────────────────────────────────────────────
+ *
+ * Concurrency for a manual send. Ten at a time with a short pause between
+ * batches keeps a 500-guest send inside a request timeout without presenting the
+ * carrier with 500 simultaneous connections, which is how an account gets
+ * rate-limited at exactly the wrong moment.
+ */
+const SMS_BATCH_SIZE = 10;
+const SMS_BATCH_PAUSE_MS = 1000;
+const MAX_SMS_RECIPIENTS = 5000;
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Text the invitation to a chosen set of guests.
+ *
+ * THE ONLY manual SMS path in the platform, and deliberately unlike the campaign
+ * blaster it replaces. There is no message body in the request: the organizer
+ * chooses WHO, and the platform decides WHAT — a templated invitation, the same
+ * shape the email channel sends.
+ *
+ * That is what makes this safe as an ordinary button rather than something behind
+ * an attestation dialog. Free-form text to a resolved audience segment is the
+ * pattern that got our toll-free number rejected; a templated invitation to a
+ * guest carrying a recorded consent record is precisely what it is registered to
+ * carry.
+ *
+ * Every send still runs the full sendTransactionalSms gate chain — entitlement,
+ * the organizer's per-type switch, (kind, ref) idempotency, per-party consent,
+ * global STOP suppression, transport availability, atomic billing. Nothing here
+ * re-implements any of it.
+ *
+ * @returns {Promise<{code?:string, message:string, sent?:number, skipped?:number,
+ *                    failed?:number, breakdown?:Array}>}
+ */
+async function sendInvitationSmsBulk(eventId, partyIds, { user = null } = {}) {
+  const ids = [...new Set(partyIds || [])];
+
+  if (ids.length === 0) {
+    return { code: 'NO_RECIPIENTS', message: 'Choose at least one guest to text.' };
+  }
+  if (ids.length > MAX_SMS_RECIPIENTS) {
+    return {
+      code: 'TOO_MANY_RECIPIENTS',
+      message: `That is more than ${MAX_SMS_RECIPIENTS} guests in one go. Send it in smaller groups.`,
+    };
+  }
+
+  const { data: event } = await supabase
+    .from('events')
+    .select('id, title, slug, sms_addon_purchased_at, sms_settings')
+    .eq('id', eventId)
+    .single();
+  if (!event) return { code: 'EVENT_NOT_FOUND', message: 'That event could not be found.' };
+  if (!event.sms_addon_purchased_at) {
+    return { code: 'ADDON_INACTIVE', message: 'Text messaging is not active for this event yet.' };
+  }
+
+  // The ramp-up cap. Route middleware checks it too; this is the backstop for any
+  // caller that reaches the service directly, and being told "50 at a time" AFTER
+  // half a list has been charged is far worse than being told before.
+  const { resolveSendLimit } = require('../controllers/campaignController');
+  const { maxPerSend } = await resolveSendLimit(eventId, user);
+  if (maxPerSend > 0 && ids.length > maxPerSend) {
+    return {
+      code: 'SEND_LIMIT',
+      message: `You can text ${maxPerSend} guests at a time for now. This lifts as your event sends more messages — you can still reach everyone, just in a few goes.`,
+    };
+  }
+
+  // One query for every recipient's name and language rather than one per guest
+  // inside the send loop. preferred_lang is why it matters: a guest who filled the
+  // form in Arabic must not receive an English invitation.
+  const { data: parties } = await supabase
+    .from('rsvp_parties')
+    .select('id, label, preferred_lang')
+    .eq('event_id', eventId)
+    .in('id', ids);
+  const byId = new Map((parties || []).map((p) => [p.id, p]));
+
+  const { sendTransactionalSms } = require('./smsDispatch');
+  const { buildGuestRsvpUrl } = require('../utils/emailTemplates');
+  const { explainSkip } = require('../utils/smsUsage');
+
+  const chunk = (arr, size) => {
+    const out = [];
+    for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+    return out;
+  };
+
+  let sent = 0, skipped = 0, failed = 0, processed = 0;
+  const reasons = {};
+
+  for (const group of chunk(ids, SMS_BATCH_SIZE)) {
+    const outcomes = await Promise.all(group.map(async (partyId) => {
+      const party = byId.get(partyId);
+      // An id that is not in this event is not worth failing the whole request
+      // for — a stale browser tab holds one very easily.
+      if (!party) return { sent: false, reason: 'NOT_FOUND' };
+
+      return sendTransactionalSms({
+        type: 'invitation',
+        eventId,
+        partyId,
+        // Timestamped, so a deliberate re-send is never swallowed by the
+        // (kind, ref) idempotency guard. That guard exists to stop a SCHEDULER
+        // re-sending on every tick; an organizer pressing the button again is
+        // stating intent, and the confirm dialog already told them the cost.
+        ref: `inv:${partyId}:${Date.now()}`,
+        event,
+        lang: party.preferred_lang || 'en',
+        context: {
+          guestName: party.label || 'Guest',
+          eventTitle: event.title,
+          rsvpUrl: buildGuestRsvpUrl(event.slug, partyId),
+        },
+      });
+    }));
+
+    for (const outcome of outcomes) {
+      processed += 1;
+      if (outcome.sent) { sent += 1; continue; }
+      const reason = outcome.reason || 'SKIPPED';
+      reasons[reason] = (reasons[reason] || 0) + 1;
+      if (reason === 'SEND_FAILED' || reason === 'ERROR') failed += 1;
+      else skipped += 1;
+    }
+
+    if (processed < ids.length) await sleep(SMS_BATCH_PAUSE_MS);
+  }
+
+  // Grouped and already in the organizer's own language, so the result reads
+  // "3 haven't agreed to receive texts" rather than NO_CONSENT × 3.
+  const breakdown = Object.entries(reasons)
+    .map(([reason, count]) => ({ reason, count, message: explainSkip(reason) || 'It could not be delivered' }))
+    .sort((a, b) => b.count - a.count);
+
+  return {
+    sent,
+    skipped,
+    failed,
+    breakdown,
+    message: sent === ids.length
+      ? `Invitation texted to ${sent} ${sent === 1 ? 'guest' : 'guests'}.`
+      : `Texted ${sent} of ${ids.length}. ${skipped + failed} could not be reached.`,
+  };
+}
+
 module.exports = {
   logInvitation,
   resolveLiveEvent,
   sendEmailInvite,
   sendEmailBulk,
   sendQrTicketEmail,
+  sendInvitationSmsBulk,
 };

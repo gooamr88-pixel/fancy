@@ -55,7 +55,8 @@ function computeSmsChargeCents({ unitPriceCents, creditCount, markupPct = 0, vol
  * @returns {{
  *   segments:number, baseCostCents:number,
  *   discountPct:number, discountCents:number, chargeCents:number,
- *   profitCents:number, marginPct:number, effectiveCentsPerSegment:number
+ *   profitCents:number, marginPct:number, effectiveCentsPerSegment:number,
+ *   belowCost:boolean
  * }}
  */
 function describeSmsCharge({ unitPriceCents, creditCount, markupPct = 0, volumeDiscounts }) {
@@ -83,6 +84,23 @@ function describeSmsCharge({ unitPriceCents, creditCount, markupPct = 0, volumeD
     // flatters the result.
     marginPct: chargeCents > 0 ? Math.round((profitCents / chargeCents) * 1000) / 10 : 0,
     effectiveCentsPerSegment: segments > 0 ? Math.round((chargeCents / segments) * 100) / 100 : 0,
+    /**
+     * True when this order earns less than it costs us to deliver.
+     *
+     * The admin form CLAMPS bad input rather than rejecting it — deliberately,
+     * because rejecting a save can leave an admin unable to fix a bad row through
+     * the UI. The cost of that choice is that a mistyped discount saves quietly
+     * and looks fine. At 1.1c cost and a 3.0c list price the break-even discount
+     * is 63%, so a fat-fingered "65" in a tier is a loss on exactly the largest
+     * orders that tier exists to win.
+     *
+     * LIMITS.discountPct.max caps tiers at 50% to make that unreachable by typo,
+     * but the cap protects only the discount — a markup set too low, or a carrier
+     * rate that rises, gets here by a different route. This flag is what the admin
+     * price table paints red, so a loss is visible in the row that causes it
+     * rather than in a monthly total three weeks later.
+     */
+    belowCost: segments > 0 && chargeCents < baseCostCents,
   };
 }
 
