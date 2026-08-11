@@ -242,7 +242,7 @@ export default function Stage2_FormConfiguration({
   }));
 
   return (
-    <div className="fx-container fx-container--xl fx-gutter" style={{ '--fx-pad-x': '24px', paddingTop: '40px', paddingBottom: '120px' }}>
+    <div className="fx-container fx-container--xl fx-gutter fx-gutter--sm" style={{ paddingTop: '40px', paddingBottom: '120px' }}>
       {/* Header */}
       <div style={{ marginBottom: 32 }}>
         <div style={{

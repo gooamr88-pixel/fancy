@@ -201,7 +201,43 @@ const LAYERS = [
     s960: { x: 372 }, s640: { x: 212 }, s480: { x: 132 }, s320: { x: 52 },
     fade: { ms: 360, delay: 0, ease: "leave" },
   },
+  /**
+   * THE ADDRESSEE LINE — ours, not the reference's.
+   *
+   * ── Where, and why there ──
+   *
+   * y 585, below the flourish (which ends at 555) and clear of everything else:
+   * the seal occupies 310–470 and the "tap to open" label 468, so this is the
+   * first genuinely empty band on the envelope face. It also prints on the BOTTOM
+   * flap, which is the last of the four to leave (delay 820ms) — so the guest's
+   * own name is the thing still on screen when the envelope finishes opening,
+   * which is exactly where the emphasis belongs.
+   *
+   * ── The x values ──
+   *
+   * A layer is placed at `left: calc(50% - half + x)`, so `x = half - w/2` centres
+   * it at every breakpoint regardless of that breakpoint's own half-width. The
+   * widths narrow with the artboard so the box keeps a real margin at 320px:
+   * 160 - 140 = 20px each side, rather than running to the paper's edge.
+   *
+   * It fades 120ms AFTER the label and flourish rather than with them. That gap is
+   * deliberate and it is the whole point of putting the name here: the printed
+   * instructions clear first, the name held a beat longer, and only then does the
+   * envelope come apart.
+   */
+  {
+    cls: "ad", kind: "text",
+    d: { x: 370, y: 585, w: 460 },
+    s960: { x: 250 },
+    s640: { x: 120, w: 400 },
+    s480: { x: 70, w: 340 },
+    s320: { x: 20, w: 280 },
+    fade: { ms: 420, delay: 120, ease: "leave" },
+  },
 ];
+
+/** Longest addressee the envelope face can hold before it stops reading as a name. */
+const ADDRESSEE_MAX = 46;
 
 /* ═══════════════════════════════════════════════════════════════════════════
    MOTION — the one place this departs from the reference on purpose.
@@ -605,10 +641,45 @@ export default function InvitationReveal({
   }, []);
 
   const copy = {
-    en: { eyebrow: "You are invited", tap: "Tap to open", enter: "View invitation", join: "request the honour of your presence" },
-    ar: { eyebrow: "أنت مدعو", tap: "اضغط للفتح", enter: "عرض الدعوة", join: "يشرّفنا حضوركم" },
+    en: { eyebrow: "You are invited", tap: "Tap to open", enter: "View invitation", join: "request the honour of your presence", addressedTo: "For" },
+    ar: { eyebrow: "أنت مدعو", tap: "اضغط للفتح", enter: "عرض الدعوة", join: "يشرّفنا حضوركم", addressedTo: "إلى" },
   }[lang];
   const isRTL = lang === "ar";
+
+  /**
+   * THE ADDRESSEE — the guest's own name, written on the face of the envelope.
+   *
+   * Until now `guestName` reached only the reduced-motion card, as a 10.5px
+   * letterspaced "Welcome, X" above the title. The ANIMATED envelope — which is
+   * what all but a handful of guests actually see — never printed it anywhere, so
+   * a text sent to one named person opened exactly the same envelope as a link
+   * posted in a group chat.
+   *
+   * Trimmed and length-capped here rather than at the layer, because this value
+   * comes from a CSV a stranger typed: it arrives with stray whitespace, and
+   * occasionally as a whole sentence. Two lines of script is the most the face of
+   * the envelope can hold before it stops looking addressed and starts looking
+   * like a paragraph, so anything longer is cut at a word boundary.
+   */
+  const addressee = useMemo(() => {
+    const raw = String(guestName || "").replace(/\s+/g, " ").trim();
+    if (!raw) return "";
+    if (raw.length <= ADDRESSEE_MAX) return raw;
+    const cut = raw.slice(0, ADDRESSEE_MAX);
+    const lastSpace = cut.lastIndexOf(" ");
+    return `${(lastSpace > ADDRESSEE_MAX * 0.6 ? cut.slice(0, lastSpace) : cut).trim()}…`;
+  }, [guestName]);
+
+  /**
+   * Chosen from the NAME, not from the page language.
+   *
+   * The script face (Mrs Saint Delafield) carries no Arabic glyphs, and an
+   * Egyptian organiser's list routinely holds Arabic names while the page itself
+   * is still in English — the common case here, not an edge one. Keying off
+   * `isRTL` would have rendered those names as fallback boxes on the very screen
+   * this feature exists to make feel personal.
+   */
+  const addresseeIsArabic = /[؀-ۿ]/.test(addressee);
   const arTitle = event?.title_ar || td.title_ar;
   const displayTitle = isRTL && arTitle ? arTitle : identity.full;
   const dateStr = event?.event_date
@@ -826,7 +897,29 @@ export default function InvitationReveal({
             {!artworkFailed && <img src={REVEAL_ASSETS.seal} alt="" aria-hidden="true" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />}
             <SealMonogram text={sealText} fontSize={sealFontSize} />
           </div>
-          <div style={{ fontSize: 10.5, letterSpacing: isRTL ? "normal" : "0.36em", textTransform: isRTL ? "none" : "uppercase", color: P.accent, fontWeight: 700 }}>{guestName ? (isRTL ? `مرحباً ${guestName}` : `Welcome, ${guestName}`) : copy.eyebrow}</div>
+          {/* The addressee gets the same treatment here as on the animated
+              envelope. It used to be "Welcome, Sarah" squeezed into the 10.5px
+              letterspaced eyebrow — the same size and weight as the generic "You
+              are invited" it replaced, so naming the guest cost the line its only
+              emphasis and gained nothing. A reduced-motion guest is not a
+              lesser guest; they get the addressed envelope too, just without the
+              choreography. */}
+          {addressee ? (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, marginBottom: 2 }}>
+              <span aria-hidden style={{ display: "block", width: 56, height: 1, background: `linear-gradient(90deg, transparent, ${alpha(P.gold, 0.55)}, transparent)` }} />
+              <span style={{ fontSize: isRTL ? 11 : 9.5, letterSpacing: isRTL ? "normal" : "0.34em", textTransform: isRTL ? "none" : "uppercase", color: P.accent, fontWeight: 700 }}>{copy.addressedTo}</span>
+              <span style={{
+                fontFamily: addresseeIsArabic
+                  ? "var(--font-serif-ar), Georgia, serif"
+                  : "var(--font-script), 'Mrs Saint Delafield', cursive",
+                fontSize: addresseeIsArabic ? "clamp(20px,6vw,28px)" : "clamp(28px,8vw,40px)",
+                lineHeight: addresseeIsArabic ? 1.5 : 1.08,
+                color: P.ink, maxWidth: "100%", overflowWrap: "anywhere",
+              }}>{addressee}</span>
+            </div>
+          ) : (
+            <div style={{ fontSize: 10.5, letterSpacing: isRTL ? "normal" : "0.36em", textTransform: isRTL ? "none" : "uppercase", color: P.accent, fontWeight: 700 }}>{copy.eyebrow}</div>
+          )}
           <h1 style={{ fontFamily: "var(--font-serif), Georgia, serif", fontSize: "clamp(26px,7vw,38px)", margin: "12px 0 6px", color: P.ink, fontWeight: 500 }}>{displayTitle}</h1>
           <p style={{ fontFamily: "var(--font-serif), Georgia, serif", fontStyle: "italic", fontSize: 14, color: P.inkSoft, margin: 0 }}>{copy.join}</p>
           {dateStr && <div style={{ marginTop: 18, fontSize: 12, letterSpacing: isRTL ? "normal" : "0.2em", textTransform: isRTL ? "none" : "uppercase", color: P.inkSoft, fontWeight: 600 }}>{dateStr}</div>}
@@ -901,6 +994,18 @@ export default function InvitationReveal({
         </button>
 
         <div className="ir3-layer ir3-tx">{copy.tap}</div>
+
+        {/* Only when this link actually names someone. A shared link has no
+            addressee, and printing "For Esteemed Guest" on the envelope would
+            turn the absence of personalisation into a visible apology for it —
+            worse than the plain envelope, which reads as correct on its own. */}
+        {addressee && (
+          <div className="ir3-layer ir3-ad">
+            <span className="ir3-ad-rule" aria-hidden="true" />
+            <span className="ir3-ad-label">{copy.addressedTo}</span>
+            <span className={`ir3-ad-name${addresseeIsArabic ? " is-ar" : ""}`}>{addressee}</span>
+          </div>
+        )}
       </div>
     </motion.div>
   );
@@ -994,6 +1099,49 @@ const REVEAL_CSS = `
    height — naskh ascenders and descenders need the room. */
 [dir="rtl"] .ir3-tx{ font-family:var(--font-serif-ar), Georgia, serif; line-height:1.75; }
 
+/* ── The addressee, written on the face of the envelope ──────────────────────
+   A hairline, a small letterspaced "For", and the name in the script face.
+   The rule is what makes it read as ADDRESSED rather than as another caption:
+   it separates the name from the printed matter above it the way the ruled
+   line on a real envelope separates the address from the stationery. */
+.ir3-ad{
+  display:flex; flex-direction:column; align-items:center; gap:7px;
+  text-align:center;
+}
+.ir3-ad-rule{
+  display:block; width:56px; height:1px; margin-bottom:3px;
+  background:linear-gradient(90deg, transparent, rgba(134,103,57,.55), transparent);
+}
+.ir3-ad-label{
+  font-family:var(--font-sans);
+  font-size:9.5px; font-weight:700; letter-spacing:.34em; text-transform:uppercase;
+  color:rgba(134,103,57,.8);
+}
+/* cqi, not vw: the artboard is sized by its CONTAINER (.ir3-root declares
+   container-type), so a viewport unit would size the name against the window
+   even inside the dashboard's phone preview — the same mistake the artboard
+   breakpoints avoid by using @container. */
+.ir3-ad-name{
+  font-family:var(--font-script), 'Mrs Saint Delafield', cursive;
+  font-size:clamp(30px, 4.6cqi, 46px);
+  line-height:1.08; color:#6d5327;
+  max-width:100%;
+  /* A long name wraps rather than widening the layer past the paper, and stops
+     at two lines — beyond that it stops looking like an address. */
+  overflow-wrap:anywhere;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+}
+/* The script face has no Arabic glyphs, so an Arabic name in it renders as
+   fallback boxes. Naskh instead, smaller, with the line height its ascenders
+   and descenders need — and no letterspacing on the label, which breaks
+   Arabic's joining. */
+.ir3-ad-name.is-ar{
+  font-family:var(--font-serif-ar), Georgia, serif;
+  font-size:clamp(21px, 3.2cqi, 31px);
+  line-height:1.5;
+}
+[dir="rtl"] .ir3-ad-label{ letter-spacing:normal; text-transform:none; font-size:11px; }
+
 /* border-radius on a button with no background sounds pointless — it matters
    because the FOCUS RING follows the border box. The seal is a round piece of
    wax inside a square 160x160 button, so without this any ring is drawn as a
@@ -1054,6 +1202,11 @@ const REVEAL_CSS = `
 @media (forced-colors: active){
   .ir3-root{ background:Canvas !important; }
   .ir3-tx{ color:CanvasText !important; }
+  /* The addressee is text drawn in CSS colour, same as the label — without this
+     the guest's own name is the one thing on the envelope that disappears in a
+     high-contrast theme. The hairline is decoration and can go. */
+  .ir3-ad-label, .ir3-ad-name{ color:CanvasText !important; }
+  .ir3-ad-rule{ background:CanvasText !important; }
   .ir3-skip, .ir3-langchip{
     background:ButtonFace !important; color:ButtonText !important;
     border:1px solid ButtonBorder !important;
@@ -1081,4 +1234,67 @@ ${buildArtboardCSS()}
 ${buildMotionCSS()}
 
 ${buildToneCSS()}
+
+/* ── The addressee on a SHORT viewport ───────────────────────────────────────
+   Deliberately last in the sheet, after buildArtboardCSS(). The generated block
+   sets .ir3-ad{top:585px} at the same specificity, and a media query adds none —
+   so anything written earlier would simply lose.
+
+   ── The problem, in arithmetic ──
+
+   The artboard is a fixed 850px-tall space centred on the viewport, so the
+   visible band is [425 - H/2, 425 + H/2]. The addressee sits at y 585 and its
+   tallest form (rule, label, two lines at the 46px cap) runs about 122px, ending
+   near 707. That needs 425 + H/2 >= 707, i.e. H >= 564 — comfortably true in
+   portrait and false in every landscape phone, where H is 320-430. The name was
+   the one thing that got cut, on the orientation where nothing warns you.
+
+   ── Why not the two obvious fixes ──
+
+   SCALING the artboard is wrong: the flaps are deliberately larger than the
+   viewport so the envelope runs off every edge, and that is the whole illusion.
+   At scale(.62) the top flap's -98 edge lands at 425 + (-98-425)*.62 = 101, so a
+   101px band of bare background appears above the paper.
+
+   MOVING it above the seal survives to about H=360, but it discards the placement
+   that was actually chosen — and, measured below, compacting in place reaches the
+   same 355px floor while keeping it.
+
+   ── What this does instead ──
+
+   Tightens the gap under the flourish (which ends at 555) and compacts the block,
+   in two steps, keeping the name exactly where it belongs.
+
+   These are HEIGHT breakpoints, so they are not on AGENTS.md's four-value scale —
+   that scale is a width scale and says nothing about the vertical axis. The .98
+   convention is kept for the same reason it exists there: at fractional pixel
+   heights a whole-number boundary leaves a band matching neither rule.
+
+   Viewport height, not @container: .ir3-root declares container-type:inline-size,
+   which answers width questions only. Asking about height would mean switching it
+   to container-type:size, and the embedded preview does not need it — a 640px box
+   leaves the visible band [105, 745], which the full-height layout already fits. */
+
+/* Landscape phones and short laptops. Block becomes ~82px, ending near 648,
+   which needs H >= 446. */
+@media (max-height: 719.98px){
+  .ir3-ad{ top:566px; }
+  /* The hairline is the first thing to go: it is the most decorative part and
+     buys back 4px that the name itself can use. */
+  .ir3-ad-rule{ display:none; }
+  .ir3-ad{ gap:5px; }
+  .ir3-ad-name{ font-size:clamp(22px, 3.4cqi, 30px); }
+  .ir3-ad-name.is-ar{ font-size:clamp(18px, 2.8cqi, 24px); line-height:1.4; }
+}
+
+/* True landscape. One line only — a second line is what actually overruns here,
+   and a clipped half-line reads as breakage in a way an ellipsis does not.
+   Block ~42px ending near 602, which needs H >= 354: every phone in landscape
+   except the 320px-tall original SE, where the band above the seal is too small
+   for it either. */
+@media (max-height: 479.98px){
+  .ir3-ad{ top:560px; }
+  .ir3-ad-name{ font-size:clamp(19px, 2.8cqi, 24px); -webkit-line-clamp:1; }
+  .ir3-ad-name.is-ar{ font-size:clamp(16px, 2.4cqi, 20px); line-height:1.3; }
+}
 `;

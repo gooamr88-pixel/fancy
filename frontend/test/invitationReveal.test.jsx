@@ -205,3 +205,88 @@ describe('InvitationReveal — keyboard', () => {
     expect(screen.getByTestId('guest-envelope-reveal')).toContainElement(document.activeElement);
   });
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE ADDRESSEE — the guest's own name on the face of the envelope.
+
+   An SMS invitation links to `/{slug}?party_id=…`, which resolves to one named
+   person. Before this, that name reached only the reduced-motion card, as a
+   10.5px letterspaced "Welcome, X" — the ANIMATED envelope, which is what all
+   but a handful of guests see, printed it nowhere. A text sent to one person
+   opened exactly the same envelope as a link pasted in a group chat.
+
+   These tests are about WHICH NAME IS SHOWN and WHEN, not about how it looks:
+   jsdom has no layout engine, so anything asserting size or position here would
+   be claiming a check it cannot make.
+   ═══════════════════════════════════════════════════════════════════════════ */
+describe('InvitationReveal — the addressee', () => {
+  beforeEach(() => { vi.useRealTimers(); setReducedMotion(false); });
+
+  it('prints the guest name on the ANIMATED envelope, not only on the static card', () => {
+    renderReveal({ guestName: 'Sarah Ahmed El-Sayed' });
+    expect(screen.getByText('Sarah Ahmed El-Sayed')).toBeInTheDocument();
+  });
+
+  it('prints it on the reduced-motion card too — that guest is not a lesser guest', () => {
+    setReducedMotion(true);
+    renderReveal({ guestName: 'Sarah Ahmed El-Sayed' });
+    expect(screen.getByText('Sarah Ahmed El-Sayed')).toBeInTheDocument();
+  });
+
+  it.each([false, true])('shows no addressee at all on a shared link (reducedMotion=%s)', (rm) => {
+    setReducedMotion(rm);
+    renderReveal({ guestName: '' });
+    // A link with no party has no addressee. Printing "For Esteemed Guest" would
+    // turn the absence of personalisation into a visible apology for it.
+    expect(screen.queryByText(/^For$/)).not.toBeInTheDocument();
+    // …and the generic eyebrow is what stands in, so the card is never blank.
+    if (rm) expect(screen.getByText('You are invited')).toBeInTheDocument();
+  });
+
+  it('treats a whitespace-only name as no name, rather than addressing an empty line', () => {
+    renderReveal({ guestName: '   ' });
+    expect(screen.queryByText(/^For$/)).not.toBeInTheDocument();
+  });
+
+  it('collapses the stray whitespace a CSV always arrives with', () => {
+    renderReveal({ guestName: '  Sarah   Ahmed  ' });
+    expect(screen.getByText('Sarah Ahmed')).toBeInTheDocument();
+  });
+
+  it('cuts an over-long name at a word boundary instead of letting it run off the paper', () => {
+    // Guest lists contain whole sentences. Two lines of script is the most the
+    // envelope face can hold before it stops reading as an address.
+    const long = 'Alexandria Wilhelmina Fitzgerald Montgomery Beaumont The Third';
+    renderReveal({ guestName: long });
+
+    const shown = screen.getByText(/^Alexandria/).textContent;
+    expect(shown.length).toBeLessThanOrEqual(47); // 46 + the ellipsis
+    expect(shown.endsWith('…')).toBe(true);
+    expect(shown).not.toContain('  ');
+    // Cut between words, so no half-word is left hanging before the ellipsis.
+    expect(long).toContain(shown.slice(0, -1).trim());
+  });
+
+  it('keeps a name that is exactly at the limit whole, with no ellipsis', () => {
+    const exact = 'A'.repeat(46);
+    renderReveal({ guestName: exact });
+    expect(screen.getByText(exact)).toBeInTheDocument();
+  });
+
+  /* ── The font has to follow the NAME, not the page language ────────────── */
+
+  it('renders an Arabic name in the Arabic face even while the page is in English', () => {
+    // The common case for this product, not an edge one: an Egyptian organizer's
+    // list is full of Arabic names while the page language is still English. The
+    // script face carries no Arabic glyphs, so keying off the page language would
+    // render exactly those names as fallback boxes.
+    renderReveal({ guestName: 'سارة أحمد' });
+    const el = screen.getByText('سارة أحمد');
+    expect(el.className).toContain('is-ar');
+  });
+
+  it('renders a Latin name in the script face', () => {
+    renderReveal({ guestName: 'Sarah Ahmed' });
+    expect(screen.getByText('Sarah Ahmed').className).not.toContain('is-ar');
+  });
+});

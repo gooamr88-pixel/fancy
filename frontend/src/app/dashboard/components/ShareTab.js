@@ -37,8 +37,14 @@ export default function ShareTab({ event }) {
     );
   }
 
+  // The card's padding is a class, not an inline value, because the mobile rule
+  // at the bottom of this file has to win. It was inline `padding: 28` against
+  // `.share-tab-card { padding: 16px }` in the media block — dead, so the card
+  // kept its desktop padding on a phone: 28px a side inside a 16px page gutter
+  // leaves 232px of content on a 320px screen, against the 280px the layout
+  // arithmetic in AGENTS.md assumes.
   return (
-    <div className="share-tab-card" style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 16, padding: 28 }}>
+    <div className="share-tab-card" style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 16 }}>
       <div style={{ borderBottom: '1px solid #F0ECE3', paddingBottom: 18, marginBottom: 22 }}>
         <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: 22, fontWeight: 700, color: C.charcoal, margin: 0 }}>
           Share &amp; QR Code
@@ -51,6 +57,9 @@ export default function ShareTab({ event }) {
       <EventSharePanel event={event} />
 
       <style jsx>{`
+        /* Both values live here so the cascade decides between them. Keeping the
+           desktop one inline is what made the mobile one unreachable. */
+        .share-tab-card { padding: 28px; }
         @media (max-width: 639.98px) {
           .share-tab-card { padding: 16px; }
         }

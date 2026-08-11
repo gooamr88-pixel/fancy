@@ -513,7 +513,7 @@ export default function StagePayment({
   };
 
   return (
-    <div className="sp-page fx-container fx-container--xl fx-gutter" style={{ '--fx-pad-x': '24px', paddingTop: '40px', paddingBottom: '140px' }}>
+    <div className="sp-page fx-container fx-container--xl fx-gutter fx-gutter--sm" style={{ paddingTop: '40px', paddingBottom: '140px' }}>
       {/* Header */}
       <div style={{ marginBottom: 28 }}>
         <div style={{
@@ -1102,12 +1102,10 @@ export default function StagePayment({
           .sp-footer-inner { flex-direction: column-reverse !important; align-items: stretch !important; gap: 10px !important; }
           .sp-footer-actions { flex-direction: column-reverse !important; align-items: stretch !important; width: 100% !important; gap: 10px !important; }
           .sp-footer-btn { width: 100% !important; justify-content: center !important; }
-          /* Was a "padding: … !important" shorthand, which beat .fx-gutter's
-             padding-left/right and discarded the landscape safe-area inset.
-             Feeding --fx-pad-x is the class's documented input, so it
-             composes instead of overriding. */
+          /* The gutter moved to .fx-gutter--sm in globals.css — setting
+             --fx-pad-x here was inert against the inline 24px on this element.
+             See the note in Stage3_Distribution; same bug, same shape. */
           .sp-page {
-            --fx-pad-x: 16px;
             padding-top: 32px !important;
             padding-bottom: 240px !important;
           }

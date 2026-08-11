@@ -19,7 +19,17 @@ export default function InvitationCard({ template, theme, guestName, config, dat
   const accentColor = theme?.primary || "#B8944F";
   const lightAccentColor = theme?.secondary || "#D7BE80";
   const pattern = template?.pattern;
-  const name = guestName || "Sarah & John";
+  /**
+   * `name` is the RECIPIENT — it fills each template's "Guest name" block, the
+   * line that reads "Reserved for …". The hosts are `d.names`, which carries its
+   * own couple placeholders ("Aria & Julian", "Mia & Noah", …).
+   *
+   * The fallback here used to be "Sarah & John", which reads as a couple and so
+   * looked like the hosts printed twice. A single person is what actually goes in
+   * this slot, and the placeholder should say so — it is what every organizer
+   * sees while choosing a template.
+   */
+  const name = guestName || "Sarah Al-Mansouri";
   // Real event data (guest-facing pages) overrides the demo placeholder copy
   // below. Callers that don't pass `data` (the organizer simulator, the
   // marketing showcase) keep rendering the original curated demo content.

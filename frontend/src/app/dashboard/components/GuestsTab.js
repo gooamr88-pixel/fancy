@@ -585,7 +585,21 @@ export default function GuestsTab({
           <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 500, color: COLORS.charcoal, margin: 0 }}>Guest Management</h2>
           <p style={{ fontSize: '11px', color: COLORS.stone, fontFamily: 'var(--font-sans)', marginTop: '4px' }}>Manage your event&apos;s guest list, seating, and preferences</p>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        {/*
+          flexWrap is load-bearing: this row holds FOUR buttons — Add Guest,
+          Import CSV, Download and Clear list.
+
+          Without it the row cannot break, and a nowrap flex row's min-content is
+          the SUM of its children: roughly 88 + 95 + 88 + 88 plus three 8px gaps,
+          about 383px, inside the ~288px a 320px phone actually offers. The parent
+          row above wraps, so the group dropped to its own line and then overflowed
+          it anyway — and before overflowing, every label broke into two cramped
+          lines because a button's min-content is only its longest single word.
+
+          Wrapping makes the group's min-content max(children) ≈ 95px instead,
+          which fits any phone with room to spare.
+        */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
           <FeatureGate tierFeatures={tierFeatures} isPaid={isPaid} feature="add_guest_manual" onUpgrade={onUpgrade}>
           <button onClick={onOpenAddGuest} style={{
             padding: '9px 18px', background: COLORS.gold, color: COLORS.white, border: 'none',

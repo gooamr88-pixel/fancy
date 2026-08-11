@@ -126,7 +126,11 @@ function DashboardSkeleton() {
           repeat(5, 1fr) — neither had any breakpoint, and the @media block
           at the bottom of this file targets the real dashboard chrome, not
           the skeleton. .fx-grid gives the tiles an intrinsic ladder. */}
-      <div className="fx-gutter" style={{ flex: 1, minWidth: 0, '--fx-pad-x': '32px', paddingTop: '32px', paddingBottom: '32px' }}>
+      {/* Same gutter class as the real content below, so the skeleton does not
+          resize the page the moment it is replaced. It could not use the
+          <style jsx> rule that governed the real one — this is a different
+          function, and a scoped rule never crosses that line. */}
+      <div className="fx-gutter fx-gutter--lg" style={{ flex: 1, minWidth: 0, paddingTop: '32px', paddingBottom: '32px' }}>
         <div style={{ width: '100%', maxWidth: '300px', height: '32px', background: COLORS.border, borderRadius: '8px', marginBottom: '32px' }} />
         <div className="fx-grid" style={{ '--fx-col': '150px', '--fx-gap': '16px', marginBottom: '32px' }}>
           {[...Array(5)].map((_, i) => (
@@ -1153,7 +1157,7 @@ function DashboardPageInner() {
           )}
         </div>
 
-        <div className="content-container fx-container fx-container--4xl fx-gutter" style={{ '--fx-pad-x': '32px', paddingTop: '32px', paddingBottom: '32px' }}>
+        <div className="content-container fx-container fx-container--4xl fx-gutter fx-gutter--lg" style={{ paddingTop: '32px', paddingBottom: '32px' }}>
 
           {/**
             * One guard for every event-scoped section, checked before the section
@@ -1621,14 +1625,14 @@ function DashboardPageInner() {
           /* Was padding-left:72px to dodge the old floating hamburger; that button
              is gone, so the header title gets the full width back. */
           .top-bar { padding-left: 16px !important; padding-right: 16px !important; }
-          /* Was "padding: 16px !important", which beat both .fx-gutter's
-             padding-left/right AND the inline vertical padding — throwing
-             away the landscape safe-area inset .fx-gutter contributes.
-             Feeding --fx-pad-x instead is the class's documented input, so
-             it needs no !important and composes rather than overriding:
-             the gutter becomes max(16px, safe-area) on its own. */
+          /* The horizontal half of this moved to .fx-gutter--lg in globals.css.
+             It was "--fx-pad-x: 16px" right here, which did nothing at all: the
+             same property was set INLINE on the element at 32px, and a class
+             never beats an inline declaration — custom properties included. So
+             the phone kept the desktop gutter. Only the vertical padding is left
+             here, and it still needs !important because that half really is
+             inline. */
           .content-container {
-            --fx-pad-x: 16px;
             padding-top: 16px !important;
             padding-bottom: 16px !important;
           }

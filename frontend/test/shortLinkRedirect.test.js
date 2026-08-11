@@ -95,6 +95,23 @@ describe('short-link redirect', () => {
     expect(res.headers.get('location')).toBe('/smith-wedding/rsvp?g=abc');
   });
 
+  test('?party_id survives the hop — the whole personalised invitation depends on it', async () => {
+    // An SMS invitation links to /{slug}?party_id=…, and that parameter is the
+    // ONLY thing that tells the invitation page which guest it belongs to. Lose it
+    // here and every text still opens a working invitation — just an anonymous
+    // one, with no name on the envelope and no RSVP pre-filled. Nothing would
+    // error, which is why this is worth pinning separately from the general
+    // query-preservation cases above.
+    global.fetch = vi.fn().mockResolvedValue(
+      ok('https://fancyrsvp.com/sarah-omar?party_id=11111111-1111-4111-8111-111111111111')
+    );
+
+    const res = await call('k7m2xq4p');
+
+    expect(res.headers.get('location'))
+      .toBe('/sarah-omar?party_id=11111111-1111-4111-8111-111111111111');
+  });
+
   /* ── Open redirect is now impossible by construction ───────────────────── */
 
   test('a target on another domain cannot send the guest off-site', async () => {

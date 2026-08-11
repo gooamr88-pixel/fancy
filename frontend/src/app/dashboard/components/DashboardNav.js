@@ -269,13 +269,37 @@ export default function DashboardNav() {
       <aside
         className="dnav-sidebar"
         style={{
-          width: 240, minHeight: '100vh', background: COLORS.white,
+          /**
+           * height, NOT minHeight — and that one word is the whole bug.
+           *
+           * This was `minHeight: '100vh'` with `overflowY: 'auto'`, which never
+           * scrolls. A min-height lets the box GROW to its content, so nothing
+           * ever overflows the box; the box overflows the VIEWPORT instead, and
+           * `overflow-y: auto` has nothing to scroll because from the box's own
+           * point of view everything fits. Being position:fixed, the page scroll
+           * could not reach it either.
+           *
+           * The content is about 918px tall — logo 74, event switcher 78, thirteen
+           * items in five labelled groups ~698, log out 68 — so on the 1366x768
+           * laptop that is the single most common Windows screen (~730px of
+           * viewport after browser chrome) the last group and the Log Out button
+           * were simply not reachable by any means.
+           *
+           * A definite height makes the box exactly as tall as the screen, which
+           * is what turns overflowY:auto back into a scrollbar. dvh rather than vh
+           * so the mobile drawer is not sized against a URL bar that has scrolled
+           * away — the same unit .dnav-content already uses.
+           */
+          width: 240, height: '100dvh', background: COLORS.white,
           borderRight: `1px solid ${COLORS.border}`,
           display: 'flex', flexDirection: 'column',
           position: 'fixed', top: 0, left: 0, zIndex: 50,
           transform: open ? 'translateX(0)' : undefined,
           transition: 'transform 0.3s ease',
           overflowY: 'auto',
+          // Momentum scrolling in the iOS drawer; without it the flick gesture
+          // stops dead the moment the finger lifts.
+          WebkitOverflowScrolling: 'touch',
         }}
       >
         {/* Logo + mobile dismiss */}
@@ -374,8 +398,14 @@ export default function DashboardNav() {
           ))}
         </nav>
 
-        {/* Bottom: Log Out */}
-        <div style={{ padding: '16px 12px', borderTop: `1px solid ${COLORS.border}`, flexShrink: 0 }}>
+        {/* Bottom: Log Out.
+            Now that the drawer is exactly 100dvh rather than growing past it,
+            this really is the last thing before the screen edge — so on a phone
+            it lands under the home indicator unless the inset is paid. */}
+        <div style={{
+          padding: '16px 12px', paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
+          borderTop: `1px solid ${COLORS.border}`, flexShrink: 0,
+        }}>
           <button
             onClick={() => setLogoutOpen(true)}
             aria-label="Log out"

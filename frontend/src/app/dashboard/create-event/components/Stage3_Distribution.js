@@ -72,7 +72,7 @@ export default function Stage3_Distribution({
   ];
 
   return (
-    <div className="s3-page fx-container fx-container--xl fx-gutter" style={{ '--fx-pad-x': '24px', paddingTop: '40px', paddingBottom: '140px' }}>
+    <div className="s3-page fx-container fx-container--xl fx-gutter fx-gutter--sm" style={{ paddingTop: '40px', paddingBottom: '140px' }}>
       {/* Header */}
       <div style={{ marginBottom: 36 }}>
         <div style={{
@@ -523,12 +523,13 @@ export default function Stage3_Distribution({
           .s3-footer-inner { flex-direction: column-reverse !important; align-items: stretch !important; gap: 10px !important; }
           .s3-footer-btn { width: 100% !important; justify-content: center !important; }
           /* Clear the now-taller stacked footer so the last card isn't hidden behind it. */
-          /* Was a "padding: … !important" shorthand, which beat .fx-gutter's
-             padding-left/right and discarded the landscape safe-area inset.
-             Feeding --fx-pad-x is the class's documented input, so it
-             composes instead of overriding. */
+          /* The gutter moved to .fx-gutter--sm in globals.css. Setting
+             --fx-pad-x here was inert: the same property was declared INLINE on
+             this element at 24px, and a class cannot beat an inline declaration
+             even when the declaration is a custom property. The phone kept the
+             desktop gutter. Vertical padding stays, and stays !important,
+             because that half genuinely is inline. */
           .s3-page {
-            --fx-pad-x: 16px;
             padding-top: 32px !important;
             padding-bottom: 220px !important;
           }

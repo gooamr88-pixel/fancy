@@ -207,7 +207,9 @@ export default function PhoneSimulator({ template, theme, guestName, onGuestName
           type="text"
           value={guestName || ''}
           onChange={e => onGuestNameChange(e.target.value)}
-          placeholder="e.g. Sarah & John"
+          // One guest, not a couple: this fills the RECIPIENT slot — the card's
+          // "Reserved for …" line and the addressee on the envelope.
+          placeholder="e.g. Sarah Al-Mansouri"
           style={{
             width: '100%', boxSizing: 'border-box', background: '#FFFFFF', border: '1px solid #E8E2D6',
             borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#191B1E', outline: 'none', fontFamily: 'var(--font-sans)',

@@ -2813,6 +2813,14 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
   );
 }
 
+/**
+ * The name shown on the previewed envelope.
+ *
+ * Two words with a hyphenated surname on purpose: it is long enough to prove the
+ * script line wraps and stays inside the paper, which a short "Sarah" would not.
+ */
+const PREVIEW_ADDRESSEE = 'Sarah Al-Mansouri';
+
 /* ═══════════════════════════════════════════════════════════════════════════
    RevealPreviewModal — the organizer's own envelope, at phone size.
 
@@ -2877,6 +2885,23 @@ function RevealPreviewModal({ event, onClose }) {
             key={run}
             embedded
             event={event}
+            /**
+             * A sample addressee, so the organizer previews the envelope a NAMED
+             * guest opens rather than the anonymous one.
+             *
+             * The envelope prints the recipient's name on its face whenever the
+             * link carries a party — which is every SMS and email invitation the
+             * dashboard sends. Leaving this out meant the one screen built for
+             * designing the envelope was the only place that never showed the
+             * line, and the component's own docblock is explicit that what the
+             * organizer designs against and what the guest opens must not be two
+             * different envelopes.
+             *
+             * Deliberately a plain sample rather than a real guest: this preview
+             * renders before any list exists, and it has to look the same on an
+             * event with no guests as on one with three hundred.
+             */
+            guestName={PREVIEW_ADDRESSEE}
             onComplete={() => setDone(true)}
           />
         ) : (

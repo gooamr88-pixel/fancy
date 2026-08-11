@@ -34,7 +34,12 @@ function revealCSS() {
 }
 
 const BREAKPOINTS = [1199, 959, 639, 479];
-const LAYER_CLASSES = ['ir3-fr', 'ir3-fl', 'ir3-fb', 'ir3-ft', 'ir3-fw', 'ir3-sl', 'ir3-tx'];
+// ir3-ad is the addressee line — ours rather than the reference's, but it is
+// positioned on the same artboard grid and so needs the same guarantee: its x is
+// measured against a half-width that changes per breakpoint, so a missing `left`
+// in any block puts the guest's own name hundreds of pixels off on one screen
+// size only, which is precisely the silent failure this file exists to catch.
+const LAYER_CLASSES = ['ir3-fr', 'ir3-fl', 'ir3-fb', 'ir3-ft', 'ir3-fw', 'ir3-sl', 'ir3-tx', 'ir3-ad'];
 
 describe('reveal artboard — structure', () => {
   it('positions every layer at every breakpoint', () => {
@@ -90,6 +95,64 @@ describe('reveal artboard — coordinates', () => {
     const css = revealCSS();
     const motion = css.split('\n').filter((l) => l.includes('transition:') || l.includes('--fly') || l.includes('animation:')).join('\n');
     expect(motion).toMatchSnapshot();
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   The addressee on a short viewport.
+
+   The artboard is a fixed 850px space centred on the screen, so the visible band
+   is [425 - H/2, 425 + H/2]. The addressee sits at y 585 and, at full size, ends
+   near 707 — which needs H >= 564. Every phone in LANDSCAPE is 320-430px tall, so
+   the guest's own name was the one element that got cut, on the orientation that
+   gives no warning.
+
+   These rules are hand-written rather than generated from LAYERS, so the artboard
+   snapshot above does not cover them. jsdom cannot evaluate a media query, so what
+   is checked here is that the rules EXIST and — the part that would break
+   silently — that they come after the generated block they override.
+   ═══════════════════════════════════════════════════════════════════════════ */
+describe('reveal artboard — short viewports', () => {
+  it('compacts the addressee at both height tiers', () => {
+    const css = revealCSS();
+
+    for (const bp of ['719.98', '479.98']) {
+      const at = css.indexOf(`@media (max-height: ${bp}px)`);
+      expect(at, `no max-height:${bp}px tier`).toBeGreaterThan(-1);
+      // Each tier has to move it up; compacting the type alone does not clear the
+      // fold, because the overrun is mostly the block's own top edge.
+      expect(css.slice(at, at + 400)).toMatch(/\.ir3-ad\{\s*top:\s*\d+px/);
+    }
+  });
+
+  it('places those overrides AFTER the generated artboard block, or they lose', () => {
+    const css = revealCSS();
+
+    // buildArtboardCSS emits `.ir3-ad{…top:585px…}` at the same specificity, and a
+    // media query adds none — so this is decided purely by source order. Written
+    // any earlier in the sheet, every rule above is inert and the bug is back with
+    // the fix still visibly present in the file.
+    const generated = css.lastIndexOf('.ir3-ad{left:calc(');
+    const override = css.indexOf('@media (max-height: 719.98px)');
+
+    expect(generated).toBeGreaterThan(-1);
+    expect(override).toBeGreaterThan(generated);
+  });
+
+  it('drops to a single line only at the tightest tier', () => {
+    const css = revealCSS();
+
+    // Two lines is what actually overruns in landscape, and a clipped half-line
+    // reads as breakage where an ellipsis reads as a long name.
+    const tight = css.slice(css.indexOf('@media (max-height: 479.98px)'));
+    expect(tight).toMatch(/-webkit-line-clamp:\s*1/);
+
+    // …but not before it: at 719.98 there is still room for two.
+    const mid = css.slice(
+      css.indexOf('@media (max-height: 719.98px)'),
+      css.indexOf('@media (max-height: 479.98px)')
+    );
+    expect(mid).not.toMatch(/-webkit-line-clamp/);
   });
 });
 

@@ -246,8 +246,15 @@ export default function Stage1_TemplatesSimulator({
     if (chip) chip.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
   }, [templateType, isMobile, templates]);
 
-  /* Dynamic guest name state for simulator preview */
-  const [guestName, setGuestName] = useState('Sarah & John');
+  /* Dynamic guest name state for simulator preview.
+
+     One person, not a couple. This defaulted to "Sarah & John", which reads as
+     the HOSTS — and it feeds the recipient slot: the card's "Reserved for …"
+     line and, now, the addressee written on the envelope. The mistake was
+     invisible while the name only appeared in small print on the card; the
+     envelope prints it large, in script, under "For", where a couple's name
+     makes the preview look like it is addressed to the people sending it. */
+  const [guestName, setGuestName] = useState('Sarah Al-Mansouri');
 
   /* Build props for PhoneSimulator. The Custom template renders the editable
      `custom` pattern driven entirely by the live builder config; the others

@@ -321,6 +321,42 @@
   padding-right: max(var(--fx-pad-x), var(--fx-safe-r));
 }
 
+/* ── Gutter presets for the organizer surfaces ─────────────────────────────
+   Pair with .fx-gutter. They exist because setting `--fx-pad-x` INLINE, which
+   is what the dashboard and the wizard both did, is a trap with no symptom.
+
+   The custom property is the gutter's documented input, so feeding it looks
+   like the composable thing to do — but an inline custom property is still an
+   inline declaration, and the headline rule in AGENTS.md applies to it exactly
+   as it applies to `padding`: a class can never beat an inline style. Three
+   files had written a mobile rule against it —
+
+     .content-container { --fx-pad-x: 16px }   (dashboard/page.js)
+     .s3-page           { --fx-pad-x: 16px }   (Stage3_Distribution.js)
+     .sp-page           { --fx-pad-x: 16px }   (StagePayment.js)
+
+   — and all three were inert, so every one of those screens kept its DESKTOP
+   gutter on a phone. On a 320px screen the dashboard's 32px each side left
+   256px of usable width where the design system assumes 280px; the arithmetic
+   in AGENTS.md is written against 280px, so every layout inside was being
+   measured against a floor 24px wider than it actually had.
+
+   Worse, pinning the property to any fixed px also discards the fluid clamp on
+   :root, which already narrows the gutter on small screens by itself. The
+   override was making phones tighter and desktops roomier — backwards on both.
+
+   Living in globals.css rather than each file's <style jsx> is the same reason
+   .dnav-* does: the dashboard's skeleton renders from a different function than
+   its style block, where a scoped rule could never reach it (AGENTS.md, styled-
+   jsx failure mode 3). */
+.fx-gutter--lg { --fx-pad-x: 32px; }
+.fx-gutter--sm { --fx-pad-x: 24px; }
+
+@media (max-width: 1023.98px) {
+  .fx-gutter--lg,
+  .fx-gutter--sm { --fx-pad-x: 16px; }
+}
+
 /* ── .fx-container — centred measure ───────────────────────────────────
    NO horizontal padding here: .fx-section already supplied it, and a
    container inside a section that also padded itself would double-gutter

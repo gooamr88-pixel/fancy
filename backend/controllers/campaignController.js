@@ -10,6 +10,10 @@ const { normalizeToE164 } = require('../utils/phone');
 const { SMS_CONSENT_TEXT_VERSION, logSmsConsentDecision } = require('../utils/smsConsent');
 const { describeSmsCharge, volumeDiscountsFromConfig } = require('../utils/pricing');
 const { getPublicBaseUrl } = require('../utils/publicUrl');
+// Module scope, deliberately. buildResendContext needs this partway through its
+// body, and a require() further down the same function would sit in the temporal
+// dead zone of the earlier use — a ReferenceError only the resend path would hit.
+const { buildGuestEventUrl } = require('../utils/emailTemplates');
 const tokenService = require('../services/tokenService');
 const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
@@ -706,7 +710,20 @@ async function buildResendContext(eventId, row) {
     ctx.eventTitle = event?.title || '';
     if (event?.slug) {
       ctx.url = `${base}/${event.slug}`;
-      if (row.party_id) ctx.rsvpUrl = `${base}/${event.slug}/rsvp?g=${row.party_id}`;
+      /**
+       * Same URL the original send used — the INVITATION page, not the RSVP form.
+       *
+       * This rebuilt the link by hand as `/{slug}/rsvp?g=…` while invitationService
+       * sends `/{slug}?party_id=…`, so a resend quietly downgraded the guest from the
+       * full invitation to a bare form. Nobody would notice: the message is identical,
+       * only the destination differs, and the person who sees it is not the person who
+       * pressed the button.
+       *
+       * Going through the shared helper is the point. A hand-built copy of a URL
+       * shape is a second definition that has to be remembered on every change, and
+       * this one already fell behind once.
+       */
+      if (row.party_id) ctx.rsvpUrl = buildGuestEventUrl(event.slug, row.party_id);
     }
     // A change notice resent after the event was called off must say "cancelled",
     // not "the details have changed" — re-deriving from CURRENT state is exactly

@@ -1714,7 +1714,12 @@ export default function SeatingMapPage() {
         {/* ── Center: canvas ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div className="sm-canvas-toolbar" style={{ background: C.white, padding: '8px 14px', borderRadius: 10, border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* Wraps, because this group cannot fit a phone on one line: "+ Add
+                Element", Undo, Redo and the selection control sum to roughly 371px
+                of min-content, and a nowrap flex row is floored at that sum. The
+                toolbar around it already wraps, so the group dropped to its own
+                line and then overflowed it. */}
+            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
               <button onClick={() => setShowAdd(true)} style={{ ...btn, background: C.gold, color: C.white, padding: '6px 14px' }}>+ Add Element</button>
               <button onClick={undo} disabled={historyIndex <= 0} style={{
                 ...btn,

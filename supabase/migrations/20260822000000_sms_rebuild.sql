@@ -179,8 +179,23 @@ UPDATE public.events
  -- switches are silently reset to all-on — including the ones they had
  -- deliberately turned off. A migration that quietly undoes customer settings
  -- when re-applied is worse than one that fails loudly.
+ -- `rsvp_confirmation` is deliberately NOT in this list, and leaving it in was a
+ -- latent bug rather than a harmless extra.
+ --
+ -- 20260823000000 REVIVES that key. So once both files have run, a correctly
+ -- migrated post-rebuild row carries `rsvp_confirmation` again — and this guard
+ -- would match it, on a marker that no longer means "pre-rebuild". Re-running this
+ -- file at that point does exactly what the paragraph above calls actively
+ -- destructive: every lookup for `campaign`/`event_reminder`/`qr_ticket` returns
+ -- NULL, every COALESCE falls through to true, and each organizer's switches are
+ -- reset to all-on — while also dropping the revived key back out of the object.
+ --
+ -- Nothing is lost by removing it. The column is NOT NULL with a DEFAULT carrying
+ -- all seven pre-rebuild keys (20260818000000), so every genuine pre-rebuild row
+ -- still matches on one of the five below. The five are unambiguous: no key in the
+ -- post-rebuild vocabulary shares a name with any of them.
  WHERE sms_settings ?| array[
-   'rsvp_confirmation', 'rsvp_reminder', 'event_reminder',
+   'rsvp_reminder', 'event_reminder',
    'qr_ticket', 'decline_ack', 'campaign'
  ];
 

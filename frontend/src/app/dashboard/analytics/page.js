@@ -138,12 +138,14 @@ export default function AnalyticsPage() {
 
   return (
     <div style={{ minHeight: '100dvh', background: C.softBg, fontFamily: SANS }}>
-      {/* --fx-pad-x pinned to 22px so .fx-gutter keeps this page's own
-          tighter gutter, while still tapering on a phone and picking up
-          the landscape safe-area inset. */}
+      {/* This pinned --fx-pad-x inline at 22px, with a comment claiming it would
+          "still taper on a phone". It would not: a fixed px is a constant, and
+          pinning it actually DISABLES the fluid clamp on :root that does the
+          tapering. Using the preset gets the real thing — 24px, dropping to 16px
+          below lg, matching every other organizer screen. */}
       <div
-        className="fx-container fx-container--3xl fx-gutter"
-        style={{ '--fx-pad-x': '22px', paddingTop: 28, paddingBottom: 72 }}
+        className="fx-container fx-container--3xl fx-gutter fx-gutter--sm"
+        style={{ paddingTop: 28, paddingBottom: 72 }}
       >
 
         <nav style={{ marginBottom: 18 }}>

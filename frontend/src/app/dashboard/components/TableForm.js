@@ -312,13 +312,21 @@ const TableForm = memo(function TableForm({
           Add New Table
         </h4>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "12px",
-          }}
-        >
+        {/*
+          Was `gridTemplateColumns: "1fr 1fr"` with no breakpoint anywhere in the
+          file, which cannot fit a phone.
+
+          A `1fr` track floors at its item's min-content width, and an <input>
+          reports min-content from its default `size` (about 20 characters, ~170px)
+          no matter that it carries `width: 100%` — percentage widths do not reduce
+          a min-content contribution. Two of them plus the gap needed ~352px inside
+          the ~288px a 320px screen actually offers, so the name and capacity fields
+          pushed the panel wide and the overflow guard clipped whatever fell off.
+
+          .fx-grid drops to one column on its own below ~312px AND hands every child
+          `min-width: 0`, which is the half that lets the inputs shrink at all.
+        */}
+        <div className="fx-grid" style={{ '--fx-col': '150px', '--fx-gap': '12px' }}>
           <div>
             <label htmlFor="table-name-input" style={{ display: "none" }}>
               Table Name

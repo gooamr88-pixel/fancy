@@ -42,6 +42,23 @@ export default defineConfig({
     setupFiles: ['./test/setup.js'],
     include: ['test/**/*.test.{js,jsx}'],
     css: false,
+    /**
+     * 15s, not the 5s default, and this is about flakiness rather than slowness.
+     *
+     * The FIRST test in invitationReveal.test.jsx pays for the whole reveal module
+     * graph — framer-motion, the artwork manifest, a jsdom document — inside its own
+     * timed window, because that import is what the first render triggers. On its
+     * own it lands in ~2s; in a full-suite run sharing a machine it was measured at
+     * 6.4s and failed against the 5s default, then passed twice in isolation moments
+     * later.
+     *
+     * A test that fails only when other tests are running is worse than a slow one:
+     * it teaches everybody to re-run the suite instead of reading it. The cost of a
+     * higher ceiling is that a genuinely hung test takes longer to report, which is
+     * the cheaper failure by a distance.
+     */
+    testTimeout: 15000,
+    hookTimeout: 15000,
   },
   resolve: {
     alias: { '@': path.resolve(process.cwd(), 'src') },

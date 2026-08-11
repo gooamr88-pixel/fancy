@@ -285,7 +285,10 @@ export default function GuestPassCard({
 
           <div className="gp-front-row" style={{ display: 'flex' }}>
             {/* Main stub */}
-            <div className="gp-main-stub" style={{ flex: '1 1 65%', padding: '26px 26px 22px', display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
+            {/* flex and padding come from the stylesheet, not from here — the
+                mobile block below overrides both, and an inline value would make
+                those overrides unreachable. */}
+            <div className="gp-main-stub" style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
                 <div style={{ minWidth: 0 }}>
                   <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '3px', color: 'rgba(255,255,255,0.4)', fontWeight: 700, fontFamily: PASS_FONT_SANS }}>
@@ -330,7 +333,7 @@ export default function GuestPassCard({
 
             {/* QR stub */}
             <div className="gp-qr-stub" style={{
-              flex: '0 0 35%', padding: '22px 14px', display: 'flex', flexDirection: 'column',
+              display: 'flex', flexDirection: 'column',
               alignItems: 'center', justifyContent: 'center', gap: '10px', background: 'rgba(255,255,255,0.02)',
             }}>
               {dateShort && (
@@ -459,7 +462,15 @@ export default function GuestPassCard({
            guest name, and status badge instead of scrolling (the card has
            overflow:hidden). Stack the QR full-width below the details
            instead of shrinking it, since a shrunk QR risks becoming
-           unscannable at the door. */
+           unscannable at the door.
+
+           The two flex values and the QR stub's padding used to be inline, which
+           meant the two rules below that override them never applied — the half of
+           this fix that shrank the QR column back to 35% survived on phones, which
+           is precisely the failure the comment above describes. */
+        .gp-main-stub { flex: 1 1 65%; padding: 26px 26px 22px; }
+        .gp-qr-stub { flex: 0 0 35%; padding: 22px 14px; }
+
         @media (max-width: 639.98px) {
           .gp-front-row { flex-direction: column; }
           .gp-main-stub { flex: 1 1 auto; }
