@@ -17,7 +17,19 @@ const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
 const tokenService = require('./tokenService');
 const notificationService = require('../utils/notificationService');
-const { getInvitationTemplate, getQRTicketTemplate, buildGuestEventUrl, buildTicketLinks } = require('../utils/emailTemplates');
+/**
+ * `formatEventDate` is imported HERE, at module scope, and that matters.
+ *
+ * It used to be destructured inside sendInvitationSmsBulk — but buildDetailContext
+ * is a module-level function that also calls it, so from there the identifier was
+ * simply not in scope: a ReferenceError the first time anyone sent a detail text.
+ * `node --check` cannot see it (the syntax is fine) and no test had exercised that
+ * path yet, so it sat there looking correct.
+ */
+const {
+  getInvitationTemplate, getQRTicketTemplate,
+  buildGuestEventUrl, buildTicketLinks, formatEventDate,
+} = require('../utils/emailTemplates');
 
 /** Records one delivery attempt in the unified ledger. */
 async function logInvitation({ partyId, eventId, channel, token = null, status, metadata = {} }) {
@@ -410,7 +422,8 @@ async function sendInvitationSmsBulk(eventId, partyIds, { user = null, type = 'i
   const byId = new Map((parties || []).map((p) => [p.id, p]));
 
   const { sendTransactionalSms } = require('./smsDispatch');
-  const { buildGuestRsvpUrl, buildTicketLinks, formatEventDate } = require('../utils/emailTemplates');
+  // The email-template helpers this function needs are all module-level imports
+  // now — see the note on that import for why formatEventDate had to move.
   const tokenService = require('./tokenService');
   const { explainSkip } = require('../utils/smsUsage');
 
@@ -447,7 +460,26 @@ async function sendInvitationSmsBulk(eventId, partyIds, { user = null, type = 'i
         : {
           guestName: party.label || 'Guest',
           eventTitle: event.title,
-          rsvpUrl: buildGuestRsvpUrl(event.slug, partyId),
+          /**
+           * The INVITATION page, not the bare RSVP form.
+           *
+           * This was `buildGuestRsvpUrl` → `/{slug}/rsvp?g=…`, which drops the
+           * guest straight onto a form. The email channel has always used
+           * `buildGuestEventUrl` → `/{slug}?party_id=…`, the real invitation with
+           * the envelope reveal — so the same event invited people to two
+           * different things depending on which button the organizer pressed.
+           *
+           * The text even says "Open your invitation", and smsTemplates' own
+           * docblock explains the whole reason these messages are terse: "the LINK
+           * opens the full invitation reveal, which is already the most polished
+           * thing this product makes. A phone that opens a wax seal and an
+           * animated card is a far stronger impression than any amount of text."
+           * The implementation was sending them to the form instead.
+           *
+           * The RSVP form is still one tap away — it is what the invitation page
+           * leads to — so nothing is lost by starting at the invitation.
+           */
+          rsvpUrl: buildGuestEventUrl(event.slug, partyId),
         };
 
       return sendTransactionalSms({

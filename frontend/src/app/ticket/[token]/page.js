@@ -19,12 +19,79 @@ import { publicApiFetch, PublicApiError, API_URL } from '../../utils/publicApi';
 import SeatingResultPanel from '../../[slug]/rsvp/steps/SeatingResultPanel';
 import Icon from '../../components/icons/Icon';
 
+/**
+ * Turns a failed ticket lookup into something true.
+ *
+ * Every failure here used to render one sentence — "Could not load your ticket.
+ * Please try again later." — and that sentence was wrong for three of the four
+ * ways this can fail. A ticket token is signed and long-lived, so it outlives the
+ * rows it points at: the party can be deleted, the event can be unpublished. In
+ * those cases the link will NEVER work, and telling a guest standing at the door
+ * to try again later sends them to wait for something that is not coming.
+ *
+ * The distinction that matters to a guest is not the error code, it is whether
+ * waiting helps. Only a network fault or a 5xx is worth retrying; everything else
+ * needs the host, so those messages point at the host instead.
+ */
+export function describeTicketError(err, isRTL) {
+  const code = err instanceof PublicApiError ? err.code : null;
+  const askHost = isRTL
+    ? 'كلّم صاحب الدعوة عشان يبعتلك تذكرة جديدة.'
+    : 'Please contact whoever invited you for a new ticket.';
+
+  switch (code) {
+    case 'INVALID_TICKET':
+      return {
+        title: isRTL ? 'التذكرة دي مش صالحة.' : "This ticket isn't valid.",
+        hint: askHost,
+        retryable: false,
+      };
+
+    // The common one, and the reason this function exists. Clearing a guest list
+    // and re-importing it mints new party IDs, which orphans every ticket already
+    // sent — the link is intact, the guest behind it is gone.
+    case 'GUEST_NOT_FOUND':
+      return {
+        title: isRTL ? 'مش لاقيين اسمك في قائمة الضيوف.' : "We can't find you on the guest list.",
+        hint: isRTL
+          ? 'يمكن القائمة اتحدّثت بعد ما وصلتك التذكرة. كلّم صاحب الدعوة عشان يبعتلك واحدة جديدة.'
+          : 'The list may have been updated after your ticket was sent. Ask your host to resend it.',
+        retryable: false,
+      };
+
+    case 'EVENT_INACTIVE':
+      return {
+        title: isRTL ? 'الفعالية دي مش مفتوحة للضيوف حالياً.' : "This event isn't open to guests right now.",
+        hint: askHost,
+        retryable: false,
+      };
+
+    case 'EVENT_NOT_FOUND':
+      return {
+        title: isRTL ? 'الفعالية دي مابقتش موجودة.' : 'This event no longer exists.',
+        hint: askHost,
+        retryable: false,
+      };
+
+    // Genuinely transient: no signal, or the API is down. Here "try again" is
+    // real advice rather than a shrug, so this is the only branch that offers it.
+    default:
+      return {
+        title: isRTL ? 'تعذّر تحميل تذكرتك.' : "We couldn't load your ticket.",
+        hint: isRTL
+          ? 'اتأكد من الإنترنت وجرّب تاني.'
+          : 'Check your connection and try again.',
+        retryable: true,
+      };
+  }
+}
+
 function TicketRoute({ token }) {
   const searchParams = useSearchParams();
   const isRTL = searchParams.get('lang') === 'ar';
 
   const [status, setStatus] = useState('loading'); // 'loading' | 'error' | 'locked' | 'ready'
-  const [errorMessage, setErrorMessage] = useState('');
+  const [error, setError] = useState(null); // { title, hint, retryable }
   const [payload, setPayload] = useState(null);
 
   useEffect(() => {
@@ -38,10 +105,7 @@ function TicketRoute({ token }) {
         setStatus(data.locked ? 'locked' : 'ready');
       } catch (err) {
         if (cancelled) return;
-        const message = err instanceof PublicApiError && err.code === 'INVALID_TICKET'
-          ? (isRTL ? 'هذه التذكرة غير صالحة أو منتهية الصلاحية.' : 'This ticket is invalid or has expired.')
-          : (isRTL ? 'تعذّر تحميل تذكرتك. برجاء المحاولة مرة أخرى لاحقاً.' : 'Could not load your ticket. Please try again later.');
-        setErrorMessage(message);
+        setError(describeTicketError(err, isRTL));
         setStatus('error');
       }
     })();
@@ -101,10 +165,27 @@ function TicketRoute({ token }) {
               </div>
             )}
 
-            {status === 'error' && (
+            {status === 'error' && error && (
               <div style={{ textAlign: 'center', padding: '24px 0' }}>
                 <Icon name="warning" size={34} color="#C45E5E" strokeWidth={1.3} />
-                <p style={{ color: '#191B1E', fontSize: '14px', fontWeight: 600, marginTop: '12px' }}>{errorMessage}</p>
+                <p style={{ color: '#191B1E', fontSize: '15px', fontWeight: 600, marginTop: '12px', lineHeight: 1.5 }}>{error.title}</p>
+                <p style={{ color: '#77736A', fontSize: '13px', marginTop: '8px', lineHeight: 1.6, maxWidth: '340px', marginInline: 'auto' }}>{error.hint}</p>
+                {/* Shown only when waiting can actually help. A retry button under
+                    "your name is not on the list" is an invitation to keep tapping
+                    at something that will never change. */}
+                {error.retryable && (
+                  <button
+                    type="button"
+                    onClick={() => window.location.reload()}
+                    style={{
+                      marginTop: '18px', padding: '11px 22px', borderRadius: '12px',
+                      border: 'none', cursor: 'pointer',
+                      background: themeColor, color: '#FFFFFF', fontSize: '14px', fontWeight: 700,
+                    }}
+                  >
+                    {isRTL ? 'حاول تاني' : 'Try again'}
+                  </button>
+                )}
               </div>
             )}
 
@@ -187,9 +268,10 @@ function TicketRoute({ token }) {
         </div>
       </motion.div>
 
-      <style jsx>{`
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      `}</style>
+      {/* No local @keyframes here on purpose: styled-jsx renames a scoped keyframe
+          to `spin-jsx-<hash>`, and it cannot rewrite the `animation: 'spin ...'`
+          sitting in an inline style object — so the scoped copy matched nothing and
+          the spinners were resolving against globals.css's `spin` all along. */}
     </div>
   );
 }

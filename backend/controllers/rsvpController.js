@@ -1428,11 +1428,41 @@ const getTicketSeatingView = async (req, res, next) => {
       .select('id, slug, title, event_date, location_name, location_address, is_paid, status, custom_colors, custom_fonts, cover_image_url')
       .eq('id', decoded.eventId)
       .single();
-    if (eventError || !event) return sendFail(res, { status: 404, error: 'EVENT_NOT_FOUND' });
-    if (!isEventLiveForGuests(event)) return sendFail(res, { status: 404, error: 'EVENT_INACTIVE' });
+    /**
+     * These three carry messages, and the reason is diagnostic rather than cosmetic.
+     *
+     * A ticket token is signed and long-lived, so it outlives the rows it points at.
+     * All three of these fire on a token that verified PERFECTLY — the signature was
+     * valid and the payload was ours; the event or the party simply is not there any
+     * more. That is a different situation from a tampered code, and the guest needs
+     * different advice: retrying cannot fix a deleted party.
+     *
+     * Bare `sendFail` with no message produced a 404 whose body was `{error: CODE}`,
+     * so a support report of "the ticket says it could not load" was indistinguishable
+     * across a deleted event, an unpublished one, and a re-imported guest list — and
+     * the guest-list case is the common one, because clearing and re-importing mints
+     * new party IDs and silently orphans every ticket already texted out.
+     */
+    if (eventError || !event) {
+      return sendFail(res, {
+        status: 404, error: 'EVENT_NOT_FOUND',
+        message: 'This event no longer exists.',
+      });
+    }
+    if (!isEventLiveForGuests(event)) {
+      return sendFail(res, {
+        status: 404, error: 'EVENT_INACTIVE',
+        message: 'This event is not currently open to guests.',
+      });
+    }
 
     const seating = await guestService.getPartySeatingMap(event.id, decoded.partyId);
-    if (!seating) return sendFail(res, { status: 404, error: 'GUEST_NOT_FOUND' });
+    if (!seating) {
+      return sendFail(res, {
+        status: 404, error: 'GUEST_NOT_FOUND',
+        message: 'This guest is no longer on the list for this event.',
+      });
+    }
 
     const eventBrief = {
       title: event.title, slug: event.slug, event_date: event.event_date,
