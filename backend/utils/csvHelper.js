@@ -1,3 +1,5 @@
+const { normalizeHeader } = require('../config/guestImportColumns');
+
 /**
  * Parses a single CSV line into an array of field values, handling
  * quoted fields, escaped quotes, and commas within quotes (RFC 4180).
@@ -54,8 +56,25 @@ const parseCSV = (csvContent) => {
   if (lines.length < 2) return [];
 
   // Parse header using RFC 4180 compliant parser
-  const headers = parseCSVLine(lines[0]);
-  
+  const rawHeaders = parseCSVLine(lines[0]);
+
+  /**
+   * HEADERS ARE FOLDED — `Guest Name` is `guest_name`.
+   *
+   * They were used raw, which meant a CSV whose first row read
+   * "Guest Name,Email,Phone" matched none of the names the importer looks up.
+   * Nothing errored: every `row.guest_name` was undefined, the importer's
+   * `|| 'Unnamed Guest'` fallback fired, and the organizer was shown
+   * "Import Complete · 400 guests imported successfully" over four hundred
+   * blank rows.
+   *
+   * The .xlsx branch of importGuestsCSV has always folded its headers, so the
+   * same spreadsheet worked as Excel and destroyed itself as CSV — with CSV
+   * being the format documented as the round-trip one. One helper now, shared
+   * by both, so they cannot disagree again.
+   */
+  const headers = rawHeaders.map(normalizeHeader);
+
   const results = [];
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i].trim();
@@ -67,12 +86,17 @@ const parseCSV = (csvContent) => {
 
     const rowObj = {};
     headers.forEach((header, index) => {
+      if (!header) return; // a trailing comma produces an empty header; it means nothing
       rowObj[header] = values[index];
     });
 
     results.push(rowObj);
   }
 
+  // The raw first row rides along so the caller can name columns it did not
+  // recognise. Non-enumerable: every consumer of this function iterates the
+  // returned rows, and an extra array in that list would be read as a guest.
+  Object.defineProperty(results, 'headers', { value: rawHeaders, enumerable: false });
   return results;
 };
 

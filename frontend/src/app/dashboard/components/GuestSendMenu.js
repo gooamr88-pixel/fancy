@@ -171,15 +171,15 @@ export default function GuestSendMenu({
           {groups.map((group, gi) => (
             <div key={group.id} style={{ marginTop: gi === 0 ? 0 : 4 }}>
               <div style={{
-                display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8,
+                display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', gap: 8,
                 padding: '8px 10px 6px',
               }}>
                 <span style={{
-                  fontSize: 9.5, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase',
+                  fontSize: 'var(--fx-micro)', fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase',
                   color: C.stone, fontFamily: 'var(--font-sans)',
                 }}>{group.heading}</span>
                 <span style={{
-                  fontSize: 9.5, fontWeight: 700, color: group.noteColor, fontFamily: 'var(--font-sans)',
+                  fontSize: 'var(--fx-micro)', fontWeight: 700, color: group.noteColor, fontFamily: 'var(--font-sans)',
                   whiteSpace: 'nowrap',
                 }}>{group.note}</span>
               </div>

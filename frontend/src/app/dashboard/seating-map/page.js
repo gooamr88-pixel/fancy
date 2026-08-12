@@ -120,7 +120,7 @@ const CanvasElement = React.memo(function CanvasElement({ el, occupied, names = 
         }}>
           {meta.icon && (
             <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
               width: Math.max(24, Math.min(32, Math.min(w, h) / 4.5)), height: Math.max(24, Math.min(32, Math.min(w, h) / 4.5)),
               borderRadius: '50%', background: `${color}1F`,
             }}>
@@ -183,9 +183,9 @@ function SelectMenuItem({ label, count, onClick }) {
     <button
       type="button" onClick={onClick} disabled={disabled}
       style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+        display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10,
         width: '100%', textAlign: 'left', background: 'none', border: 'none', borderRadius: 6,
-        padding: '7px 9px', fontSize: 12, fontFamily: 'var(--font-sans, sans-serif)',
+        padding: '7px 9px', minHeight: 'var(--fx-touch)', fontSize: 12, fontFamily: 'var(--font-sans, sans-serif)',
         color: disabled ? C.border : C.charcoal, cursor: disabled ? 'not-allowed' : 'pointer',
       }}
       onMouseEnter={(e) => { if (!disabled) e.currentTarget.style.background = 'rgba(184,148,79,0.08)'; }}
@@ -243,7 +243,7 @@ function VirtualGuestList({ items, height, onDragStartGuest, onTapGuest, armedGu
                 position: 'absolute', top: idx * ROW_H, left: 0, right: 6, height: ROW_H - 8,
                 background: armed ? 'rgba(184,148,79,0.12)' : '#FAFAF8', padding: '0 12px',
                 border: `1.5px solid ${armed ? C.gold : C.border}`, borderRadius: 10,
-                cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                cursor: 'pointer', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center',
                 minHeight: 44, boxSizing: 'border-box',
               }}
             >
@@ -251,7 +251,7 @@ function VirtualGuestList({ items, height, onDragStartGuest, onTapGuest, armedGu
                 <span style={{ fontWeight: 600, color: C.charcoal, display: 'block', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.guest_name}</span>
                 <span style={{ fontSize: 11, color: C.stone }}>Party of {g.party_size}</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                 {armed ? (
                   <span style={{ fontSize: 10, fontWeight: 700, color: C.gold, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Tap a table</span>
                 ) : (
@@ -270,7 +270,7 @@ function VirtualGuestList({ items, height, onDragStartGuest, onTapGuest, armedGu
                         disabled={resendingId === g.id}
                         style={{
                           width: 26, height: 26, borderRadius: 7, border: `1px solid ${C.border}`,
-                          background: C.white, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          background: C.white, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
                           cursor: resendingId === g.id ? 'wait' : 'pointer', flexShrink: 0,
                         }}
                       >
@@ -1553,7 +1553,7 @@ export default function SeatingMapPage() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', background: C.ivory, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ minHeight: '100vh', background: C.ivory, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ width: 48, height: 48, border: `3px solid ${C.border}`, borderTop: `3px solid ${C.gold}`, borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px' }} />
           <p style={{ color: C.stone, fontFamily: 'var(--font-sans)', fontSize: 14 }}>Drawing seating layout…</p>
@@ -1565,7 +1565,7 @@ export default function SeatingMapPage() {
 
   if (error) {
     return (
-      <div style={{ minHeight: '100vh', background: C.ivory, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <div style={{ minHeight: '100vh', background: C.ivory, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
         <div style={{ maxWidth: 440, textAlign: 'center', background: C.white, border: `1px solid ${C.border}`, padding: '48px 32px', borderRadius: 16 }}>
           <Icon name="plug" size={44} color={C.danger} strokeWidth={1.3} />
           <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: 22, fontWeight: 600, color: C.danger, marginTop: 12 }}>Backend Connection Error</h2>
@@ -1580,7 +1580,7 @@ export default function SeatingMapPage() {
   if (!authChecked) return null;
   if (eventIsPaid === false || hasSeatingFeature === false) {
     return (
-      <div style={{ minHeight: '100vh', background: C.ivory, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-sans)' }}>
+      <div style={{ minHeight: '100vh', background: C.ivory, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-sans)' }}>
         <div style={{
           maxWidth: 480, width: '100%', textAlign: 'center', background: C.white,
           border: `1px solid ${C.border}`, padding: '64px 32px', borderRadius: '20px',
@@ -1595,7 +1595,7 @@ export default function SeatingMapPage() {
           <div style={{
             width: 72, height: 72, borderRadius: '50%', margin: '0 auto 24px',
             background: 'linear-gradient(135deg, rgba(215,190,128,0.15) 0%, rgba(184,148,79,0.15) 100%)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
           }}>
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2">
               <rect x="3" y="11" width="18" height="11" rx="2"/>
@@ -1640,7 +1640,7 @@ export default function SeatingMapPage() {
       {/* Header */}
       <div className="fx-container fx-container--wide" style={{ borderBottom: `1px solid ${C.border}`, paddingBottom: 20, marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
             <Link href="/dashboard" style={{ color: C.gold, fontSize: 13, textDecoration: 'none', fontWeight: 600 }}>← Back to Dashboard</Link>
             <span style={{ color: C.border }}>|</span>
             <span style={{ fontSize: 10, textTransform: 'uppercase', color: C.stone, fontWeight: 700, letterSpacing: '0.1em' }}>Visual Planner</span>
@@ -1656,7 +1656,7 @@ export default function SeatingMapPage() {
           <button
             onClick={() => setShowPrintPreview(true)}
             title="Preview and arrange the printable chart, then print or save as PDF"
-            style={{ ...btn, background: 'transparent', border: `1px solid ${C.gold}`, color: C.gold, display: 'flex', alignItems: 'center', gap: 6 }}
+            style={{ ...btn, background: 'transparent', border: `1px solid ${C.gold}`, color: C.gold, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
             Print / Export
@@ -1690,9 +1690,9 @@ export default function SeatingMapPage() {
             style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 12px', fontSize: 16, outline: 'none', marginBottom: 8 }}
             onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border}
           />
-          <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
             {['unseated', 'seated', 'all'].map(f => (
-              <button key={f} onClick={() => setFilter(f)} style={{ flex: 1, padding: '6px 4px', fontSize: 11, fontWeight: 700, borderRadius: 6, border: `1px solid ${filter === f ? C.gold : C.border}`, background: filter === f ? 'rgba(184,148,79,0.08)' : C.white, color: filter === f ? C.gold : C.stone, cursor: 'pointer', textTransform: 'capitalize' }}>{f}</button>
+              <button key={f} onClick={() => setFilter(f)} style={{ flex: 1, padding: '6px 4px', minHeight: 'var(--fx-touch)', fontSize: 11, fontWeight: 700, borderRadius: 6, border: `1px solid ${filter === f ? C.gold : C.border}`, background: filter === f ? 'rgba(184,148,79,0.08)' : C.white, color: filter === f ? C.gold : C.stone, cursor: 'pointer', textTransform: 'capitalize' }}>{f}</button>
             ))}
           </div>
           <span style={{ fontSize: 11, color: C.stone, marginBottom: 8 }}>{guestTotal.toLocaleString()} {filter} guest{guestTotal === 1 ? '' : 's'} · tap a guest, then tap a table to seat them</span>
@@ -1722,11 +1722,11 @@ export default function SeatingMapPage() {
             <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
               <button onClick={() => setShowAdd(true)} style={{ ...btn, background: C.gold, color: C.white, padding: '6px 14px' }}>+ Add Element</button>
               <button onClick={undo} disabled={historyIndex <= 0} style={{
-                ...btn,
+                ...btn, minHeight: 'var(--fx-touch)',
                 background: C.white,
                 border: `1px solid ${C.border}`,
                 color: historyIndex <= 0 ? C.border : C.charcoal,
-                padding: '6px 12px',
+                padding: '6px 12px', minHeight: 'var(--fx-touch)',
                 cursor: historyIndex <= 0 ? 'not-allowed' : 'pointer'
               }} title="Undo (Ctrl+Z)">
                 Undo
@@ -1736,14 +1736,14 @@ export default function SeatingMapPage() {
                 background: C.white,
                 border: `1px solid ${C.border}`,
                 color: historyIndex >= history.length - 1 ? C.border : C.charcoal,
-                padding: '6px 12px',
+                padding: '6px 12px', minHeight: 'var(--fx-touch)',
                 cursor: historyIndex >= history.length - 1 ? 'not-allowed' : 'pointer'
               }} title="Redo (Ctrl+Y)">
                 Redo
               </button>
               {selectedIds.size > 0 ? (
                 <button onClick={clearSelection} style={{
-                  ...btn, background: 'rgba(184,148,79,0.08)', border: `1px solid ${C.gold}`, color: C.gold, padding: '6px 12px',
+                  ...btn, background: 'rgba(184,148,79,0.08)', border: `1px solid ${C.gold}`, color: C.gold, padding: '6px 12px', minHeight: 'var(--fx-touch)',
                 }} title="Click an empty area or press this to deselect">
                   {selectedIds.size} selected · Deselect
                 </button>
@@ -1753,8 +1753,8 @@ export default function SeatingMapPage() {
                     onClick={() => setSelectMenuOpen(v => !v)}
                     disabled={elements.length === 0}
                     style={{
-                      ...btn, background: C.white, border: `1px solid ${C.border}`, color: elements.length === 0 ? C.border : C.charcoal, padding: '6px 12px',
-                      cursor: elements.length === 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+                      ...btn, background: C.white, border: `1px solid ${C.border}`, color: elements.length === 0 ? C.border : C.charcoal, padding: '6px 12px', minHeight: 'var(--fx-touch)',
+                      cursor: elements.length === 0 ? 'not-allowed' : 'pointer', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5,
                     }}
                     title="Select every table & zone, or narrow it to just tables, zones, or one shape (e.g. round tables only). Ctrl/Cmd/Shift-click individual elements on the canvas to select only those."
                   >
@@ -1817,7 +1817,7 @@ export default function SeatingMapPage() {
                           disabled={filteredCount === 0}
                           style={{
                             ...btn, background: filteredCount === 0 ? C.white : C.gold, color: filteredCount === 0 ? C.border : C.white,
-                            border: `1px solid ${filteredCount === 0 ? C.border : C.gold}`, padding: '7px 10px', fontSize: 11,
+                            border: `1px solid ${filteredCount === 0 ? C.border : C.gold}`, padding: '7px 10px', minHeight: 'var(--fx-touch)', fontSize: 11,
                             cursor: filteredCount === 0 ? 'not-allowed' : 'pointer',
                           }}
                         >
@@ -1829,25 +1829,25 @@ export default function SeatingMapPage() {
                 </div>
               )}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
               <button onClick={() => setSnapToGrid(!snapToGrid)} style={{
                 ...btn,
                 background: snapToGrid ? 'rgba(184,148,79,0.08)' : C.white,
                 border: `1px solid ${snapToGrid ? C.gold : C.border}`,
                 color: snapToGrid ? C.gold : C.stone,
-                padding: '6px 12px',
-                display: 'flex',
+                padding: '6px 12px', minHeight: 'var(--fx-touch)',
+                display: 'flex', flexWrap: 'wrap',
                 alignItems: 'center',
                 gap: 4
               }}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
                 Snap to Grid
               </button>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, borderLeft: `1px solid ${C.border}`, paddingLeft: 8 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, borderLeft: `1px solid ${C.border}`, paddingLeft: 8 }}>
                 <button onClick={() => zoomBy(1 / 1.2)} style={{ ...btn, background: C.white, border: `1px solid ${C.border}`, color: C.charcoal, padding: '6px 12px' }}>−</button>
                 <span style={{ fontSize: 11, color: C.stone, minWidth: 42, textAlign: 'center' }}>{Math.round(view.scale * 100)}%</span>
                 <button onClick={() => zoomBy(1.2)} style={{ ...btn, background: C.white, border: `1px solid ${C.border}`, color: C.charcoal, padding: '6px 12px' }}>+</button>
-                <button onClick={resetView} style={{ ...btn, background: C.white, border: `1px solid ${C.border}`, color: C.stone, padding: '6px 12px' }}>Fit</button>
+                <button onClick={resetView} style={{ ...btn, minHeight: 'var(--fx-touch)', background: C.white, border: `1px solid ${C.border}`, color: C.stone, padding: '6px 12px' }}>Fit</button>
               </div>
             </div>
           </div>
@@ -1886,7 +1886,7 @@ export default function SeatingMapPage() {
               })}
             </div>
             {elements.length === 0 && (
-              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
                 <p style={{ color: C.stone, fontSize: 13, fontStyle: 'italic' }}>Click “Add Element” to place tables, a stage, dance floor and more.</p>
               </div>
             )}
@@ -1908,7 +1908,7 @@ export default function SeatingMapPage() {
         <div style={{ background: C.white, border: `1px solid ${C.border}`, padding: 18, borderRadius: 12, display: 'flex', flexDirection: 'column', height: 640 }}>
           <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 16, fontWeight: 500, borderBottom: `1px solid ${C.border}`, paddingBottom: 12, marginBottom: 14 }}>Inspector</h3>
           {!selected ? (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+            <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
               <p style={{ fontSize: 12, color: C.stone, maxWidth: 180 }}>
                 {selectedIds.size > 0
                   ? `${selectedIds.size} element${selectedIds.size > 1 ? 's' : ''} selected. Drag any one of them on the canvas to move the whole group together.`
@@ -1940,15 +1940,15 @@ export default function SeatingMapPage() {
                 {` • ${Math.round(Number(selected.rotation) || 0)}°`}
               </div>
               {elWidth(selected) !== elHeight(selected) && (
-                <button onClick={rotateSelected} disabled={saving} style={{ ...btn, background: 'rgba(184,148,79,0.06)', border: '1px solid rgba(184,148,79,0.2)', color: C.gold, padding: '7px 10px', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: saving ? 0.6 : 1, cursor: saving ? 'default' : 'pointer' }}>
+                <button onClick={rotateSelected} disabled={saving} style={{ ...btn, background: 'rgba(184,148,79,0.06)', border: '1px solid rgba(184,148,79,0.2)', color: C.gold, padding: '7px 10px', minHeight: 'var(--fx-touch)', fontSize: 11, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: saving ? 0.6 : 1, cursor: saving ? 'default' : 'pointer' }}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
                   {isZone(selected) ? 'Rotate 90°' : 'Rotate 90° (lengthwise / widthwise)'}
                 </button>
               )}
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={saveInspector} disabled={saving} style={{ ...btn, flex: 1, background: C.gold, color: C.white, padding: '7px 10px', fontSize: 11, opacity: saving ? 0.6 : 1, cursor: saving ? 'default' : 'pointer' }}>Save</button>
-                <button onClick={duplicateElement} disabled={saving} style={{ ...btn, background: 'rgba(184,148,79,0.06)', border: '1px solid rgba(184,148,79,0.2)', color: C.gold, padding: '7px 10px', fontSize: 11, opacity: saving ? 0.6 : 1, cursor: saving ? 'default' : 'pointer' }}>Duplicate</button>
-                <button onClick={deleteElement} disabled={saving} style={{ ...btn, background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.2)', color: C.danger, padding: '7px 10px', fontSize: 11, opacity: saving ? 0.6 : 1, cursor: saving ? 'default' : 'pointer' }}>Delete</button>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                <button onClick={saveInspector} disabled={saving} style={{ ...btn, flex: 1, background: C.gold, color: C.white, padding: '7px 10px', minHeight: 'var(--fx-touch)', fontSize: 11, opacity: saving ? 0.6 : 1, cursor: saving ? 'default' : 'pointer' }}>Save</button>
+                <button onClick={duplicateElement} disabled={saving} style={{ ...btn, background: 'rgba(184,148,79,0.06)', border: '1px solid rgba(184,148,79,0.2)', color: C.gold, padding: '7px 10px', minHeight: 'var(--fx-touch)', fontSize: 11, opacity: saving ? 0.6 : 1, cursor: saving ? 'default' : 'pointer' }}>Duplicate</button>
+                <button onClick={deleteElement} disabled={saving} style={{ ...btn, background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.2)', color: C.danger, padding: '7px 10px', minHeight: 'var(--fx-touch)', fontSize: 11, opacity: saving ? 0.6 : 1, cursor: saving ? 'default' : 'pointer' }}>Delete</button>
               </div>
 
               {!isZone(selected) && (
@@ -1958,12 +1958,12 @@ export default function SeatingMapPage() {
                     {seatedHere.length === 0 ? (
                       <p style={{ fontSize: 12, color: C.stone, fontStyle: 'italic' }}>No guests seated yet.</p>
                     ) : seatedHere.map(g => (
-                      <div key={g.id} style={{ background: '#FAFAF8', padding: 8, border: `1px solid #F0ECE3`, borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div key={g.id} style={{ background: '#FAFAF8', padding: 8, border: `1px solid #F0ECE3`, borderRadius: 8, display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div style={{ minWidth: 0 }}>
                           <span style={{ fontSize: 12, fontWeight: 600, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.guest_name}</span>
                           <span style={{ fontSize: 10, color: C.stone }}>Party of {g.party_size}</span>
                         </div>
-                        <button onClick={() => unseatGuest(g)} style={{ padding: '4px 10px', background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.15)', borderRadius: 6, fontSize: 10, fontWeight: 700, color: C.danger, cursor: 'pointer' }}>Unseat</button>
+                        <button onClick={() => unseatGuest(g)} style={{ padding: '4px 10px', minHeight: 'var(--fx-touch)', background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.15)', borderRadius: 6, fontSize: 10, fontWeight: 700, color: C.danger, cursor: 'pointer' }}>Unseat</button>
                       </div>
                     ))}
                   </div>
@@ -2127,7 +2127,7 @@ function PrintLetterhead({ eventTitle, organizerName, formattedDate, stats }) {
         <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
           {stats.map((s) => (
             <div key={s.label} style={{
-              display: 'flex', alignItems: 'baseline', gap: 5, padding: '5px 13px', borderRadius: 999,
+              display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 5, padding: '5px 13px', borderRadius: 999,
               background: 'rgba(184,148,79,0.07)', border: `1px solid rgba(184,148,79,0.25)`,
             }}>
               <span style={{ fontSize: 13, fontWeight: 800, color: C.gold }}>{s.value}</span>
@@ -2441,7 +2441,7 @@ function PrintPreviewModal({ eventTitle, eventDate, organizerName, elements, nam
             <div className="print-page" style={{ display: 'flex', flexDirection: 'column', height: '95vh' }}>
               <PrintLetterhead eventTitle={eventTitle} organizerName={organizerName} formattedDate={formattedDate} stats={stats} />
 
-              <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 20, margin: '14px 0' }}>
+              <div style={{ flex: 1, minHeight: 0, display: 'flex', flexWrap: 'wrap', gap: 20, margin: '14px 0' }}>
                 {/* ── Floor plan — the visual centerpiece, ~60% of the sheet width ── */}
                 <div className="print-diagram-frame" style={{ flex: roster.length > 0 ? '1.45 1 0' : '1 1 0', minWidth: 0, borderRadius: 12, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
                   <svg
@@ -2745,7 +2745,7 @@ function AddElementModal({ onClose, onAdd, btn, view, saving, elements }) {
   );
 
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(25,27,30,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(25,27,30,0.6)', backdropFilter: 'blur(4px)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: C.white, border: `1px solid ${C.border}`, width: '100%', maxWidth: 520, borderRadius: 16, padding: 24, maxHeight: '88vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
         <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 500 }}>Add Element</h3>
 
@@ -2785,7 +2785,7 @@ function AddElementModal({ onClose, onAdd, btn, view, saving, elements }) {
         <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
           <span style={{ fontSize: 11, color: C.stone, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Details</span>
 
-          <div style={{ display: 'flex', gap: 12 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
             <div style={{ flex: 1 }}>
               <label style={labelStyle}>{meta.cat === 'zone' ? 'Label' : 'Table Number'}</label>
               {meta.cat === 'zone' ? (
@@ -2804,7 +2804,7 @@ function AddElementModal({ onClose, onAdd, btn, view, saving, elements }) {
 
           {meta.cat === 'zone' && (
             <>
-              <div style={{ display: 'flex', gap: 12 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
                 <div style={{ flex: 1 }}>
                   <label style={labelStyle}>Width (px)</label>
                   <input type="number" min="60" value={customWidth || meta.w} onChange={e => setCustomWidth(e.target.value)} style={inputStyle} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
@@ -2816,7 +2816,7 @@ function AddElementModal({ onClose, onAdd, btn, view, saving, elements }) {
               </div>
               <div>
                 <label style={labelStyle}>Color</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
                   <input type="color" value={customColor || meta.color || C.gold} onChange={e => setCustomColor(e.target.value)} style={{ width: 40, height: 36, border: `1px solid ${C.border}`, borderRadius: 8, padding: 2, cursor: 'pointer', background: C.white }} />
                   <input value={customColor || meta.color || ''} onChange={e => setCustomColor(e.target.value)} placeholder="#hex color" style={{ ...inputStyle, flex: 1 }} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
                 </div>
@@ -2826,7 +2826,7 @@ function AddElementModal({ onClose, onAdd, btn, view, saving, elements }) {
 
           {/* Multiple Elements Layout section */}
           <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
+            <label style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
               <input type="checkbox" checked={isMultiple} onChange={e => setIsMultiple(e.target.checked)} style={{ cursor: 'pointer' }} />
               <span style={{ fontSize: 13, fontWeight: 600, color: C.charcoal }}>Add multiple elements in a layout</span>
             </label>
@@ -2837,7 +2837,7 @@ function AddElementModal({ onClose, onAdd, btn, view, saving, elements }) {
                 borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 12,
                 animation: 'fadeIn 0.2s ease'
               }}>
-                <div style={{ display: 'flex', gap: 12 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
                   <div style={{ flex: 1 }}>
                     <label style={labelStyle}>Arrangement</label>
                     <select value={layoutMode} onChange={e => setLayoutMode(e.target.value)} style={inputStyle}>
@@ -2865,16 +2865,16 @@ function AddElementModal({ onClose, onAdd, btn, view, saving, elements }) {
                   )}
                 </div>
 
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
                   <div style={{ flex: 1 }}>
                     <label style={labelStyle}>Gap Spacing (px)</label>
                     <input type="number" min="0" max="500" value={spacing} onChange={e => setSpacing(e.target.value)} style={inputStyle} />
                   </div>
                   <div style={{ flex: 1 }}>
                     <label style={labelStyle}>Start Numbering</label>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
                       <input type="number" min="1" value={startNumber} onChange={e => setStartNumber(e.target.value)} style={{ ...inputStyle, flex: 1 }} disabled={!autoNumber} />
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', cursor: 'pointer', fontSize: 11, color: C.stone }}>
+                      <label style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', cursor: 'pointer', fontSize: 11, color: C.stone }}>
                         <input type="checkbox" checked={autoNumber} onChange={e => setAutoNumber(e.target.checked)} />
                         Auto
                       </label>
@@ -2886,7 +2886,7 @@ function AddElementModal({ onClose, onAdd, btn, view, saving, elements }) {
           </div>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, borderTop: `1px solid ${C.border}`, paddingTop: 14 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8, borderTop: `1px solid ${C.border}`, paddingTop: 14 }}>
           <button onClick={onClose} style={{ ...btn, background: C.white, border: `1px solid ${C.border}`, color: C.stone }}>Cancel</button>
           <button onClick={submit} disabled={saving} style={{ ...btn, background: C.gold, color: C.white, opacity: saving ? 0.6 : 1, cursor: saving ? 'default' : 'pointer' }}>{saving ? 'Adding…' : 'Add to Canvas'}</button>
         </div>

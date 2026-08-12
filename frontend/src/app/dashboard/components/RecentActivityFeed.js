@@ -177,7 +177,7 @@ export default function RecentActivityFeed({ recentActivity = [] }) {
   return (
     <div style={cardStyle}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
         <div>
           <div style={{ fontSize: 17, fontFamily: 'var(--font-serif)', color: '#191B1E', fontWeight: 600 }}>
             Recent Activity
@@ -186,7 +186,7 @@ export default function RecentActivityFeed({ recentActivity = [] }) {
             Latest actions across your events
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
           <span style={{
             width: 8,
             height: 8,
@@ -284,7 +284,7 @@ export default function RecentActivityFeed({ recentActivity = [] }) {
                 height: 36,
                 borderRadius: '50%',
                 background: config.bg,
-                display: 'flex',
+                display: 'flex', flexWrap: 'wrap',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,

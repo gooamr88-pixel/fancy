@@ -115,7 +115,7 @@ export default function SeatingProgress({ rsvps = [], tables = [], onShowUnseate
             type="button"
             onClick={onShowUnseated}
             style={{
-              padding: '9px 16px', borderRadius: 9,
+              padding: '9px 16px', minHeight: 'var(--fx-touch)', borderRadius: 9,
               border: '1px solid #E8E2D6', background: '#FFFFFF',
               color: '#191B1E', fontSize: 12.5, fontWeight: 700,
               fontFamily: 'var(--font-sans)', cursor: 'pointer', whiteSpace: 'nowrap',

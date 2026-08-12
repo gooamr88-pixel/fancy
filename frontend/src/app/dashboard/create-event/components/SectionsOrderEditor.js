@@ -82,13 +82,13 @@ export default function SectionsOrderEditor({ templateData, setTemplateData }) {
           return (
             <div key={key} title={hint || label}
               style={{
-                display: 'flex', alignItems: 'center', gap: 8,
+                display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
                 padding: '8px 10px 8px 12px', borderRadius: 10,
                 background: on ? 'rgba(184,148,79,0.07)' : C.white,
                 border: `1px solid ${on ? 'rgba(184,148,79,0.3)' : C.border}`,
               }}>
               <span style={{
-                fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 700, color: C.stone,
+                fontFamily: 'var(--font-sans)', fontSize: 'var(--fx-micro)', fontWeight: 700, color: C.stone,
                 width: 16, textAlign: 'center', flexShrink: 0,
               }}>{idx + 1}</span>
               <button type="button" onClick={() => moveSection(key, -1)} disabled={idx === 0} aria-label="Move up"
@@ -106,11 +106,11 @@ export default function SectionsOrderEditor({ templateData, setTemplateData }) {
                 }}>↓</button>
               <button type="button" onClick={() => toggleSection(key)}
                 style={{
-                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                  flex: 1, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10,
                   padding: 0, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left',
                   fontFamily: 'var(--font-sans)', fontSize: 12.5, fontWeight: 600, color: C.charcoal,
                 }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Icon name={icon} size={13} strokeWidth={1.6} /> {label}</span>
+                <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}><Icon name={icon} size={13} strokeWidth={1.6} /> {label}</span>
                 <span style={{
                   width: 32, height: 18, borderRadius: 999, position: 'relative', flexShrink: 0,
                   background: on ? C.gold : '#D1CFC9', transition: 'background 0.2s',

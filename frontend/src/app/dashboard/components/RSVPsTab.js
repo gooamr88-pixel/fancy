@@ -9,6 +9,9 @@ import SmsBalanceBanner from './SmsBalanceBanner';
 import GuestSendMenu from './GuestSendMenu';
 import ConfirmBulkTextModal from './ConfirmBulkTextModal';
 import ConfirmRemoveGuestModal from './ConfirmRemoveGuestModal';
+import SendInvitationModal from './SendInvitationModal';
+import FeatureGate from './FeatureGate';
+import MobileDisclosure from './MobileDisclosure';
 
 const COLORS = {
   gold: '#B8944F',
@@ -146,7 +149,7 @@ const SummaryCard = React.memo(function SummaryCard({ count, people, label, acce
       }}>{count}</span>
       <span style={{
         display: 'block',
-        fontSize: 10,
+        fontSize: 'var(--fx-micro)',
         fontWeight: 700,
         color: active ? accent : COLORS.stone,
         textTransform: 'uppercase',
@@ -178,12 +181,12 @@ const SummaryCard = React.memo(function SummaryCard({ count, people, label, acce
 function BulkGroup({ heading, note, noteColor, children }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 8 }}>
         <span style={{
-          fontSize: 9.5, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase',
+          fontSize: 'var(--fx-micro)', fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase',
           color: COLORS.stone, fontFamily: 'var(--font-sans)',
         }}>{heading}</span>
-        <span style={{ fontSize: 9.5, fontWeight: 700, color: noteColor, fontFamily: 'var(--font-sans)' }}>
+        <span style={{ fontSize: 'var(--fx-micro)', fontWeight: 700, color: noteColor, fontFamily: 'var(--font-sans)' }}>
           {note}
         </span>
       </div>
@@ -201,7 +204,7 @@ function BulkButton({ primary, busy, disabled, onClick, label, busyLabel, title 
       disabled={disabled || busy}
       title={title}
       style={{
-        padding: '9px 16px', borderRadius: 9,
+        padding: '9px 16px', minHeight: 'var(--fx-touch)', borderRadius: 9,
         border: primary ? 'none' : `1px solid ${COLORS.border}`,
         background: dead ? '#EFECE5'
           : primary ? 'linear-gradient(135deg, #D7BE80 0%, #B8944F 100%)' : COLORS.white,
@@ -224,8 +227,16 @@ export default function RSVPsTab({
   // holds them for the sidebar — refetching here would put a second, slightly
   // different number on the same screen as the first.
   smsRemaining = 0, smsPurchased = 0, smsCoverage = null,
+  // Adding one guest by hand is a paid feature (`add_guest_manual`), and it now
+  // lives in this section — so this tab needs the tier context the Guest list
+  // already had. Ungated, the button would open a modal whose submit comes back
+  // 403 after the organizer has typed everything in.
+  isPaid = false, tierFeatures, onUpgrade,
 }) {
   const [search, setSearch] = useState('');
+  // The one-guest send. Mounted only while open so each visit starts empty —
+  // same reasoning as ClearGuestListModal.
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('newest');
   const [page, setPage] = useState(1);
@@ -540,21 +551,75 @@ export default function RSVPsTab({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
 
-      {/* ── SMS status ───────────────────────────────────────
-          Above everything, because the question it answers — "will I have
-          enough messages for these people?" — is asked while looking at this
-          list, and answering it anywhere else means answering it too late. */}
-      <SmsBalanceBanner
-        active={smsAddonActive}
-        remaining={smsRemaining}
-        purchased={smsPurchased}
-        coverage={smsCoverage}
-        topUpHref="/dashboard/campaigns"
-      />
+      {/**
+        * ── Header ───────────────────────────────────────────
+        *
+        * This section had no heading at all, while Guest list next door had one —
+        * so the two halves of the same workflow looked like a titled screen and an
+        * untitled fragment. It also had no way IN: you could only reach people who
+        * were already on the list, put there from another section.
+        *
+        * "Send an invitation" is the button that used to read "Add Guest" in Guest
+        * list. It moved because that is what it does: it takes a name and an
+        * address and sends that person their invitation. Naming it after the
+        * bookkeeping side-effect rather than the act hid the send completely —
+        * organizers pressed "Add Guest" and had no idea an email had gone out.
+        */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ minWidth: 0 }}>
+          <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: 22, fontWeight: 500, color: COLORS.charcoal, margin: 0 }}>
+            Invitations &amp; replies
+          </h2>
+          <p style={{ fontSize: 11.5, color: COLORS.stone, fontFamily: 'var(--font-sans)', marginTop: 4, lineHeight: 1.6 }}>
+            Invite one guest at a time, or tick several below and send to them together.
+          </p>
+        </div>
+        <FeatureGate tierFeatures={tierFeatures} isPaid={isPaid} feature="add_guest_manual" onUpgrade={onUpgrade}>
+          <button
+            type="button"
+            onClick={() => setInviteOpen(true)}
+            style={{
+              padding: '10px 18px', background: COLORS.gold, color: COLORS.white, border: 'none',
+              borderRadius: 8, fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-sans)',
+              cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 7,
+              whiteSpace: 'nowrap',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = COLORS.goldHover; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = COLORS.gold; e.currentTarget.style.transform = 'translateY(0)'; }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+            </svg>
+            Send an invitation
+          </button>
+        </FeatureGate>
+      </div>
 
-      {/* ── Summary Bar — and the filter. Tap a card to see those guests; tap the
-             active one again to clear it. The `<select>` that used to duplicate
-             these four categories underneath is gone. ── */}
+      {/**
+        * ── Summary Bar — and the filter. Tap a card to see those guests; tap the
+        * active one again to clear it. The `<select>` that used to duplicate
+        * these four categories underneath is gone.
+        *
+        * Collapsed to one line on a phone, where four full-width cards plus the
+        * SMS banner put the first reply most of a screen down. The cards ARE the
+        * filter, so nothing is lost by opening the disclosure to reach them.
+        *
+        * The SMS banner that used to sit above this has moved below the list —
+        * see the note there. Its own comment claimed it had to be "above
+        * everything" because the question is asked while looking at the list;
+        * that is an argument for it being ON this screen, which it still is, not
+        * for it being the first thing between the organizer and their replies.
+        */}
+      <MobileDisclosure
+        label="Reply counts and filters"
+        summary={
+          <>
+            <strong style={{ fontWeight: 800 }}>{counts.total}</strong> {counts.total === 1 ? 'reply' : 'replies'}
+            {' · '}{counts.accepted} accepted
+            {counts.pending > 0 && <>{' · '}{counts.pending} pending</>}
+          </>
+        }
+      >
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
         {[
           { key: 'all', label: 'Total Responses', n: counts.total, people: counts.people.total, accent: COLORS.stone },
@@ -574,6 +639,7 @@ export default function RSVPsTab({
           />
         ))}
       </div>
+      </MobileDisclosure>
 
       {/* ── Toolbar ──────────────────────────────────────────── */}
       <div style={{
@@ -672,27 +738,38 @@ export default function RSVPsTab({
             margin: '20px auto 0',
           }}>
             {rsvps.length === 0
-              ? 'Nobody has replied yet. Tick guests on your list and send them their invitation — by email, or by text if you have messaging.'
+              ? 'Nobody has been invited yet. Send one guest their invitation to start — or upload a whole list from Guest list, then tick and send from here.'
               : `None of your ${rsvps.length} guests match this search or filter.`}
           </p>
+          {/**
+            * The empty state now DOES the thing instead of pointing elsewhere.
+            *
+            * It used to send the organizer to Guest list, because that is where
+            * adding lived. Adding lives here now, so the button that used to be a
+            * redirect is the actual action — and the gate matches the header's, so
+            * a locked plan shows the lock rather than a modal that 403s on submit.
+            */}
           {rsvps.length === 0 ? (
-            <a
-              href={`/dashboard?tab=guests${eventId ? `&event=${eventId}` : ''}`}
-              style={{
-                marginTop: 18, padding: '11px 22px', borderRadius: 30, textDecoration: 'none',
-                background: 'linear-gradient(135deg, #D7BE80 0%, #B8944F 100%)',
-                color: COLORS.white, fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-sans)',
-                boxShadow: '0 4px 15px rgba(184, 148, 79, 0.25)',
-              }}
-            >
-              Go to your guest list
-            </a>
+            <FeatureGate tierFeatures={tierFeatures} isPaid={isPaid} feature="add_guest_manual" onUpgrade={onUpgrade}>
+              <button
+                type="button"
+                onClick={() => setInviteOpen(true)}
+                style={{
+                  marginTop: 18, padding: '11px 22px', borderRadius: 30, border: 'none', cursor: 'pointer',
+                  background: 'linear-gradient(135deg, #D7BE80 0%, #B8944F 100%)',
+                  color: COLORS.white, fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-sans)',
+                  boxShadow: '0 4px 15px rgba(184, 148, 79, 0.25)',
+                }}
+              >
+                Send your first invitation
+              </button>
+            </FeatureGate>
           ) : (
             <button
               type="button"
               onClick={() => { setSearch(''); setFilter('all'); setPage(1); }}
               style={{
-                marginTop: 18, padding: '9px 18px', borderRadius: 8,
+                marginTop: 18, padding: '9px 18px', minHeight: 'var(--fx-touch)', borderRadius: 8,
                 border: `1px solid ${COLORS.border}`, background: COLORS.white,
                 color: COLORS.charcoal, cursor: 'pointer',
                 fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-sans)',
@@ -708,11 +785,23 @@ export default function RSVPsTab({
             Wraps rather than scrolls: at 320px a nowrap row of a sentence plus
             three buttons would push the whole page sideways. */}
         {selectedIds.size > 0 && (
-          <div style={{
+          /**
+           * STICKY ON A PHONE, in place on a desktop.
+           *
+           * This bar renders above the list, so on a phone it scrolled out of
+           * view the moment the organizer started working down the rows: tick,
+           * tick, tick, scroll all the way back up, send. `.fx-sticky-actions`
+           * pins it just above the mobile nav bar while a selection exists and
+           * reverts to a normal block at lg, where the bar it clears does not
+           * exist. A shadow, because a sticky element over a scrolling list has
+           * to read as floating rather than as a row that stopped moving.
+           */
+          <div className="fx-sticky-actions" style={{
             display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12,
             justifyContent: 'space-between',
             background: COLORS.white, border: `1px solid ${COLORS.gold}`,
             borderRadius: 12, padding: '12px 16px', marginBottom: 14,
+            boxShadow: '0 6px 24px rgba(25,27,30,0.10)',
           }}>
             <div style={{ minWidth: 0 }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.charcoal, fontFamily: 'var(--font-sans)' }}>
@@ -803,7 +892,7 @@ export default function RSVPsTab({
                 type="button"
                 onClick={clearSelection}
                 style={{
-                  padding: '9px 14px', marginTop: 18, borderRadius: 9, border: 'none',
+                  padding: '9px 14px', minHeight: 'var(--fx-touch)', marginTop: 18, borderRadius: 9, border: 'none',
                   background: 'transparent', color: COLORS.stone,
                   fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
                   fontFamily: 'var(--font-sans)',
@@ -851,7 +940,7 @@ export default function RSVPsTab({
                     <th key={i} style={{
                       padding: '14px 20px',
                       textAlign: i === 6 ? 'center' : 'left',
-                      fontSize: 10,
+                      fontSize: 'var(--fx-micro)',
                       fontWeight: 700,
                       color: COLORS.stone,
                       textTransform: 'uppercase',
@@ -932,7 +1021,7 @@ export default function RSVPsTab({
               Showing <b style={{ color: COLORS.charcoal }}>{Math.min((page - 1) * PAGE_SIZE + 1, processed.length)}–{Math.min(page * PAGE_SIZE, processed.length)}</b> of <b style={{ color: COLORS.charcoal }}>{processed.length}</b> responses
             </span>
             {totalPages > 1 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4 }}>
                 <PageBtn label="‹" disabled={page === 1} onClick={() => setPage(p => p - 1)} />
                 {Array.from({ length: totalPages }, (_, i) => i + 1)
                   .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
@@ -953,6 +1042,25 @@ export default function RSVPsTab({
         </div>
         </>
       )}
+
+      {/**
+        * BELOW THE LIST. It used to open this section, on the reasoning that
+        * "will I have enough messages?" is asked while looking at the list — but
+        * that argues for the banner being on this SCREEN, which it still is, not
+        * for it standing between the organizer and their replies. On a phone it
+        * plus the four summary cards were most of a screen before the first row.
+        *
+        * It keeps its place in the reading order: scroll to the end of the
+        * replies and there is the balance, next to the thing you would do about
+        * it.
+        */}
+      <SmsBalanceBanner
+        active={smsAddonActive}
+        remaining={smsRemaining}
+        purchased={smsPurchased}
+        coverage={smsCoverage}
+        topUpHref="/dashboard/campaigns"
+      />
 
       <EditGuestModal
         isOpen={!!editingGuest}
@@ -975,6 +1083,20 @@ export default function RSVPsTab({
           busy={deletingId === removing.id}
           onCancel={() => setRemoving(null)}
           onConfirm={() => handleDelete(removing.id)}
+        />
+      )}
+
+      {inviteOpen && (
+        <SendInvitationModal
+          isOpen
+          onClose={() => setInviteOpen(false)}
+          eventId={eventId}
+          event={event}
+          customFields={customFields}
+          smsAddonActive={smsAddonActive}
+          smsRemaining={smsRemaining}
+          onBuySms={onBuySms}
+          onSent={onRefresh}
         />
       )}
 
@@ -1066,7 +1188,7 @@ const RSVPRow = React.memo(function RSVPRow({ rsvp, isEven, deletingId, onDelete
           padding: '4px 12px',
           borderRadius: 6,
           background: badge.bg,
-          fontSize: 10,
+          fontSize: 'var(--fx-micro)',
           fontWeight: 700,
           color: badge.color,
           textTransform: 'uppercase',
@@ -1110,7 +1232,7 @@ const RSVPRow = React.memo(function RSVPRow({ rsvp, isEven, deletingId, onDelete
           style={{
             display: 'inline-block', padding: '3px 9px', borderRadius: 100,
             background: reach.bg, color: reach.color,
-            fontSize: 10.5, fontWeight: 700, fontFamily: 'var(--font-sans)',
+            fontSize: 'var(--fx-micro)', fontWeight: 700, fontFamily: 'var(--font-sans)',
             whiteSpace: 'nowrap',
           }}
         >
@@ -1171,7 +1293,7 @@ const RSVPCard = React.memo(function RSVPCard({ rsvp, deletingId, onDelete, rese
       background: COLORS.white, border: `1px solid ${COLORS.border}`, borderRadius: 12,
       padding: 16, display: 'flex', flexDirection: 'column', gap: 10,
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
         {/* Selection is not a desktop-only feature — the table is hidden below
             640px and these cards replace it, so without this the whole workflow
             would vanish on a phone. */}
@@ -1189,7 +1311,7 @@ const RSVPCard = React.memo(function RSVPCard({ rsvp, deletingId, onDelete, rese
           <span style={{
             display: 'inline-block', marginTop: 4, padding: '2px 8px', borderRadius: 100,
             background: reach.bg, color: reach.color,
-            fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-sans)',
+            fontSize: 'var(--fx-micro)', fontWeight: 700, fontFamily: 'var(--font-sans)',
           }}>{reach.label}</span>
           {rsvp.email && (
             <span style={{ display: 'block', fontSize: 12, color: COLORS.stone, marginTop: 2, fontFamily: 'var(--font-sans)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -1200,7 +1322,7 @@ const RSVPCard = React.memo(function RSVPCard({ rsvp, deletingId, onDelete, rese
         <span style={{
           display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0,
           padding: '4px 12px', borderRadius: 6, background: badge.bg,
-          fontSize: 10, fontWeight: 700, color: badge.color, textTransform: 'uppercase',
+          fontSize: 'var(--fx-micro)', fontWeight: 700, color: badge.color, textTransform: 'uppercase',
           letterSpacing: '0.06em', fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap',
         }}>
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: badge.dot, flexShrink: 0 }} />

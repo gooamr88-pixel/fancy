@@ -113,7 +113,7 @@ export default function PhoneSimulator({ template, theme, guestName, onGuestName
           <div style={{
             position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)',
             width: 100, height: 28, borderRadius: 16, background: '#000', zIndex: 60,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 8,
             boxShadow: 'inset 0 0 2px rgba(255,255,255,0.05)',
           }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#1a1a2e', border: '1.5px solid #2a2a3e' }} />
@@ -164,11 +164,11 @@ export default function PhoneSimulator({ template, theme, guestName, onGuestName
   if (isMobile) {
     return (
       <div className="ce-phone" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', gap: 10 }}>
-        <div ref={wrapRef} style={{ width: '100%', maxWidth: 320, display: 'flex', justifyContent: 'center' }}>
+        <div ref={wrapRef} style={{ width: '100%', maxWidth: 320, display: 'flex', flexWrap: 'wrap', justifyContent: 'center' }}>
           {frame}
         </div>
         <FlowStepper step={step} onSelect={handleSelect} compact />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
           <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#3B9B6D', animation: 'ps-blink 2s ease-in-out infinite' }} />
           <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: '#77736A', letterSpacing: '0.04em' }}>Walk through the full guest journey</span>
         </div>
@@ -180,13 +180,13 @@ export default function PhoneSimulator({ template, theme, guestName, onGuestName
   /* ═══ DESKTOP: sticky panel ═══ */
   return (
     <div className="ce-phone-container">
-      <div ref={wrapRef} style={{ width: '100%', maxWidth: BASE_W, display: 'flex', justifyContent: 'center' }}>
+      <div ref={wrapRef} style={{ width: '100%', maxWidth: BASE_W, display: 'flex', flexWrap: 'wrap', justifyContent: 'center' }}>
         {frame}
       </div>
 
       {/* Label */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
           <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#3B9B6D', animation: 'ps-blink 2s ease-in-out infinite' }} />
           <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 600, color: '#191B1E', letterSpacing: '0.03em' }}>Live Guest Journey</span>
         </div>

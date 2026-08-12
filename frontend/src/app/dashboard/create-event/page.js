@@ -1512,7 +1512,7 @@ export default function CreateEventWizard() {
     return (
       <div style={{
         minHeight: '100vh', background: '#FAF8F5',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
       }}>
         <div style={{
           width: 40, height: 40,

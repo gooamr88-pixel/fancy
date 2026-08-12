@@ -43,7 +43,7 @@ export default function TemplateCard({ template, isSelected, onSelect, index, ac
         <div style={{
           position: 'absolute', top: 10, right: 10, zIndex: 10,
           width: 22, height: 22, borderRadius: '50%', background: '#B8944F',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
           boxShadow: '0 2px 8px rgba(184,148,79,0.4)', animation: 'tc-pop 0.3s cubic-bezier(0.16,1,0.3,1)',
         }}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 13l4 4L19 7" /></svg>
@@ -55,7 +55,7 @@ export default function TemplateCard({ template, isSelected, onSelect, index, ac
         {isCustom ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 9 }}>
             <EventCategoryIcon name="custom" size={22} color="#B8944F" strokeWidth={1.3} />
-            <div style={{ display: 'flex', gap: 5 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
               {['#8B7355', '#D4C5A9', '#475569', '#A0845C'].map(c => (
                 <span key={c} style={{ width: 11, height: 11, borderRadius: 4, background: c, boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }} />
               ))}

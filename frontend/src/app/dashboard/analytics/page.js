@@ -171,7 +171,7 @@ export default function AnalyticsPage() {
           padding: '12px 14px', background: C.white, border: `1px solid ${C.border}`,
           borderRadius: 12, marginBottom: 20,
         }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <label style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, minWidth: 0 }}>
             <span style={{ fontSize: 11.5, fontWeight: 600, color: VIZ.inkMuted }}>Event</span>
             <select
               value={eventId || ''}
@@ -407,8 +407,8 @@ function Dashboard({ data }) {
             <LinePanel title="Responses" points={days.map((d) => ({ label: d.label, value: d.rsvps }))} />
             <LinePanel title="Other interactions" points={days.map((d) => ({ label: d.label, value: d.engagements }))} />
             <div style={{
-              display: 'flex', justifyContent: 'space-between', paddingTop: 2,
-              fontSize: 10.5, color: VIZ.inkMuted, fontVariantNumeric: 'tabular-nums',
+              display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', paddingTop: 2,
+              fontSize: 'var(--fx-micro)', color: VIZ.inkMuted, fontVariantNumeric: 'tabular-nums',
             }}>
               <span>{days[0].label}</span>
               {days.length > 2 && <span>{days[Math.floor(days.length / 2)].label}</span>}

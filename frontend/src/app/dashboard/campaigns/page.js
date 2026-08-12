@@ -183,8 +183,12 @@ export default function MessagesPage() {
 
   /* ── Empty state: no events at all ────────────────────────────────────── */
   if (!loading && events.length === 0) {
+    /* fx-gutter, because .fx-container deliberately has NO horizontal padding —
+       it assumes an .fx-section above it supplied one, and on this route there is
+       nothing above but .dnav-content (margin-left + padding-bottom only).
+       Without it this page rendered flush against both screen edges. */
     return (
-      <div className="fx-container fx-container--3xl" style={{ paddingTop: 48 }}>
+      <div className="fx-container fx-container--3xl fx-gutter fx-gutter--sm" style={{ paddingTop: 48 }}>
         <Empty
           title="No events yet"
           body="Create an event and you will be able to text your guests their invitation, their table and any changes."
@@ -195,7 +199,7 @@ export default function MessagesPage() {
   }
 
   return (
-    <div className="fx-container fx-container--4xl" style={{ paddingTop: 34, paddingBottom: 60 }}>
+    <div className="fx-container fx-container--4xl fx-gutter fx-gutter--sm" style={{ paddingTop: 34, paddingBottom: 60 }}>
       {/* ── Header ───────────────────────────────────────────────────────── */}
       <Link href="/dashboard" style={{ fontSize: 13, color: C.stone, textDecoration: 'none', fontFamily: 'var(--font-sans)' }}>
         &larr; Back to dashboard
@@ -281,7 +285,7 @@ export default function MessagesPage() {
                 </div>
                 {Object.entries(data.skipSummary).map(([reason, count]) => (
                   <div key={reason} style={{
-                    display: 'flex', justifyContent: 'space-between', gap: 12,
+                    display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 12,
                     fontSize: 12.5, color: C.stone, padding: '3px 0', fontFamily: 'var(--font-sans)',
                   }}>
                     <span>{data.skipLabels?.[reason] || reason}</span>
@@ -309,7 +313,7 @@ export default function MessagesPage() {
                       {['Guest', 'Message', 'What happened', ''].map((h, i) => (
                         <th key={i} style={{
                           textAlign: i === 3 ? 'right' : 'left', padding: '8px 10px',
-                          fontSize: 10, fontWeight: 700, letterSpacing: '0.08em',
+                          fontSize: 'var(--fx-micro)', fontWeight: 700, letterSpacing: '0.08em',
                           textTransform: 'uppercase', color: C.stone,
                           borderBottom: `1px solid ${C.border}`, fontFamily: 'var(--font-sans)',
                           whiteSpace: 'nowrap',
@@ -339,7 +343,7 @@ export default function MessagesPage() {
                               onClick={() => retry(r.id)}
                               disabled={resending === r.id}
                               style={{
-                                padding: '5px 11px', borderRadius: 7,
+                                padding: '5px 11px', minHeight: 'var(--fx-touch)', borderRadius: 7,
                                 border: `1px solid ${C.border}`, background: C.white,
                                 color: C.charcoal, fontSize: 11.5, fontWeight: 700,
                                 cursor: resending === r.id ? 'wait' : 'pointer',
@@ -491,7 +495,7 @@ function TypeRow({ type, on, saving, onToggle, organizerSms }) {
 
   return (
     <div style={{
-      display: 'flex', alignItems: 'flex-start', gap: 14,
+      display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 14,
       padding: '13px 0', borderBottom: `1px solid ${C.border}`,
     }}>
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -568,7 +572,7 @@ function TopUpModal({ apiUrl, eventId, onClose }) {
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       style={{
         position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(25,27,30,0.55)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+        display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', padding: 16,
       }}
     >
       <div style={{ background: C.white, borderRadius: 16, width: '100%', maxWidth: 400, padding: 22 }}>
@@ -619,14 +623,14 @@ function TopUpModal({ apiUrl, eventId, onClose }) {
             : <span style={{ color: C.stone, fontSize: 13 }}>Pricing…</span>}
         </div>
 
-        <div style={{ display: 'flex', gap: 9, justifyContent: 'flex-end', marginTop: 18 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9, justifyContent: 'flex-end', marginTop: 18 }}>
           <button type="button" onClick={onClose} style={{
-            padding: '9px 16px', borderRadius: 8, border: `1px solid ${C.border}`,
+            padding: '9px 16px', minHeight: 'var(--fx-touch)', borderRadius: 8, border: `1px solid ${C.border}`,
             background: C.white, color: C.charcoal, fontSize: 13, fontWeight: 600,
             cursor: 'pointer', fontFamily: 'var(--font-sans)',
           }}>Cancel</button>
           <button type="button" onClick={buy} disabled={busy} style={{
-            padding: '9px 18px', borderRadius: 8, border: 'none',
+            padding: '9px 18px', minHeight: 'var(--fx-touch)', borderRadius: 8, border: 'none',
             background: busy ? C.stone : C.gold, color: C.white,
             fontSize: 13, fontWeight: 700, cursor: busy ? 'wait' : 'pointer',
             fontFamily: 'var(--font-sans)',

@@ -166,8 +166,11 @@ export default function SmsPlansPage() {
       .finally(() => setBuying(false));
   };
 
+  /* fx-gutter: .fx-container has no horizontal padding of its own, and nothing on
+     this route supplies one — every heading and card sat flush against both screen
+     edges on a phone. */
   return (
-    <div className="fx-container fx-container--4xl" style={{ paddingBottom: 40 }}>
+    <div className="fx-container fx-container--4xl fx-gutter fx-gutter--sm" style={{ paddingBottom: 40 }}>
       {/* ── 1. What this is ─────────────────────────────────────────────── */}
       <header style={{ padding: '38px 0 8px' }}>
         <Link href="/dashboard" style={{ fontSize: 13, color: C.stone, textDecoration: 'none', fontFamily: 'var(--font-sans)' }}>
@@ -266,12 +269,12 @@ export default function SmsPlansPage() {
               <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: C.charcoal, marginBottom: 8, fontFamily: 'var(--font-sans)' }}>
                 What language are your messages in?
               </label>
-              <div style={{ display: 'flex', gap: 7 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
                 {[['latin', 'English'], ['arabic', 'Arabic']].map(([v, l]) => (
                   <button
                     key={v} type="button" onClick={() => setScript(v)}
                     style={{
-                      flex: 1, padding: '9px 12px', borderRadius: 9,
+                      flex: 1, padding: '9px 12px', minHeight: 'var(--fx-touch)', borderRadius: 9,
                       border: `1px solid ${script === v ? C.gold : C.border}`,
                       background: script === v ? C.gold : C.white,
                       color: script === v ? C.white : C.charcoal,
@@ -463,7 +466,7 @@ function Explainer({ title, children }) {
 function Fact({ label, value, good = false }) {
   return (
     <div style={{
-      display: 'flex', justifyContent: 'space-between', gap: 12,
+      display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 12,
       padding: '5px 0', borderBottom: `1px solid ${C.border}`,
     }}>
       <span style={{ fontSize: 13, color: C.stone, fontFamily: 'var(--font-sans)' }}>{label}</span>

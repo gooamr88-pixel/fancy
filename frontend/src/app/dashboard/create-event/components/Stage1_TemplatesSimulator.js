@@ -151,7 +151,7 @@ function MobileTemplateChip({ template, isSelected, onSelect, preset }) {
 
       {/* Text content */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, padding: '10px 14px 10px 10px', minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
           <span style={{
             fontFamily: 'var(--font-serif)', fontSize: 13, fontWeight: 600,
             color: isSelected ? '#191B1E' : '#555',
@@ -177,7 +177,7 @@ function MobileTemplateChip({ template, isSelected, onSelect, preset }) {
         <div style={{
           width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
           background: '#B8944F', margin: 'auto 10px auto 0',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
         }}>
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M5 13l4 4L19 7"/>
@@ -193,7 +193,7 @@ function MobileTemplateChip({ template, isSelected, onSelect, preset }) {
 function MobilePresetRow({ template, activePresetIndex, onPresetSelect }) {
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
       gap: 12, padding: '8px 0',
     }}>
       {template.presets.map((p, pi) => (
@@ -298,7 +298,10 @@ export default function Stage1_TemplatesSimulator({
         pointerEvents: 'none', zIndex: 0,
       }} />
 
-      <div style={{ position: 'relative', zIndex: 1 }} className="s1-inner fx-container fx-container--5xl">
+      {/* fx-gutter: .fx-container carries no horizontal padding of its own, and
+          neither .s1-root above nor .s1-inner supplies one — so the whole first
+          wizard stage rendered flush against both screen edges on a phone. */}
+      <div style={{ position: 'relative', zIndex: 1 }} className="s1-inner fx-container fx-container--5xl fx-gutter fx-gutter--sm">
         {/* ═══ HEADER ═══ */}
         <div style={{ textAlign: 'center' }} className="s1-header">
           <div style={{
@@ -421,7 +424,7 @@ export default function Stage1_TemplatesSimulator({
                   color: '#FFFFFF', border: 'none', borderRadius: 16,
                   fontFamily: 'var(--font-sans)', fontSize: 15,
                   fontWeight: 700, cursor: 'pointer',
-                  display: 'flex', alignItems: 'center',
+                  display: 'flex', flexWrap: 'wrap', alignItems: 'center',
                   justifyContent: 'center', gap: 8,
                   boxShadow: '0 4px 20px rgba(184,148,79,0.35)',
                   WebkitTapHighlightColor: 'transparent',
@@ -503,7 +506,7 @@ export default function Stage1_TemplatesSimulator({
                 color: '#FFFFFF', border: 'none', borderRadius: 14,
                 fontFamily: 'var(--font-sans)', fontSize: 14,
                 fontWeight: 700, cursor: 'pointer',
-                display: 'flex', alignItems: 'center',
+                display: 'flex', flexWrap: 'wrap', alignItems: 'center',
                 justifyContent: 'center', gap: 8,
                 transition: 'all 0.3s cubic-bezier(0.16,1,0.3,1)',
                 boxShadow: '0 4px 16px rgba(184,148,79,0.3)',

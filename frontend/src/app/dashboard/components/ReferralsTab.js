@@ -41,12 +41,12 @@ function CopyField({ value }) {
   };
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: 10, background: COLORS.softBg,
+      display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, background: COLORS.softBg,
       border: `1.5px solid ${COLORS.border}`, borderRadius: 12, padding: '12px 14px',
     }}>
       <code style={{ flex: 1, minWidth: 0, fontFamily: 'var(--font-mono, monospace)', fontSize: 13.5, color: COLORS.charcoal, wordBreak: 'break-all' }}>{value}</code>
       <button type="button" onClick={doCopy} style={{
-        flexShrink: 0, border: 'none', borderRadius: 8, padding: '8px 16px',
+        flexShrink: 0, border: 'none', borderRadius: 8, padding: '8px 16px', minHeight: 'var(--fx-touch)',
         background: copied ? COLORS.success : COLORS.gold, color: COLORS.white,
         fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 700, cursor: 'pointer',
       }}>
@@ -144,10 +144,10 @@ export default function ReferralsTab() {
             { n: '2', t: 'They activate an event', d: 'Once they sign up and pay for their first event, the referral counts.' },
             { n: '3', t: 'You get credit', d: `${fmtCents(data?.rewardCents)} lands in your balance and applies to your next payment.` },
           ].map((s) => (
-            <div key={s.n} style={{ display: 'flex', gap: 12 }}>
+            <div key={s.n} style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
               <div style={{
                 flexShrink: 0, width: 30, height: 30, borderRadius: '50%', background: COLORS.gold, color: COLORS.white,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-serif)', fontSize: 14, fontWeight: 700,
+                display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-serif)', fontSize: 14, fontWeight: 700,
               }}>{s.n}</div>
               <div>
                 <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13.5, fontWeight: 700, color: COLORS.charcoal, margin: '0 0 4px' }}>{s.t}</p>
@@ -197,7 +197,7 @@ export default function ReferralsTab() {
           <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 17, fontWeight: 700, color: COLORS.charcoal, margin: '0 0 16px' }}>Credit activity</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {data.ledger.slice(0, 15).map((l) => (
-              <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '8px 0', borderBottom: `1px solid ${COLORS.border}` }}>
+              <div key={l.id} style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 12, padding: '8px 0', borderBottom: `1px solid ${COLORS.border}` }}>
                 <div style={{ minWidth: 0 }}>
                   <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: COLORS.charcoal, margin: 0 }}>
                     {l.type === 'earned' ? 'Referral reward earned' : l.type === 'redeemed' ? 'Applied to a payment' : l.type === 'admin_grant' ? 'Credit granted' : 'Credit adjusted'}

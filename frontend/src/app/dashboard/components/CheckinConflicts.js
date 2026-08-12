@@ -87,7 +87,7 @@ export default function CheckinConflicts({ eventId }) {
         </p>
       </div>
 
-      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: C.stone }}>
+      <label style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', fontSize: '14px', color: C.stone }}>
         <input
           type="checkbox"
           checked={showResolved}

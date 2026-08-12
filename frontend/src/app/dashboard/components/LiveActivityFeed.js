@@ -18,7 +18,7 @@ export default function LiveActivityFeed({ rsvps }) {
     >
       <div
         style={{
-          display: "flex",
+          display: "flex", flexWrap: 'wrap',
           justifyContent: "space-between",
           alignItems: "center",
           borderBottom: "1px solid #F0ECE3",
@@ -39,7 +39,7 @@ export default function LiveActivityFeed({ rsvps }) {
           </h3>
           <p
             style={{
-              fontSize: "10px",
+              fontSize: 'var(--fx-micro)',
               color: "#77736A",
               fontFamily: "var(--font-sans)",
               marginTop: "2px",
@@ -57,7 +57,7 @@ export default function LiveActivityFeed({ rsvps }) {
             borderRadius: "20px",
             background: "rgba(184,148,79,0.1)",
             color: "#B8944F",
-            fontSize: "10px",
+            fontSize: 'var(--fx-micro)',
             fontWeight: 700,
             border: "1px solid rgba(184,148,79,0.2)",
             fontFamily: "var(--font-sans)",
@@ -119,7 +119,7 @@ export default function LiveActivityFeed({ rsvps }) {
                   border: "1px solid #F0ECE3",
                   background: "#FAFAF8",
                   borderRadius: "10px",
-                  display: "flex",
+                  display: "flex", flexWrap: 'wrap',
                   justifyContent: "space-between",
                   alignItems: "center",
                   fontSize: "12px",
@@ -137,7 +137,7 @@ export default function LiveActivityFeed({ rsvps }) {
               >
                 <div
                   style={{
-                    display: "flex",
+                    display: "flex", flexWrap: 'wrap',
                     alignItems: "center",
                     gap: "10px",
                   }}
@@ -147,7 +147,7 @@ export default function LiveActivityFeed({ rsvps }) {
                       width: "32px",
                       height: "32px",
                       borderRadius: "50%",
-                      display: "flex",
+                      display: "flex", flexWrap: 'wrap',
                       alignItems: "center",
                       justifyContent: "center",
                       fontWeight: 700,
@@ -170,7 +170,7 @@ export default function LiveActivityFeed({ rsvps }) {
                     </span>
                     <span
                       style={{
-                        fontSize: "10px",
+                        fontSize: 'var(--fx-micro)',
                         color: "#77736A",
                         display: "block",
                         lineHeight: 1,
@@ -190,7 +190,7 @@ export default function LiveActivityFeed({ rsvps }) {
                       display: "inline-block",
                       padding: "2px 8px",
                       borderRadius: "6px",
-                      fontSize: "9px",
+                      fontSize: 'var(--fx-micro)',
                       fontWeight: 700,
                       background: isYes ? "rgba(184,148,79,0.1)" : "rgba(196,94,94,0.08)",
                       color: isYes ? "#B8944F" : "#C45E5E",
@@ -200,7 +200,7 @@ export default function LiveActivityFeed({ rsvps }) {
                   </span>
                   <span
                     style={{
-                      fontSize: "9px",
+                      fontSize: 'var(--fx-micro)',
                       color: "#A09A91",
                       display: "block",
                       marginTop: "4px",

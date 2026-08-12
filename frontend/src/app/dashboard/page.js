@@ -18,7 +18,10 @@ import SeatingManager from './components/SeatingManager';
 import TableForm from './components/TableForm';
 import SeatingProgress from './components/SeatingProgress';
 import FormBuilder from './components/FormBuilder';
-import AddGuestModal from './components/AddGuestModal';
+/* AddGuestModal is gone. Adding one guest is now "Send an invitation", and it
+   is owned by RSVPsTab rather than mounted here — see the note in
+   SendInvitationModal. Only the bulk import still belongs to this page, because
+   it is opened from a different tab than the one that renders it. */
 import ImportGuestsModal from './components/ImportGuestsModal';
 import EventSettings from './components/EventSettings';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -180,7 +183,7 @@ function QRCodeDisplay({ url, size = 200 }) {
     }).catch(() => {});
     return () => { cancelled = true; };
   }, [url, size]);
-  if (!src) return <div style={{ width: size, height: size, background: COLORS.softBg, border: `1px solid ${COLORS.border}`, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontSize: 11, color: COLORS.stone }}>Loading QR…</span></div>;
+  if (!src) return <div style={{ width: size, height: size, background: COLORS.softBg, border: `1px solid ${COLORS.border}`, borderRadius: 12, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontSize: 11, color: COLORS.stone }}>Loading QR…</span></div>;
   return (
     <div style={{ background: COLORS.softBg, border: `1px solid ${COLORS.border}`, padding: 16, borderRadius: 12, display: 'inline-flex', justifyContent: 'center', alignItems: 'center' }}>
       <img src={src} alt="Event QR Code" style={{ width: size, height: size, display: 'block' }} />
@@ -290,7 +293,6 @@ function DashboardPageInner() {
   }, [router, pathname]);
 
   const setActiveTab = useCallback((key) => goTo(key), [goTo]);
-  const [showAddGuestModal, setShowAddGuestModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   /**
    * Everything the tabs need to say about text messaging, held once here.
@@ -719,7 +721,7 @@ function DashboardPageInner() {
 
   if (error) {
     return (
-      <div style={{ minHeight: '100vh', background: COLORS.ivory, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
+      <div style={{ minHeight: '100vh', background: COLORS.ivory, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
         <div style={{ maxWidth: '440px', width: '100%', textAlign: 'center', background: COLORS.white, border: `1px solid ${COLORS.border}`, padding: '48px 32px', borderRadius: '16px', boxShadow: '0 8px 30px rgba(0,0,0,0.06)' }}>
           <Icon name="plug" size={44} color="#C45E5E" strokeWidth={1.3} />
           <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 600, color: '#C45E5E', marginTop: '12px' }}>Backend Connection Error</h2>
@@ -800,7 +802,7 @@ function DashboardPageInner() {
                           : `You have ${liveCount} event${liveCount !== 1 ? 's' : ''}`}
                 </p>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px' }}>
                 {isSuperAdmin && (
                   <Link href="/admin" id="btn-open-super-admin" style={{
                     padding: '10px 18px',
@@ -877,7 +879,7 @@ function DashboardPageInner() {
                       background: activeEvent.status === 'active' ? 'rgba(34, 197, 94, 0.08)' : activeEvent.status === 'paused' ? 'rgba(245, 158, 11, 0.08)' : 'rgba(119, 115, 106, 0.08)',
                       border: `1px solid ${activeEvent.status === 'active' ? 'rgba(34, 197, 94, 0.2)' : activeEvent.status === 'paused' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(119, 115, 106, 0.2)'}`,
                       borderRadius: '20px',
-                      fontSize: '10px',
+                      fontSize: 'var(--fx-micro)',
                       fontWeight: 700,
                       textTransform: 'uppercase',
                       color: activeEvent.status === 'active' ? '#22C55E' : activeEvent.status === 'paused' ? '#F59E0B' : '#77736A',
@@ -906,7 +908,7 @@ function DashboardPageInner() {
                         background: 'rgba(184, 148, 79, 0.04)',
                         border: '1px solid rgba(184, 148, 79, 0.18)',
                         borderRadius: '30px',
-                        padding: '5px 28px 5px 12px',
+                        padding: '5px 28px 5px 12px', minHeight: 'var(--fx-touch)',
                         fontSize: '11px',
                         fontWeight: 600,
                         color: COLORS.gold,
@@ -1044,7 +1046,7 @@ function DashboardPageInner() {
                     onClick={() => setShowImportModal(true)}
                     id="btn-import-csv"
                     style={{
-                      padding: '8px 16px',
+                      padding: '8px 16px', minHeight: 'var(--fx-touch)',
                       background: COLORS.white,
                       border: `1px solid ${COLORS.border}`,
                       color: COLORS.stone,
@@ -1108,7 +1110,7 @@ function DashboardPageInner() {
                       color: COLORS.white,
                       padding: '5px 12px',
                       borderRadius: '6px',
-                      fontSize: '10px',
+                      fontSize: 'var(--fx-micro)',
                       fontWeight: 700,
                       fontFamily: 'var(--font-sans)',
                       whiteSpace: 'nowrap',
@@ -1122,7 +1124,7 @@ function DashboardPageInner() {
                   onClick={() => { setQrModalTab('qr'); setShowQRModal(true); }}
                   id="btn-show-qr"
                   style={{
-                    padding: '8px 16px',
+                    padding: '8px 16px', minHeight: 'var(--fx-touch)',
                     background: COLORS.white,
                     border: `1px solid ${COLORS.border}`,
                     color: COLORS.stone,
@@ -1228,6 +1230,11 @@ function DashboardPageInner() {
               smsPurchased={smsAddon.purchased}
               smsCoverage={smsAddon.coverage}
               onBuySms={() => router.push('/dashboard/sms-plans?event=' + eventId)}
+              // Adding one guest by hand moved into this section, and it is a paid
+              // feature — so the tier context has to come with it.
+              isPaid={!!activeEvent?.is_paid || !!activeEvent?.manual_override}
+              tierFeatures={activeEvent?.tier_features}
+              onUpgrade={() => setActiveTab('events')}
             />
           ) : activeTab === 'guests' ? (
             <GuestsTab
@@ -1238,7 +1245,6 @@ function DashboardPageInner() {
               event={activeEvent}
               onAssignTable={handleAssignTable}
               onRefresh={loadDashboardData}
-              onOpenAddGuest={() => setShowAddGuestModal(true)}
               onOpenImport={() => setShowImportModal(true)}
               smsAddonActive={smsAddon.active}
               smsRemaining={smsAddon.remaining}
@@ -1304,24 +1310,20 @@ function DashboardPageInner() {
       </main>
 
       {/* ═══ MODALS ═══ */}
-      <AddGuestModal
-        isOpen={showAddGuestModal}
-        onClose={() => setShowAddGuestModal(false)}
-        eventId={eventId}
-        event={activeEvent}
-        customFields={customFields}
-        onGuestAdded={loadDashboardData}
-      />
       <ImportGuestsModal
         isOpen={showImportModal}
         onClose={() => setShowImportModal(false)}
         eventId={eventId}
         event={activeEvent}
+        // Only so its downloadable template fills its examples with this event's
+        // real tables and meal options — identical to the one Guest list offers.
+        tables={tables}
+        customFields={customFields}
         onImportComplete={loadDashboardData}
       />
       {/* ═══ QR CODE MODAL ═══ */}
       {showQRModal && activeEvent && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(25,27,30,0.6)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(25,27,30,0.6)', backdropFilter: 'blur(6px)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div style={{ position: 'relative', background: COLORS.white, border: `1px solid ${COLORS.border}`, width: '100%', maxWidth: 420, borderRadius: 16, padding: 24, boxShadow: '0 8px 40px rgba(0,0,0,0.12)', display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center', textAlign: 'center' }}>
 
             <button
@@ -1330,7 +1332,7 @@ function DashboardPageInner() {
               style={{
                 position: 'absolute', top: 12, right: 12,
                 width: '32px', height: '32px', borderRadius: '8px', border: 'none', background: COLORS.softBg,
-                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
                 color: COLORS.stone, transition: 'all 0.2s',
               }}
               onMouseEnter={(e) => { e.currentTarget.style.background = '#EDE8DD'; }}
@@ -1342,13 +1344,13 @@ function DashboardPageInner() {
             </button>
 
             {/* Modal Tabs */}
-            <div style={{ display: 'flex', gap: '8px', background: COLORS.softBg, padding: '4px', borderRadius: '8px', width: '100%', boxSizing: 'border-box' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', background: COLORS.softBg, padding: '4px', borderRadius: '8px', width: '100%', boxSizing: 'border-box' }}>
               <button
                 type="button"
                 onClick={() => setQrModalTab('qr')}
                 style={{
                   flex: 1,
-                  padding: '8px 12px',
+                  padding: '8px 12px', minHeight: 'var(--fx-touch)',
                   borderRadius: '6px',
                   fontSize: '12px',
                   fontWeight: 700,
@@ -1368,7 +1370,7 @@ function DashboardPageInner() {
                 onClick={() => setQrModalTab('card')}
                 style={{
                   flex: 1,
-                  padding: '8px 12px',
+                  padding: '8px 12px', minHeight: 'var(--fx-touch)',
                   borderRadius: '6px',
                   fontSize: '12px',
                   fontWeight: 700,
@@ -1394,7 +1396,7 @@ function DashboardPageInner() {
                 
                 <QRCodeDisplay url={`${window.location.origin}/${activeEvent.slug}`} size={200} />
                 
-                <div style={{ display: 'flex', gap: 8, width: '100%', marginTop: 8 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, width: '100%', marginTop: 8 }}>
                   <button
                     onClick={async () => {
                       try {
@@ -1479,7 +1481,7 @@ function DashboardPageInner() {
                     <div style={{ background: COLORS.softBg, border: `1px solid ${COLORS.border}`, padding: 8, borderRadius: 8, marginTop: 8 }}>
                       <QRCodeDisplay url={`${window.location.origin}/${activeEvent.slug}`} size={100} />
                     </div>
-                    <span style={{ fontSize: '8px', textTransform: 'uppercase', letterSpacing: '2px', color: COLORS.gold, fontWeight: 700, marginTop: 4 }}>
+                    <span style={{ fontSize: 'var(--fx-micro)', textTransform: 'uppercase', letterSpacing: '2px', color: COLORS.gold, fontWeight: 700, marginTop: 4 }}>
                       Scan to RSVP
                     </span>
                   </div>

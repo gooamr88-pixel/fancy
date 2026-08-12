@@ -44,7 +44,7 @@ export default function NoEventSelected({
       <div style={{
         width: 46, height: 46, borderRadius: 12, margin: '0 auto 16px',
         background: 'rgba(184, 148, 79, 0.12)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
       }}>
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#B8944F" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
           <rect x="3" y="4" width="18" height="18" rx="2" />

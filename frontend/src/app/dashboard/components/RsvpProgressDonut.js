@@ -246,7 +246,7 @@ function StatRow({ color, label, count, percentage, delay }) {
   return (
     <div
       style={{
-        display: 'flex',
+        display: 'flex', flexWrap: 'wrap',
         alignItems: 'center',
         gap: 12,
         padding: '10px 14px',
@@ -613,7 +613,7 @@ export default function RsvpProgressDonut({ rsvpOverview = {} }) {
           {/* Total row */}
           <div
             style={{
-              display: 'flex',
+              display: 'flex', flexWrap: 'wrap',
               alignItems: 'center',
               justifyContent: 'space-between',
               padding: '4px 14px',

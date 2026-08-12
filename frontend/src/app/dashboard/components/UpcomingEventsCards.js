@@ -165,7 +165,7 @@ export default function UpcomingEventsCards({ upcomingEvents = [] }) {
   return (
     <div style={cardStyle}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
         <div>
           <div style={{ fontSize: 17, fontFamily: 'var(--font-serif)', color: '#191B1E', fontWeight: 600 }}>
             Upcoming Events
@@ -250,7 +250,7 @@ export default function UpcomingEventsCards({ upcomingEvents = [] }) {
               {/* Card Content */}
               <div style={{
                 flex: 1,
-                display: 'flex',
+                display: 'flex', flexWrap: 'wrap',
                 alignItems: 'center',
                 gap: 16,
                 padding: '16px 18px',
@@ -274,7 +274,7 @@ export default function UpcomingEventsCards({ upcomingEvents = [] }) {
                   {/* Date row */}
                   {dateFormatted && (
                     <div style={{
-                      display: 'flex',
+                      display: 'flex', flexWrap: 'wrap',
                       alignItems: 'center',
                       gap: 6,
                       fontSize: 12,
@@ -290,7 +290,7 @@ export default function UpcomingEventsCards({ upcomingEvents = [] }) {
                   {/* Location row */}
                   {location && (
                     <div style={{
-                      display: 'flex',
+                      display: 'flex', flexWrap: 'wrap',
                       alignItems: 'center',
                       gap: 6,
                       fontSize: 12,
@@ -323,7 +323,7 @@ export default function UpcomingEventsCards({ upcomingEvents = [] }) {
 
                 {/* Status Pill */}
                 <div style={{
-                  display: 'flex',
+                  display: 'flex', flexWrap: 'wrap',
                   alignItems: 'center',
                   gap: 6,
                   fontSize: 11,

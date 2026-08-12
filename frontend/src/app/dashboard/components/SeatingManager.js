@@ -87,7 +87,7 @@ const SeatingManager = memo(function SeatingManager({
           </h3>
           <p
             style={{
-              fontSize: "10px",
+              fontSize: 'var(--fx-micro)',
               color: "#77736A",
               fontFamily: "var(--font-sans)",
               marginTop: "2px",
@@ -160,7 +160,7 @@ const SeatingManager = memo(function SeatingManager({
                       key={header}
                       style={{
                         paddingBottom: "12px",
-                        fontSize: "10px",
+                        fontSize: 'var(--fx-micro)',
                         fontWeight: 700,
                         color: "#77736A",
                         textTransform: "uppercase",
@@ -199,7 +199,7 @@ const SeatingManager = memo(function SeatingManager({
                       <span
                         style={{
                           display: "block",
-                          fontSize: "10px",
+                          fontSize: 'var(--fx-micro)',
                           color: "#A09A91",
                           marginTop: "2px",
                           fontWeight: 400,
@@ -217,7 +217,7 @@ const SeatingManager = memo(function SeatingManager({
                           display: "inline-block",
                           padding: "3px 10px",
                           borderRadius: "6px",
-                          fontSize: "9px",
+                          fontSize: 'var(--fx-micro)',
                           fontWeight: 700,
                           background: isYes
                             ? "rgba(184,148,79,0.1)"
@@ -253,7 +253,7 @@ const SeatingManager = memo(function SeatingManager({
                             background: "#FFFFFF",
                             border: "1px solid #E8E2D6",
                             fontSize: "12px",
-                            padding: "6px 10px",
+                            padding: "6px 10px", minHeight: 'var(--fx-touch)',
                             borderRadius: "8px",
                             color: "#191B1E",
                             cursor: "pointer",
@@ -283,7 +283,7 @@ const SeatingManager = memo(function SeatingManager({
                       ) : (
                         <span
                           style={{
-                            fontSize: "10px",
+                            fontSize: 'var(--fx-micro)',
                             color: "#A09A91",
                             fontStyle: "italic",
                           }}
@@ -307,15 +307,15 @@ const SeatingManager = memo(function SeatingManager({
             const isNo = isDeclined(guest.response);
             return (
               <div key={guest.id} style={{ border: "1px solid #F0ECE3", borderRadius: "10px", padding: "14px", display: "flex", flexDirection: "column", gap: "8px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px" }}>
+                <div style={{ display: "flex", flexWrap: 'wrap', justifyContent: "space-between", alignItems: "flex-start", gap: "10px" }}>
                   <div style={{ minWidth: 0 }}>
                     <span style={{ display: "block", fontWeight: 500, color: "#191B1E", fontSize: "13px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {guest.guest_name}
                     </span>
-                    <span style={{ display: "block", fontSize: "10px", color: "#A09A91", marginTop: "2px" }}>{guest.email}</span>
+                    <span style={{ display: "block", fontSize: 'var(--fx-micro)', color: "#A09A91", marginTop: "2px" }}>{guest.email}</span>
                   </div>
                   <span style={{
-                    flexShrink: 0, display: "inline-block", padding: "3px 10px", borderRadius: "6px", fontSize: "9px", fontWeight: 700,
+                    flexShrink: 0, display: "inline-block", padding: "3px 10px", borderRadius: "6px", fontSize: 'var(--fx-micro)', fontWeight: 700,
                     background: isYes ? "rgba(184,148,79,0.1)" : isNo ? "rgba(196,94,94,0.08)" : "rgba(119,115,106,0.1)",
                     color: isYes ? "#B8944F" : isNo ? "#C45E5E" : "#77736A",
                   }}>
@@ -335,7 +335,7 @@ const SeatingManager = memo(function SeatingManager({
                       onChange={(e) => onAssignTable(guest.id, e.target.value)}
                       style={{
                         width: "100%", background: "#FFFFFF", border: "1px solid #E8E2D6", fontSize: "13px",
-                        padding: "8px 10px", borderRadius: "8px", color: "#191B1E", cursor: "pointer",
+                        padding: "8px 10px", minHeight: 'var(--fx-touch)', borderRadius: "8px", color: "#191B1E", cursor: "pointer",
                         outline: "none", fontFamily: "var(--font-sans)",
                       }}
                       aria-label={`Assign table for ${guest.guest_name}`}
@@ -352,7 +352,7 @@ const SeatingManager = memo(function SeatingManager({
                       })}
                     </select>
                   ) : (
-                    <span style={{ fontSize: "10px", color: "#A09A91", fontStyle: "italic" }}>Exempt from seating</span>
+                    <span style={{ fontSize: 'var(--fx-micro)', color: "#A09A91", fontStyle: "italic" }}>Exempt from seating</span>
                   )}
                 </div>
               </div>

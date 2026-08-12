@@ -56,7 +56,7 @@ export default function FeatureGate({ tierFeatures, feature, isPaid, children, o
           height: 16,
           borderRadius: '50%',
           background: COLORS.gold,
-          display: 'flex',
+          display: 'flex', flexWrap: 'wrap',
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 2,

@@ -19,7 +19,7 @@ export default function StatMetricsCard({ label, value, subtext, icon, accentCol
         borderLeft: `4px solid ${borderColor}`,
         padding: "20px 24px",
         borderRadius: "12px",
-        display: "flex",
+        display: "flex", flexWrap: 'wrap',
         alignItems: "center",
         justifyContent: "space-between",
         transition: "all 0.3s ease",
@@ -37,7 +37,7 @@ export default function StatMetricsCard({ label, value, subtext, icon, accentCol
       <div style={{ flex: 1 }}>
         <span
           style={{
-            fontSize: "10px",
+            fontSize: 'var(--fx-micro)',
             fontWeight: 700,
             color: "#77736A",
             textTransform: "uppercase",
@@ -83,7 +83,7 @@ export default function StatMetricsCard({ label, value, subtext, icon, accentCol
             height: "40px",
             borderRadius: "50%",
             background: "#F8F4EC",
-            display: "flex",
+            display: "flex", flexWrap: 'wrap',
             alignItems: "center",
             justifyContent: "center",
             color: "#B8944F",

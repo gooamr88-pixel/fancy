@@ -120,6 +120,40 @@
   --fx-gap:    clamp(16px, 0.667rem + 1.667vw, 32px);
   --fx-gap-lg: clamp(24px, 1rem     + 2.5vw,   48px);
 
+  /* ── THE READING FLOOR ─────────────────────────────────────────────────
+     Type sizes that grow on a phone instead of shrinking with it.
+
+     The organizer dashboard is styled almost entirely with inline `style={{}}`,
+     and its dominant label idiom is a 10px uppercase run at 0.08em tracking.
+     At a desk that reads as precise; on a phone held at arm's length by an
+     organizer in their sixties — the user this product is actually for — it is
+     not readable at all. An audit on 2026-08-12 counted sub-11px sizes across
+     the dashboard: seating-map 19, EventsTab 14, GuestsTab 11, RSVPsTab 8.
+
+     WHY CUSTOM PROPERTIES AND NOT A CLASS: a class can never beat an inline
+     `fontSize`, and rewriting every call site to carry a media query is not
+     possible inline. A call site that writes `fontSize: 'var(--fx-label)'`
+     READS a property the stylesheet owns, which is the safe direction — the
+     opposite of the `--fx-pad-x` trap, where inline SET the property and killed
+     the media rule for it (see the gutter note further down).
+
+     The clamps invert the usual instinct on purpose: the LARGER value is the
+     phone one. 320px viewport → --fx-label resolves to 11.5px; 1280px → 10px.
+
+       --fx-micro  legal/footnote text, the absolute floor
+       --fx-label  uppercase micro-labels, table headings, badges
+       --fx-meta   secondary lines: timestamps, hints, counts
+       --fx-body   anything the organizer has to actually read */
+  --fx-micro: clamp(10.5px, 11.22px - 0.0703vw, 11px);
+  --fx-label: clamp(10px,   11.9px - 0.15vw,  11.5px);
+  --fx-meta:  clamp(11.5px, 13.1px - 0.125vw, 12.75px);
+  --fx-body:  clamp(13px,   14.4px - 0.11vw,  14px);
+
+  /* The minimum comfortable hit area. 44px is the figure the rest of this file
+     already uses for icon buttons; naming it stops the next control from being
+     28px because nobody looked it up. */
+  --fx-touch: 44px;
+
   /* Container max-widths — replaces ~20 ad-hoc values across the 125
      `margin: 0 auto` + maxWidth pairs. Every observed width snaps to a
      step within ±10%, so no layout moves perceptibly. */
@@ -447,6 +481,115 @@
 .fx-row--between { justify-content: space-between; }
 .fx-row--center  { justify-content: center; }
 .fx-row--gap     { gap: var(--fx-gap); }
+/* A row that must NOT wrap (a segmented control, a stepper) still has to fit —
+   so it scrolls instead. Never reach for plain `flex-wrap: nowrap`: its
+   min-content is the SUM of its children and no amount of shrinking the
+   children makes a five-button toolbar fit 280px. */
+.fx-row--scroll {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── .fx-disclose — chrome that collapses on a phone ───────────────────
+   THE PROBLEM. Every dashboard section is a desktop layout stacked
+   vertically, so the thing an organizer came for is below the thing that
+   describes it. Guest list puts six stat tiles, an SMS banner, a spreadsheet
+   guide and a search bar above the first guest: on a 667px-tall phone that
+   is roughly three screens of chrome before any content.
+
+   THE RULE. On a phone a section leads with its CONTENT and its chrome
+   collapses to one summary line. On a desktop nothing changes at all.
+
+   ONE RENDERING, not two. The summary line and the full chrome are the same
+   markup at every width; CSS decides which is visible. A mobile-only copy of
+   the stat tiles would be a second thing to keep in sync, and this codebase
+   has been bitten by that before (see the note on the guest list export).
+
+   The `!important` at md is doing real work: `--open` is React state, and
+   above the breakpoint the body must show whether or not somebody left it
+   collapsed on their phone earlier in the session.
+
+   Put the class on a WRAPPER, never on the grid itself — the grids here
+   carry an inline `display`, which would beat these rules outright. */
+.fx-disclose__body { display: none; }
+.fx-disclose__body--open { display: block; margin-top: 12px; }
+
+@media (width >= theme(--breakpoint-md)) {
+  .fx-disclose__body { display: block !important; }
+  .fx-disclose__summary { display: none !important; }
+}
+
+/* ── .fx-sticky-actions — a selection bar that survives scrolling ──────
+   An action bar rendered ABOVE a list scrolls away the moment you start
+   working down the list, so selecting guests on a phone means: tick, tick,
+   tick, scroll all the way back up, send. Pinning it to the bottom on touch
+   viewports puts the action where the thumb already is.
+
+   `bottom` clears the mobile nav bar (60px) and the home indicator beneath
+   it. Above the breakpoint it reverts to a normal block, in its original
+   place in the flow — there is nothing to escape from on a desktop. */
+.fx-sticky-actions {
+  position: sticky;
+  bottom: calc(60px + env(safe-area-inset-bottom) + 8px);
+  z-index: 30;
+}
+@media (width >= theme(--breakpoint-lg)) {
+  /* lg, not md: the bottom bar itself only appears below 1023.98px, so this
+     has to revert on exactly the viewports where that bar is gone. */
+  .fx-sticky-actions { position: static; }
+}
+
+/* ── iOS focus-zoom, killed at the root ────────────────────────────────
+   Mobile Safari ZOOMS THE WHOLE PAGE when a focused form control has a
+   computed font-size below 16px. It is not a preference and there is no
+   opt-out: the viewport scales, the layout jumps, and the organizer then has
+   to pinch back out to see the field they just tapped. Do it on a form with
+   twelve inputs and the page is unusable — which is a large part of what
+   "the dashboard is terrible on mobile" actually is.
+
+   The dashboard has 264 form controls (73 in Event details alone, 68 in the
+   wizard's form step), styled with inline `fontSize` values of 12–14px. A
+   class cannot beat an inline declaration, so this is one of the few places
+   `!important` is the correct tool rather than a workaround — and it is
+   scoped to touch-sized viewports and to form controls only.
+
+   16px exactly, not `max(16px, …)`: CSS cannot read an element's own declared
+   size to take a maximum of it, and every control in this app is below 16px
+   anyway. Above the breakpoint nothing here applies and the designed sizes
+   stand.
+
+   Note this REPLACES the per-call-site instinct to bump each input to 16px,
+   which would make the desktop UI coarse to fix a phone problem. */
+@media (max-width: 767.98px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* ── .fx-touch — the minimum hit area ──────────────────────────────────
+   An audit on 2026-08-12 found 221 dashboard controls with under 10px of
+   vertical padding and no height of any kind — roughly 26px tall, against
+   the 44px every platform guideline and the rest of this file already use.
+
+   min-height rather than height, so a control with two lines of label grows
+   instead of clipping. It is a CLASS and not a token because the three
+   declarations always travel together, and because a control that is only
+   given `min-height` without the centring ends up with its label glued to
+   the top edge. Beaten by an inline `height`/`minHeight`, like everything
+   else here — delete those when applying it. */
+.fx-touch {
+  min-height: var(--fx-touch);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Icon-only controls need the width too — a 44px-tall, 20px-wide target is
+   still a miss. Separate, because a full-width button must not be forced square. */
+.fx-touch--icon { min-width: var(--fx-touch); }
 
 /* ── .fx-scroll-x — the escape hatch ───────────────────────────────────
    Some content genuinely cannot reflow: the pricing comparison table, the
@@ -476,6 +619,14 @@
 @media (width >= theme(--breakpoint-lg)) {
   .fx-hide-below-lg { display: revert; }
 }
+/* The other direction: present on a phone, gone at md and up. For chrome that
+   only earns its space when the viewport is short — a jump index over a long
+   settings page is useless beside a mouse wheel and invaluable under a thumb. */
+.fx-only-below-md { display: revert; }
+@media (width >= theme(--breakpoint-md)) {
+  .fx-only-below-md { display: none !important; }
+}
+
 .fx-hide-below-md { display: none; }
 @media (width >= theme(--breakpoint-md)) {
   .fx-hide-below-md { display: revert; }

@@ -274,7 +274,7 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
     <div
       onClick={onClose}
       style={{
-        position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center',
+        position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', flexWrap: 'wrap', alignItems: 'center',
         justifyContent: 'center', background: 'rgba(25, 27, 30, 0.45)', backdropFilter: 'blur(6px)',
         WebkitBackdropFilter: 'blur(6px)', animation: 'fadeIn 0.2s ease', padding: '16px',
         boxSizing: 'border-box',
@@ -296,7 +296,7 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
       >
         {/* Header */}
         <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between',
           padding: '20px 24px', borderBottom: `1px solid ${COLORS.border}`, flexShrink: 0,
         }}>
           <h2 id="edit-guest-modal-title" style={{
@@ -307,7 +307,7 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
             aria-label="Close modal"
             style={{
               width: '32px', height: '32px', borderRadius: '8px', border: 'none', background: COLORS.ivory,
-              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
               color: COLORS.stone, transition: 'all 0.2s',
             }}
             onMouseEnter={(e) => { e.currentTarget.style.background = '#EDE8DD'; }}
@@ -378,7 +378,7 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
                   border: `1px solid ${smsConsentAttested ? COLORS.champagne : COLORS.border}`,
                   transition: 'background 0.2s, border-color 0.2s',
                 }}>
-                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                  <label style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
                     <input
                       type="checkbox"
                       checked={smsConsentAttested}
@@ -523,7 +523,7 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
             )}
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '24px', paddingTop: '16px', borderTop: `1px solid ${COLORS.border}` }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: '10px', marginTop: '24px', paddingTop: '16px', borderTop: `1px solid ${COLORS.border}` }}>
             <button type="button" onClick={onClose}
               style={{
                 padding: '10px 20px', borderRadius: '8px', border: `1px solid ${COLORS.border}`,
@@ -539,7 +539,7 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
                 background: loading ? COLORS.champagne : COLORS.gold, color: COLORS.white,
                 fontSize: '13px', fontWeight: 700, fontFamily: 'var(--font-sans)',
                 cursor: loading ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
-                display: 'flex', alignItems: 'center', gap: '8px',
+                display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px',
               }}
               onMouseEnter={(e) => { if (!loading) e.currentTarget.style.background = COLORS.goldHover; }}
               onMouseLeave={(e) => { if (!loading) e.currentTarget.style.background = COLORS.gold; }}

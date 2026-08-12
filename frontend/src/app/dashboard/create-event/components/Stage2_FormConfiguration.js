@@ -79,7 +79,7 @@ function Section({ title, icon, defaultOpen = true, children }) {
       transition: 'border-color 0.3s',
     }}>
       <button onClick={() => setOpen(!open)} style={{
-        width: '100%', display: 'flex', alignItems: 'center',
+        width: '100%', display: 'flex', flexWrap: 'wrap', alignItems: 'center',
         gap: 10, padding: '18px 24px', background: 'none',
         border: 'none', cursor: 'pointer', textAlign: 'left',
       }}>
@@ -124,11 +124,11 @@ function Section({ title, icon, defaultOpen = true, children }) {
 function Field({ label: lbl, required, hint, children, style: wrapStyle, htmlFor }) {
   return (
     <div style={{ marginBottom: 16, ...wrapStyle }}>
-      <label style={{ ...lblStyle, display: 'flex', alignItems: 'center', gap: 7 }} htmlFor={htmlFor}>
+      <label style={{ ...lblStyle, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 7 }} htmlFor={htmlFor}>
         <span>{lbl}{required && <span style={{ color: C.error, marginLeft: 2 }}>*</span>}</span>
         {!required && (
           <span style={{
-            fontSize: 9, fontWeight: 700, color: C.gold, background: 'rgba(184,148,79,0.1)',
+            fontSize: 'var(--fx-micro)', fontWeight: 700, color: C.gold, background: 'rgba(184,148,79,0.1)',
             border: '1px solid rgba(184,148,79,0.3)', borderRadius: 4, padding: '1.5px 6px',
             textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-sans)',
           }}>
@@ -137,7 +137,7 @@ function Field({ label: lbl, required, hint, children, style: wrapStyle, htmlFor
         )}
       </label>
       {children}
-      {hint && <span style={{ fontSize: 10, color: '#A09A91', display: 'block', marginTop: 4 }}>{hint}</span>}
+      {hint && <span style={{ fontSize: 'var(--fx-micro)', color: '#A09A91', display: 'block', marginTop: 4 }}>{hint}</span>}
     </div>
   );
 }
@@ -260,7 +260,7 @@ export default function Stage2_FormConfiguration({
         }}>Configure Your Event</h2>
         <p style={{
           fontFamily: 'var(--font-sans)', fontSize: 14,
-          color: C.stone, margin: '8px 0 0', display: 'flex', alignItems: 'center', gap: 6,
+          color: C.stone, margin: '8px 0 0', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6,
         }}>
           <EventCategoryIcon name={tpl.key} size={13} color={C.stone} /> Using <strong>{tpl.label}</strong> template • Fill in the details for your event
         </p>
@@ -286,7 +286,7 @@ export default function Stage2_FormConfiguration({
             slugStatus === 'available' ? <><Icon name="check" size={10} strokeWidth={1.8} style={{ verticalAlign: '-1px', marginRight: 3 }} />This URL is available!</> :
             slugStatus === 'taken' ? <><Icon name="cross" size={10} strokeWidth={1.8} style={{ verticalAlign: '-1px', marginRight: 3 }} />Taken. Try: {suggestedSlug}</> : null
           }>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0 }}>
               <span style={{
                 background: C.ivory, border: `1px solid ${C.border}`,
                 borderRight: 'none', borderRadius: '8px 0 0 8px',
@@ -371,7 +371,7 @@ export default function Stage2_FormConfiguration({
                   ].map(({ key, label }) => (
                     <div key={key}>
                       <label style={lblStyle}>{label}</label>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 8px', background: C.white }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 8px', background: C.white }}>
                         <input type="color" value={customColors[key] || '#B8944F'}
                           onChange={e => setCustomColors(prev => ({ ...prev, [key]: e.target.value }))}
                           style={{ width: 26, height: 26, border: 'none', background: 'none', padding: 0, cursor: 'pointer', borderRadius: 6 }} />
@@ -402,7 +402,7 @@ export default function Stage2_FormConfiguration({
                     );
                   })}
                 </div>
-                <p style={{ fontSize: 10, color: '#A09A91', margin: '8px 0 0', fontFamily: 'var(--font-sans)' }}>
+                <p style={{ fontSize: 'var(--fx-micro)', color: '#A09A91', margin: '8px 0 0', fontFamily: 'var(--font-sans)' }}>
                   Shapes the fields below and the name/tagline on your guest page — change it any time.
                 </p>
               </div>
@@ -829,7 +829,7 @@ export default function Stage2_FormConfiguration({
                 <span style={{ fontSize: 12, fontWeight: 600, color: C.stone, fontFamily: 'var(--font-sans)' }}>
                   {heroVideoUploading ? 'Uploading…' : 'Click to browse for a video'}
                 </span>
-                <span style={{ fontSize: 10, color: '#A09A91', fontFamily: 'var(--font-sans)' }}>MP4, WebM • Max {HERO_VIDEO_MAX_LABEL}</span>
+                <span style={{ fontSize: 'var(--fx-micro)', color: '#A09A91', fontFamily: 'var(--font-sans)' }}>MP4, WebM • Max {HERO_VIDEO_MAX_LABEL}</span>
               </div>
             </div>
             {td('ha_hero_video_url') && (
@@ -860,7 +860,7 @@ export default function Stage2_FormConfiguration({
               {DRESS_CODES.map(dc => (
                 <button key={dc || '__none'} onClick={() => { setCustomDressMode(false); setDressCode(dc); }}
                   style={{
-                    padding: '7px 14px', borderRadius: 20,
+                    padding: '7px 14px', minHeight: 'var(--fx-touch)', borderRadius: 20,
                     fontSize: 12, fontWeight: 600,
                     fontFamily: 'var(--font-sans)',
                     cursor: 'pointer',
@@ -873,7 +873,7 @@ export default function Stage2_FormConfiguration({
               ))}
               <button onClick={() => { setCustomDressMode(true); if (DRESS_CODES.includes(dressCode)) setDressCode(''); }}
                 style={{
-                  padding: '7px 14px', borderRadius: 20,
+                  padding: '7px 14px', minHeight: 'var(--fx-touch)', borderRadius: 20,
                   fontSize: 12, fontWeight: 600,
                   fontFamily: 'var(--font-sans)',
                   cursor: 'pointer',
@@ -931,13 +931,13 @@ export default function Stage2_FormConfiguration({
                     transform: privacyMode === pm.key ? 'scale(1.02)' : 'scale(1)',
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 6 }}><Icon name={pm.icon} size={22} color={C.gold} strokeWidth={1.4} /></div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', marginBottom: 6 }}><Icon name={pm.icon} size={22} color={C.gold} strokeWidth={1.4} /></div>
                   <div style={{
                     fontFamily: 'var(--font-sans)', fontSize: 13,
                     fontWeight: 700, color: C.charcoal,
                   }}>{pm.label}</div>
                   <div style={{
-                    fontFamily: 'var(--font-sans)', fontSize: 10,
+                    fontFamily: 'var(--font-sans)', fontSize: 'var(--fx-micro)',
                     color: C.stone, marginTop: 4,
                   }}>{pm.desc}</div>
                 </div>
@@ -967,7 +967,7 @@ export default function Stage2_FormConfiguration({
 
           <Field label="Notification Preferences">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: C.charcoal, cursor: 'pointer', userSelect: 'none' }}>
+              <label style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, fontSize: 13, color: C.charcoal, cursor: 'pointer', userSelect: 'none' }}>
                 <input type="checkbox" checked={notificationEmail}
                   onChange={e => setNotificationEmail(e.target.checked)}
                   style={{ width: 16, height: 16, accentColor: C.gold, cursor: 'pointer' }} />
@@ -976,13 +976,13 @@ export default function Stage2_FormConfiguration({
               <span style={{ fontSize: 11, color: '#A09A91', marginLeft: 26 }}>
                 This also controls email alerts to the Groom/Bride emails below, if set.
               </span>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#A8A29E', cursor: 'not-allowed', userSelect: 'none', opacity: 0.6 }}>
+              <label style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, fontSize: 13, color: '#A8A29E', cursor: 'not-allowed', userSelect: 'none', opacity: 0.6 }}>
                 <input type="checkbox" checked={false} disabled
                   style={{ width: 16, height: 16, cursor: 'not-allowed' }} />
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
                   Receive WhatsApp notification when a guest submits an RSVP
                   <span style={{
-                    fontSize: 10, fontWeight: 600, color: C.gold, background: `${C.gold}15`,
+                    fontSize: 'var(--fx-micro)', fontWeight: 600, color: C.gold, background: `${C.gold}15`,
                     border: `1px solid ${C.gold}30`, borderRadius: 4, padding: '2px 6px',
                     letterSpacing: '0.5px', textTransform: 'uppercase', whiteSpace: 'nowrap', opacity: 1,
                   }}>Coming Soon</span>
@@ -992,7 +992,7 @@ export default function Stage2_FormConfiguration({
           </Field>
 
           <Field label="Guest RSVP Options">
-            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13, color: C.charcoal, cursor: 'pointer', userSelect: 'none' }}>
+            <label style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 10, fontSize: 13, color: C.charcoal, cursor: 'pointer', userSelect: 'none' }}>
               <input type="checkbox" checked={allowGuestEdits}
                 onChange={e => setAllowGuestEdits(e.target.checked)}
                 style={{ width: 16, height: 16, marginTop: 2, accentColor: C.gold, cursor: 'pointer' }} />
@@ -1006,7 +1006,7 @@ export default function Stage2_FormConfiguration({
           </Field>
 
           <Field label="Guest Segmentation">
-            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13, color: C.charcoal, cursor: 'pointer', userSelect: 'none' }}>
+            <label style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 10, fontSize: 13, color: C.charcoal, cursor: 'pointer', userSelect: 'none' }}>
               <input type="checkbox" checked={trackGuestSide}
                 onChange={e => setTrackGuestSide(e.target.checked)}
                 style={{ width: 16, height: 16, marginTop: 2, accentColor: C.gold, cursor: 'pointer' }} />
@@ -1021,7 +1021,7 @@ export default function Stage2_FormConfiguration({
 
           {(templateType === 'wedding' || templateType === 'engagement') && setNoKidsAllowed && (
             <Field label="Adults-Only Notice">
-              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13, color: C.charcoal, cursor: 'pointer', userSelect: 'none' }}>
+              <label style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 10, fontSize: 13, color: C.charcoal, cursor: 'pointer', userSelect: 'none' }}>
                 <input type="checkbox" checked={!!noKidsAllowed}
                   onChange={e => setNoKidsAllowed(e.target.checked)}
                   style={{ width: 16, height: 16, marginTop: 2, accentColor: C.gold, cursor: 'pointer' }} />
@@ -1036,7 +1036,7 @@ export default function Stage2_FormConfiguration({
           )}
 
           <Field label="Dietary Restrictions">
-            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13, color: C.charcoal, cursor: 'pointer', userSelect: 'none' }}>
+            <label style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 10, fontSize: 13, color: C.charcoal, cursor: 'pointer', userSelect: 'none' }}>
               <input type="checkbox" checked={!!collectDietaryRestrictions}
                 onChange={e => setCollectDietaryRestrictions(e.target.checked)}
                 style={{ width: 16, height: 16, marginTop: 2, accentColor: C.gold, cursor: 'pointer' }} />
@@ -1050,7 +1050,7 @@ export default function Stage2_FormConfiguration({
           </Field>
 
           <Field label="Cover Image">
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
               <label style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6, cursor: coverImageUploading ? 'wait' : 'pointer',
                 padding: '10px 16px', borderRadius: 8, border: `1px solid ${C.gold}`, color: C.gold,
@@ -1098,7 +1098,7 @@ export default function Stage2_FormConfiguration({
                 <span style={{ fontSize: 12, fontWeight: 600, color: C.stone, fontFamily: 'var(--font-sans)' }}>
                   {coverImageUploading ? 'Uploading…' : 'Drop image here or click to browse'}
                 </span>
-                <span style={{ fontSize: 10, color: '#A09A91', fontFamily: 'var(--font-sans)' }}>JPG, PNG, WebP • Max 8MB</span>
+                <span style={{ fontSize: 'var(--fx-micro)', color: '#A09A91', fontFamily: 'var(--font-sans)' }}>JPG, PNG, WebP • Max 8MB</span>
               </div>
             </div>
             {/* Preview */}
@@ -1122,7 +1122,7 @@ export default function Stage2_FormConfiguration({
                     position: 'absolute', top: 6, right: 6, width: 26, height: 26,
                     borderRadius: '50%', border: 'none', background: 'rgba(25,27,30,0.75)',
                     color: '#fff', cursor: 'pointer', fontSize: 14, lineHeight: 1,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
                   }}>×</button>
               </div>
             )}
@@ -1168,7 +1168,7 @@ export default function Stage2_FormConfiguration({
                 fi.click();
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.stone} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
                 </svg>
@@ -1176,10 +1176,10 @@ export default function Stage2_FormConfiguration({
                   {musicUploading ? 'Uploading…' : 'Drop audio file here or click to browse'}
                 </span>
               </div>
-              <span style={{ fontSize: 10, color: '#A09A91', fontFamily: 'var(--font-sans)', marginTop: 4, display: 'block' }}>MP3, OGG, WAV • Max 8MB</span>
+              <span style={{ fontSize: 'var(--fx-micro)', color: '#A09A91', fontFamily: 'var(--font-sans)', marginTop: 4, display: 'block' }}>MP3, OGG, WAV • Max 8MB</span>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '12px 0' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, margin: '12px 0' }}>
               <div style={{ flex: 1, height: 1, background: C.border }} />
               <span style={{ fontSize: 11, color: C.stone, fontFamily: 'var(--font-sans)', fontWeight: 600 }}>or</span>
               <div style={{ flex: 1, height: 1, background: C.border }} />
@@ -1194,29 +1194,29 @@ export default function Stage2_FormConfiguration({
             {backgroundMusicUrl && (
               extractYouTubeId(backgroundMusicUrl) ? (
                 musicEmbedStatus === 'blocked' ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, padding: '8px 12px', borderRadius: 8, background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.25)' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 10, padding: '8px 12px', borderRadius: 8, background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.25)' }}>
                     <Icon name="warning" size={14} color={C.error} strokeWidth={1.6} />
                     <span style={{ fontSize: 12, color: C.error, fontFamily: 'var(--font-sans)', flex: 1, lineHeight: 1.5 }}>
                       This video can&apos;t be played embedded on other sites — a common restriction on official music videos. Guests won&apos;t hear it. Try a lyric video, cover, or a different link.
                     </span>
                     <button type="button" onClick={() => setBackgroundMusicUrl('')}
-                      style={{ padding: '6px 12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, color: C.error, fontWeight: 600, fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap' }}>Remove</button>
+                      style={{ padding: '6px 12px', minHeight: 'var(--fx-touch)', border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, color: C.error, fontWeight: 600, fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap' }}>Remove</button>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, padding: '8px 12px', borderRadius: 8, background: C.softBg, border: `1px solid ${C.border}` }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 10, padding: '8px 12px', borderRadius: 8, background: C.softBg, border: `1px solid ${C.border}` }}>
                     <Icon name={musicEmbedStatus === 'checking' ? 'hourglass' : 'play'} size={14} color={C.gold} strokeWidth={1.4} />
                     <span style={{ fontSize: 12, color: C.charcoal, fontFamily: 'var(--font-sans)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {musicEmbedStatus === 'checking' ? 'Checking this video can be played…' : 'YouTube song linked — guests tap the music icon to play it'}
                     </span>
                     <button type="button" onClick={() => setBackgroundMusicUrl('')}
-                      style={{ padding: '6px 12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, color: C.error, fontWeight: 600, fontFamily: 'var(--font-sans)' }}>Remove</button>
+                      style={{ padding: '6px 12px', minHeight: 'var(--fx-touch)', border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, color: C.error, fontWeight: 600, fontFamily: 'var(--font-sans)' }}>Remove</button>
                   </div>
                 )
               ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 10 }}>
                   <audio controls src={backgroundMusicUrl} style={{ flex: 1, height: 36 }} />
                   <button type="button" onClick={() => setBackgroundMusicUrl('')}
-                    style={{ padding: '6px 12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, color: C.error, fontWeight: 600, fontFamily: 'var(--font-sans)' }}>Remove</button>
+                    style={{ padding: '6px 12px', minHeight: 'var(--fx-touch)', border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, color: C.error, fontWeight: 600, fontFamily: 'var(--font-sans)' }}>Remove</button>
                 </div>
               )
             )}
@@ -1272,7 +1272,7 @@ export default function Stage2_FormConfiguration({
                 <span style={{ fontSize: 12, fontWeight: 600, color: C.stone, fontFamily: 'var(--font-sans)' }}>
                   {galleryUploading ? 'Uploading…' : 'Drop images here or click to browse'}
                 </span>
-                <span style={{ fontSize: 10, color: '#A09A91', fontFamily: 'var(--font-sans)' }}>Multiple images • JPG, PNG, WebP • Max 8MB each</span>
+                <span style={{ fontSize: 'var(--fx-micro)', color: '#A09A91', fontFamily: 'var(--font-sans)' }}>Multiple images • JPG, PNG, WebP • Max 8MB each</span>
               </div>
             </div>
             {galleryUrls.length > 0 && (
@@ -1290,7 +1290,7 @@ export default function Stage2_FormConfiguration({
                     <img src={url} alt={`Gallery ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       onError={e => { e.target.style.display = 'none'; }} />
                     <button type="button" onClick={() => onRemoveGalleryUrl?.(i)} title="Remove"
-                      style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: '50%', border: 'none', background: 'rgba(25,27,30,0.75)', color: '#fff', cursor: 'pointer', fontSize: 13, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                      style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: '50%', border: 'none', background: 'rgba(25,27,30,0.75)', color: '#fff', cursor: 'pointer', fontSize: 13, lineHeight: 1, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' }}>×</button>
                   </div>
                 ))}
               </div>
@@ -1310,10 +1310,10 @@ export default function Stage2_FormConfiguration({
         background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(12px)',
         borderTop: `1px solid ${C.border}`,
         padding: '16px 24px', paddingBottom: 'max(16px, calc(env(safe-area-inset-bottom) + 8px))', zIndex: 50,
-        display: 'flex', justifyContent: 'center',
+        display: 'flex', flexWrap: 'wrap', justifyContent: 'center',
       }}>
         <div className="s2-footer-inner" style={{
-          display: 'flex', justifyContent: 'space-between',
+          display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between',
           alignItems: 'center', maxWidth: 860, width: '100%',
         }}>
           <button onClick={onBack} className="s2-footer-btn" style={{
@@ -1321,7 +1321,7 @@ export default function Stage2_FormConfiguration({
             background: 'none', border: `1.5px solid ${C.charcoal}`,
             borderRadius: 12, fontFamily: 'var(--font-sans)',
             fontSize: 14, fontWeight: 700, color: C.charcoal,
-            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+            cursor: 'pointer', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
             transition: 'all 0.2s',
           }}
             onMouseEnter={e => { e.currentTarget.style.background = C.charcoal; e.currentTarget.style.color = C.white; }}
@@ -1331,7 +1331,7 @@ export default function Stage2_FormConfiguration({
             Back
           </button>
 
-          <div className="s2-footer-actions" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div className="s2-footer-actions" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
             {onSaveDraft && (
               <button onClick={onSaveDraft} type="button" className="s2-footer-btn"
                 disabled={!title || !slug || !eventDate || savingDraft}
@@ -1343,7 +1343,7 @@ export default function Stage2_FormConfiguration({
                   fontSize: 14, fontWeight: 700, color: C.gold,
                   cursor: (!title || !slug || !eventDate || savingDraft) ? 'not-allowed' : 'pointer',
                   opacity: (!title || !slug || !eventDate || savingDraft) ? 0.5 : 1,
-                  display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.2s',
+                  display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, transition: 'all 0.2s',
                 }}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>

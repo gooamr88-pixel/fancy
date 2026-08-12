@@ -427,7 +427,7 @@ function DeviceRow({ device, gates, busy, onRevoke, onMove }) {
           )}
         </div>
 
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
           <button
             onClick={() => setMoving((v) => !v)}
             disabled={busy || gates.length === 0}

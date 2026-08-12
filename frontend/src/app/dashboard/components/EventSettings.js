@@ -132,8 +132,8 @@ function PromoCodeRedeemBox({ eventId, apiUrl, onRedeemed }) {
         boxShadow: '0 2px 16px rgba(184, 148, 79, 0.08)',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
-        <span style={{ width: 32, height: 32, borderRadius: 9, background: 'rgba(184, 148, 79, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+        <span style={{ width: 32, height: 32, borderRadius: 9, background: 'rgba(184, 148, 79, 0.12)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           <Icon name="ticket" size={15} color={COLORS.gold} strokeWidth={1.6} />
         </span>
         <div>
@@ -143,7 +143,7 @@ function PromoCodeRedeemBox({ eventId, apiUrl, onRedeemed }) {
           </p>
         </div>
       </div>
-      <div className="promo-redeem-row" style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
+      <div className="promo-redeem-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '14px' }}>
         <input
           value={code}
           onChange={(e) => { setCode(e.target.value.toUpperCase()); setMsg(null); }}
@@ -171,7 +171,7 @@ function PromoCodeRedeemBox({ eventId, apiUrl, onRedeemed }) {
             background: (busy || !code.trim()) ? '#C9C4BA' : 'linear-gradient(135deg, #C5A86B, #A6833F)',
             color: COLORS.white, fontSize: '12.5px', fontWeight: 700, fontFamily: 'var(--font-sans)',
             cursor: (busy || !code.trim()) ? 'not-allowed' : 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap',
+            display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap',
             transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
           }}
         >
@@ -181,7 +181,7 @@ function PromoCodeRedeemBox({ eventId, apiUrl, onRedeemed }) {
       {msg && (
         <div
           style={{
-            marginTop: '12px', display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '9px 11px',
+            marginTop: '12px', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: '8px', padding: '9px 11px',
             borderRadius: '9px', background: msg.type === 'success' ? 'rgba(59, 155, 109, 0.08)' : 'rgba(196, 94, 94, 0.08)',
             border: `1px solid ${msg.type === 'success' ? 'rgba(59, 155, 109, 0.25)' : 'rgba(196, 94, 94, 0.25)'}`,
           }}
@@ -211,7 +211,7 @@ function PromoCodeRedeemBox({ eventId, apiUrl, onRedeemed }) {
 function InlineWarning({ children }) {
   return (
     <div style={{
-      display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 8, padding: '9px 11px',
+      display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 8, marginTop: 8, padding: '9px 11px',
       borderRadius: 9, background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.25)',
     }}>
       <span style={{ flexShrink: 0, marginTop: 1 }}>
@@ -1023,12 +1023,25 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     margin: '0 0 22px', paddingBottom: '14px', borderBottom: `1px solid ${COLORS.border}`,
     letterSpacing: '0.01em',
   };
+  /**
+   * THE READING FLOOR, applied at the shared objects rather than per call site.
+   *
+   * These four objects are spread across most of this 2,900-line screen, so
+   * moving them to the `--fx-*` type tokens fixes dozens of render sites at once
+   * — and, more usefully, means the next label added here inherits a size that
+   * grows on a phone instead of copying an 11px literal.
+   *
+   * The tokens are READ here, never set: a call site that wrote
+   * `'--fx-label': '11px'` inline would kill the media behaviour for it, which is
+   * exactly the --fx-pad-x trap documented in globals.css.
+   */
   const labelStyle = {
-    display: 'block', fontSize: '11px', fontWeight: 600, color: COLORS.stone,
+    display: 'block', fontSize: 'var(--fx-label)', fontWeight: 600, color: COLORS.stone,
     textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '6px', fontFamily: 'var(--font-sans)',
   };
   const inputStyle = {
-    width: '100%', padding: '10.5px 14px', border: `1px solid ${COLORS.border}`, borderRadius: '9px',
+    width: '100%', padding: '10.5px 14px', minHeight: 'var(--fx-touch)',
+    border: `1px solid ${COLORS.border}`, borderRadius: '9px',
     fontSize: '14px', fontFamily: 'var(--font-sans)', color: COLORS.charcoal, background: COLORS.white,
     outline: 'none', boxShadow: 'none', transition: 'border-color 0.2s, box-shadow 0.2s', boxSizing: 'border-box',
   };
@@ -1041,9 +1054,17 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
   };
   const fieldGroupStyle = { marginBottom: '16px' };
   const rowStyle = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' };
-  const hintStyle = { fontSize: '10px', color: COLORS.stone, display: 'block', marginTop: '4px' };
+  // 10px was the single most-repeated size on this screen and the least
+  // readable. --fx-micro is the floor of the reading scale: ~11px on a phone,
+  // 10.5px on a desktop, so the desk view barely moves.
+  const hintStyle = { fontSize: 'var(--fx-micro)', color: COLORS.stone, display: 'block', marginTop: '4px', lineHeight: 1.55 };
   const pillStyle = (active) => ({
-    padding: '7px 14px', borderRadius: 999, cursor: 'pointer', fontSize: 12.5, fontWeight: 600,
+    // 7px of vertical padding made these ~31px tall. They are the primary way
+    // several settings are chosen, and they were below every platform's minimum
+    // target size — a miss on a phone selects nothing and looks like a dead UI.
+    padding: '7px 14px', minHeight: 'var(--fx-touch)',
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    borderRadius: 999, cursor: 'pointer', fontSize: 12.5, fontWeight: 600,
     fontFamily: 'var(--font-sans)', border: `1.5px solid ${active ? COLORS.gold : COLORS.border}`,
     background: active ? 'rgba(184,148,79,0.08)' : COLORS.white, color: active ? COLORS.gold : COLORS.stone,
     transition: 'all 0.2s',
@@ -1086,10 +1107,28 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
   return (
     <div style={{ maxWidth: '780px' }}>
 
-      {/* ═══ TAB NAV ═══ */}
-      <div className="es-tabs" style={{
+      {/**
+        * ═══ TAB NAV ═══
+        *
+        * SCROLLS SIDEWAYS ON A PHONE, rather than wrapping.
+        *
+        * Five tabs with labels like "Status & Danger Zone" and "Design &
+        * Template" wrapped to three or four lines on a 320px screen — a
+        * navigation bar taller than the first field it sits above, and one that
+        * changed height as you moved between tabs.
+        *
+        * `.fx-row--scroll` is the sanctioned exception to the wrap rule
+        * (globals.css): a row that genuinely should stay on one line scrolls
+        * instead of overflowing the page. A tab strip is the archetype — the
+        * horizontal run IS the affordance, and stacked tabs stop reading as
+        * tabs at all.
+        *
+        * `flexWrap` is deleted rather than left beside the class, or it would
+        * win outright and the class would do nothing (AGENTS.md's one rule).
+        */}
+      <div className="es-tabs fx-row--scroll" style={{
         display: 'flex', gap: 6, marginBottom: 22, padding: 5, borderRadius: 14,
-        background: COLORS.softBg, border: `1px solid ${COLORS.border}`, flexWrap: 'wrap',
+        background: COLORS.softBg, border: `1px solid ${COLORS.border}`,
       }}>
         {TABS.map((t) => {
           const active = activeTab === t.key;
@@ -1097,6 +1136,10 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             <button key={t.key} type="button" onClick={() => setActiveTab(t.key)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: 10,
+                // flexShrink: a scrolling row must not squeeze its children to
+                // fit — that is the wrapping behaviour it exists to avoid,
+                // achieved by a different mechanism.
+                minHeight: 'var(--fx-touch)', flexShrink: 0,
                 border: 'none', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-sans)',
                 background: active ? COLORS.white : 'transparent', color: active ? COLORS.gold : COLORS.stone,
                 boxShadow: active ? '0 2px 10px rgba(184,148,79,0.15)' : 'none',
@@ -1115,7 +1158,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
       {/* ═══ EVENT DETAILS ═══ */}
       <div style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
             <span style={iconBadgeStyle}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
             Event Details
           </span>
@@ -1131,7 +1174,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
 
         <div style={fieldGroupStyle}>
           <label style={labelStyle}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px' }}>
               <Icon name="globe" size={12} strokeWidth={1.7} /> Arabic Title <span style={{ fontSize: '11px', color: '#999', fontWeight: 400 }}>(optional — shown when guest switches to Arabic)</span>
             </span>
           </label>
@@ -1179,7 +1222,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
 
         <div style={fieldGroupStyle}>
           <label style={labelStyle}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px' }}>
               <Icon name="globe" size={12} strokeWidth={1.7} /> Arabic Description <span style={{ fontSize: '11px', color: '#999', fontWeight: 400 }}>(optional)</span>
             </span>
           </label>
@@ -1267,7 +1310,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
       {/* ═══ RSVP SETTINGS ═══ */}
       <div style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
             <span style={iconBadgeStyle}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span>
             RSVP Settings
           </span>
@@ -1297,11 +1340,11 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
                     transition: 'all 0.25s cubic-bezier(0.16,1,0.3,1)',
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 6 }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', marginBottom: 6 }}>
                     <Icon name={pm.icon} size={22} color={COLORS.gold} strokeWidth={1.4} />
                   </div>
                   <div style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 700, color: COLORS.charcoal }}>{pm.label}</div>
-                  <div style={{ fontFamily: 'var(--font-sans)', fontSize: 10, color: COLORS.stone, marginTop: 4 }}>{pm.desc}</div>
+                  <div style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fx-micro)', color: COLORS.stone, marginTop: 4, lineHeight: 1.55 }}>{pm.desc}</div>
                 </div>
               );
             })}
@@ -1326,7 +1369,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
       {/* ═══ DRESS CODE ═══ */}
       <div style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
             <span style={iconBadgeStyle}><Icon name="dressCode" size={15} color={COLORS.gold} strokeWidth={1.7} /></span>
             Dress Code
           </span>
@@ -1359,7 +1402,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
 
         <div style={{ ...fieldGroupStyle, marginTop: 16 }}>
           <label style={labelStyle}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px' }}>
               <Icon name="globe" size={12} strokeWidth={1.7} /> Arabic Dress Code <span style={{ fontSize: '11px', color: '#999', fontWeight: 400 }}>(optional)</span>
             </span>
           </label>
@@ -1407,7 +1450,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
       {/* ═══ VISUAL TEMPLATE ═══ */}
       <div style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
             <span style={iconBadgeStyle}><Icon name="palette" size={15} color={COLORS.gold} strokeWidth={1.7} /></span>
             Visual Template
           </span>
@@ -1429,7 +1472,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
                   background: active ? 'rgba(184,148,79,0.06)' : COLORS.white,
                   boxShadow: active ? '0 4px 16px rgba(184,148,79,0.15)' : 'none', transition: 'all 0.2s',
                 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                   {preset && <span style={{ width: 16, height: 16, borderRadius: '50%', background: preset.primary, border: '1.5px solid #fff', boxShadow: '0 0 0 1px ' + COLORS.border }} />}
                   <span style={{ fontFamily: 'var(--font-serif)', fontSize: 14, fontWeight: 600, color: COLORS.charcoal }}>{t.label}</span>
                 </div>
@@ -1448,7 +1491,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
       {/* ═══ APPEARANCE ═══ */}
       <div style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
             <span style={iconBadgeStyle}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg></span>
             Appearance
           </span>
@@ -1494,7 +1537,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               <span style={{ fontSize: '12px', fontWeight: 600, color: COLORS.stone }}>
                 {coverUploading ? 'Uploading…' : 'Drop image here or click to browse'}
               </span>
-              <span style={{ fontSize: '10px', color: '#A09A91' }}>JPG, PNG, WebP • Max 8MB</span>
+              <span style={{ fontSize: 'var(--fx-micro)', color: '#A09A91' }}>JPG, PNG, WebP • Max 8MB</span>
             </label>
           </div>
 
@@ -1518,7 +1561,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
                 style={{
                   position: 'absolute', top: 8, right: 8, width: 28, height: 28,
                   borderRadius: '50%', border: 'none', background: 'rgba(25,27,30,0.7)',
-                  color: '#fff', cursor: 'pointer', fontSize: 14, display: 'flex',
+                  color: '#fff', cursor: 'pointer', fontSize: 14, display: 'flex', flexWrap: 'wrap',
                   alignItems: 'center', justifyContent: 'center',
                 }}
               >×</button>
@@ -1547,7 +1590,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
                   <img src={url} alt={`Gallery ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     onError={(e) => { e.target.style.display = 'none'; }} />
                   <button type="button" onClick={() => removeGalleryUrl(i)} title="Remove"
-                    style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: '50%', border: 'none', background: 'rgba(25,27,30,0.75)', color: '#fff', cursor: 'pointer', fontSize: 13, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                    style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: '50%', border: 'none', background: 'rgba(25,27,30,0.75)', color: '#fff', cursor: 'pointer', fontSize: 13, lineHeight: 1, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' }}>×</button>
                 </div>
               ))}
             </div>
@@ -1565,10 +1608,10 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             ].map(({ key, label }) => (
               <div key={key}>
                 <span style={{ ...labelStyle, marginBottom: 4 }}>{label}</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: '5px 7px', background: COLORS.white }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: '5px 7px', background: COLORS.white }}>
                   <input type="color" value={form[key]} onChange={handleChange(key)}
                     style={{ width: 24, height: 24, border: 'none', background: 'none', padding: 0, cursor: 'pointer', borderRadius: 5 }} />
-                  <span style={{ fontFamily: 'monospace', fontSize: 10.5, color: COLORS.stone, textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis' }}>{form[key]}</span>
+                  <span style={{ fontFamily: 'monospace', fontSize: 'var(--fx-micro)', color: COLORS.stone, textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis' }}>{form[key]}</span>
                 </div>
               </div>
             ))}
@@ -1604,7 +1647,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         <div style={fieldGroupStyle}>
           <label style={labelStyle}>Background Music</label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px' }}>
               <input
                 type="file"
                 accept="audio/*"
@@ -1616,7 +1659,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               <label
                 htmlFor="music-file-upload"
                 style={{
-                  padding: '8px 16px',
+                  padding: '8px 16px', minHeight: 'var(--fx-touch)',
                   backgroundColor: COLORS.softBg,
                   border: `1px solid ${COLORS.border}`,
                   borderRadius: '10px',
@@ -1640,7 +1683,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
                   type="button"
                   onClick={() => { setForm(prev => ({ ...prev, background_music_url: '' })); setSuccess(false); }}
                   style={{
-                    padding: '8px 12px',
+                    padding: '8px 12px', minHeight: 'var(--fx-touch)',
                     border: 'none',
                     background: 'none',
                     cursor: 'pointer',
@@ -1654,7 +1697,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               )}
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '2px 0' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px', margin: '2px 0' }}>
               <div style={{ flex: 1, height: 1, background: COLORS.border }} />
               <span style={{ fontSize: '11px', color: COLORS.stone, fontWeight: 600 }}>or</span>
               <div style={{ flex: 1, height: 1, background: COLORS.border }} />
@@ -1670,14 +1713,14 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             {form.background_music_url && (
               extractYouTubeId(form.background_music_url) ? (
                 musicEmbedStatus === 'blocked' ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', padding: '8px 12px', borderRadius: '8px', background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.25)' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', marginTop: '4px', padding: '8px 12px', borderRadius: '8px', background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.25)' }}>
                     <Icon name="warning" size={14} color="#C45E5E" strokeWidth={1.6} />
                     <span style={{ fontSize: '12px', color: '#C45E5E', flex: 1, lineHeight: 1.5 }}>
                       This video can&apos;t be played embedded on other sites — a common restriction on official music videos. Guests won&apos;t hear it. Try a lyric video, cover, or a different link.
                     </span>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', padding: '8px 12px', borderRadius: '8px', background: COLORS.softBg, border: `1px solid ${COLORS.border}` }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', marginTop: '4px', padding: '8px 12px', borderRadius: '8px', background: COLORS.softBg, border: `1px solid ${COLORS.border}` }}>
                     <Icon name={musicEmbedStatus === 'checking' ? 'hourglass' : 'play'} size={14} color={COLORS.gold} strokeWidth={1.4} />
                     <span style={{ fontSize: '12px', color: COLORS.charcoal, flex: 1 }}>
                       {musicEmbedStatus === 'checking' ? 'Checking this video can be played…' : 'YouTube song linked — guests tap the music icon to play it'}
@@ -1704,7 +1747,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
       {/* ═══ INVITATION SEAL & STATIONERY ═══ */}
       <div style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
             <span style={iconBadgeStyle}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/></svg></span>
             Invitation Seal &amp; Stationery
           </span>
@@ -1736,7 +1779,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
                   onClick={() => { setTemplateData(prev => ({ ...prev, reveal_tone: key })); setSuccess(false); }}
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: '8px',
-                    padding: '8px 14px', minHeight: '40px', cursor: 'pointer',
+                    padding: '8px 14px', minHeight: 'var(--fx-touch)', cursor: 'pointer',
                     borderRadius: '10px', fontFamily: 'var(--font-sans)', fontSize: '12.5px', fontWeight: 600,
                     border: `1px solid ${active ? COLORS.gold : COLORS.border}`,
                     background: active ? 'rgba(184,148,79,0.08)' : COLORS.white,
@@ -1752,7 +1795,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
-          <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '13px', color: '#191B1E', cursor: 'pointer', userSelect: 'none' }}>
+          <label style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: '10px', fontSize: '13px', color: '#191B1E', cursor: 'pointer', userSelect: 'none' }}>
             <input
               type="checkbox"
               checked={form.reveal_enabled}
@@ -1767,7 +1810,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             </span>
           </label>
 
-          <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '13px', color: form.reveal_enabled ? '#191B1E' : '#A9A399', cursor: form.reveal_enabled ? 'pointer' : 'default', userSelect: 'none' }}>
+          <label style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: '10px', fontSize: '13px', color: form.reveal_enabled ? '#191B1E' : '#A9A399', cursor: form.reveal_enabled ? 'pointer' : 'default', userSelect: 'none' }}>
             <input
               type="checkbox"
               disabled={!form.reveal_enabled}
@@ -1826,7 +1869,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           so this field no longer needs gating on template_type. */}
       <div style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
             <span style={iconBadgeStyle}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><rect x="2" y="5" width="15" height="14" rx="2"/><path d="m17 10 5-3v10l-5-3"/></svg></span>
             Hero Background Video
           </span>
@@ -1858,7 +1901,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               <span style={{ fontSize: '12px', fontWeight: 600, color: COLORS.stone }}>
                 {heroVideoUploading ? 'Uploading…' : 'Click to browse for a video'}
               </span>
-              <span style={{ fontSize: '10px', color: '#A09A91' }}>MP4, WebM • Max {HERO_VIDEO_MAX_LABEL}</span>
+              <span style={{ fontSize: 'var(--fx-micro)', color: '#A09A91' }}>MP4, WebM • Max {HERO_VIDEO_MAX_LABEL}</span>
             </label>
           </div>
 
@@ -1876,7 +1919,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
                 style={{
                   position: 'absolute', top: 8, right: 8, width: 28, height: 28,
                   borderRadius: '50%', border: 'none', background: 'rgba(25,27,30,0.7)',
-                  color: '#fff', cursor: 'pointer', fontSize: 14, display: 'flex',
+                  color: '#fff', cursor: 'pointer', fontSize: 14, display: 'flex', flexWrap: 'wrap',
                   alignItems: 'center', justifyContent: 'center',
                 }}
               >×</button>
@@ -1892,7 +1935,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
       {/* ═══ TEMPLATE-SPECIFIC CONTENT ═══ */}
       <div style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
             <span style={iconBadgeStyle}><Icon name="book" size={15} color={COLORS.gold} strokeWidth={1.7} /></span>
             Content
           </span>
@@ -1919,7 +1962,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
                 );
               })}
             </div>
-            <p style={{ fontSize: 10, color: '#A09A91', margin: '8px 0 0', fontFamily: 'var(--font-sans)' }}>
+            <p style={{ fontSize: 'var(--fx-micro)', color: '#A09A91', margin: '8px 0 0', fontFamily: 'var(--font-sans)', lineHeight: 1.55 }}>
               Shapes the fields below and the name/tagline on your guest page — change it any time.
             </p>
           </div>
@@ -2326,14 +2369,14 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
       {/* ═══ NOTIFICATION PREFERENCES ═══ */}
       <div style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
             <span style={iconBadgeStyle}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
             Notification Preferences
           </span>
         </h3>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#191B1E', cursor: 'pointer', userSelect: 'none' }}>
+          <label style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#191B1E', cursor: 'pointer', userSelect: 'none' }}>
             <input
               type="checkbox"
               checked={form.notification_email}
@@ -2346,17 +2389,17 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             This also controls email alerts to the Groom/Bride emails above, if set.
           </span>
 
-          <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#A8A29E', cursor: 'not-allowed', userSelect: 'none', opacity: 0.6 }}>
+          <label style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#A8A29E', cursor: 'not-allowed', userSelect: 'none', opacity: 0.6 }}>
             <input
               type="checkbox"
               checked={false}
               disabled
               style={{ width: '16px', height: '16px', cursor: 'not-allowed' }}
             />
-            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
               Receive WhatsApp notification when a guest submits an RSVP
               <span style={{
-                fontSize: '10px', fontWeight: 600, color: COLORS.gold, background: `${COLORS.gold}15`,
+                fontSize: 'var(--fx-micro)', fontWeight: 600, color: COLORS.gold, background: `${COLORS.gold}15`,
                 border: `1px solid ${COLORS.gold}30`, borderRadius: '4px', padding: '2px 6px',
                 letterSpacing: '0.5px', textTransform: 'uppercase', whiteSpace: 'nowrap', opacity: 1
               }}>
@@ -2370,14 +2413,14 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
       {/* ═══ GUEST RSVP OPTIONS ═══ */}
       <div style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
             <span style={iconBadgeStyle}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></span>
             Guest RSVP Options
           </span>
         </h3>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '13px', color: '#191B1E', cursor: 'pointer', userSelect: 'none' }}>
+          <label style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: '10px', fontSize: '13px', color: '#191B1E', cursor: 'pointer', userSelect: 'none' }}>
             <input
               type="checkbox"
               checked={form.allow_guest_edits}
@@ -2392,7 +2435,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             </span>
           </label>
 
-          <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '13px', color: '#191B1E', cursor: 'pointer', userSelect: 'none' }}>
+          <label style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: '10px', fontSize: '13px', color: '#191B1E', cursor: 'pointer', userSelect: 'none' }}>
             <input
               type="checkbox"
               checked={form.track_guest_side}
@@ -2408,7 +2451,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           </label>
 
           {isWeddingOrEngagement && (
-            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '13px', color: '#191B1E', cursor: 'pointer', userSelect: 'none' }}>
+            <label style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: '10px', fontSize: '13px', color: '#191B1E', cursor: 'pointer', userSelect: 'none' }}>
               <input
                 type="checkbox"
                 checked={form.no_kids_allowed}
@@ -2424,7 +2467,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             </label>
           )}
 
-          <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '13px', color: '#191B1E', cursor: 'pointer', userSelect: 'none' }}>
+          <label style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: '10px', fontSize: '13px', color: '#191B1E', cursor: 'pointer', userSelect: 'none' }}>
             <input
               type="checkbox"
               checked={form.collect_dietary_restrictions}
@@ -2448,13 +2491,13 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
       {/* ═══ EVENT STATUS ═══ */}
       <div style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
             <span style={iconBadgeStyle}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
             Event Status
           </span>
         </h3>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '16px', marginBottom: '20px' }}>
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 16px',
             borderRadius: '20px', background: `${statusColor}18`,
@@ -2495,7 +2538,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
                     onClick={async () => { await handleStatusChange('completed'); setConfirmComplete(false); }}
                     disabled={!!statusLoading}
                     style={{
-                      padding: '8px 20px', borderRadius: '8px', border: '1px solid #6B8EAE',
+                      padding: '8px 20px', minHeight: 'var(--fx-touch)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', border: '1px solid #6B8EAE',
                       background: '#6B8EAE', color: COLORS.white, fontSize: '12px', fontWeight: 600,
                       fontFamily: 'var(--font-sans)', cursor: statusLoading ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
                     }}
@@ -2506,7 +2549,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
                     onClick={() => setConfirmComplete(false)}
                     disabled={!!statusLoading}
                     style={{
-                      padding: '8px 20px', borderRadius: '8px', border: `1px solid ${COLORS.border}`,
+                      padding: '8px 20px', minHeight: 'var(--fx-touch)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', border: `1px solid ${COLORS.border}`,
                       background: COLORS.white, color: COLORS.stone, fontSize: '12px', fontWeight: 600,
                       fontFamily: 'var(--font-sans)', cursor: statusLoading ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
                     }}
@@ -2520,7 +2563,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
                 {currentStatus !== 'paused' && (
                   <button onClick={() => handleStatusChange('paused')} disabled={!!statusLoading}
                     style={{
-                      padding: '8px 20px', borderRadius: '8px', border: '1px solid #F59E0B',
+                      padding: '8px 20px', minHeight: 'var(--fx-touch)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', border: '1px solid #F59E0B',
                       background: COLORS.white, color: '#F59E0B', fontSize: '12px', fontWeight: 600,
                       fontFamily: 'var(--font-sans)', cursor: statusLoading ? 'not-allowed' : 'pointer',
                       opacity: statusLoading && statusLoading !== 'paused' ? 0.5 : 1, transition: 'all 0.2s',
@@ -2534,7 +2577,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
                 {currentStatus === 'paused' && (
                   <button onClick={() => handleStatusChange('active')} disabled={!!statusLoading}
                     style={{
-                      padding: '8px 20px', borderRadius: '8px', border: '1px solid #22C55E',
+                      padding: '8px 20px', minHeight: 'var(--fx-touch)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', border: '1px solid #22C55E',
                       background: COLORS.white, color: '#22C55E', fontSize: '12px', fontWeight: 600,
                       fontFamily: 'var(--font-sans)', cursor: statusLoading ? 'not-allowed' : 'pointer',
                       opacity: statusLoading && statusLoading !== 'active' ? 0.5 : 1, transition: 'all 0.2s',
@@ -2548,7 +2591,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
                 {currentStatus !== 'completed' && (
                   <button onClick={() => setConfirmComplete(true)} disabled={!!statusLoading}
                     style={{
-                      padding: '8px 20px', borderRadius: '8px', border: '1px solid #6B8EAE',
+                      padding: '8px 20px', minHeight: 'var(--fx-touch)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', border: '1px solid #6B8EAE',
                       background: COLORS.white, color: '#6B8EAE', fontSize: '12px', fontWeight: 600,
                       fontFamily: 'var(--font-sans)', cursor: statusLoading ? 'not-allowed' : 'pointer',
                       opacity: statusLoading ? 0.5 : 1, transition: 'all 0.2s',
@@ -2614,7 +2657,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
       {/* ═══ DANGER ZONE ═══ */}
       <div style={{ ...sectionStyle, border: '1px solid #FECACA' }}>
         <h3 style={{ ...sectionTitleStyle, color: '#C45E5E', borderBottomColor: '#FECACA' }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
             <span style={{ ...iconBadgeStyle, background: 'rgba(196, 94, 94, 0.12)' }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#C45E5E" strokeWidth="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></span>
             Danger Zone
           </span>
@@ -2640,7 +2683,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             <button
               onClick={() => setCancelOpen(true)}
               style={{
-                padding: '8px 20px', borderRadius: '8px', border: `1px solid ${COLORS.stone}`,
+                padding: '8px 20px', minHeight: 'var(--fx-touch)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', border: `1px solid ${COLORS.stone}`,
                 background: COLORS.white, color: COLORS.charcoal, fontSize: '12px', fontWeight: 700,
                 fontFamily: 'var(--font-sans)', cursor: 'pointer',
               }}
@@ -2667,7 +2710,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             </p>
             <button onClick={() => setDeleteConfirmOpen(true)}
               style={{
-                padding: '8px 20px', borderRadius: '8px', border: '1px solid #C45E5E',
+                padding: '8px 20px', minHeight: 'var(--fx-touch)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', border: '1px solid #C45E5E',
                 background: COLORS.white, color: '#C45E5E', fontSize: '12px', fontWeight: 600,
                 fontFamily: 'var(--font-sans)', cursor: 'pointer', transition: 'all 0.2s',
               }}
@@ -2694,7 +2737,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
                 onClick={handleDeleteEvent}
                 disabled={deleting || deleteConfirmText !== (event?.title || '')}
                 style={{
-                  padding: '8px 20px', borderRadius: '8px', border: '1px solid #C45E5E',
+                  padding: '8px 20px', minHeight: 'var(--fx-touch)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', border: '1px solid #C45E5E',
                   background: '#C45E5E', color: COLORS.white, fontSize: '12px', fontWeight: 600,
                   fontFamily: 'var(--font-sans)',
                   cursor: (deleting || deleteConfirmText !== (event?.title || '')) ? 'not-allowed' : 'pointer',
@@ -2708,7 +2751,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
                 onClick={() => { setDeleteConfirmOpen(false); setDeleteConfirmText(''); }}
                 disabled={deleting}
                 style={{
-                  padding: '8px 20px', borderRadius: '8px', border: `1px solid ${COLORS.border}`,
+                  padding: '8px 20px', minHeight: 'var(--fx-touch)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', border: `1px solid ${COLORS.border}`,
                   background: COLORS.white, color: COLORS.stone, fontSize: '12px', fontWeight: 600,
                   fontFamily: 'var(--font-sans)', cursor: deleting ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
                 }}
@@ -2748,7 +2791,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           <div style={{
             padding: '10px 14px', borderRadius: '10px', background: '#F0FDF4', border: '1px solid #BBF7D0',
             color: '#16A34A', fontSize: '12.5px', fontFamily: 'var(--font-sans)', marginBottom: '10px',
-            display: 'flex', alignItems: 'center', gap: '8px',
+            display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px',
           }}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 13l4 4L19 7"/></svg>
             Settings saved successfully
@@ -2760,7 +2803,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             background: saving ? COLORS.champagne : COLORS.gold, color: COLORS.white,
             fontSize: '14px', fontWeight: 700, fontFamily: 'var(--font-sans)',
             cursor: saving ? 'not-allowed' : 'pointer', transition: 'all 0.2s cubic-bezier(0.16,1,0.3,1)',
-            display: 'flex', alignItems: 'center', gap: '8px', width: '100%', justifyContent: 'center',
+            display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', width: '100%', justifyContent: 'center',
             boxShadow: saving ? 'none' : '0 4px 16px rgba(184,148,79,0.28)',
           }}
           onMouseEnter={(e) => { if (!saving) { e.currentTarget.style.background = COLORS.goldHover; e.currentTarget.style.transform = 'translateY(-1px)'; } }}
@@ -2922,7 +2965,7 @@ function RevealPreviewModal({ event, onClose }) {
       </div>
 
       <button type="button" onClick={onClose} style={{
-        padding: '9px 20px', minHeight: 40, borderRadius: 30, cursor: 'pointer',
+        padding: '9px 20px', minHeight: 'var(--fx-touch)', borderRadius: 30, cursor: 'pointer',
         background: 'rgba(255,255,255,.12)', color: '#fff', border: '1px solid rgba(255,255,255,.25)',
         fontFamily: 'var(--font-sans)', fontSize: 12.5, fontWeight: 600,
       }}>Close preview</button>

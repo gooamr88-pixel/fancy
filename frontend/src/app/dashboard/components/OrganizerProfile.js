@@ -290,7 +290,7 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
       <div style={sectionStyle}>
         <p style={{ color: '#C45E5E', fontSize: '13px', fontFamily: 'var(--font-sans)' }}>{error}</p>
         <button onClick={fetchProfile} style={{
-          marginTop: '12px', padding: '8px 20px', background: COLORS.gold, color: COLORS.white,
+          marginTop: '12px', padding: '8px 20px', minHeight: 'var(--fx-touch)', background: COLORS.gold, color: COLORS.white,
           border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', fontFamily: 'var(--font-sans)',
         }}>
           Retry
@@ -308,7 +308,7 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
       {/* ═══ ACCOUNT OVERVIEW ═══ */}
       <div style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><circle cx="12" cy="8" r="4" /><path d="M4 21v-2a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v2" /></svg>
             Account Overview
           </span>
@@ -332,7 +332,7 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
       {/* ═══ PROFILE INFORMATION ═══ */}
       <div style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
             Profile Information
           </span>
@@ -361,7 +361,7 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
       {/* ═══ ORGANIZER BRANDING ═══ */}
       <div style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
             Organizer Branding
           </span>
@@ -370,7 +370,7 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
         <div className="profile-row-grid" style={rowStyle}>
           <div style={fieldGroupStyle}>
             <label style={labelStyle}>Logo / Avatar</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
               {/* Previously there was no way to see what was actually uploaded (or
                   fix a bad crop/wrong file) before saving — just a toast saying
                   "Logo uploaded successfully." with no visual confirmation. */}
@@ -385,7 +385,7 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
                     style={{
                       position: 'absolute', top: -6, right: -6, width: '18px', height: '18px', borderRadius: '50%',
                       border: 'none', background: 'rgba(25,27,30,0.75)', color: COLORS.white, cursor: 'pointer',
-                      fontSize: '11px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '11px', lineHeight: 1, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
                     }}>×</button>
                 </div>
               )}
@@ -393,7 +393,7 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
               <label htmlFor="logo-upload-input" style={{
                 padding: '10px 20px', borderRadius: '8px', border: `1px solid ${COLORS.border}`,
                 background: COLORS.white, color: COLORS.charcoal, fontSize: '13px', fontWeight: 600,
-                cursor: logoUploading ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
+                cursor: logoUploading ? 'wait' : 'pointer', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px',
                 whiteSpace: 'nowrap', transition: 'all 0.2s', userSelect: 'none'
               }}
               onMouseEnter={(e) => { if (!logoUploading) { e.currentTarget.style.background = COLORS.softBg; e.currentTarget.style.borderColor = COLORS.gold; } }}
@@ -425,7 +425,7 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
       {/* ═══ SOCIAL LINKS ═══ */}
       <div style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" /></svg>
             Social Profiles
           </span>
@@ -463,7 +463,7 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
             background: saving ? COLORS.champagne : COLORS.gold, color: COLORS.white,
             fontSize: '14px', fontWeight: 700, fontFamily: 'var(--font-sans)',
             cursor: saving ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
-            display: 'flex', alignItems: 'center', gap: '8px', width: '100%', justifyContent: 'center',
+            display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', width: '100%', justifyContent: 'center',
           }}
           onMouseEnter={(e) => { if (!saving) e.currentTarget.style.background = COLORS.goldHover; }}
           onMouseLeave={(e) => { if (!saving) e.currentTarget.style.background = COLORS.gold; }}
@@ -475,7 +475,7 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
       {/* ═══ SECURITY & PASSWORD ═══ */}
       <div style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
             {profile?.hasPassword ? 'Security & Password' : 'Security & Google Login'}
           </span>
@@ -483,7 +483,7 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
         <form onSubmit={handleChangePassword}>
           {forcePasswordReset && (
             <div style={{
-              display: 'flex', gap: '12px', background: '#FDF6E9', border: '1px solid #EFDFB8',
+              display: 'flex', flexWrap: 'wrap', gap: '12px', background: '#FDF6E9', border: '1px solid #EFDFB8',
               borderRadius: '8px', padding: '14px 16px', marginBottom: '18px', alignItems: 'flex-start'
             }}>
               <div style={{ fontSize: '13px', color: '#8A6416', fontFamily: 'var(--font-sans)', lineHeight: 1.4 }}>
@@ -493,12 +493,12 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
           )}
           {!profile?.hasPassword && (
             <div style={{
-              display: 'flex', gap: '12px', background: '#F0F4F8', border: '1px solid #D0E0F0',
+              display: 'flex', flexWrap: 'wrap', gap: '12px', background: '#F0F4F8', border: '1px solid #D0E0F0',
               borderRadius: '8px', padding: '14px 16px', marginBottom: '18px', alignItems: 'flex-start'
             }}>
               <div style={{
                 background: COLORS.white, borderRadius: '50%', width: '28px', height: '28px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                 boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
               }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
@@ -601,7 +601,7 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
               background: COLORS.white, color: COLORS.charcoal,
               fontSize: '13px', fontWeight: 600, fontFamily: 'var(--font-sans)',
               cursor: changingPassword ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
-              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+              width: '100%', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: '8px'
             }}
             onMouseEnter={(e) => { if (!changingPassword) { e.currentTarget.style.background = COLORS.softBg; e.currentTarget.style.borderColor = COLORS.gold; } }}
             onMouseLeave={(e) => { if (!changingPassword) { e.currentTarget.style.background = COLORS.white; e.currentTarget.style.borderColor = COLORS.border; } }}
@@ -618,7 +618,7 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
       {/* ═══ CONNECTED DEVICES & SESSIONS ═══ */}
       <div style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2" /><line x1="12" y1="18" x2="12.01" y2="18" /></svg>
             Connected Devices
           </span>
@@ -639,25 +639,25 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
 
               return (
                 <div key={s.id} style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between',
                   padding: '12px 16px', borderRadius: '8px', border: `1px solid ${COLORS.border}`,
                   background: s.isCurrent ? COLORS.softBg : COLORS.white,
                   fontFamily: 'var(--font-sans)', fontSize: '13px'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px' }}>
                     <div style={{
                       background: COLORS.white, border: `1px solid ${COLORS.border}`,
                       borderRadius: '6px', width: '36px', height: '36px',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center'
+                      display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center'
                     }}>
                       {getDeviceIcon(s.device_label)}
                     </div>
                     <div>
-                      <div style={{ fontWeight: 600, color: COLORS.charcoal, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <div style={{ fontWeight: 600, color: COLORS.charcoal, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px' }}>
                         {s.device_label || 'Unknown Device'}
                         {s.isCurrent && (
                           <span style={{
-                            background: '#E6F4EA', color: COLORS.success, fontSize: '10px',
+                            background: '#E6F4EA', color: COLORS.success, fontSize: 'var(--fx-micro)',
                             fontWeight: 700, padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase'
                           }}>
                             This Device
@@ -672,7 +672,7 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
                   {!s.isCurrent && (
                     <button onClick={() => setSessionToRevoke(s)}
                       style={{
-                        padding: '6px 12px', borderRadius: '6px', border: `1px solid ${COLORS.border}`,
+                        padding: '6px 12px', minHeight: 'var(--fx-touch)', borderRadius: '6px', border: `1px solid ${COLORS.border}`,
                         background: COLORS.white, color: COLORS.danger, fontWeight: 600, fontSize: '11px',
                         cursor: 'pointer', transition: 'all 0.2s', outline: 'none'
                       }}
@@ -694,7 +694,7 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
         <div
           onClick={() => setSessionToRevoke(null)}
           style={{
-            position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center',
+            position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', flexWrap: 'wrap', alignItems: 'center',
             justifyContent: 'center', background: 'rgba(25, 27, 30, 0.45)', backdropFilter: 'blur(6px)',
             WebkitBackdropFilter: 'blur(6px)', animation: 'fadeIn 0.2s ease',
           }}
@@ -708,10 +708,10 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
               animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: COLORS.danger }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', color: COLORS.danger }}>
               <div style={{
                 background: '#FEF2F2', borderRadius: '50%', width: '40px', height: '40px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', flexShrink: 0
               }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
               </div>
@@ -724,11 +724,11 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
               Are you sure you want to log out <strong>{sessionToRevoke.device_label || 'this device'}</strong> (IP: {sessionToRevoke.ip || 'unknown'})? You will be signed out on that device immediately.
             </p>
 
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '8px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'flex-end', marginTop: '8px' }}>
               <button
                 onClick={() => setSessionToRevoke(null)}
                 style={{
-                  padding: '8px 16px', borderRadius: '8px', border: `1px solid ${COLORS.border}`,
+                  padding: '8px 16px', minHeight: 'var(--fx-touch)', borderRadius: '8px', border: `1px solid ${COLORS.border}`,
                   background: COLORS.white, color: COLORS.stone, fontSize: '13px', fontWeight: 600,
                   cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'var(--font-sans)',
                 }}
@@ -744,7 +744,7 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
                   await handleRevokeSession(id);
                 }}
                 style={{
-                  padding: '8px 16px', borderRadius: '8px', border: 'none',
+                  padding: '8px 16px', minHeight: 'var(--fx-touch)', borderRadius: '8px', border: 'none',
                   background: COLORS.danger, color: COLORS.white, fontSize: '13px', fontWeight: 700,
                   cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'var(--font-sans)',
                 }}

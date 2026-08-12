@@ -360,7 +360,7 @@ export default function RsvpTrendChart({ rsvpTrend = [] }) {
         </div>
       </div>
       {hasData && (
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {SERIES_CONFIG.map((s) => (
             <button
               key={s.key}
@@ -613,14 +613,14 @@ export default function RsvpTrendChart({ rsvpTrend = [] }) {
               <div
                 key={v.label}
                 style={{
-                  display: 'flex',
+                  display: 'flex', flexWrap: 'wrap',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   gap: 16,
                   marginBottom: 4,
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
                   <span
                     style={{
                       width: 6,

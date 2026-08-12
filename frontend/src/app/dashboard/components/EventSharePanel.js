@@ -254,7 +254,7 @@ export default function EventSharePanel({ event, compact = false }) {
             width: compact ? 168 : 208, height: compact ? 168 : 208, borderRadius: 8,
             background: 'linear-gradient(90deg, #F0ECE3 25%, #FAF8F4 37%, #F0ECE3 63%)',
             backgroundSize: '400% 100%', animation: 'sharePulse 1.4s ease infinite',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
           }}>
             <span style={{ fontSize: 11, color: C.stone, fontFamily: 'var(--font-sans)' }}>Generating…</span>
           </div>
@@ -263,7 +263,7 @@ export default function EventSharePanel({ event, compact = false }) {
       <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: C.stone, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
         High-resolution · ready for print
       </span>
-      <div style={{ display: 'flex', gap: 8, width: '100%' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, width: '100%' }}>
         <button onClick={handleDownloadPng} disabled={!!downloading}
           style={{
             flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -292,12 +292,12 @@ export default function EventSharePanel({ event, compact = false }) {
     <div style={{ flex: 1, minWidth: compact ? 'auto' : 280, display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Public link */}
       <div>
-        <label style={{ display: 'block', fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.stone, marginBottom: 8 }}>
+        <label style={{ display: 'block', fontFamily: 'var(--font-sans)', fontSize: 'var(--fx-micro)', fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.stone, marginBottom: 8 }}>
           Public event link
         </label>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <div style={{
-            flex: 1, minWidth: 180, display: 'flex', alignItems: 'center', gap: 8,
+            flex: 1, minWidth: 180, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
             background: C.white, border: `1px solid ${C.border}`, borderRadius: 10, padding: '0 12px', height: 44,
           }}>
             <span style={{ color: C.gold, flexShrink: 0, display: 'flex' }}>
@@ -325,7 +325,7 @@ export default function EventSharePanel({ event, compact = false }) {
       </div>
 
       {/* Status banner (handles draft / pending / paused / completed) */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, background: tone.bg, border: `1px solid ${tone.border}`, borderRadius: 12, padding: '12px 14px' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 10, background: tone.bg, border: `1px solid ${tone.border}`, borderRadius: 12, padding: '12px 14px' }}>
         <span style={{ width: 8, height: 8, borderRadius: '50%', background: tone.color, marginTop: 5, flexShrink: 0, boxShadow: status.live ? `0 0 8px ${tone.color}` : 'none' }} />
         <div>
           <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, fontWeight: 700, color: tone.color }}>{status.label}</div>
@@ -335,7 +335,7 @@ export default function EventSharePanel({ event, compact = false }) {
 
       {/* Broadcast */}
       <div>
-        <label style={{ display: 'block', fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.stone, marginBottom: 8 }}>
+        <label style={{ display: 'block', fontFamily: 'var(--font-sans)', fontSize: 'var(--fx-micro)', fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.stone, marginBottom: 8 }}>
           Broadcast everywhere
         </label>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>

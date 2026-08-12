@@ -160,7 +160,7 @@ function ErrorState({ message, onRetry }) {
 
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 420,
+      display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', minHeight: 420,
       animation: 'ov-fadeIn 0.5s ease',
     }}>
       <div style={{
@@ -172,7 +172,7 @@ function ErrorState({ message, onRetry }) {
         <div style={{
           width: 64, height: 64, borderRadius: '50%',
           background: 'linear-gradient(135deg, #FBF6EC, #F5EDDA)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
           margin: '0 auto 24px',
           boxShadow: '0 4px 16px rgba(184,148,79,0.12)',
         }}>
@@ -236,11 +236,11 @@ function CheckInBanner() {
         boxShadow: '0 8px 32px rgba(25,27,30,0.18)',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 18 }}>
         <div style={{
           width: 48, height: 48, borderRadius: 14, flexShrink: 0,
           background: 'linear-gradient(135deg, #D7BE80, #B8944F)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
         }}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#191B1E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
@@ -298,11 +298,11 @@ function ReferralBanner({ onNavigate }) {
         boxShadow: '0 8px 24px rgba(184,148,79,0.12)',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 18 }}>
         <div style={{
           width: 48, height: 48, borderRadius: 14, flexShrink: 0,
           background: 'linear-gradient(135deg, #191B1E, #2A2D33)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
         }}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#D7BE80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M20 12v9H4v-9" /><path d="M2 7h20v5H2z" /><path d="M12 22V7" /><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z" /><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" />
@@ -388,11 +388,11 @@ function FirstRun() {
           display: 'grid', gap: 14, textAlign: 'left',
         }}>
           {steps.map((s, i) => (
-            <li key={s.title} style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+            <li key={s.title} style={{ display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'flex-start' }}>
               <span style={{
                 flexShrink: 0, width: 26, height: 26, borderRadius: '50%',
                 background: 'rgba(184, 148, 79, 0.12)', color: '#B8944F',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
                 fontSize: 12, fontWeight: 700,
               }}>{i + 1}</span>
               <div style={{ minWidth: 0 }}>

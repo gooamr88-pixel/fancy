@@ -24,9 +24,9 @@ export default function WizardShell({ step, onStepClick, children, labels }) {
         padding: '0 24px',
       }}>
         {/* Left: Back + Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: '1 1 0', minWidth: 0 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 14, flex: '1 1 0', minWidth: 0 }}>
           <Link href="/dashboard" style={{
-            color: C.gold, textDecoration: 'none', display: 'flex',
+            color: C.gold, textDecoration: 'none', display: 'flex', flexWrap: 'wrap',
             alignItems: 'center', gap: 6, fontSize: 13,
             fontFamily: 'var(--font-sans)', fontWeight: 600,
             opacity: 0.7, transition: 'opacity 0.2s',
@@ -49,7 +49,7 @@ export default function WizardShell({ step, onStepClick, children, labels }) {
             five anonymous dots crammed against the logo, overflowing below ~350px
             with no idea which step you were on. Swapped for .wz-mobile-progress. */}
         <div className="wz-steps" style={{
-          display: 'flex', alignItems: 'center', gap: 0,
+          display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0,
           justifyContent: 'center', flex: '2 1 0', minWidth: 0,
         }}>
           {STEP_LABELS.map((label, i) => (
@@ -89,7 +89,7 @@ export default function WizardShell({ step, onStepClick, children, labels }) {
                   )}
                 </div>
                 <span className="wz-step-label" style={{
-                  fontSize: 10, fontFamily: 'var(--font-sans)',
+                  fontSize: 'var(--fx-micro)', fontFamily: 'var(--font-sans)',
                   fontWeight: i === step ? 700 : 500,
                   letterSpacing: '0.05em', textTransform: 'uppercase',
                   color: i <= step ? C.gold : '#77736A',
@@ -126,8 +126,8 @@ export default function WizardShell({ step, onStepClick, children, labels }) {
           display: 'none', flex: '2 1 0', minWidth: 0,
           flexDirection: 'column', justifyContent: 'center', gap: 5,
         }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0, fontFamily: 'var(--font-sans)' }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: '#77736A', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 6, minWidth: 0, fontFamily: 'var(--font-sans)' }}>
+            <span style={{ fontSize: 'var(--fx-micro)', fontWeight: 700, color: '#77736A', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
               {step + 1}/{STEP_LABELS.length}
             </span>
             <span style={{

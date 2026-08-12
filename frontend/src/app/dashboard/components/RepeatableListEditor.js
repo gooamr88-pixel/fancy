@@ -124,7 +124,7 @@ export default function RepeatableListEditor({
         }}>
           {/* Item header — number + reorder + remove */}
           <div style={{
-            display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px 8px 14px',
+            display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '8px 10px 8px 14px',
             background: C.softBg, borderBottom: `1px solid ${C.border}`,
           }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: C.stone, textTransform: 'uppercase', letterSpacing: '0.06em', flex: 1 }}>
@@ -143,7 +143,7 @@ export default function RepeatableListEditor({
               const fullWidth = col.type === 'textarea' || col.type === 'image' || col.full;
               return (
                 <div key={col.key} style={fullWidth ? { gridColumn: '1 / -1' } : undefined}>
-                  <label style={{ fontSize: '10px', fontWeight: 700, color: C.stone, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '4px' }}>
+                  <label style={{ fontSize: 'var(--fx-micro)', fontWeight: 700, color: C.stone, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '4px' }}>
                     {col.label}
                   </label>
                   {renderField(idx, item, col)}
@@ -157,7 +157,7 @@ export default function RepeatableListEditor({
         type="button"
         onClick={addRow}
         style={{
-          alignSelf: 'flex-start', padding: '9px 18px', borderRadius: '8px',
+          alignSelf: 'flex-start', padding: '9px 18px', minHeight: 'var(--fx-touch)', borderRadius: '8px',
           border: `1px dashed ${C.gold}`, background: 'rgba(184,148,79,0.05)', color: C.gold,
           cursor: 'pointer', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-sans)',
           transition: 'background 0.2s',

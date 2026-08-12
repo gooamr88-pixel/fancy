@@ -12,6 +12,8 @@ import EditGuestModal from './EditGuestModal';
 import SmsBalanceBanner from './SmsBalanceBanner';
 import ClearGuestListModal from './ClearGuestListModal';
 import ConfirmRemoveGuestModal from './ConfirmRemoveGuestModal';
+import GuestSheetGuide from './GuestSheetGuide';
+import MobileDisclosure from './MobileDisclosure';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -56,7 +58,7 @@ function StatMini({ icon, value, sub, label, accent, active, onClick, title }) {
         background: active ? `${accent}0F` : COLORS.white,
         border: `1px solid ${active ? accent : COLORS.border}`,
         borderRadius: '12px',
-        padding: '18px 20px', display: 'flex', alignItems: 'center', gap: '14px',
+        padding: '18px 20px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '14px',
         borderLeft: `3px solid ${accent}`,
         transition: 'box-shadow 0.25s ease, background 0.2s ease, border-color 0.2s ease',
         cursor: 'pointer', textAlign: 'left', width: '100%',
@@ -68,18 +70,18 @@ function StatMini({ icon, value, sub, label, accent, active, onClick, title }) {
     >
       <div style={{
         width: '40px', height: '40px', borderRadius: '10px',
-        background: `${accent}14`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: `${accent}14`, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
         color: accent, flexShrink: 0,
       }}>{icon}</div>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: '22px', fontWeight: 800, color: COLORS.charcoal, fontFamily: 'var(--font-sans)', lineHeight: 1 }}>{value}</div>
-        <div style={{ fontSize: '10px', fontWeight: 600, color: active ? accent : COLORS.stone, textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: '4px', fontFamily: 'var(--font-sans)' }}>{label}</div>
+        <div style={{ fontSize: 'var(--fx-micro)', fontWeight: 600, color: active ? accent : COLORS.stone, textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: '4px', fontFamily: 'var(--font-sans)' }}>{label}</div>
         {/* The second unit, only when it differs. Every headline here is a
             headcount; this says how many invitations those people arrived on, so
             a row of numbers that sums to the total cannot be mistaken for a row
             of party counts that does not. */}
         {sub && (
-          <div style={{ fontSize: '10.5px', color: COLORS.stone, marginTop: '3px', fontFamily: 'var(--font-sans)', fontWeight: 500 }}>
+          <div style={{ fontSize: 'var(--fx-micro)', color: COLORS.stone, marginTop: '3px', fontFamily: 'var(--font-sans)', fontWeight: 500 }}>
             {sub}
           </div>
         )}
@@ -130,7 +132,7 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, custom
     <div style={{
       background: COLORS.white, border: `1px solid ${COLORS.border}`, borderRadius: '12px',
       padding: '20px', borderLeft: `3px solid ${accentColor}`,
-      transition: 'all 0.25s cubic-bezier(0.4,0,0.2,1)', display: 'flex', gap: '14px',
+      transition: 'all 0.25s cubic-bezier(0.4,0,0.2,1)', display: 'flex', flexWrap: 'wrap', gap: '14px',
     }}
       onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 6px 24px rgba(0,0,0,0.06)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
       onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'translateY(0)'; }}
@@ -139,7 +141,7 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, custom
       <div style={{
         width: '44px', height: '44px', borderRadius: '50%', flexShrink: 0,
         background: yes ? 'rgba(184,148,79,0.12)' : no ? 'rgba(196,94,94,0.1)' : maybe ? 'rgba(99,102,241,0.1)' : 'rgba(119,115,106,0.1)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
         fontWeight: 800, fontSize: '14px', color: accentColor, fontFamily: 'var(--font-sans)',
       }}>{initials}</div>
 
@@ -156,14 +158,14 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, custom
           <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px', flexShrink: 0 }}>
             {event?.track_guest_side && guest.side && (
               <span style={{
-                padding: '2px 10px', borderRadius: '6px', fontSize: '9px', fontWeight: 700,
+                padding: '2px 10px', borderRadius: '6px', fontSize: 'var(--fx-micro)', fontWeight: 700,
                 background: 'rgba(99,102,241,0.1)', color: '#6366F1', fontFamily: 'var(--font-sans)',
               }}>
                 {sideLabel(guest.side, event)}
               </span>
             )}
             <span style={{
-              padding: '2px 10px', borderRadius: '6px', fontSize: '9px', fontWeight: 700,
+              padding: '2px 10px', borderRadius: '6px', fontSize: 'var(--fx-micro)', fontWeight: 700,
               background: yes ? 'rgba(184,148,79,0.1)' : no ? 'rgba(196,94,94,0.08)' : maybe ? 'rgba(99,102,241,0.1)' : 'rgba(119,115,106,0.1)',
               color: accentColor, fontFamily: 'var(--font-sans)', textTransform: 'uppercase',
             }}>
@@ -179,7 +181,7 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, custom
               title="Edit guest"
               aria-label={`Edit ${guest.guest_name || 'guest'}`}
               style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center', width: '44px', height: '44px',
+              display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', width: '44px', height: '44px',
               borderRadius: '6px', border: 'none', background: 'transparent', cursor: 'pointer', color: COLORS.stone,
             }}
               onMouseEnter={e => { e.currentTarget.style.background = COLORS.ivory; e.currentTarget.style.color = COLORS.gold; }}
@@ -193,7 +195,7 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, custom
               aria-label={`Remove ${guest.guest_name || 'guest'} from this event`}
               disabled={deleting}
               style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center', width: '44px', height: '44px',
+              display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', width: '44px', height: '44px',
               borderRadius: '6px', border: 'none', background: 'transparent', cursor: deleting ? 'wait' : 'pointer',
               color: COLORS.stone, opacity: deleting ? 0.4 : 1,
             }}
@@ -208,13 +210,13 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, custom
         {/* Row 2: Contact Info */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', fontSize: '11px', color: COLORS.stone, fontFamily: 'var(--font-sans)', marginBottom: '8px' }}>
           {guest.email && guest.email !== '-' && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px' }}>
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
               {guest.email}
             </span>
           )}
           {guest.phone && guest.phone !== '-' && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px' }}>
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
               {guest.phone}
             </span>
@@ -227,7 +229,7 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, custom
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: '4px',
                 padding: '2px 8px', borderRadius: '5px', fontWeight: 700,
-                fontSize: '9.5px', letterSpacing: '0.03em', textTransform: 'uppercase',
+                fontSize: 'var(--fx-micro)', letterSpacing: '0.03em', textTransform: 'uppercase',
                 background: smsBadge.bg, color: smsBadge.color, cursor: 'help',
               }}
             >
@@ -241,9 +243,9 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, custom
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
           {/* Party Size */}
           <span style={{
-            padding: '3px 10px', borderRadius: '6px', fontSize: '10px', fontWeight: 600,
+            padding: '3px 10px', borderRadius: '6px', fontSize: 'var(--fx-micro)', fontWeight: 600,
             background: COLORS.ivory, color: COLORS.stone, fontFamily: 'var(--font-sans)',
-            display: 'flex', alignItems: 'center', gap: '4px',
+            display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px',
           }}>
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
             {guest.party_size} {guest.party_size === 1 ? 'guest' : 'guests'}
@@ -252,7 +254,7 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, custom
           {/* Meal */}
           {guest.meal && guest.meal !== '-' && (
             <span style={{
-              padding: '3px 10px', borderRadius: '6px', fontSize: '10px', fontWeight: 600,
+              padding: '3px 10px', borderRadius: '6px', fontSize: 'var(--fx-micro)', fontWeight: 600,
               background: COLORS.ivory, color: COLORS.stone, fontFamily: 'var(--font-sans)',
               maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               display: 'flex', alignItems: 'center', gap: '4px',
@@ -268,7 +270,7 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, custom
               value={guest.tableId || ''}
               onChange={e => onAssignTable(guest.id, e.target.value)}
               style={{
-                padding: '3px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: 600,
+                padding: '3px 8px', minHeight: 'var(--fx-touch)', borderRadius: '6px', fontSize: 'var(--fx-micro)', fontWeight: 600,
                 border: `1px solid ${COLORS.border}`, background: COLORS.white, color: COLORS.charcoal,
                 fontFamily: 'var(--font-sans)', cursor: 'pointer', outline: 'none',
                 transition: 'border-color 0.2s',
@@ -311,7 +313,7 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, custom
             <button onClick={() => setExpanded(v => !v)} style={{
               background: 'none', border: 'none', cursor: 'pointer', padding: 0,
               fontSize: '11px', fontWeight: 700, color: COLORS.gold, fontFamily: 'var(--font-sans)',
-              display: 'flex', alignItems: 'center', gap: '4px',
+              display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px',
             }}>
               {expanded ? '▾' : '▸'} {expanded ? 'Hide details' : 'Show details'}
             </button>
@@ -326,15 +328,15 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, custom
                     <span style={{ fontSize: '12px', fontWeight: 700, color: COLORS.charcoal, fontFamily: 'var(--font-sans)' }}>
                       {p.full_name || 'Unnamed guest'}
                     </span>
-                    {p.is_primary_contact && <span style={{ fontSize: '8px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: COLORS.gold, background: 'rgba(184,148,79,0.12)', padding: '2px 6px', borderRadius: '4px' }}>Primary</span>}
+                    {p.is_primary_contact && <span style={{ fontSize: 'var(--fx-micro)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: COLORS.gold, background: 'rgba(184,148,79,0.12)', padding: '2px 6px', borderRadius: '4px' }}>Primary</span>}
                     {p.meal_selection && (
-                      <span style={{ fontSize: '10px', color: COLORS.stone, fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ fontSize: 'var(--fx-micro)', color: COLORS.stone, fontFamily: 'var(--font-sans)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px' }}>
                         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8h1a4 4 0 010 8h-1M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8zM6 1v3M10 1v3M14 1v3"/></svg>
                         {p.meal_selection}
                       </span>
                     )}
                     {p.dietary_notes && (
-                      <span style={{ fontSize: '10px', color: '#C45E5E', fontFamily: 'var(--font-sans)', fontStyle: 'italic' }} title="Dietary notes">
+                      <span style={{ fontSize: 'var(--fx-micro)', color: '#C45E5E', fontFamily: 'var(--font-sans)', fontStyle: 'italic' }} title="Dietary notes">
                         ⚠ {p.dietary_notes}
                       </span>
                     )}
@@ -362,7 +364,9 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, custom
 /* ── Main Component ── */
 export default function GuestsTab({
   rsvps, tables, customFields, eventId, event, onAssignTable, onRefresh,
-  onOpenAddGuest, onOpenImport, isPaid, tierFeatures, onUpgrade,
+  // `onOpenAddGuest` is gone with the button — adding one guest is now
+  // "Send an invitation" in the Invitations & replies section.
+  onOpenImport, isPaid, tierFeatures, onUpgrade,
   // Balance figures for the banner, passed down rather than refetched — the
   // dashboard already holds them, and two fetches would eventually show two
   // different numbers on the same screen.
@@ -562,7 +566,7 @@ export default function GuestsTab({
   if (!eventId) {
     return (
       <div style={{ textAlign: 'center', padding: '64px 24px', background: COLORS.white, border: `1px solid ${COLORS.border}`, borderRadius: '16px' }}>
-        <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: `linear-gradient(135deg, ${COLORS.ivory}, ${COLORS.champagne}20)`, margin: '0 auto 20px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: `linear-gradient(135deg, ${COLORS.ivory}, ${COLORS.champagne}20)`, margin: '0 auto 20px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' }}>
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={COLORS.champagne} strokeWidth="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
         </div>
         <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 500, color: COLORS.charcoal, marginBottom: '8px' }}>No Event Selected</h3>
@@ -586,8 +590,12 @@ export default function GuestsTab({
           <p style={{ fontSize: '11px', color: COLORS.stone, fontFamily: 'var(--font-sans)', marginTop: '4px' }}>Manage your event&apos;s guest list, seating, and preferences</p>
         </div>
         {/*
-          flexWrap is load-bearing: this row holds FOUR buttons — Add Guest,
-          Import CSV, Download and Clear list.
+          flexWrap is load-bearing: this row holds Import CSV, Download and
+          Clear list. (It held a fourth, Add Guest, until that moved to
+          Invitations & replies — the arithmetic below is quoted for four and is
+          left as-is deliberately: it is the reason the property is here, and
+          losing one button does not make wrapping optional. Three labels still
+          sum past a 320px phone.)
 
           Without it the row cannot break, and a nowrap flex row's min-content is
           the SUM of its children: roughly 88 + 95 + 88 + 88 plus three 8px gaps,
@@ -600,24 +608,25 @@ export default function GuestsTab({
           which fits any phone with room to spare.
         */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-          <FeatureGate tierFeatures={tierFeatures} isPaid={isPaid} feature="add_guest_manual" onUpgrade={onUpgrade}>
-          <button onClick={onOpenAddGuest} style={{
-            padding: '9px 18px', background: COLORS.gold, color: COLORS.white, border: 'none',
-            borderRadius: '8px', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-sans)',
-            cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px',
-          }}
-            onMouseEnter={e => { e.currentTarget.style.background = COLORS.goldHover; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = COLORS.gold; e.currentTarget.style.transform = 'translateY(0)'; }}
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Add Guest
-          </button>
-          </FeatureGate>
+          {/**
+            * "Add Guest" WAS HERE, and it has moved to Invitations & replies as
+            * "Send an invitation".
+            *
+            * Its place and its name were both wrong. This section builds the list —
+            * upload it, organise it, download it, clear it. Adding one person by
+            * hand is not that: an organizer typing a single name and email is
+            * inviting somebody, and the old button proved it by silently emailing
+            * an invitation on submit while calling itself "Add Guest".
+            *
+            * So the act moved to the section about reaching people, and it is now
+            * named after what it does. Bulk still starts here: upload the
+            * spreadsheet, then tick and send from the other tab.
+            */}
           <FeatureGate tierFeatures={tierFeatures} isPaid={isPaid} feature="import_guests_csv" onUpgrade={onUpgrade}>
           <button onClick={onOpenImport} style={{
-            padding: '9px 18px', background: COLORS.white, color: COLORS.stone, border: `1px solid ${COLORS.border}`,
+            padding: '9px 18px', minHeight: 'var(--fx-touch)', background: COLORS.white, color: COLORS.stone, border: `1px solid ${COLORS.border}`,
             borderRadius: '8px', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-sans)',
-            cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px',
+            cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px',
           }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = COLORS.gold; e.currentTarget.style.color = COLORS.gold; }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = COLORS.border; e.currentTarget.style.color = COLORS.stone; }}
@@ -643,9 +652,9 @@ export default function GuestsTab({
               the other. Hidden on an empty list: there is nothing to download. */}
           {rsvps.length > 0 && (
             <button onClick={() => setExportOpen(o => !o)} aria-expanded={exportOpen} style={{
-              padding: '9px 18px', background: COLORS.white, color: COLORS.stone, border: `1px solid ${COLORS.border}`,
+              padding: '9px 18px', minHeight: 'var(--fx-touch)', background: COLORS.white, color: COLORS.stone, border: `1px solid ${COLORS.border}`,
               borderRadius: '8px', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-sans)',
-              cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px',
+              cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px',
             }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = COLORS.gold; e.currentTarget.style.color = COLORS.gold; }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = COLORS.border; e.currentTarget.style.color = COLORS.stone; }}
@@ -656,9 +665,9 @@ export default function GuestsTab({
           )}
           {rsvps.length > 0 && (
             <button onClick={() => setClearOpen(true)} style={{
-              padding: '9px 18px', background: COLORS.white, color: '#C45E5E', border: '1px solid #FECACA',
+              padding: '9px 18px', minHeight: 'var(--fx-touch)', background: COLORS.white, color: '#C45E5E', border: '1px solid #FECACA',
               borderRadius: '8px', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-sans)',
-              cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px',
+              cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px',
             }}
               onMouseEnter={e => { e.currentTarget.style.background = '#FEF2F2'; e.currentTarget.style.borderColor = '#C45E5E'; }}
               onMouseLeave={e => { e.currentTarget.style.background = COLORS.white; e.currentTarget.style.borderColor = '#FECACA'; }}
@@ -667,7 +676,7 @@ export default function GuestsTab({
               Clear list
             </button>
           )}
-          {/* "Send Invitations" was here. It opened a modal that asked the
+          {/* "Send Invitations" was here too. It opened a modal that asked the
               organizer to pick an audience, search it, tick a consent box and
               choose a channel — four decisions to do the thing they had come to
               this screen to do.
@@ -677,16 +686,21 @@ export default function GuestsTab({
         </div>
       </div>
 
-      {/* ── SMS status ───────────────────────────────────────
-          Between the header and the stats, so the first thing an organizer sees
-          after "here are your guests" is whether they can reach them. */}
-      <SmsBalanceBanner
-        active={smsAddonActive}
-        remaining={smsRemaining}
-        purchased={smsPurchased}
-        coverage={smsCoverage}
-        topUpHref="/dashboard/campaigns"
-      />
+      {/* Where the button went. A pointer rather than silence, because anyone who
+          used "Add Guest" will look here first — the same courtesy the RSVPs tab
+          is shown for the download that moved the other way. */}
+      <p style={{
+        margin: 0, fontSize: 12, color: COLORS.stone, fontFamily: 'var(--font-sans)', lineHeight: 1.6,
+      }}>
+        Adding one guest? That is <strong style={{ color: COLORS.charcoal }}>Invitations &amp; replies</strong> →{' '}
+        <a
+          href={`/dashboard?tab=rsvps${eventId ? `&event=${eventId}` : ''}`}
+          style={{ color: COLORS.gold, fontWeight: 700, textDecoration: 'underline' }}
+        >
+          Send an invitation
+        </a>
+        , which adds them and sends it in one step.
+      </p>
 
       {/* ── Download panel ──
           Both choices are inputs, and the sentence says exactly what the file
@@ -726,7 +740,7 @@ export default function GuestsTab({
                 onClick={() => handleDownload('csv')}
                 disabled={!!downloading}
                 style={{
-                  padding: '9px 18px', borderRadius: 8, border: 'none',
+                  padding: '9px 18px', minHeight: 'var(--fx-touch)', borderRadius: 8, border: 'none',
                   background: COLORS.gold, color: COLORS.white,
                   fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-sans)',
                   cursor: downloading ? 'wait' : 'pointer', whiteSpace: 'nowrap',
@@ -742,7 +756,7 @@ export default function GuestsTab({
                 onClick={() => handleDownload('excel')}
                 disabled={!!downloading}
                 style={{
-                  padding: '9px 18px', borderRadius: 8,
+                  padding: '9px 18px', minHeight: 'var(--fx-touch)', borderRadius: 8,
                   border: `1px solid ${COLORS.border}`, background: COLORS.white,
                   color: COLORS.charcoal, fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-sans)',
                   cursor: downloading ? 'wait' : 'pointer', whiteSpace: 'nowrap',
@@ -763,8 +777,30 @@ export default function GuestsTab({
         </div>
       )}
 
-      {/* Stats Row — also the filter. Tapping a tile shows those guests;
-          tapping the active one again clears it. */}
+      {/**
+        * Stats Row — also the filter. Tapping a tile shows those guests;
+        * tapping the active one again clears it.
+        *
+        * ON A PHONE these six tiles stack into six full-width cards, which is
+        * most of a screen of counts sitting on top of the list they describe.
+        * MobileDisclosure collapses them to the one line below and leaves the
+        * grid exactly as it is at md and up — same markup, CSS decides.
+        *
+        * The summary states the headline number and the two counts an organizer
+        * is actually chasing (who has said yes, who has not answered). The
+        * filter is not lost: opening the disclosure gives back the tiles, which
+        * ARE the filter.
+        */}
+      <MobileDisclosure
+        label="Guest counts and filters"
+        summary={
+          <>
+            <strong style={{ fontWeight: 800 }}>{counts.total}</strong> {counts.total === 1 ? 'guest' : 'guests'}
+            {' · '}{counts.accepted} accepted
+            {counts.pending > 0 && <>{' · '}{counts.pending} not replied</>}
+          </>
+        }
+      >
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }}>
         {[
           { key: 'all', label: 'Total Guests', value: counts.total, sub: partySub(counts.parties.total, counts.total), accent: COLORS.gold,
@@ -799,8 +835,11 @@ export default function GuestsTab({
           />
         ))}
       </div>
+      </MobileDisclosure>
 
-      {/* Search + the two filters the tiles cannot express */}
+      {/* Search stays visible at every width. It is how you FIND content, not
+          chrome describing it — collapsing it would be the one thing on this
+          screen worth a permanent slot. */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
         <div style={{ position: 'relative', flex: '1 1 200px' }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={COLORS.stone} strokeWidth="2" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -833,7 +872,7 @@ export default function GuestsTab({
             type="button"
             onClick={() => { setSearch(''); setFilter('all'); setPage(1); }}
             style={{
-              padding: '7px 12px', borderRadius: 8, border: `1px solid ${COLORS.border}`,
+              padding: '7px 12px', minHeight: 'var(--fx-touch)', borderRadius: 8, border: `1px solid ${COLORS.border}`,
               background: COLORS.white, color: COLORS.stone, cursor: 'pointer',
               fontSize: 11.5, fontWeight: 600, fontFamily: 'var(--font-sans)',
             }}
@@ -868,19 +907,24 @@ export default function GuestsTab({
               No guests yet
             </h3>
             <p style={{ margin: '8px auto 0', maxWidth: 430, fontSize: 13.5, lineHeight: 1.65, color: COLORS.stone }}>
-              Add them one at a time, or upload a list you already have. A spreadsheet can
-              carry names, contacts, party sizes and sides — and if you export from here
-              later, that file imports straight back with the replies included.
+              Upload a list you already have. A spreadsheet can carry names, contacts, party
+              sizes and sides — and if you export from here later, that file imports straight
+              back with the replies included.
             </p>
-            {/* Both gated exactly as the header buttons are. Ungated, these would
-                open a modal whose submit comes back 403 — a dead end reached by
-                following the screen's own primary instruction. FeatureGate shows
-                the lock and explains the tier instead. */}
+            {/* Gated exactly as the header button is. Ungated, this would open a
+                modal whose submit comes back 403 — a dead end reached by following
+                the screen's own primary instruction. FeatureGate shows the lock and
+                explains the tier instead.
+
+                The second button here was "Add a guest". It is now the secondary
+                link below, pointing at Invitations & replies where that act lives —
+                on an empty guest list, uploading is the thing worth a filled
+                button, and inviting one person is worth a sentence. */}
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', marginTop: 22 }}>
-              <FeatureGate tierFeatures={tierFeatures} isPaid={isPaid} feature="add_guest_manual" onUpgrade={onUpgrade}>
+              <FeatureGate tierFeatures={tierFeatures} isPaid={isPaid} feature="import_guests_csv" onUpgrade={onUpgrade}>
                 <button
                   type="button"
-                  onClick={onOpenAddGuest}
+                  onClick={onOpenImport}
                   style={{
                     padding: '11px 22px', borderRadius: 30, border: 'none', cursor: 'pointer',
                     background: 'linear-gradient(135deg, #D7BE80 0%, #B8944F 100%)',
@@ -888,23 +932,20 @@ export default function GuestsTab({
                     boxShadow: '0 4px 15px rgba(184, 148, 79, 0.25)',
                   }}
                 >
-                  Add a guest
-                </button>
-              </FeatureGate>
-              <FeatureGate tierFeatures={tierFeatures} isPaid={isPaid} feature="import_guests_csv" onUpgrade={onUpgrade}>
-                <button
-                  type="button"
-                  onClick={onOpenImport}
-                  style={{
-                    padding: '11px 22px', borderRadius: 30, cursor: 'pointer',
-                    border: `1px solid ${COLORS.border}`, background: COLORS.white,
-                    color: COLORS.charcoal, fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-sans)',
-                  }}
-                >
                   Upload a list
                 </button>
               </FeatureGate>
             </div>
+            <p style={{ margin: '14px 0 0', fontSize: 12.5, color: COLORS.stone, lineHeight: 1.6 }}>
+              Just one person?{' '}
+              <a
+                href={`/dashboard?tab=rsvps${eventId ? `&event=${eventId}` : ''}`}
+                style={{ color: COLORS.gold, fontWeight: 700, textDecoration: 'underline' }}
+              >
+                Send them an invitation
+              </a>
+              {' '}— it adds them here at the same time.
+            </p>
           </div>
         ) : (
           <div style={{ textAlign: 'center', padding: '48px 24px', background: COLORS.white, border: `1px solid ${COLORS.border}`, borderRadius: '12px' }}>
@@ -916,7 +957,7 @@ export default function GuestsTab({
               type="button"
               onClick={() => { setSearch(''); setFilter('all'); setPage(1); }}
               style={{
-                marginTop: 16, padding: '9px 18px', borderRadius: 8,
+                marginTop: 16, padding: '9px 18px', minHeight: 'var(--fx-touch)', borderRadius: 8,
                 border: `1px solid ${COLORS.border}`, background: COLORS.white,
                 color: COLORS.charcoal, cursor: 'pointer',
                 fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-sans)',
@@ -945,9 +986,9 @@ export default function GuestsTab({
           `}</style>
 
           {totalPages > 1 && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1} style={{
-                padding: '6px 12px', borderRadius: '6px', border: `1px solid ${COLORS.border}`, background: COLORS.white,
+                padding: '6px 12px', minHeight: 'var(--fx-touch)', borderRadius: '6px', border: `1px solid ${COLORS.border}`, background: COLORS.white,
                 color: safePage === 1 ? COLORS.border : COLORS.charcoal, fontSize: '12px', fontFamily: 'var(--font-sans)',
                 cursor: safePage === 1 ? 'default' : 'pointer',
               }}>‹ Prev</button>
@@ -955,7 +996,7 @@ export default function GuestsTab({
                 Page {safePage} of {totalPages}
               </span>
               <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages} style={{
-                padding: '6px 12px', borderRadius: '6px', border: `1px solid ${COLORS.border}`, background: COLORS.white,
+                padding: '6px 12px', minHeight: 'var(--fx-touch)', borderRadius: '6px', border: `1px solid ${COLORS.border}`, background: COLORS.white,
                 color: safePage === totalPages ? COLORS.border : COLORS.charcoal, fontSize: '12px', fontFamily: 'var(--font-sans)',
                 cursor: safePage === totalPages ? 'default' : 'pointer',
               }}>Next ›</button>
@@ -963,6 +1004,34 @@ export default function GuestsTab({
           )}
         </>
       )}
+
+      {/**
+        * BELOW THE LIST, deliberately — both of these used to sit above it.
+        *
+        * The SMS banner answers "can I reach these people?" and the sheet guide
+        * answers "how do I build a file?". Both are real, and neither is what an
+        * organizer opened Guest list to look at. Above the fold they cost two
+        * screens of scrolling on a phone before the first guest appeared.
+        *
+        * They keep their place in the reading order — an organizer who scrolls
+        * to the end of their list finds the two things they might do next — and
+        * on a desktop, where vertical room is not scarce, the move is barely
+        * noticeable.
+        */}
+      <SmsBalanceBanner
+        active={smsAddonActive}
+        remaining={smsRemaining}
+        purchased={smsPurchased}
+        coverage={smsCoverage}
+        topUpHref="/dashboard/campaigns"
+      />
+
+      <GuestSheetGuide
+        event={event}
+        tables={tables}
+        customFields={customFields}
+        onOpenImport={onOpenImport}
+      />
 
       <EditGuestModal
         isOpen={!!editingGuest}

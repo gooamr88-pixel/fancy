@@ -69,7 +69,7 @@ export default function ConfirmBulkTextModal({ channel, count, remaining, onCanc
       style={{
         position: 'fixed', inset: 0, zIndex: 1000,
         background: 'rgba(25,27,30,0.55)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+        display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', padding: 16,
       }}
     >
       <div style={{
@@ -103,7 +103,7 @@ export default function ConfirmBulkTextModal({ channel, count, remaining, onCanc
                 ? [['Your balance', `${remaining} left`]] : []),
             ].map(([label, value]) => (
               <div key={label} style={{
-                display: 'flex', justifyContent: 'space-between', gap: 12,
+                display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 12,
                 fontSize: 13, padding: '4px 0', color: C.stone,
               }}>
                 <span>{label}</span>
@@ -133,13 +133,13 @@ export default function ConfirmBulkTextModal({ channel, count, remaining, onCanc
           )}
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '18px 22px 22px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8, padding: '18px 22px 22px' }}>
           <button
             type="button"
             onClick={onCancel}
             disabled={busy}
             style={{
-              padding: '9px 18px', borderRadius: 9, border: `1px solid ${C.border}`,
+              padding: '9px 18px', minHeight: 'var(--fx-touch)', borderRadius: 9, border: `1px solid ${C.border}`,
               background: C.white, color: C.charcoal, fontSize: 12.5, fontWeight: 700,
               fontFamily: 'var(--font-sans)', cursor: busy ? 'wait' : 'pointer',
             }}
@@ -151,7 +151,7 @@ export default function ConfirmBulkTextModal({ channel, count, remaining, onCanc
             onClick={onConfirm}
             disabled={busy}
             style={{
-              padding: '9px 18px', borderRadius: 9, border: 'none',
+              padding: '9px 18px', minHeight: 'var(--fx-touch)', borderRadius: 9, border: 'none',
               background: 'linear-gradient(135deg, #D7BE80 0%, #B8944F 100%)',
               color: C.white, fontSize: 12.5, fontWeight: 700,
               fontFamily: 'var(--font-sans)', cursor: busy ? 'wait' : 'pointer',

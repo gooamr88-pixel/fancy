@@ -155,7 +155,10 @@ const CSS = `
   transform:translateY(-2px);
   box-shadow:0 8px 32px rgba(184,148,79,0.35);
 }
-@media(max-width:640px){
+/* 639.98 and not 640: at fractional CSS-pixel widths (browser zoom, Windows
+   display scaling, iOS pinch) a whole-pixel max-width leaves a band where this
+   rule and any min-width:640px rule both fail to match. See AGENTS.md. */
+@media(max-width:639.98px){
   /* The side-by-side cover + content row left only ~245px for the title, date,
      status and THREE action buttons — everything wrapped into a cramped column.
      Stack the cover as a full-width banner on top so the content gets the entire
@@ -277,7 +280,7 @@ function MiniStat({ label, value, color, delay, icon }) {
       onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.06)'; }}
       onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
     >
-      <div style={{ fontSize: 10, fontWeight: 600, color: C.stone, fontFamily: 'var(--font-sans)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+      <div style={{ fontSize: 'var(--fx-micro)', fontWeight: 600, color: C.stone, fontFamily: 'var(--font-sans)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5 }}>
         {icon}
         {label}
       </div>
@@ -297,7 +300,7 @@ function PayCopyBtn({ value }) {
   return (
     <button type="button"
       onClick={(e) => { e.stopPropagation(); navigator.clipboard?.writeText(value).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }); }}
-      style={{ border: `1px solid ${C.border}`, background: C.white, borderRadius: 8, padding: '4px 10px', fontSize: 11, fontWeight: 700, color: copied ? C.green : C.gold, cursor: 'pointer', fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap' }}>
+      style={{ border: `1px solid ${C.border}`, background: C.white, borderRadius: 8, padding: '4px 10px', minHeight: 'var(--fx-touch)', fontSize: 11, fontWeight: 700, color: copied ? C.green : C.gold, cursor: 'pointer', fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap' }}>
       {copied ? '✓ Copied' : 'Copy'}
     </button>
   );
@@ -434,7 +437,7 @@ function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
       <div aria-busy="true" aria-label="Loading pricing" style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '4px 0' }}>
         <div style={{ ...skel('150px', 14), marginBottom: '4px' }} />
         {[0, 1].map(i => (
-          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', border: '1px solid #F0ECE3', borderRadius: '12px' }}>
+          <div key={i} style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', padding: '16px', border: '1px solid #F0ECE3', borderRadius: '12px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div style={skel('120px', 13)} />
               <div style={skel('80px', 11)} />
@@ -546,14 +549,14 @@ function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
               cursor: (processing || !selectedTier) ? 'not-allowed' : 'pointer',
               opacity: (processing || !selectedTier) ? 0.5 : 1,
               transition: 'all 0.2s',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 8,
             }}>
             <Icon name="bank" size={15} strokeWidth={1.6} /> Manual / Bank Transfer
           </button>
         </div>
       ) : (
         <div style={{ background: C.white, border: `1.5px solid ${C.border}`, borderRadius: 14, padding: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
             <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: 16, fontWeight: 600, color: C.charcoal, margin: 0 }}>Pay by Manual Transfer</h4>
             <button onClick={() => setShowManual(false)} style={{ background: 'none', border: 'none', color: C.stone, fontSize: 12, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', fontFamily: 'var(--font-sans)' }}>← Other methods</button>
           </div>
@@ -597,26 +600,26 @@ function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
                       background: sel ? 'rgba(184,148,79,0.05)' : C.white,
                       borderRadius: 12, padding: 14, cursor: 'pointer', transition: 'all 0.2s',
                     }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: (m.details || m.instructions) ? 10 : 0 }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginBottom: (m.details || m.instructions) ? 10 : 0 }}>
                       <Icon name={METHOD_ICON[m.type] || METHOD_ICON.other} size={17} strokeWidth={1.5} />
                       <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 700, color: C.charcoal, flex: 1 }}>{m.label}</span>
                       <div style={{
                         width: 20, height: 20, borderRadius: '50%',
                         border: sel ? `2px solid ${C.gold}` : `2px solid ${C.border}`,
                         background: sel ? C.gold : 'transparent',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
                       }}>
                         {sel && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><path d="M5 13l4 4L19 7" /></svg>}
                       </div>
                     </div>
                     {m.details && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: C.softBg, borderRadius: 8, padding: '8px 12px', marginBottom: m.instructions ? 8 : 0 }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, background: C.softBg, borderRadius: 8, padding: '8px 12px', marginBottom: m.instructions ? 8 : 0 }}>
                         <code style={{ fontFamily: 'monospace', fontSize: 12, color: C.charcoal, fontWeight: 600, flex: 1, wordBreak: 'break-all' }}>{m.details}</code>
                         <PayCopyBtn value={m.details} />
                       </div>
                     )}
                     {m.instructions && (
-                      <p style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: C.stone, margin: 0, lineHeight: 1.5, display: 'flex', alignItems: 'flex-start', gap: 5 }}><Icon name="info" size={12} strokeWidth={1.6} style={{ flexShrink: 0, marginTop: 1 }} /> {m.instructions}</p>
+                      <p style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: C.stone, margin: 0, lineHeight: 1.5, display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 5 }}><Icon name="info" size={12} strokeWidth={1.6} style={{ flexShrink: 0, marginTop: 1 }} /> {m.instructions}</p>
                     )}
                   </div>
                 );
@@ -706,12 +709,12 @@ function CurrentPlanBlock({ eventId, event }) {
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <div>
-          <span style={{ fontSize: 10, fontWeight: 700, color: C.gold, textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-sans)' }}>Current Plan</span>
+          <span style={{ fontSize: 'var(--fx-micro)', fontWeight: 700, color: C.gold, textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-sans)' }}>Current Plan</span>
           <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 700, color: C.charcoal, margin: '2px 0 2px' }}>
             {planName}
             {isComplimentary && (
               <span style={{
-                marginLeft: 8, fontFamily: 'var(--font-sans)', fontSize: 9, fontWeight: 700, color: C.gold,
+                marginLeft: 8, fontFamily: 'var(--font-sans)', fontSize: 'var(--fx-micro)', fontWeight: 700, color: C.gold,
                 background: 'rgba(184,148,79,0.10)', border: '1px solid rgba(184,148,79,0.25)',
                 padding: '2px 8px', borderRadius: 100, textTransform: 'uppercase', letterSpacing: '0.05em', verticalAlign: 'middle',
               }}>Complimentary</span>
@@ -726,17 +729,17 @@ function CurrentPlanBlock({ eventId, event }) {
             </span>
           )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 100,
             background: 'rgba(74,124,89,0.10)', border: '1px solid rgba(74,124,89,0.25)',
-            fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 700, color: '#3A8B55', textTransform: 'uppercase', letterSpacing: '0.05em',
+            fontFamily: 'var(--font-sans)', fontSize: 'var(--fx-micro)', fontWeight: 700, color: '#3A8B55', textTransform: 'uppercase', letterSpacing: '0.05em',
           }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4A7C59' }} /> Active
           </span>
           {hasUpgrades === true && (
             <button onClick={() => setShowUpgrade(s => !s)} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 9, border: 'none',
+              display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', minHeight: 'var(--fx-touch)', borderRadius: 9, border: 'none',
               background: showUpgrade ? C.white : 'linear-gradient(135deg, #B8944F, #D7BE80)',
               color: showUpgrade ? C.stone : C.white, fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 700,
               cursor: 'pointer', boxShadow: showUpgrade ? 'none' : '0 3px 12px rgba(184,148,79,0.28)',
@@ -749,7 +752,7 @@ function CurrentPlanBlock({ eventId, event }) {
             <span style={{
               display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 100,
               background: 'rgba(184,148,79,0.08)', border: '1px solid rgba(184,148,79,0.18)',
-              fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 700, color: C.gold, textTransform: 'uppercase', letterSpacing: '0.05em',
+              fontFamily: 'var(--font-sans)', fontSize: 'var(--fx-micro)', fontWeight: 700, color: C.gold, textTransform: 'uppercase', letterSpacing: '0.05em',
             }}>
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4-6.3-4.6L5.7 21.4 8 14 2 9.4h7.6z"/></svg>
               Max Plan
@@ -760,7 +763,7 @@ function CurrentPlanBlock({ eventId, event }) {
       {/* Manual payment receipt */}
       {manualPayment && (
         <div style={{ marginTop: 14, padding: '14px 16px', background: '#FAFAF8', border: `1px solid ${C.border}`, borderRadius: 10 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: C.stone, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8, fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: 5 }}>
+          <div style={{ fontSize: 'var(--fx-micro)', fontWeight: 700, color: C.stone, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8, fontFamily: 'var(--font-sans)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5 }}>
             <Icon name="cash" size={12} strokeWidth={1.8} /> Manual Payment Receipt
           </div>
           <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 12, fontFamily: 'var(--font-sans)', color: C.charcoal }}>
@@ -821,7 +824,7 @@ function ExpandedPanel({ eventId, event, onClose }) {
   if (loading) {
     return (
       <div className="evt2-expand-panel" style={{ padding: '20px 24px' }}>
-        <div style={{ display: 'flex', gap: 12 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
           {[1,2,3,4].map(i => (
             <div key={i} style={{
               flex: 1, height: 72, borderRadius: 12,
@@ -852,7 +855,7 @@ function ExpandedPanel({ eventId, event, onClose }) {
         {/* Donut */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, animation: 'evtStatPop 0.5s ease both' }}>
           <MiniDonut accepted={accepted} declined={declined} pending={pending} size={72} />
-          <div style={{ fontSize: 10, color: C.stone, fontFamily: 'var(--font-sans)', fontWeight: 500 }}>RSVP Rate</div>
+          <div style={{ fontSize: 'var(--fx-micro)', color: C.stone, fontFamily: 'var(--font-sans)', fontWeight: 500 }}>RSVP Rate</div>
         </div>
 
         {/* Stats grid */}
@@ -875,17 +878,17 @@ function ExpandedPanel({ eventId, event, onClose }) {
       {/* Progress bar */}
       {total > 0 && (
         <div style={{ marginTop: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-            <span style={{ fontSize: 10, fontWeight: 600, color: C.stone, fontFamily: 'var(--font-sans)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Response Progress</span>
-            <span style={{ fontSize: 10, fontWeight: 700, color: C.gold, fontFamily: 'var(--font-sans)' }}>{total} total</span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span style={{ fontSize: 'var(--fx-micro)', fontWeight: 600, color: C.stone, fontFamily: 'var(--font-sans)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Response Progress</span>
+            <span style={{ fontSize: 'var(--fx-micro)', fontWeight: 700, color: C.gold, fontFamily: 'var(--font-sans)' }}>{total} total</span>
           </div>
           <div style={{ height: 6, borderRadius: 3, background: '#F0ECE3', overflow: 'hidden', display: 'flex' }}>
             <div style={{ width: `${(accepted/total)*100}%`, background: `linear-gradient(90deg, ${C.gold}, ${C.champagne})`, borderRadius: 3, transition: 'width 1s ease' }} />
             <div style={{ width: `${(declined/total)*100}%`, background: C.stone, transition: 'width 1s ease' }} />
           </div>
-          <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginTop: 8 }}>
             {[{ l: 'Accepted', c: C.gold, v: accepted }, { l: 'Declined', c: C.stone, v: declined }, { l: 'Pending', c: C.champagne, v: pending }].map(s => (
-              <div key={s.l} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: C.stone, fontFamily: 'var(--font-sans)' }}>
+              <div key={s.l} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5, fontSize: 'var(--fx-micro)', color: C.stone, fontFamily: 'var(--font-sans)' }}>
                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.c }} />
                 {s.l}: <strong style={{ color: C.charcoal }}>{s.v}</strong>
               </div>
@@ -897,7 +900,7 @@ function ExpandedPanel({ eventId, event, onClose }) {
       {/* Meal summary if present */}
       {stats.mealSummary && Object.keys(stats.mealSummary).length > 0 && (
         <div style={{ marginTop: 14, padding: '10px 14px', background: C.white, borderRadius: 10, border: `1px solid ${C.border}`, animation: 'evtStatPop 0.6s ease 0.4s both' }}>
-          <div style={{ fontSize: 10, fontWeight: 600, color: C.stone, fontFamily: 'var(--font-sans)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>🍽 Meal Selections</div>
+          <div style={{ fontSize: 'var(--fx-micro)', fontWeight: 600, color: C.stone, fontFamily: 'var(--font-sans)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>🍽 Meal Selections</div>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             {Object.entries(stats.mealSummary).map(([meal, count]) => (
               <span key={meal} style={{ padding: '3px 10px', borderRadius: 8, background: 'rgba(184,148,79,0.06)', fontSize: 11, fontFamily: 'var(--font-sans)', color: C.charcoal, fontWeight: 500 }}>
@@ -910,7 +913,7 @@ function ExpandedPanel({ eventId, event, onClose }) {
 
       {/* Share & QR Code Section */}
       <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${C.border}` }}>
-        <div style={{ fontSize: 10, fontWeight: 600, color: C.stone, fontFamily: 'var(--font-sans)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 5 }}>
+        <div style={{ fontSize: 'var(--fx-micro)', fontWeight: 600, color: C.stone, fontFamily: 'var(--font-sans)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5 }}>
           <Icon name="link" size={12} strokeWidth={1.8} /> Share &amp; QR Code
         </div>
         <EventSharePanel event={event} compact />
@@ -983,7 +986,7 @@ const EventCard = React.memo(function EventCard({ event, index, isActive, onSele
           {!event.cover_image_url && (
             <div style={{
               position: 'absolute', inset: 0,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
               color: '#fff', fontSize: 34, fontFamily: 'var(--font-serif)',
               fontWeight: 700, textShadow: '0 2px 10px rgba(0,0,0,0.2)',
             }}>
@@ -995,7 +998,7 @@ const EventCard = React.memo(function EventCard({ event, index, isActive, onSele
         {/* Content */}
         <div style={{ flex: 1, padding: '16px 20px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 5, minWidth: 0 }}>
           {/* Title + Status */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
             <h3 style={{
               fontFamily: 'var(--font-serif)', fontSize: 17, fontWeight: 700,
               color: C.charcoal, margin: 0, whiteSpace: 'nowrap',
@@ -1006,7 +1009,7 @@ const EventCard = React.memo(function EventCard({ event, index, isActive, onSele
             <span style={{
               flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5,
               padding: '4px 12px', borderRadius: 20,
-              fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
+              fontSize: 'var(--fx-micro)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
               background: status.bg, color: status.color, border: `1px solid ${status.border}`,
               fontFamily: 'var(--font-sans)',
             }}>
@@ -1020,7 +1023,7 @@ const EventCard = React.memo(function EventCard({ event, index, isActive, onSele
 
           {/* Meta row */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: C.stone, fontFamily: 'var(--font-sans)' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5, fontSize: 12, color: C.stone, fontFamily: 'var(--font-sans)' }}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
               <span>{fmtDate(eventDate, event.end_date || event.event_end_date)}</span>
               {rel && (
@@ -1028,14 +1031,14 @@ const EventCard = React.memo(function EventCard({ event, index, isActive, onSele
                   padding: '1px 8px', borderRadius: 10,
                   background: rel === 'Today' ? C.greenLight : 'rgba(184,148,79,0.08)',
                   color: rel === 'Today' ? '#3A8B55' : C.gold,
-                  fontSize: 9, fontWeight: 700, letterSpacing: '0.04em',
+                  fontSize: 'var(--fx-micro)', fontWeight: 700, letterSpacing: '0.04em',
                 }}>
                   {rel}
                 </span>
               )}
             </div>
             {(event.location_name || event.location_address) && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: C.stone, fontFamily: 'var(--font-sans)' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5, fontSize: 12, color: C.stone, fontFamily: 'var(--font-sans)' }}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
                 <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 180 }}>
                   {event.location_name || event.location_address}
@@ -1044,7 +1047,7 @@ const EventCard = React.memo(function EventCard({ event, index, isActive, onSele
             )}
             {isPaid && event.tier_name && (
               <div title={event.manual_override ? (event.comp_reason || 'Granted free by Fancy RSVP') : undefined}
-                style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: C.gold, fontFamily: 'var(--font-sans)', fontWeight: 600 }}>
+                style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5, fontSize: 12, color: C.gold, fontFamily: 'var(--font-sans)', fontWeight: 600 }}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4-6.3-4.6L5.7 21.4 8 14 2 9.4h7.6z"/></svg>
                 <span>{event.manual_override ? `Complimentary — ${event.tier_name}` : event.tier_name}</span>
               </div>
@@ -1169,7 +1172,7 @@ export default function EventsTab({ events = [], activeEventId, onSelectEvent, o
     <div className="evt2-tab-card" style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 16, padding: 28, display: 'flex', flexDirection: 'column', gap: 24 }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, borderBottom: '1px solid #F0ECE3', paddingBottom: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
           <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: 22, fontWeight: 700, color: C.charcoal, margin: 0 }}>Your Events</h2>
           {visibleEvents.length > 0 && (
             <span style={{
@@ -1183,7 +1186,7 @@ export default function EventsTab({ events = [], activeEventId, onSelectEvent, o
             </span>
           )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
           {onRefresh && (
             <button onClick={handleRefresh} style={{
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -1216,7 +1219,7 @@ export default function EventsTab({ events = [], activeEventId, onSelectEvent, o
           type="button"
           onClick={onOpenDrafts}
           style={{
-            display: 'flex', alignItems: 'center', gap: 14, width: '100%', textAlign: 'left',
+            display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 14, width: '100%', textAlign: 'left',
             padding: '14px 16px', borderRadius: 12, cursor: 'pointer',
             background: 'rgba(184,148,79,0.05)', border: '1px solid rgba(184,148,79,0.22)',
             fontFamily: 'var(--font-sans)',

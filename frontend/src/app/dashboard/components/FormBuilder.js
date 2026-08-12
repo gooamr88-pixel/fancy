@@ -267,7 +267,7 @@ export default function FormBuilder({ eventId }) {
     });
     return (
       <div aria-busy="true" aria-label="Loading form configuration" style={{ background: '#FFFFFF', border: '1px solid #E8E2D6', borderRadius: '12px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={skel('190px', 20)} />
           <div style={skel('128px', 34, 20)} />
         </div>
@@ -286,7 +286,7 @@ export default function FormBuilder({ eventId }) {
     <div style={{ background: '#FFFFFF', border: '1px solid #E8E2D6', borderRadius: '12px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F0ECE3', paddingBottom: '16px' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F0ECE3', paddingBottom: '16px' }}>
         <div>
           {/* "RSVP Custom Questionnaire" — three nouns, none of which an organizer
               would use. This is the list of extra things their RSVP form asks, and
@@ -295,14 +295,14 @@ export default function FormBuilder({ eventId }) {
           <p style={{ fontSize: '11px', color: '#77736A', fontFamily: 'var(--font-sans)', marginTop: '4px' }}>Configure additional questions guest party heads reply to when completing RSVPs.</p>
         </div>
         {!showAddForm && (
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
             {!findMealField(fields) && (
-              <button onClick={startAddMeal} style={{ padding: '8px 16px', background: '#FFFFFF', color: '#B8944F', fontSize: '12px', fontWeight: 700, borderRadius: '8px', border: '1px solid rgba(184,148,79,0.35)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+              <button onClick={startAddMeal} style={{ padding: '8px 16px', minHeight: 'var(--fx-touch)', background: '#FFFFFF', color: '#B8944F', fontSize: '12px', fontWeight: 700, borderRadius: '8px', border: '1px solid rgba(184,148,79,0.35)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
                 onMouseEnter={e => e.target.style.background = 'rgba(184,148,79,0.08)'} onMouseLeave={e => e.target.style.background = '#FFFFFF'}>
                 🍽 Add Meal Options
               </button>
             )}
-            <button onClick={startAdd} style={{ padding: '8px 16px', background: '#B8944F', color: '#FFFFFF', fontSize: '12px', fontWeight: 700, borderRadius: '8px', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+            <button onClick={startAdd} style={{ padding: '8px 16px', minHeight: 'var(--fx-touch)', background: '#B8944F', color: '#FFFFFF', fontSize: '12px', fontWeight: 700, borderRadius: '8px', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
               onMouseEnter={e => e.target.style.background = '#a6833f'} onMouseLeave={e => e.target.style.background = '#B8944F'}>
               + Add Custom Question
             </button>
@@ -370,7 +370,7 @@ export default function FormBuilder({ eventId }) {
               </select>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', paddingTop: '20px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#77736A', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+              <label style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#77736A', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                 <input type="checkbox" checked={isRequired} onChange={e => setIsRequired(e.target.checked)} style={{ accentColor: '#B8944F' }} />
                 Required field (Guest must answer to submit)
               </label>
@@ -391,11 +391,11 @@ export default function FormBuilder({ eventId }) {
           {!isMealField && (
             <div>
               <label style={labelStyle}>Show This Question</label>
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                 {CONDITIONS.map(c => (
                   <button key={c.value} type="button" onClick={() => setCondition(c.value)}
                     style={{
-                      padding: '6px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 600,
+                      padding: '6px 14px', minHeight: 'var(--fx-touch)', borderRadius: '8px', fontSize: '12px', fontWeight: 600,
                       fontFamily: 'var(--font-sans)', cursor: 'pointer', transition: 'all 0.2s ease',
                       border: condition === c.value ? `1.5px solid ${c.color}` : '1px solid #E8E2D6',
                       background: condition === c.value ? c.bg : '#FFFFFF',
@@ -403,7 +403,7 @@ export default function FormBuilder({ eventId }) {
                     }}>{c.label}</button>
                 ))}
               </div>
-              <span style={{ fontSize: '10px', color: '#A09A91', display: 'block', marginTop: '4px' }}>
+              <span style={{ fontSize: 'var(--fx-micro)', color: '#A09A91', display: 'block', marginTop: '4px' }}>
                 “Always Show” asks the question on every reply (even declines); “If Attending” only when the guest is coming.
               </span>
             </div>
@@ -414,13 +414,13 @@ export default function FormBuilder({ eventId }) {
               <label style={labelStyle}>{isMealField ? 'Meal Choices (Comma-separated)' : 'Choice Options (Comma-separated)'}</label>
               <input type="text" value={optionsString} onChange={e => setOptionsString(e.target.value)} placeholder="e.g. Prime Beef, Atlantic Salmon, Mushroom Risotto"
                 style={inputStyle} onFocus={e => e.target.style.borderColor = '#B8944F'} onBlur={e => e.target.style.borderColor = '#E8E2D6'} />
-              <span style={{ fontSize: '10px', color: '#A09A91', display: 'block', marginTop: '4px' }}>Define selections. Separate choices with commas.</span>
+              <span style={{ fontSize: 'var(--fx-micro)', color: '#A09A91', display: 'block', marginTop: '4px' }}>Define selections. Separate choices with commas.</span>
             </div>
           )}
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '8px', borderTop: '1px solid #E8E2D6' }}>
-            <button type="button" onClick={resetForm} style={{ padding: '8px 16px', background: '#FFFFFF', border: '1px solid #E8E2D6', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', color: '#77736A', fontFamily: 'var(--font-sans)' }}>Cancel</button>
-            <button type="submit" style={{ padding: '8px 16px', background: '#B8944F', color: '#FFFFFF', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>{editingId ? 'Update Question' : 'Save Question'}</button>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: '8px', paddingTop: '8px', borderTop: '1px solid #E8E2D6' }}>
+            <button type="button" onClick={resetForm} style={{ padding: '8px 16px', minHeight: 'var(--fx-touch)', background: '#FFFFFF', border: '1px solid #E8E2D6', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', color: '#77736A', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+            <button type="submit" style={{ padding: '8px 16px', minHeight: 'var(--fx-touch)', background: '#B8944F', color: '#FFFFFF', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>{editingId ? 'Update Question' : 'Save Question'}</button>
           </div>
         </form>
       )}
@@ -440,10 +440,10 @@ export default function FormBuilder({ eventId }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                   <span style={{ fontSize: '13px', fontWeight: 700, color: '#191B1E', fontFamily: 'var(--font-sans)' }}>{f.field_label}</span>
                   {f.is_required && (
-                    <span style={{ fontSize: '9px', background: 'rgba(184,148,79,0.1)', color: '#B8944F', border: '1px solid rgba(184,148,79,0.25)', padding: '2px 6px', borderRadius: '10px', fontWeight: 800, textTransform: 'uppercase' }}>Required</span>
+                    <span style={{ fontSize: 'var(--fx-micro)', background: 'rgba(184,148,79,0.1)', color: '#B8944F', border: '1px solid rgba(184,148,79,0.25)', padding: '2px 6px', borderRadius: '10px', fontWeight: 800, textTransform: 'uppercase' }}>Required</span>
                   )}
                   {f.condition === 'always' && !findMealField([f]) && (
-                    <span style={{ fontSize: '9px', background: 'rgba(59,155,109,0.1)', color: '#3B9B6D', border: '1px solid rgba(59,155,109,0.25)', padding: '2px 6px', borderRadius: '10px', fontWeight: 800, textTransform: 'uppercase' }}>Always</span>
+                    <span style={{ fontSize: 'var(--fx-micro)', background: 'rgba(59,155,109,0.1)', color: '#3B9B6D', border: '1px solid rgba(59,155,109,0.25)', padding: '2px 6px', borderRadius: '10px', fontWeight: 800, textTransform: 'uppercase' }}>Always</span>
                   )}
                 </div>
                 {/* `key: dietary_restrictions` used to lead this line in monospace.
@@ -456,14 +456,14 @@ export default function FormBuilder({ eventId }) {
                   {f.options && f.options.length > 0 && (<><span>•</span><span>{f.options.join(', ')}</span></>)}
                 </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
                 <button onClick={() => startEdit(f)} title="Edit question" aria-label={`Edit the question: ${f.field_label}`}
-                  style={{ padding: '6px', background: 'rgba(184,148,79,0.08)', border: '1px solid rgba(184,148,79,0.2)', borderRadius: '8px', cursor: 'pointer', color: '#B8944F', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  style={{ padding: '6px', background: 'rgba(184,148,79,0.08)', border: '1px solid rgba(184,148,79,0.2)', borderRadius: '8px', cursor: 'pointer', color: '#B8944F', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' }}
                   onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,148,79,0.16)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(184,148,79,0.08)'}>
                   <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                 </button>
                 <button onClick={() => handleDeleteField(f.id, f.field_label)} title="Delete question" aria-label={`Delete the question: ${f.field_label}`}
-                  style={{ padding: '6px', background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.15)', borderRadius: '8px', cursor: 'pointer', color: '#C45E5E', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  style={{ padding: '6px', background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.15)', borderRadius: '8px', cursor: 'pointer', color: '#C45E5E', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' }}
                   onMouseEnter={e => e.currentTarget.style.background = 'rgba(196,94,94,0.12)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(196,94,94,0.06)'}>
                   <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                 </button>

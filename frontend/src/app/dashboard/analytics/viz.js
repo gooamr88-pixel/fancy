@@ -90,7 +90,7 @@ export function Card({ title, hint, table, children, span = 1 }) {
       padding: '20px 22px 22px',
       minWidth: 0,
     }}>
-      <header style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: hint ? 4 : 18 }}>
+      <header style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 12, marginBottom: hint ? 4 : 18 }}>
         <h2 style={{ margin: 0, fontFamily: SANS, fontSize: 13, fontWeight: 700, letterSpacing: '.02em', color: VIZ.ink }}>{title}</h2>
         {table && (
           <button
@@ -176,7 +176,7 @@ export function Stat({ label, value, sub, tone }) {
       background: VIZ.surface, border: `1px solid ${VIZ.border}`, borderRadius: 12,
       padding: '14px 16px', minWidth: 0,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 7 }}>
         {toneColor && <span aria-hidden style={{ width: 8, height: 8, borderRadius: 2, background: toneColor, flex: 'none' }} />}
         <span style={{ fontFamily: SANS, fontSize: 11.5, color: VIZ.inkMuted, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
       </div>
@@ -193,7 +193,7 @@ export function Meter({ value, max = 100, label, caption }) {
   const pct = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
         <span style={{ fontFamily: SANS, fontSize: 11.5, color: VIZ.inkMuted, fontWeight: 600 }}>{label}</span>
         <span style={{ fontFamily: SANS, fontSize: 22, fontWeight: 700, color: VIZ.ink }}>{Math.round(pct)}%</span>
       </div>
@@ -222,7 +222,7 @@ export function BarList({ items, ramp, valueFormat = compact, emptyText = 'Nothi
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {items.map((item, i) => (
         <div key={item.label}>
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 5 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 5 }}>
             <span style={{ fontFamily: SANS, fontSize: 12, color: VIZ.inkSecondary, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</span>
             <span style={{ fontFamily: SANS, fontSize: 12.5, fontWeight: 700, color: VIZ.ink, flex: 'none' }}>
               {valueFormat(item.value)}
@@ -251,7 +251,7 @@ export function StackedBar({ segments, total }) {
   if (!sum) return <Empty text="No responses yet" />;
   return (
     <div>
-      <div style={{ display: 'flex', gap: 2, height: 14 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, height: 14 }}>
         {segments.filter((s) => s.value > 0).map((s) => (
           <div key={s.label} title={`${s.label}: ${s.value}`} style={{
             flex: `${s.value} 1 0`, background: s.color, borderRadius: 3, minWidth: 3,
@@ -262,7 +262,7 @@ export function StackedBar({ segments, total }) {
           colour alone, and each entry carries its own number. */}
       <ul style={{ listStyle: 'none', margin: '14px 0 0', padding: 0, display: 'flex', flexWrap: 'wrap', gap: '8px 18px' }}>
         {segments.map((s) => (
-          <li key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 7, fontFamily: SANS, fontSize: 12 }}>
+          <li key={s.label} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 7, fontFamily: SANS, fontSize: 12 }}>
             <span aria-hidden style={{ width: 9, height: 9, borderRadius: 2, background: s.color, flex: 'none' }} />
             <span style={{ color: VIZ.inkSecondary }}>{s.label}</span>
             <span style={{ color: VIZ.ink, fontWeight: 700 }}>{compact(s.value)}</span>
@@ -368,7 +368,7 @@ export function LinePanel({ title, points, color = VIZ.series[0], height = 92 })
 
 function PanelTitle({ title, value, color }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
       {color && <span aria-hidden style={{ width: 9, height: 9, borderRadius: 2, background: color, flex: 'none' }} />}
       <span style={{ fontFamily: SANS, fontSize: 11.5, fontWeight: 600, color: VIZ.inkSecondary }}>{title}</span>
       {value != null && <span style={{ marginInlineStart: 'auto', fontFamily: SANS, fontSize: 11.5, color: VIZ.inkMuted }}>latest {value}</span>}
@@ -390,7 +390,7 @@ export function StatusNote({ tone = 'critical', children }) {
   const color = tone === 'critical' ? '#C45E5E' : VIZ.gold;
   return (
     <p style={{
-      display: 'flex', alignItems: 'flex-start', gap: 8, margin: '14px 0 0', padding: '9px 12px',
+      display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 8, margin: '14px 0 0', padding: '9px 12px',
       background: tone === 'critical' ? 'rgba(196,94,94,.07)' : 'rgba(184,148,79,.09)',
       border: `1px solid ${color}33`, borderRadius: 9,
       fontFamily: SANS, fontSize: 11.5, lineHeight: 1.5, color: VIZ.inkSecondary,

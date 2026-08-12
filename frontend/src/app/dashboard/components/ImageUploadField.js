@@ -44,11 +44,11 @@ export default function ImageUploadField({
           {uploading && (
             <div style={{
               position: 'absolute', inset: 0, background: 'rgba(25,27,30,0.45)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
               color: '#fff', fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-sans)',
             }}>Uploading…</div>
           )}
-          <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 6 }}>
+          <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
@@ -92,7 +92,7 @@ export default function ImageUploadField({
             <span style={{ fontSize: 12, fontWeight: 600, color: C.stone, fontFamily: 'var(--font-sans)' }}>
               {uploading ? 'Uploading…' : 'Drop image here or click to upload'}
             </span>
-            <span style={{ fontSize: 10, color: '#A09A91', fontFamily: 'var(--font-sans)' }}>{hint}</span>
+            <span style={{ fontSize: 'var(--fx-micro)', color: '#A09A91', fontFamily: 'var(--font-sans)' }}>{hint}</span>
           </div>
         </div>
       )}

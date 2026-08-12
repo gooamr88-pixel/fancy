@@ -111,20 +111,20 @@ export default function Stage3_Distribution({
               }}
             >
               <div style={{
-                display: 'flex', alignItems: 'flex-start', gap: 16,
+                display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 16,
               }}>
                 {/* Icon */}
                 <div style={{
                   width: 52, height: 52, borderRadius: 14,
                   background: isActive ? 'rgba(184,148,79,0.08)' : C.ivory,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
                   flexShrink: 0,
                   transition: 'background 0.2s',
                 }}><Icon name={m.icon} size={20} strokeWidth={1.5} /></div>
 
                 {/* Content */}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h3 style={{
                       fontFamily: 'var(--font-serif)', fontSize: 16,
                       fontWeight: 600, color: C.charcoal, margin: 0,
@@ -134,7 +134,7 @@ export default function Stage3_Distribution({
                       width: 24, height: 24, borderRadius: '50%',
                       border: isActive ? `2px solid ${C.gold}` : `2px solid ${C.border}`,
                       background: isActive ? C.gold : 'transparent',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
                       transition: 'all 0.2s', flexShrink: 0,
                     }}>
                       {isActive && (
@@ -161,7 +161,7 @@ export default function Stage3_Distribution({
                         style={{ overflow: 'hidden' }}
                       >
                         <div style={{
-                          display: 'flex', alignItems: 'center', gap: 8,
+                          display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
                           background: C.ivory, border: `1px solid ${C.border}`,
                           borderRadius: 8, padding: '10px 14px', marginTop: 14,
                         }}>
@@ -174,7 +174,7 @@ export default function Stage3_Distribution({
                           <button
                             onClick={(e) => { e.stopPropagation(); handleCopy(); }}
                             style={{
-                              padding: '6px 14px', borderRadius: 6,
+                              padding: '6px 14px', minHeight: 'var(--fx-touch)', borderRadius: 6,
                               background: copied ? C.success : C.gold,
                               color: C.white, border: 'none', fontSize: 11,
                               fontWeight: 700, cursor: 'pointer',
@@ -218,22 +218,22 @@ export default function Stage3_Distribution({
                               <rect x="14" y="18" width="1" height="3"/>
                             </svg>
                             <span style={{
-                              fontSize: 10, color: C.stone,
+                              fontSize: 'var(--fx-micro)', color: C.stone,
                               fontFamily: 'var(--font-sans)', textAlign: 'center',
                               lineHeight: 1.3,
                             }}>QR Code generated<br/>after event creation</span>
                           </div>
 
-                          <div style={{ display: 'flex', gap: 8 }}>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                             <button disabled style={{
-                              padding: '6px 14px', borderRadius: 6,
+                              padding: '6px 14px', minHeight: 'var(--fx-touch)', borderRadius: 6,
                               background: C.ivory, border: `1px solid ${C.border}`,
                               color: C.stone, fontSize: 11, fontWeight: 600,
                               cursor: 'not-allowed', opacity: 0.6,
                               fontFamily: 'var(--font-sans)',
                             }}>Download PNG</button>
                             <button disabled style={{
-                              padding: '6px 14px', borderRadius: 6,
+                              padding: '6px 14px', minHeight: 'var(--fx-touch)', borderRadius: 6,
                               background: C.ivory, border: `1px solid ${C.border}`,
                               color: C.stone, fontSize: 11, fontWeight: 600,
                               cursor: 'not-allowed', opacity: 0.6,
@@ -269,13 +269,13 @@ export default function Stage3_Distribution({
                             }}
                           />
                           <div style={{
-                            display: 'flex', justifyContent: 'space-between',
+                            display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between',
                             alignItems: 'center',
                           }}>
-                            <div style={{ display: 'flex', gap: 6 }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                               {['{name}', '{url}'].map(v => (
                                 <span key={v} style={{
-                                  fontSize: 10, fontWeight: 600,
+                                  fontSize: 'var(--fx-micro)', fontWeight: 600,
                                   background: 'rgba(184,148,79,0.08)',
                                   color: C.gold, borderRadius: 4,
                                   padding: '3px 8px', fontFamily: 'monospace',
@@ -283,16 +283,16 @@ export default function Stage3_Distribution({
                               ))}
                             </div>
                             <span style={{
-                              fontSize: 10, color: smsSeg.segments > 1 ? C.error : C.stone,
+                              fontSize: 'var(--fx-micro)', color: smsSeg.segments > 1 ? C.error : C.stone,
                               fontFamily: 'var(--font-sans)',
                             }}>{smsSeg.length}/{smsSeg.perSegment} · {smsSeg.segments} SMS</span>
                           </div>
 
                           {/* UCS-2 (Arabic / emoji / accents) costs far more credits per guest. */}
                           {smsSeg.encoding === 'UCS-2' && (
-                            <div onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.25)', borderRadius: 8, padding: '8px 10px' }}>
+                            <div onClick={e => e.stopPropagation()} style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-start', background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.25)', borderRadius: 8, padding: '8px 10px' }}>
                               <Icon name="warning" size={13} strokeWidth={1.6} style={{ flexShrink: 0, marginTop: 1 }} />
-                              <span style={{ fontSize: 10, color: C.charcoal, lineHeight: 1.6, fontFamily: 'var(--font-sans)' }}>
+                              <span style={{ fontSize: 'var(--fx-micro)', color: C.charcoal, lineHeight: 1.6, fontFamily: 'var(--font-sans)' }}>
                                 <strong>Arabic / special characters detected.</strong> Each SMS segment now holds only <strong>70 characters</strong> instead of 160, so this message can cost up to <strong>3× the credits</strong> per guest.
                               </span>
                             </div>
@@ -306,7 +306,7 @@ export default function Stage3_Distribution({
                               borderRadius: 12, padding: 14,
                             }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
                                 <Icon name="sentMail" size={17} strokeWidth={1.5} />
                                 <div>
                                   <span style={{ fontSize: 11, color: C.stone, fontFamily: 'var(--font-sans)', display: 'block' }}>Available SMS credits <span style={{ color: C.gold, fontWeight: 700 }}>· this event</span></span>
@@ -319,7 +319,7 @@ export default function Stage3_Distribution({
                                 onClick={(e) => { e.stopPropagation(); onRefreshCredits && onRefreshCredits(); }}
                                 disabled={smsCreditsLoading}
                                 style={{
-                                  padding: '6px 12px', borderRadius: 8, background: C.white,
+                                  padding: '6px 12px', minHeight: 'var(--fx-touch)', borderRadius: 8, background: C.white,
                                   border: `1px solid ${C.border}`, color: C.stone, fontSize: 11,
                                   fontWeight: 700, cursor: smsCreditsLoading ? 'wait' : 'pointer',
                                   fontFamily: 'var(--font-sans)',
@@ -338,7 +338,7 @@ export default function Stage3_Distribution({
                                   <button key={p}
                                     onClick={(e) => { e.stopPropagation(); setCreditQty(p); }}
                                     style={{
-                                      padding: '7px 14px', borderRadius: 8,
+                                      padding: '7px 14px', minHeight: 'var(--fx-touch)', borderRadius: 8,
                                       border: sel ? `2px solid ${C.gold}` : `1.5px solid ${C.border}`,
                                       background: sel ? 'rgba(184,148,79,0.06)' : C.white,
                                       color: sel ? C.gold : C.charcoal, fontSize: 12, fontWeight: 700,
@@ -374,7 +374,7 @@ export default function Stage3_Distribution({
                                 ? 'Opening checkout…'
                                 : `Buy ${creditQty >= 50 ? creditQty : ''} Credits${estimatedCents != null ? ` — ~$${(estimatedCents / 100).toFixed(2)}` : ''}`}
                             </button>
-                            <p style={{ fontSize: 10, color: C.stone, fontFamily: 'var(--font-sans)', margin: '8px 0 0', lineHeight: 1.5 }}>
+                            <p style={{ fontSize: 'var(--fx-micro)', color: C.stone, fontFamily: 'var(--font-sans)', margin: '8px 0 0', lineHeight: 1.5 }}>
                               {creditQty < 50 ? 'Minimum purchase is 50 credits.' : "Checkout opens in a new tab — finish there, then come back here and your balance updates automatically."}
                             </p>
                             </>
@@ -384,7 +384,7 @@ export default function Stage3_Distribution({
                               </p>
                             )}
                             {creditError && (
-                              <p style={{ fontSize: 11, color: C.error, fontFamily: 'var(--font-sans)', margin: '8px 0 0', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}><Icon name="warning" size={12} strokeWidth={1.7} /> {creditError}</p>
+                              <p style={{ fontSize: 11, color: C.error, fontFamily: 'var(--font-sans)', margin: '8px 0 0', fontWeight: 600, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5 }}><Icon name="warning" size={12} strokeWidth={1.7} /> {creditError}</p>
                             )}
                           </div>
                         </div>
@@ -447,7 +447,7 @@ export default function Stage3_Distribution({
           background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.2)',
           borderRadius: 10, padding: '12px 16px', marginTop: 16,
           color: C.error, fontFamily: 'var(--font-sans)', fontSize: 13,
-          fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6,
+          fontWeight: 600, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6,
         }}><Icon name="warning" size={14} strokeWidth={1.6} /> {error}</div>
       )}
 
@@ -457,10 +457,10 @@ export default function Stage3_Distribution({
         background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(12px)',
         borderTop: `1px solid ${C.border}`,
         padding: '16px 24px', paddingBottom: 'max(16px, calc(env(safe-area-inset-bottom) + 8px))', zIndex: 50,
-        display: 'flex', justifyContent: 'center',
+        display: 'flex', flexWrap: 'wrap', justifyContent: 'center',
       }}>
         <div className="s3-footer-inner" style={{
-          display: 'flex', justifyContent: 'space-between',
+          display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between',
           alignItems: 'center', maxWidth: 860, width: '100%',
         }}>
           <button onClick={onBack} className="s3-footer-btn" style={{
@@ -468,7 +468,7 @@ export default function Stage3_Distribution({
             background: 'none', border: `1.5px solid ${C.charcoal}`,
             borderRadius: 12, fontFamily: 'var(--font-sans)',
             fontSize: 14, fontWeight: 700, color: C.charcoal,
-            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+            cursor: 'pointer', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
             transition: 'all 0.2s',
           }}
             onMouseEnter={e => { e.currentTarget.style.background = C.charcoal; e.currentTarget.style.color = C.white; }}

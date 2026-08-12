@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useModalA11y } from '../../hooks/useModalA11y';
 
 /**
  * The confirm dialog in front of anything that contacts every guest at once.
@@ -61,11 +62,27 @@ export default function ConfirmGuestNotifyModal({
   const [sendSms, setSendSms] = useState(true);
   const [reason, setReason] = useState('');
 
-  // Re-arm on every open. A dialog that remembers the last run's choices is how
-  // somebody sends a cancellation they meant to send silently.
-  useEffect(() => {
+  /**
+   * Re-arm on every open. A dialog that remembers the last run's choices is how
+   * somebody sends a cancellation they meant to send silently.
+   *
+   * Reset during RENDER on the closed→open transition, not in an effect. The
+   * effect version was a synchronous setState in an effect — a cascading render,
+   * and a `react-hooks/set-state-in-effect` error that has been failing lint on
+   * this file. It also committed the PREVIOUS run's choices for one frame, which
+   * on this particular dialog means briefly showing "also send a text" ticked
+   * for someone who unticked it last time.
+   */
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
     if (open) { setSendSms(true); setReason(''); }
-  }, [open]);
+  }
+
+  // The focus trap, scroll lock, Escape handler and focus restore every other
+  // dialog in this dashboard has. Without it Tab walked out of an open
+  // cancellation dialog into the page behind it, and Escape did nothing.
+  const dialogRef = useModalA11y(open, { onClose: busy ? undefined : onClose });
 
   if (!open) return null;
 
@@ -80,13 +97,15 @@ export default function ConfirmGuestNotifyModal({
 
   return (
     <div
+      ref={dialogRef}
+      tabIndex={-1}
       role="dialog"
       aria-modal="true"
       onClick={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}
       style={{
         position: 'fixed', inset: 0, zIndex: 1000,
         background: 'rgba(25,27,30,0.55)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
         padding: 16,
       }}
     >
@@ -116,7 +135,7 @@ export default function ConfirmGuestNotifyModal({
           <p style={{ margin: 0, fontSize: 14, color: C.stone, lineHeight: 1.6, fontFamily: 'var(--font-sans)' }}>
             {isCancel
               ? 'Your guests will be told the event is cancelled, RSVPs will close, and the event page will show a cancellation notice. Your guest list and records are kept.'
-              : 'Guests who said yes or maybe do not know yet. Would you like to tell them?'}
+              : 'Everyone you have invited who has not declined — including guests who have not replied yet — does not know. Would you like to tell them?'}
           </p>
 
           {/* The numbers. Everything above is context; this is the decision. */}
@@ -157,7 +176,7 @@ export default function ConfirmGuestNotifyModal({
 
           {smsAvailable && (smsReachable || 0) > 0 && (
             <label style={{
-              display: 'flex', alignItems: 'flex-start', gap: 9, marginTop: 13,
+              display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 9, marginTop: 13,
               cursor: 'pointer', fontSize: 13, color: C.charcoal, fontFamily: 'var(--font-sans)',
             }}>
               <input
@@ -216,7 +235,7 @@ export default function ConfirmGuestNotifyModal({
             onClick={onClose}
             disabled={busy}
             style={{
-              padding: '9px 16px', borderRadius: 8, border: `1px solid ${C.border}`,
+              padding: '9px 16px', minHeight: 'var(--fx-touch)', borderRadius: 8, border: `1px solid ${C.border}`,
               background: C.white, color: C.charcoal, fontSize: 13, fontWeight: 600,
               fontFamily: 'var(--font-sans)', cursor: busy ? 'not-allowed' : 'pointer',
             }}
@@ -228,7 +247,7 @@ export default function ConfirmGuestNotifyModal({
             onClick={() => onConfirm({ sendSms: sendSms && canText, reason: reason.trim() || null })}
             disabled={busy}
             style={{
-              padding: '9px 18px', borderRadius: 8, border: 'none',
+              padding: '9px 18px', minHeight: 'var(--fx-touch)', borderRadius: 8, border: 'none',
               background: busy ? C.stone : (isCancel ? C.error : C.gold),
               color: C.white, fontSize: 13, fontWeight: 700,
               fontFamily: 'var(--font-sans)', cursor: busy ? 'wait' : 'pointer',
@@ -249,7 +268,7 @@ export default function ConfirmGuestNotifyModal({
 function Row({ label, value, note, muted = false }) {
   return (
     <div style={{
-      display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+      display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'baseline',
       gap: 12, padding: '4px 0', opacity: muted ? 0.5 : 1,
     }}>
       <div style={{ fontSize: 13, color: C.stone, fontFamily: 'var(--font-sans)' }}>{label}</div>

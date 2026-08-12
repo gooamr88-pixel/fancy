@@ -96,7 +96,7 @@ function SmsAddonCard({
       background: enabled ? 'rgba(184,148,79,0.05)' : C.softBg,
       borderRadius: 12, padding: '18px 20px', marginTop: 18, transition: 'all 0.2s',
     }}>
-      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer' }}>
+      <label style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 12, cursor: 'pointer' }}>
         <input
           type="checkbox"
           checked={enabled}
@@ -293,10 +293,10 @@ function PromoCodeBox({ onRedeem, processing }) {
           background: C.white, border: `1.5px dashed ${C.gold}`, borderRadius: 999,
           color: C.gold, fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 700,
           cursor: 'pointer', marginBottom: 20, display: 'inline-flex', alignItems: 'center', gap: 8,
-          padding: '9px 16px 9px 9px', transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+          padding: '9px 16px 9px 9px', minHeight: 'var(--fx-touch)', transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
         }}
       >
-        <span style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(184, 148, 79, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <span style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(184, 148, 79, 0.12)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           <Icon name="ticket" size={13} strokeWidth={1.8} />
         </span>
         Have a promo code?
@@ -315,8 +315,8 @@ function PromoCodeBox({ onRedeem, processing }) {
         boxShadow: '0 2px 16px rgba(184, 148, 79, 0.08)',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-        <span style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(184, 148, 79, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+        <span style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(184, 148, 79, 0.12)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           <Icon name="ticket" size={17} color={C.gold} strokeWidth={1.6} />
         </span>
         <div>
@@ -326,7 +326,7 @@ function PromoCodeBox({ onRedeem, processing }) {
           </p>
         </div>
       </div>
-      <div className="promo-row" style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+      <div className="promo-row" style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 14 }}>
         <input
           value={code}
           onChange={(e) => { setCode(e.target.value.toUpperCase()); setMsg(null); }}
@@ -354,7 +354,7 @@ function PromoCodeBox({ onRedeem, processing }) {
             background: (busy || processing || !code.trim()) ? '#C9C4BA' : 'linear-gradient(135deg, #C5A86B, #A6833F)',
             color: C.white, fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 700,
             cursor: (busy || processing || !code.trim()) ? 'not-allowed' : 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, whiteSpace: 'nowrap',
+            display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 6, whiteSpace: 'nowrap',
             transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
           }}
         >
@@ -364,7 +364,7 @@ function PromoCodeBox({ onRedeem, processing }) {
       {msg && (
         <div
           style={{
-            marginTop: 12, display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px',
+            marginTop: 12, display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 8, padding: '10px 12px',
             borderRadius: 10, background: msg.type === 'success' ? 'rgba(59, 155, 109, 0.08)' : 'rgba(196, 94, 94, 0.08)',
             border: `1px solid ${msg.type === 'success' ? 'rgba(59, 155, 109, 0.25)' : 'rgba(196, 94, 94, 0.25)'}`,
           }}
@@ -394,7 +394,7 @@ function CopyBtn({ value }) {
   return (
     <button type="button"
       onClick={() => { navigator.clipboard?.writeText(value).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }); }}
-      style={{ border: `1px solid ${C.border}`, background: C.white, borderRadius: 8, padding: '4px 10px', fontSize: 11, fontWeight: 700, color: copied ? C.success : C.gold, cursor: 'pointer', fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap' }}>
+      style={{ border: `1px solid ${C.border}`, background: C.white, borderRadius: 8, padding: '4px 10px', minHeight: 'var(--fx-touch)', fontSize: 11, fontWeight: 700, color: copied ? C.success : C.gold, cursor: 'pointer', fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap' }}>
       {copied ? '✓ Copied' : 'Copy'}
     </button>
   );
@@ -545,7 +545,7 @@ export default function StagePayment({
           background: 'rgba(184,148,79,0.06)', border: '1px solid rgba(184,148,79,0.25)',
           borderRadius: 12, padding: '14px 18px', marginBottom: 20,
           fontFamily: 'var(--font-sans)', fontSize: 14, color: C.charcoal, fontWeight: 600,
-          display: 'flex', alignItems: 'center', gap: 8,
+          display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
         }}>
           <Icon name="hourglass" size={15} strokeWidth={1.6} /> Confirming your payment…
         </div>
@@ -580,7 +580,7 @@ export default function StagePayment({
           {onRecheckPayment && (
             <button type="button" onClick={onRecheckPayment} style={{
               border: `1px solid ${C.gold}`, background: C.white, color: C.gold, borderRadius: 8,
-              padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+              padding: '6px 14px', minHeight: 'var(--fx-touch)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-sans)',
               whiteSpace: 'nowrap',
             }}>
               Check again
@@ -598,7 +598,7 @@ export default function StagePayment({
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
             <div>
-              <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 700, color: C.gold, textTransform: 'uppercase', letterSpacing: '0.12em' }}>Current Plan</span>
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fx-micro)', fontWeight: 700, color: C.gold, textTransform: 'uppercase', letterSpacing: '0.12em' }}>Current Plan</span>
               <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 24, fontWeight: 700, color: C.charcoal, margin: '4px 0 0' }}>{currentTierName}</h3>
             </div>
             <span style={{
@@ -620,7 +620,7 @@ export default function StagePayment({
           {visibleFeatures(currentFeatures).length > 0 && (
             <ul style={{ listStyle: 'none', margin: '16px 0 0', padding: 0, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
               {visibleFeatures(currentFeatures).map((f, i) => (
-                <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontFamily: 'var(--font-sans)', fontSize: 13, color: C.charcoal }}>
+                <li key={i} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 8, fontFamily: 'var(--font-sans)', fontSize: 13, color: C.charcoal }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 2 }}><path d="M5 13l4 4L19 7" /></svg>
                   <span>{featureLabels[f] || f}</span>
                 </li>
@@ -657,7 +657,7 @@ export default function StagePayment({
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
             <div>
-              <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 700, color: C.gold, textTransform: 'uppercase', letterSpacing: '0.12em' }}>Selected Plan</span>
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fx-micro)', fontWeight: 700, color: C.gold, textTransform: 'uppercase', letterSpacing: '0.12em' }}>Selected Plan</span>
               <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 24, fontWeight: 700, color: C.charcoal, margin: '4px 0 0' }}>{lockedTier.name}</h3>
             </div>
             <span style={{
@@ -701,7 +701,7 @@ export default function StagePayment({
           is purely a heads-up so the price below doesn't come as a surprise. */}
       {referralCreditCents > 0 && !showCurrentPlan && (
         <div style={{
-          display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 20,
+          display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 10, marginBottom: 20,
           background: 'rgba(59,155,109,0.06)', border: '1px solid rgba(59,155,109,0.25)',
           borderRadius: 12, padding: '12px 16px',
         }}>
@@ -747,21 +747,21 @@ export default function StagePayment({
                 position: 'relative',
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 17, fontWeight: 600, color: isDisabled ? C.stone : C.charcoal, margin: 0 }}>
                   {tier.name}
                   {isLocked && (
-                    <span style={{ marginLeft: 8, fontFamily: 'var(--font-sans)', fontSize: 9, fontWeight: 700, color: C.success, background: 'rgba(59,155,109,0.10)', border: '1px solid rgba(59,155,109,0.20)', padding: '2px 8px', borderRadius: 100, textTransform: 'uppercase', letterSpacing: '0.05em', verticalAlign: 'middle' }}>Current Plan</span>
+                    <span style={{ marginLeft: 8, fontFamily: 'var(--font-sans)', fontSize: 'var(--fx-micro)', fontWeight: 700, color: C.success, background: 'rgba(59,155,109,0.10)', border: '1px solid rgba(59,155,109,0.20)', padding: '2px 8px', borderRadius: 100, textTransform: 'uppercase', letterSpacing: '0.05em', verticalAlign: 'middle' }}>Current Plan</span>
                   )}
                   {tier.recommended && !isLocked && (
-                    <span style={{ marginLeft: 8, fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 700, color: C.gold, background: 'rgba(184,148,79,0.12)', padding: '2px 8px', borderRadius: 100, textTransform: 'uppercase', letterSpacing: '0.05em', verticalAlign: 'middle' }}>Popular</span>
+                    <span style={{ marginLeft: 8, fontFamily: 'var(--font-sans)', fontSize: 'var(--fx-micro)', fontWeight: 700, color: C.gold, background: 'rgba(184,148,79,0.12)', padding: '2px 8px', borderRadius: 100, textTransform: 'uppercase', letterSpacing: '0.05em', verticalAlign: 'middle' }}>Popular</span>
                   )}
                 </h3>
                 {isLocked ? (
                   <div style={{
                     width: 22, height: 22, borderRadius: '50%',
                     background: C.success,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
                   }}>
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><path d="M5 13l4 4L19 7" /></svg>
                   </div>
@@ -770,7 +770,7 @@ export default function StagePayment({
                     width: 22, height: 22, borderRadius: '50%',
                     border: isActive ? `2px solid ${C.gold}` : `2px solid ${C.border}`,
                     background: isActive ? C.gold : 'transparent',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
                   }}>
                     {isActive && (
                       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><path d="M5 13l4 4L19 7" /></svg>
@@ -781,7 +781,7 @@ export default function StagePayment({
               <div style={{ fontFamily: 'var(--font-serif)', fontSize: 26, fontWeight: 700, color: C.gold, margin: '10px 0 4px' }}>
                 {fmt(dueNowCents(tier.price_cents))}
                 {!isDisabled && isProratedTier(tier.price_cents) && (
-                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10.5, fontWeight: 700, color: C.stone, marginLeft: 6, verticalAlign: 'middle' }}>
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fx-micro)', fontWeight: 700, color: C.stone, marginLeft: 6, verticalAlign: 'middle' }}>
                     due now
                   </span>
                 )}
@@ -806,7 +806,7 @@ export default function StagePayment({
               {visibleFeatures(features).length > 0 && (
                 <ul style={{ listStyle: 'none', margin: '12px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {visibleFeatures(features).map((f, i) => (
-                    <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontFamily: 'var(--font-sans)', fontSize: 12, color: C.charcoal }}>
+                    <li key={i} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 8, fontFamily: 'var(--font-sans)', fontSize: 12, color: C.charcoal }}>
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 2 }}><path d="M5 13l4 4L19 7" /></svg>
                       <span>{featureLabels[f] || f}</span>
                     </li>
@@ -904,7 +904,7 @@ export default function StagePayment({
                   fontFamily: 'var(--font-sans)', fontSize: 15, fontWeight: 700,
                   cursor: (processing || !selectedTierName) ? 'not-allowed' : 'pointer',
                   opacity: (processing || !selectedTierName) ? 0.5 : 1,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 8,
                 }}
               >
                 <Icon name="bank" size={16} strokeWidth={1.6} /> Manual / Bank Transfer
@@ -912,7 +912,7 @@ export default function StagePayment({
             </div>
           ) : (
             <div style={{ background: C.white, border: `1.5px solid ${C.border}`, borderRadius: 16, padding: 22, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                 <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 600, color: C.charcoal, margin: 0 }}>Pay by Manual Transfer</h3>
                 {stripeEnabled && (
                   <button onClick={() => setShowManual(false)} style={{ background: 'none', border: 'none', color: C.stone, fontSize: 13, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', fontFamily: 'var(--font-sans)' }}>← Other methods</button>
@@ -972,26 +972,26 @@ export default function StagePayment({
                           background: sel ? 'rgba(184,148,79,0.05)' : C.white,
                           borderRadius: 14, padding: 16, cursor: 'pointer', transition: 'all 0.2s',
                         }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: m.details || m.instructions ? 10 : 0 }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginBottom: m.details || m.instructions ? 10 : 0 }}>
                           <Icon name={METHOD_ICON[m.type] || METHOD_ICON.other} size={17} strokeWidth={1.5} />
                           <span style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 700, color: C.charcoal, flex: 1 }}>{m.label}</span>
                           <div style={{
                             width: 20, height: 20, borderRadius: '50%',
                             border: sel ? `2px solid ${C.gold}` : `2px solid ${C.border}`,
                             background: sel ? C.gold : 'transparent',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
                           }}>
                             {sel && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><path d="M5 13l4 4L19 7" /></svg>}
                           </div>
                         </div>
                         {m.details && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: C.softBg, borderRadius: 8, padding: '8px 12px', marginBottom: m.instructions ? 8 : 0 }}>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, background: C.softBg, borderRadius: 8, padding: '8px 12px', marginBottom: m.instructions ? 8 : 0 }}>
                             <code style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 13, color: C.charcoal, fontWeight: 600, flex: 1, wordBreak: 'break-all' }}>{m.details}</code>
                             <CopyBtn value={m.details} />
                           </div>
                         )}
                         {m.instructions && (
-                          <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: C.stone, margin: 0, lineHeight: 1.5, display: 'flex', alignItems: 'flex-start', gap: 5 }}><Icon name="info" size={13} strokeWidth={1.6} style={{ flexShrink: 0, marginTop: 1 }} /> {m.instructions}</p>
+                          <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: C.stone, margin: 0, lineHeight: 1.5, display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 5 }}><Icon name="info" size={13} strokeWidth={1.6} style={{ flexShrink: 0, marginTop: 1 }} /> {m.instructions}</p>
                         )}
                       </div>
                     );
@@ -1037,7 +1037,7 @@ export default function StagePayment({
           background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.2)',
           borderRadius: 10, padding: '12px 16px', marginTop: 16,
           color: C.error, fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 600,
-          display: 'flex', alignItems: 'center', gap: 6,
+          display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6,
         }}><Icon name="warning" size={14} strokeWidth={1.6} /> {error}</div>
       )}
 
@@ -1046,20 +1046,20 @@ export default function StagePayment({
         position: 'fixed', bottom: 0, left: 0, right: 0,
         background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(12px)',
         borderTop: `1px solid ${C.border}`, padding: '16px 24px', paddingBottom: 'max(16px, calc(env(safe-area-inset-bottom) + 8px))', zIndex: 50,
-        display: 'flex', justifyContent: 'center',
+        display: 'flex', flexWrap: 'wrap', justifyContent: 'center',
       }}>
-        <div className="sp-footer-inner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', maxWidth: 860, width: '100%' }}>
+        <div className="sp-footer-inner" style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', maxWidth: 860, width: '100%' }}>
           <button onClick={onBack} disabled={processing} className="sp-footer-btn" style={{
             height: 48, padding: '0 24px', background: 'none',
             border: `1.5px solid ${C.charcoal}`, borderRadius: 12,
             fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 700, color: C.charcoal,
-            cursor: processing ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+            cursor: processing ? 'not-allowed' : 'pointer', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
           }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M15 18l-6-6 6-6" /></svg>
             Back
           </button>
 
-          <div className="sp-footer-actions" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div className="sp-footer-actions" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 16 }}>
             {!isPaid && onSkip && (
               <button onClick={onSkip} disabled={processing} className="sp-footer-btn" style={{
                 background: 'none', border: 'none', color: C.stone,
@@ -1079,7 +1079,7 @@ export default function StagePayment({
                   color: C.white, border: 'none', borderRadius: 14,
                   fontFamily: 'var(--font-sans)', fontSize: 15, fontWeight: 700,
                   cursor: (processing || !continueReady) ? 'not-allowed' : 'pointer',
-                  display: 'flex', alignItems: 'center', gap: 8,
+                  display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
                 }}>
                   Continue
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M9 18l6-6-6-6" /></svg>

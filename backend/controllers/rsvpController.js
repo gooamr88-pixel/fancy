@@ -5,6 +5,7 @@ const guestService = require('../services/guestService');
 const tokenService = require('../services/tokenService');
 const invitationService = require('../services/invitationService');
 const { parseCSV, generateCSV } = require('../utils/csvHelper');
+const { normalizeHeader, unknownColumns } = require('../config/guestImportColumns');
 const { escapeHtml, getDeclineConfirmationTemplate, getNewRsvpOrganizerTemplate, getRsvpClaimTemplate } = require('../utils/emailTemplates');
 // This controller no longer SENDS any SMS — both of its send sites (the RSVP
 // confirmation and the decline acknowledgement) were retired with their types.
@@ -691,6 +692,9 @@ const importGuestsCSV = async (req, res, next) => {
     const normalizeSideCsvValue = makeSideCsvNormalizer(event);
 
     let parsedRows = [];
+    // The file's own first row, kept so unrecognised columns can be named back
+    // to the organizer. Populated by both branches below.
+    let fileHeaders = [];
 
     if (fileData) {
       const buffer = Buffer.from(fileData, 'base64');
@@ -702,9 +706,13 @@ const importGuestsCSV = async (req, res, next) => {
         await workbook.xlsx.load(buffer);
         const worksheet = workbook.getWorksheet(1);
 
+        // Folded through the SHARED helper, not a local copy of the same three
+        // string operations. The local copy is how the two file formats came to
+        // disagree about headers in the first place — see normalizeHeader.
         const headers = [];
         worksheet.getRow(1).eachCell((cell, colNumber) => {
-          headers[colNumber] = cell.text ? cell.text.trim().toLowerCase().replace(/\s+/g, '_') : '';
+          headers[colNumber] = cell.text ? normalizeHeader(cell.text) : '';
+          if (cell.text) fileHeaders.push(cell.text);
         });
 
         worksheet.eachRow((row, rowNumber) => {
@@ -755,9 +763,11 @@ const importGuestsCSV = async (req, res, next) => {
         });
       } else {
         parsedRows = parseCSV(buffer.toString('utf-8'));
+        fileHeaders = parsedRows.headers || [];
       }
     } else {
       parsedRows = parseCSV(csvData);
+      fileHeaders = parsedRows.headers || [];
     }
 
     if (parsedRows.length === 0) {
@@ -780,10 +790,14 @@ const importGuestsCSV = async (req, res, next) => {
      */
     //
     // All three spellings are read HERE rather than only in the .xlsx branch
-    // above. parseCSV keys rows by their raw header, so a CSV carrying `can_text`
-    // reached this point with the column intact and was then ignored — while the
-    // import modal, which checks all three client-side, had already told the
-    // organizer "12 of 40 marked OK to text". One of the two was lying.
+    // above. A CSV carrying `can_text` reached this point with the column intact
+    // and was then ignored — while the import modal, which checks all three
+    // client-side, had already told the organizer "12 of 40 marked OK to text".
+    // One of the two was lying.
+    //
+    // (parseCSV now folds headers through config/guestImportColumns.normalizeHeader,
+    // so `Can Text` and `can_text` arrive here as the same key. It used to key
+    // rows by the raw header, which is a separate bug documented on that helper.)
     const consentOf = (r) => (r.sms_consent ?? r.sms_ok ?? r.can_text);
     const consentColumnPresent = parsedRows.some((r) => consentOf(r) !== undefined);
     const TRUTHY_CONSENT = new Set(['yes', 'y', 'true', '1', 'x', '✓', 'ok']);
@@ -936,6 +950,26 @@ const importGuestsCSV = async (req, res, next) => {
       ? ` ${answered} of them carried an answer in your file and were imported with it.`
       : '';
 
+    /**
+     * COLUMNS WE DID NOT RECOGNISE, NAMED.
+     *
+     * A header this platform does not know is dropped, and dropping it is
+     * correct — but doing it silently is not. An organizer whose column is
+     * called `mobile` instead of `phone` gets a guest list with no phone
+     * numbers, a cheerful "Import Complete", and no way to discover the cause
+     * short of guessing. Naming the column turns that into a rename and a
+     * re-upload.
+     *
+     * Not an error and not a block: a file may legitimately carry columns that
+     * are the organizer's own business (a "gift received" tally, a seating
+     * preference note) and those must keep importing the rest of the row.
+     */
+    const ignoredColumns = unknownColumns(fileHeaders);
+    const columnNote = ignoredColumns.length
+      ? ` These columns are not recognised and were ignored: ${ignoredColumns.slice(0, 6).join(', ')}`
+        + (ignoredColumns.length > 6 ? ` and ${ignoredColumns.length - 6} more` : '') + '.'
+      : '';
+
     return sendOk(res, {
       message: `Imported ${imported.length} guest record(s)`
         + (skippedCount ? `; skipped ${skippedCount} duplicate(s)` : '')
@@ -943,8 +977,11 @@ const importGuestsCSV = async (req, res, next) => {
         + stateNote
         + (seatingNote ? ` ${seatingNote}` : '')
         + checkInNote
-        + (smsNote ? ` ${smsNote}` : ''),
+        + (smsNote ? ` ${smsNote}` : '')
+        + columnNote,
       importedCount: imported.length, skippedCount, errorCount: errors.length, errors, guests: imported,
+      // So the modal can list them as chips rather than re-parsing the prose.
+      ignoredColumns,
       smsConsentAttested: attested, phoneRowCount: rowsWithPhone,
       // So the modal can name the numbers without re-deriving them from the prose.
       answeredCount: answered,
@@ -1238,8 +1275,44 @@ const updateRSVP = async (req, res, next) => {
 };
 
 /**
- * Manually adds a guest record from the organizer dashboard.
+ * Reasons a channel did not carry the invitation, in a sentence an organizer can
+ * act on.
+ *
+ * The SMS side has had `smsUsage.explainSkip` for a while; email had nothing, so
+ * a failed email invitation surfaced as a bare code or as silence. Both channels
+ * now answer the same question the same way, because the modal that calls this
+ * endpoint shows them side by side and two different registers would read as two
+ * different subsystems.
+ */
+const EMAIL_SKIP_EXPLANATIONS = {
+  NO_EMAIL: 'No email address was given for this guest',
+  DELIVERY_FAILED: 'The email could not be delivered — check the address',
+  EVENT_NOT_LIVE: 'Your event is not live yet, so nothing was sent',
+  EVENT_NOT_FOUND: 'That event could not be found',
+};
+
+/**
+ * Manually adds a guest AND sends them their invitation.
  * POST /api/v1/events/:eventId/rsvps
+ *
+ * ── Why this endpoint sends on both channels now ──
+ *
+ * It always created the guest and then best-effort emailed them, which was the
+ * right instinct — an organizer-added guest has no other way to discover their
+ * event page — but it was email-ONLY. A guest added with a phone number and a
+ * recorded consent, on an event with texting switched on, was created and then
+ * left waiting for an invitation that had no way to arrive. The organizer had to
+ * know to go to another tab, find the row and press Text.
+ *
+ * So the endpoint that exists to bring somebody into an event now finishes the
+ * job on every channel that can actually reach them, and reports per channel
+ * rather than with one boolean that cannot say which half worked.
+ *
+ * Nothing about SMS delivery is re-implemented here: the send goes through
+ * `invitationService.sendInvitationSmsBulk`, which is the platform's only manual
+ * SMS path and carries the whole gate chain (add-on entitlement, the organizer's
+ * per-type switch, idempotency, per-party consent, global STOP suppression,
+ * transport availability, atomic billing, the new-account ramp-up cap).
  */
 const addGuestManually = async (req, res, next) => {
   const { eventId } = req.params;
@@ -1254,9 +1327,50 @@ const addGuestManually = async (req, res, next) => {
   if (phone !== undefined && phone && String(phone).trim() && !normalizeToE164(phone)) {
     return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'Enter a valid phone number in international format (e.g. +1 555 123 4567).' });
   }
+  /**
+   * AT LEAST ONE WAY TO REACH THEM — a new requirement, and the reason the whole
+   * screen moved.
+   *
+   * The old modal demanded an email and nothing else, which is backwards on both
+   * ends: it refused a guest the organizer only has a mobile number for, and it
+   * accepted (via the API) a guest with neither, who can never be invited,
+   * reminded, confirmed or told the event moved. A row like that is not a guest,
+   * it is a name in a spreadsheet — and it silently consumes a plan's guest cap.
+   *
+   * A companion added to an EXISTING party (`partyId` present) is exempt: the
+   * party's primary contact is who gets messaged, and companions are names only.
+   */
+  const hasEmail = !!(email && String(email).trim());
+  const hasPhone = !!(phone && String(phone).trim());
+  if (!partyId && !hasEmail && !hasPhone) {
+    return sendFail(res, {
+      status: 400, error: 'VALIDATION_ERROR',
+      message: 'Add an email address or a mobile number — otherwise there is no way to send this guest their invitation.',
+    });
+  }
+  /**
+   * A manually added guest starts PENDING, and the endpoint no longer accepts
+   * anything else from this screen.
+   *
+   * The old modal made the response a required field, on the reasoning that an
+   * organizer adding someone by hand already knows whether they are coming. That
+   * described a different workflow — transcribing replies collected elsewhere.
+   * This one is the opposite: the invitation is going out in the same breath, so
+   * an answer recorded now would be the organizer's guess, and it would suppress
+   * the reminder (jobRsvpReminders targets `pending`) for someone who has not
+   * actually replied.
+   *
+   * `response` is still honoured when passed explicitly, so the import path and
+   * any API caller transcribing known answers keep working.
+   */
   const guestResponse = response && ['yes', 'no', 'maybe', 'pending', 'waitlist'].includes(response) ? response : 'pending';
   const guestSide = ['partner1', 'partner2'].includes(side) ? side : null;
   const normalizedEmail = normalizeEmail(email);
+  // Normalized ONCE. It used to be re-derived inline at the addGuest call, which
+  // was fine while nothing else needed it; the SMS leg below reports the number
+  // it texted back to the organizer, and a second normalizeToE164 call is a
+  // second chance for the stored number and the reported one to disagree.
+  const normalizedPhone = hasPhone ? normalizeToE164(phone) : null;
   const resolvedPartySize = partySize ? parseInt(partySize, 10) : 1;
 
   try {
@@ -1268,7 +1382,7 @@ const addGuestManually = async (req, res, next) => {
 
     const result = await guestService.addGuest({
       eventId, actorUserId: req.user?.id, fullName: guestName.trim(),
-      phone: phone ? normalizeToE164(phone) : null, email: normalizedEmail, partyId, response: guestResponse,
+      phone: normalizedPhone, email: normalizedEmail, partyId, response: guestResponse,
       partySize: resolvedPartySize, notes: notes ? String(notes).trim() : null, side: guestSide,
       primaryMeal: primaryGuestMeal ? String(primaryGuestMeal).trim() : null,
       smsConsentAttested: attested, consentSource: 'host_manual_add',
@@ -1278,28 +1392,118 @@ const addGuestManually = async (req, res, next) => {
 
     broadcast(eventId, 'rsvp_submitted', { partyId: result.party_id, guestName: guestName.trim(), response: guestResponse });
 
-    // Best-effort: an organizer-added guest has no other way to discover their
-    // event page, so a manually-added guest with an email on file gets their
-    // invitation immediately instead of the organizer having to separately
-    // remember to send one. A delivery failure (or an event that isn't
-    // paid/live yet) must not fail the add-guest request itself.
-    const invitation = { attempted: false, sent: false, email: normalizedEmail || null, reason: null };
-    if (normalizedEmail) {
-      invitation.attempted = true;
-      try {
-        const { event: liveEvent, code: liveEventCode } = await invitationService.resolveLiveEvent(eventId);
-        if (liveEvent) {
-          const inviteResult = await invitationService.sendEmailInvite(liveEvent, {
-            id: result.party_id, label: guestName.trim(), primaryEmail: normalizedEmail, partySize: resolvedPartySize,
-          });
-          invitation.sent = !!inviteResult.sent;
-          if (!inviteResult.sent) invitation.reason = inviteResult.reason || 'DELIVERY_FAILED';
-        } else {
-          invitation.reason = liveEventCode || 'EVENT_NOT_LIVE';
+    /**
+     * SEND THE INVITATION — best-effort, per channel, and never fatal.
+     *
+     * The guest row is already committed at this point, and it stays committed
+     * whatever the carriers do. A send failure that rolled back the add would
+     * lose the organizer's typing over something they cannot control, and a send
+     * failure that threw would report "could not add guest" for a guest who is
+     * on the list. Both channels are therefore wrapped and reported, not raised.
+     *
+     * Adding a COMPANION to an existing party sends nothing: the invitation is
+     * addressed to that party's primary contact, who already has one.
+     */
+    const invitation = {
+      email: { attempted: false, sent: false, to: normalizedEmail || null, reason: null, reasonText: null },
+      sms: { attempted: false, sent: false, to: normalizedPhone || null, reason: null, reasonText: null },
+    };
+
+    /**
+     * WHICH CHANNELS TO ACTUALLY TRY — the caller's stated intent, not a guess.
+     *
+     * `channels` exists because the screen in front of this endpoint tells the
+     * organizer, before they press send, exactly which channels will carry the
+     * invitation. Deriving the answer again here lets the two disagree, and the
+     * disagreement is not hypothetical: a guest with an email AND a number on an
+     * event with no texting add-on gets a panel reading "by email only", and a
+     * server that derived from the number alone would then attempt a text and
+     * report a failure for something the organizer was told would not happen.
+     * A promise on screen followed by a contradicting result is worse than
+     * either outcome on its own.
+     *
+     * Omitted (any other API caller, and the CSV import path): fall back to the
+     * old derivation — every channel with a contact detail for it — so nothing
+     * that predates this field changes behaviour.
+     */
+    const asked = Array.isArray(req.body?.channels) ? req.body.channels : null;
+    const wantsEmail = !partyId && !!normalizedEmail && (!asked || asked.includes('email'));
+    const wantsSms = !partyId && !!normalizedPhone && (asked ? asked.includes('sms') : attested);
+
+    if (wantsEmail || wantsSms) {
+      /**
+       * Liveness is resolved ONCE, for both channels.
+       *
+       * The email path has always refused a draft or unpaid event
+       * (resolveLiveEvent), while the SMS path checks only that the add-on was
+       * bought — so without this the same button would refuse to email an
+       * invitation to an unpaid event and cheerfully text one. Whether an event
+       * is ready to invite people is a fact about the event, not about a carrier.
+       */
+      const { event: liveEvent, code: liveEventCode } = await invitationService
+        .resolveLiveEvent(eventId)
+        .catch((err) => {
+          logger.error({ err, eventId }, 'addGuestManually: could not resolve event liveness');
+          return { event: null, code: 'EVENT_NOT_FOUND' };
+        });
+
+      if (!liveEvent) {
+        const code = liveEventCode || 'EVENT_NOT_LIVE';
+        for (const leg of [wantsEmail && invitation.email, wantsSms && invitation.sms]) {
+          if (!leg) continue;
+          leg.attempted = true;
+          leg.reason = code;
+          leg.reasonText = EMAIL_SKIP_EXPLANATIONS[code] || 'Nothing was sent';
         }
-      } catch (inviteErr) {
-        logger.error({ err: inviteErr, eventId, partyId: result.party_id }, 'addGuestManually: invitation email failed');
-        invitation.reason = 'DELIVERY_FAILED';
+      } else {
+        if (wantsEmail) {
+          invitation.email.attempted = true;
+          try {
+            const inviteResult = await invitationService.sendEmailInvite(liveEvent, {
+              id: result.party_id, label: guestName.trim(), primaryEmail: normalizedEmail, partySize: resolvedPartySize,
+            });
+            invitation.email.sent = !!inviteResult.sent;
+            if (!inviteResult.sent) invitation.email.reason = inviteResult.reason || 'DELIVERY_FAILED';
+          } catch (inviteErr) {
+            logger.error({ err: inviteErr, eventId, partyId: result.party_id }, 'addGuestManually: invitation email failed');
+            invitation.email.reason = 'DELIVERY_FAILED';
+          }
+          if (invitation.email.reason) {
+            invitation.email.reasonText = EMAIL_SKIP_EXPLANATIONS[invitation.email.reason] || 'It could not be delivered';
+          }
+        }
+
+        if (wantsSms) {
+          invitation.sms.attempted = true;
+          try {
+            /**
+             * One party through the bulk path, deliberately.
+             *
+             * `sendInvitationSmsBulk` is where every SMS gate lives, and it is
+             * where billing happens. A "just send one" shortcut past it would be
+             * a second door into a subsystem whose entire safety story is that
+             * there is only one.
+             */
+            const smsResult = await invitationService.sendInvitationSmsBulk(eventId, [result.party_id], {
+              user: req.user, type: 'invitation',
+            });
+            if (smsResult.code) {
+              invitation.sms.reason = smsResult.code;
+              // These carry their own organizer-facing sentence already.
+              invitation.sms.reasonText = smsResult.message || null;
+            } else if (smsResult.sent > 0) {
+              invitation.sms.sent = true;
+            } else {
+              const worst = (smsResult.breakdown || [])[0];
+              invitation.sms.reason = worst?.reason || 'SKIPPED';
+              invitation.sms.reasonText = worst?.message || 'The text could not be delivered';
+            }
+          } catch (smsErr) {
+            logger.error({ err: smsErr, eventId, partyId: result.party_id }, 'addGuestManually: invitation text failed');
+            invitation.sms.reason = 'SEND_FAILED';
+            invitation.sms.reasonText = 'The text could not be delivered';
+          }
+        }
       }
     }
 

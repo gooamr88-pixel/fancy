@@ -341,6 +341,30 @@ async function jobPendingPayments() {
  * and deduped per (event, new-details) so re-saving identical details never re-sends.
  * Called best-effort from eventController.updateEvent.
  */
+/**
+ * WHO HEARS THAT AN EVENT MOVED OR WAS CALLED OFF.
+ *
+ * Everyone who has not said no. This used to be `['yes', 'maybe']`, which is the
+ * right audience only if the guest list is entirely self-serve — and it stopped
+ * being that the moment an organizer could add someone by hand and invite them.
+ *
+ * The gap it left: a guest the organizer invited, who has not opened the
+ * invitation yet, sits at `pending`. They had an invitation, they may well be
+ * planning to come, and if the wedding was cancelled they were told nothing at
+ * all. The organizer got a confirmation saying N guests had been contacted, and
+ * N excluded every person who had not yet replied.
+ *
+ * `no` stays out on purpose: they have declined, they are not turning up, and a
+ * cancellation notice to someone who already said no is a message nobody needs
+ * and — on the SMS leg — one the organizer pays for.
+ *
+ * Exported so `eventController.countNotifiableGuests` counts the same rows this
+ * function sends to. The confirm dialog's promise and the send have to be one
+ * definition; two lists that agreed on the day they were written is exactly how
+ * a dialog ends up quoting a number nobody receives.
+ */
+const NOTIFIABLE_RESPONSES = ['yes', 'maybe', 'pending', 'waitlist'];
+
 async function notifyGuestsOfEventChange(eventId, { includeSms = false, force = false } = {}) {
   /**
    * THE ENV GATE IS BYPASSABLE, AND HAS TO BE.
@@ -406,7 +430,7 @@ async function notifyGuestsOfEventChange(eventId, { includeSms = false, force = 
         .from('rsvp_parties')
         .select('id, label, preferred_lang, guests(is_primary_contact, email)')
         .eq('event_id', eventId)
-        .in('response', ['yes', 'maybe'])
+        .in('response', NOTIFIABLE_RESPONSES)
         .order('id', { ascending: true })
         .range(from, from + LIMIT - 1);
 
@@ -639,4 +663,4 @@ function start() {
 }
 function stop() { if (timer) { clearInterval(timer); timer = null; } }
 
-module.exports = { start, stop, runOnce, notifyGuestsOfEventChange, JOBS };
+module.exports = { start, stop, runOnce, notifyGuestsOfEventChange, NOTIFIABLE_RESPONSES, JOBS };

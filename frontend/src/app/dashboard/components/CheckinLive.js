@@ -107,7 +107,7 @@ export default function CheckinLive({ eventId }) {
           style={{
             marginLeft: '12px', background: 'transparent', color: C.charcoal,
             border: `1px solid ${C.border}`, borderRadius: '8px',
-            padding: '8px 16px', cursor: 'pointer', fontSize: '14px',
+            padding: '8px 16px', minHeight: 'var(--fx-touch)', cursor: 'pointer', fontSize: '14px',
           }}
         >
           Try again
@@ -221,7 +221,7 @@ function Breakdown({ title, rows, empty }) {
             <div
               key={r.key}
               style={{
-                display: 'flex', justifyContent: 'space-between',
+                display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between',
                 borderBottom: `1px solid ${C.border}`, padding: '8px 0', fontSize: '15px',
               }}
             >

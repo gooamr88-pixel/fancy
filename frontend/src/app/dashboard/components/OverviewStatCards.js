@@ -137,14 +137,14 @@ function MiniProgressBar({ label, count, total, color, colorLight, delay }) {
     <div style={{ flex: 1, minWidth: 0 }}>
       {/* Label row */}
       <div style={{
-        display: 'flex',
+        display: 'flex', flexWrap: 'wrap',
         justifyContent: 'space-between',
         alignItems: 'center',
         marginBottom: 6,
       }}>
         <span style={{
           fontFamily: 'var(--font-sans)',
-          fontSize: 10,
+          fontSize: 'var(--fx-micro)',
           fontWeight: 600,
           color: color,
           textTransform: 'uppercase',
@@ -259,7 +259,7 @@ function StatCard({
 
       {/* ── Header row: icon + label ── */}
       <div style={{
-        display: 'flex',
+        display: 'flex', flexWrap: 'wrap',
         justifyContent: 'space-between',
         alignItems: 'flex-start',
         marginBottom: 16,
@@ -457,7 +457,7 @@ export default function OverviewStatCards({
         >
           {/* Sparkline mini-bars */}
           <div className="osc-rsvp-bars" style={{
-            display: 'flex',
+            display: 'flex', flexWrap: 'wrap',
             gap: 16,
             marginTop: 18,
             paddingTop: 16,

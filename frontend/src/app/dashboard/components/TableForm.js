@@ -29,7 +29,7 @@ const TableForm = memo(function TableForm({
       {/* Header */}
       <div
         style={{
-          display: "flex",
+          display: "flex", flexWrap: 'wrap',
           justifyContent: "space-between",
           alignItems: "center",
           borderBottom: "1px solid #F0ECE3",
@@ -49,7 +49,7 @@ const TableForm = memo(function TableForm({
           </h3>
           <p
             style={{
-              fontSize: "10px",
+              fontSize: 'var(--fx-micro)',
               color: "#77736A",
               fontFamily: "var(--font-sans)",
               marginTop: "2px",
@@ -124,9 +124,9 @@ const TableForm = memo(function TableForm({
                     gap: "12px",
                   }}
                 >
-                  <div style={{ display: 'flex', gap: '8px' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                     <div style={{ flex: 1 }}>
-                      <label style={{ fontSize: '9px', color: '#77736A', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Table Name</label>
+                      <label style={{ fontSize: 'var(--fx-micro)', color: '#77736A', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Table Name</label>
                       <input
                         type="text"
                         value={editName}
@@ -135,7 +135,7 @@ const TableForm = memo(function TableForm({
                       />
                     </div>
                     <div style={{ width: '80px' }}>
-                      <label style={{ fontSize: '9px', color: '#77736A', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Capacity</label>
+                      <label style={{ fontSize: 'var(--fx-micro)', color: '#77736A', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Capacity</label>
                       <input
                         type="number"
                         min="1"
@@ -146,17 +146,17 @@ const TableForm = memo(function TableForm({
                     </div>
                   </div>
                   <div>
-                    <label style={{ fontSize: '9px', color: '#77736A', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Shape</label>
+                    <label style={{ fontSize: 'var(--fx-micro)', color: '#77736A', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Shape</label>
                     <select
                       value={editShape}
                       onChange={(e) => setEditShape(e.target.value)}
-                      style={{ width: "100%", padding: "6px 10px", fontSize: "12px", border: "1px solid #E8E2D6", borderRadius: "6px", color: "#191B1E", cursor: 'pointer', outline: 'none' }}
+                      style={{ width: "100%", padding: "6px 10px", minHeight: 'var(--fx-touch)', fontSize: "12px", border: "1px solid #E8E2D6", borderRadius: "6px", color: "#191B1E", cursor: 'pointer', outline: 'none' }}
                     >
                       <option value="round">Round</option>
                       <option value="rectangular">Rectangular</option>
                     </select>
                   </div>
-                  <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "4px" }}>
+                  <div style={{ display: "flex", flexWrap: 'wrap', justifyContent: "flex-end", gap: "8px", marginTop: "4px" }}>
                     <button
                       type="button"
                       onClick={() => setEditingTableId(null)}
@@ -205,7 +205,7 @@ const TableForm = memo(function TableForm({
               >
                 <div
                   style={{
-                    display: "flex",
+                    display: "flex", flexWrap: 'wrap',
                     justifyContent: "space-between",
                     fontSize: "12px",
                     fontWeight: 600,
@@ -213,7 +213,7 @@ const TableForm = memo(function TableForm({
                     alignItems: "center"
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
                     <span style={{ color: "#191B1E" }}>{table.table_name}</span>
                     <button
                       type="button"
@@ -258,9 +258,9 @@ const TableForm = memo(function TableForm({
 
                 <div
                   style={{
-                    display: "flex",
+                    display: "flex", flexWrap: 'wrap',
                     justifyContent: "space-between",
-                    fontSize: "10px",
+                    fontSize: 'var(--fx-micro)',
                     fontWeight: 700,
                     fontFamily: "var(--font-sans)",
                   }}

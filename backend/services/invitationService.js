@@ -482,7 +482,7 @@ async function sendInvitationSmsBulk(eventId, partyIds, { user = null, type = 'i
           rsvpUrl: buildGuestEventUrl(event.slug, partyId),
         };
 
-      return sendTransactionalSms({
+      const outcome = await sendTransactionalSms({
         type,
         eventId,
         partyId,
@@ -499,6 +499,32 @@ async function sendInvitationSmsBulk(eventId, partyIds, { user = null, type = 'i
         lang: party.preferred_lang || 'en',
         context,
       });
+
+      /**
+       * THE LEDGER ROW FOR A TEXTED INVITATION.
+       *
+       * Every other channel writes one; this one never did, and the omission was
+       * invisible because nothing throws when a row is simply absent. The
+       * dashboard derives `invitation_sent_sms` from
+       * `invitations.channel === 'sms'` (page.js), so that flag was permanently
+       * false for every guest on the platform, and the Guest list's "Invitations
+       * Sent" tile counted only the ones who happened to be emailed.
+       *
+       * `'sms'` has been a legal `invitation_channel_type` since the guest-
+       * experience rebuild, so this needs no migration.
+       *
+       * ONLY for `type: 'invitation'`. The detail text is a confirmation of an
+       * answer already given — recording it here would mark guests as invited
+       * who were never sent an invitation, which is worse than the gap it fixes.
+       */
+      if (type === 'invitation' && outcome.sent) {
+        await logInvitation({
+          partyId, eventId, channel: 'sms', status: 'sent',
+          metadata: { sid: outcome.sid || null, credits: outcome.credits ?? null },
+        });
+      }
+
+      return outcome;
     }));
 
     for (const outcome of outcomes) {

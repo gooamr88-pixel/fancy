@@ -171,7 +171,7 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Header */}
       <div style={{
-        display: 'flex', justifyContent: 'space-between',
+        display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between',
         alignItems: 'center',
       }}>
         <div>
@@ -185,12 +185,12 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
           }}>Add questions guests must answer when RSVPing</p>
         </div>
         {!showForm && (
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {!hasMealField && (
               <button
                 onClick={startAddMeal}
                 style={{
-                  padding: '8px 16px', background: C.white,
+                  padding: '8px 16px', minHeight: 'var(--fx-touch)', background: C.white,
                   color: C.gold, fontSize: 12, fontWeight: 700,
                   borderRadius: 8, border: '1px solid rgba(184,148,79,0.35)', cursor: 'pointer',
                   fontFamily: 'var(--font-sans)',
@@ -203,7 +203,7 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
             <button
               onClick={() => setShowForm(true)}
               style={{
-                padding: '8px 16px', background: C.gold,
+                padding: '8px 16px', minHeight: 'var(--fx-touch)', background: C.gold,
                 color: C.white, fontSize: 12, fontWeight: 700,
                 borderRadius: 8, border: 'none', cursor: 'pointer',
                 fontFamily: 'var(--font-sans)',
@@ -275,7 +275,7 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', paddingTop: 22 }}>
                   <label style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
+                    display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
                     fontSize: 12, color: C.stone, fontWeight: 600,
                     cursor: 'pointer', fontFamily: 'var(--font-sans)',
                   }}>
@@ -296,7 +296,7 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
                     placeholder="e.g. Beef, Salmon, Vegetarian"
                     style={iStyle} onFocus={onFocus} onBlur={onBlur} />
                   <span style={{
-                    fontSize: 10, color: '#A09A91',
+                    fontSize: 'var(--fx-micro)', color: '#A09A91',
                     display: 'block', marginTop: 4,
                   }}>Separate choices with commas</span>
                 </div>
@@ -305,12 +305,12 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
               {/* Row 4: Condition */}
               <div>
                 <label style={lblStyle}>Show This Question</label>
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {CONDITIONS.map(c => (
                     <button key={c.value}
                       onClick={() => setCondition(c.value)}
                       style={{
-                        padding: '6px 14px', borderRadius: 8,
+                        padding: '6px 14px', minHeight: 'var(--fx-touch)', borderRadius: 8,
                         fontSize: 12, fontWeight: 600,
                         fontFamily: 'var(--font-sans)',
                         cursor: 'pointer',
@@ -327,17 +327,17 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
 
               {/* Actions */}
               <div style={{
-                display: 'flex', justifyContent: 'flex-end', gap: 8,
+                display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8,
                 paddingTop: 8, borderTop: `1px solid ${C.border}`,
               }}>
                 <button onClick={resetForm} style={{
-                  padding: '8px 16px', background: C.white,
+                  padding: '8px 16px', minHeight: 'var(--fx-touch)', background: C.white,
                   border: `1px solid ${C.border}`, borderRadius: 8,
                   fontSize: 12, fontWeight: 700, cursor: 'pointer',
                   color: C.stone, fontFamily: 'var(--font-sans)',
                 }}>Cancel</button>
                 <button onClick={handleSave} style={{
-                  padding: '8px 16px', background: C.gold,
+                  padding: '8px 16px', minHeight: 'var(--fx-touch)', background: C.gold,
                   color: C.white, border: 'none', borderRadius: 8,
                   fontSize: 12, fontWeight: 700, cursor: 'pointer',
                   fontFamily: 'var(--font-sans)',
@@ -382,14 +382,14 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
                       color: C.charcoal, fontFamily: 'var(--font-sans)',
                     }}>{f.label}</span>
                     <span style={{
-                      fontSize: 10, fontWeight: 600,
+                      fontSize: 'var(--fx-micro)', fontWeight: 600,
                       background: 'rgba(184,148,79,0.08)',
                       color: C.gold, borderRadius: 4,
                       padding: '2px 8px',
                     }}>{FIELD_TYPES.find(t => t.value === f.type)?.label || f.type}</span>
                     {f.isRequired && (
                       <span style={{
-                        fontSize: 9, fontWeight: 800,
+                        fontSize: 'var(--fx-micro)', fontWeight: 800,
                         background: C.gold, color: C.white,
                         borderRadius: 4, padding: '2px 6px',
                         textTransform: 'uppercase',
@@ -399,20 +399,20 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
                   {/* Condition + Options */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <span style={{
-                      fontSize: 10, fontWeight: 600,
+                      fontSize: 'var(--fx-micro)', fontWeight: 600,
                       background: cond.bg, color: cond.color,
                       border: `1px solid ${cond.color}20`,
                       borderRadius: 4, padding: '2px 8px',
                     }}>{cond.label}</span>
                     {f.options && f.options.length > 0 && (
                       <span style={{
-                        fontSize: 10, color: '#A09A91',
+                        fontSize: 'var(--fx-micro)', color: '#A09A91',
                         fontFamily: 'monospace',
                       }}>[{f.options.join(', ')}]</span>
                     )}
                   </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
                   <button
                     onClick={() => startEdit(f)}
                     title="Edit question"
@@ -420,7 +420,7 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
                       padding: 6, background: 'rgba(184,148,79,0.08)',
                       border: '1px solid rgba(184,148,79,0.2)',
                       borderRadius: 8, cursor: 'pointer', color: C.gold,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
                       transition: 'background 0.2s',
                     }}
                     onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,148,79,0.16)'}
@@ -437,7 +437,7 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
                       padding: 6, background: 'rgba(196,94,94,0.06)',
                       border: '1px solid rgba(196,94,94,0.15)',
                       borderRadius: 8, cursor: 'pointer', color: C.error,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
                       transition: 'background 0.2s',
                     }}
                     onMouseEnter={e => e.currentTarget.style.background = 'rgba(196,94,94,0.12)'}

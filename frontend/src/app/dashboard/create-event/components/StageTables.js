@@ -134,14 +134,14 @@ export default function StageTables({ apiUrl, eventId, onContinue, onBack }) {
           background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.2)',
           borderRadius: 10, padding: '10px 14px', marginBottom: 16,
           color: C.error, fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 600,
-          display: 'flex', alignItems: 'center', gap: 6,
+          display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6,
         }}><Icon name="warning" size={14} strokeWidth={1.6} /> {error}</div>
       )}
 
       {/* Table list */}
       <div style={{ border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden', background: C.white }}>
         <div style={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center',
           padding: '14px 18px', borderBottom: `1px solid ${C.border}`, background: C.softBg,
         }}>
           <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 700, color: C.charcoal }}>
@@ -161,7 +161,7 @@ export default function StageTables({ apiUrl, eventId, onContinue, onBack }) {
         ) : (
           tables.map((t) => (
             <div key={t.id} style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center',
               padding: '14px 18px', borderBottom: `1px solid ${C.border}`,
             }}>
               <div>
@@ -190,14 +190,14 @@ export default function StageTables({ apiUrl, eventId, onContinue, onBack }) {
         position: 'fixed', bottom: 0, left: 0, right: 0,
         background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(12px)',
         borderTop: `1px solid ${C.border}`, padding: '16px 24px', paddingBottom: 'max(16px, calc(env(safe-area-inset-bottom) + 8px))', zIndex: 50,
-        display: 'flex', justifyContent: 'center',
+        display: 'flex', flexWrap: 'wrap', justifyContent: 'center',
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', maxWidth: 860, width: '100%' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', maxWidth: 860, width: '100%' }}>
           <button onClick={onBack} style={{
             height: 48, padding: '0 24px', background: 'none',
             border: `1.5px solid ${C.charcoal}`, borderRadius: 12,
             fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 700, color: C.charcoal,
-            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+            cursor: 'pointer', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
           }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M15 18l-6-6 6-6" /></svg>
             Back
@@ -208,7 +208,7 @@ export default function StageTables({ apiUrl, eventId, onContinue, onBack }) {
             background: 'linear-gradient(135deg, #B8944F, #a6833f)',
             color: C.white, border: 'none', borderRadius: 14,
             fontFamily: 'var(--font-sans)', fontSize: 15, fontWeight: 700,
-            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+            cursor: 'pointer', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
           }}>
             {tables.length === 0 ? 'Skip for now' : 'Continue'}
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M9 18l6-6-6-6" /></svg>

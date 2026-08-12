@@ -145,7 +145,7 @@ export default function ClearGuestListModal({ onClose, eventId, onCleared }) {
 
   const row = (label, value, tone = C.charcoal) => (
     <div style={{
-      display: 'flex', justifyContent: 'space-between', gap: 12,
+      display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 12,
       fontSize: 13, padding: '5px 0', fontFamily: 'var(--font-sans)', color: C.stone,
     }}>
       <span>{label}</span>
@@ -164,7 +164,7 @@ export default function ClearGuestListModal({ onClose, eventId, onCleared }) {
       style={{
         position: 'fixed', inset: 0, zIndex: 1000,
         background: 'rgba(25,27,30,0.55)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
         padding: 16,
       }}
     >
@@ -290,7 +290,7 @@ export default function ClearGuestListModal({ onClose, eventId, onCleared }) {
         </div>
 
         <div style={{
-          display: 'flex', justifyContent: 'flex-end', gap: 8,
+          display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8,
           padding: '18px 22px 22px',
         }}>
           <button
@@ -298,7 +298,7 @@ export default function ClearGuestListModal({ onClose, eventId, onCleared }) {
             onClick={onClose}
             disabled={busy}
             style={{
-              padding: '9px 18px', borderRadius: 9, border: `1px solid ${C.border}`,
+              padding: '9px 18px', minHeight: 'var(--fx-touch)', borderRadius: 9, border: `1px solid ${C.border}`,
               background: C.white, color: C.charcoal, fontSize: 12.5, fontWeight: 700,
               fontFamily: 'var(--font-sans)', cursor: busy ? 'wait' : 'pointer',
             }}
@@ -311,7 +311,7 @@ export default function ClearGuestListModal({ onClose, eventId, onCleared }) {
               onClick={handleConfirm}
               disabled={!canConfirm}
               style={{
-                padding: '9px 18px', borderRadius: 9, border: 'none',
+                padding: '9px 18px', minHeight: 'var(--fx-touch)', borderRadius: 9, border: 'none',
                 background: canConfirm ? C.error : '#C9C4BA',
                 color: C.white, fontSize: 12.5, fontWeight: 700,
                 fontFamily: 'var(--font-sans)',

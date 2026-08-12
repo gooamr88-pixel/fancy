@@ -935,11 +935,17 @@ function computeChangeKey(event) {
  */
 async function countNotifiableGuests(eventId) {
   try {
+    // The audience is DEFINED by the sender, imported from it, never restated.
+    // These two counts are what the confirm dialog promises; the send below has
+    // to reach exactly those rows, and a local copy of the list would drift the
+    // first time the audience changed on one side only. (It just did: guests who
+    // have not replied yet are now told when an event moves or is called off.)
+    const { NOTIFIABLE_RESPONSES } = require('../services/emailScheduler');
     const [{ count: parties }, { count: reachable }] = await Promise.all([
       supabase.from('rsvp_parties').select('id', { count: 'exact', head: true })
-        .eq('event_id', eventId).in('response', ['yes', 'maybe']),
+        .eq('event_id', eventId).in('response', NOTIFIABLE_RESPONSES),
       supabase.from('rsvp_parties').select('id', { count: 'exact', head: true })
-        .eq('event_id', eventId).in('response', ['yes', 'maybe']).eq('sms_consent', true),
+        .eq('event_id', eventId).in('response', NOTIFIABLE_RESPONSES).eq('sms_consent', true),
     ]);
     return { parties: parties || 0, smsReachable: reachable || 0 };
   } catch {

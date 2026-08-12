@@ -14,7 +14,7 @@ const iStyle = {
   outline: 'none', fontFamily: 'var(--font-sans)',
 };
 const lbl = {
-  fontSize: 10, fontWeight: 700, color: C.stone, textTransform: 'uppercase',
+  fontSize: 'var(--fx-micro)', fontWeight: 700, color: C.stone, textTransform: 'uppercase',
   letterSpacing: '0.05em', display: 'block', marginBottom: 4, fontFamily: 'var(--font-sans)',
 };
 const iconBtn = (disabled) => ({
@@ -97,7 +97,7 @@ export default function DaysEditor({ days, onChange, onUploadImage }) {
               <button
                 key={n} type="button" onClick={() => setDayCount(n)}
                 style={{
-                  padding: '7px 14px', borderRadius: 999, cursor: 'pointer',
+                  padding: '7px 14px', minHeight: 'var(--fx-touch)', borderRadius: 999, cursor: 'pointer',
                   fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-sans)',
                   border: `1.5px solid ${active ? C.gold : C.border}`,
                   background: active ? 'rgba(184,148,79,0.08)' : C.white,
@@ -111,7 +111,7 @@ export default function DaysEditor({ days, onChange, onUploadImage }) {
           <button
             type="button" onClick={() => setDayCount(Math.max(5, list.length + 1))}
             style={{
-              padding: '7px 14px', borderRadius: 999, cursor: 'pointer',
+              padding: '7px 14px', minHeight: 'var(--fx-touch)', borderRadius: 999, cursor: 'pointer',
               fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-sans)',
               border: `1.5px solid ${list.length >= 5 ? C.gold : C.border}`,
               background: list.length >= 5 ? 'rgba(184,148,79,0.08)' : C.white,
@@ -121,7 +121,7 @@ export default function DaysEditor({ days, onChange, onUploadImage }) {
             {list.length > 5 ? `${list.length} Days` : '5+ Days'}
           </button>
         </div>
-        <p style={{ fontSize: 10, color: '#A09A91', margin: '6px 0 0', fontFamily: 'var(--font-sans)' }}>
+        <p style={{ fontSize: 'var(--fx-micro)', color: '#A09A91', margin: '6px 0 0', fontFamily: 'var(--font-sans)' }}>
           A 1-day event shows no day tabs to guests — just its single schedule and venue. Switching this only adds or removes days at the end; it never touches what you&apos;ve already filled in.
         </p>
       </div>
@@ -135,7 +135,7 @@ export default function DaysEditor({ days, onChange, onUploadImage }) {
       {list.map((day, idx) => (
         <div key={idx} style={{ border: `1px solid ${C.border}`, borderRadius: 12, background: C.white, overflow: 'hidden' }}>
           <div style={{
-            display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px 8px 14px',
+            display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '8px 10px 8px 14px',
             background: C.softBg, borderBottom: `1px solid ${C.border}`,
           }}>
             <input
@@ -202,7 +202,7 @@ export default function DaysEditor({ days, onChange, onUploadImage }) {
         type="button"
         onClick={addDay}
         style={{
-          alignSelf: 'flex-start', padding: '9px 18px', borderRadius: 8,
+          alignSelf: 'flex-start', padding: '9px 18px', minHeight: 'var(--fx-touch)', borderRadius: 8,
           border: `1px dashed ${C.gold}`, background: 'rgba(184,148,79,0.05)', color: C.gold,
           cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-sans)',
         }}

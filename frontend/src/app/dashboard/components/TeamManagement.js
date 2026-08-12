@@ -223,7 +223,7 @@ export default function TeamManagement({ eventId }) {
             <div
               key={member.id}
               style={{
-                display: 'flex', alignItems: 'center', gap: '16px',
+                display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '16px',
                 background: C.white, border: `1px solid ${C.border}`,
                 borderRadius: '12px', padding: '16px 20px',
               }}
@@ -237,7 +237,7 @@ export default function TeamManagement({ eventId }) {
               </div>
 
               {resetting === member.id ? (
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
                   <input
                     style={{ ...inputStyle, width: '110px' }}
                     value={resetPin}
@@ -268,7 +268,7 @@ export default function TeamManagement({ eventId }) {
                   </button>
                 </div>
               ) : (
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                   <button
                     onClick={() => { setResetting(member.id); setResetPin(''); }}
                     style={{

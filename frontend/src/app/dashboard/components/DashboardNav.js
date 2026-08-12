@@ -201,7 +201,7 @@ export default function DashboardNav() {
             minWidth: 18, height: 18, padding: '0 6px', borderRadius: 9,
             background: isActive ? COLORS.gold : 'rgba(184, 148, 79, 0.14)',
             color: isActive ? COLORS.white : COLORS.gold,
-            fontSize: 10, fontWeight: 700, lineHeight: 1, flexShrink: 0,
+            fontSize: 'var(--fx-micro)', fontWeight: 700, lineHeight: 1, flexShrink: 0,
           }}>{draftCount}</span>
         )}
 
@@ -261,7 +261,15 @@ export default function DashboardNav() {
         <div
           onClick={() => setOpen(false)}
           className="dnav-overlay"
-          style={{ display: 'none', position: 'fixed', inset: 0, zIndex: 49, background: 'rgba(0,0,0,0.3)' }}
+          /**
+           * ABOVE the mobile bottom bar (55), not below it.
+           *
+           * At 49 the bar painted over this, so the bottom 60px of the screen
+           * was not part of the overlay: tapping there did not dismiss the
+           * drawer, it switched tabs — behind an open drawer, with no visible
+           * effect until you closed it and found yourself somewhere else.
+           */
+          style={{ display: 'none', position: 'fixed', inset: 0, zIndex: 58, background: 'rgba(0,0,0,0.3)' }}
         />
       )}
 
@@ -293,7 +301,20 @@ export default function DashboardNav() {
           width: 240, height: '100dvh', background: COLORS.white,
           borderRight: `1px solid ${COLORS.border}`,
           display: 'flex', flexDirection: 'column',
-          position: 'fixed', top: 0, left: 0, zIndex: 50,
+          /**
+           * z-index 59 — ABOVE the mobile bottom bar, and this is a real bug fix
+           * rather than tidying.
+           *
+           * The bar is `position: fixed`, 60px tall, pinned to the bottom edge at
+           * z-index 55. This drawer was at 50. The drawer is exactly 100dvh with
+           * Log Out as its last child, so that button sat in precisely the 60px
+           * the bar occupies — painted over, at every scroll position, on every
+           * phone. There was no way to log out from the drawer at all.
+           *
+           * Raising the drawer is safe when it is closed: it is translated fully
+           * off-screen, so it cannot cover the bar it now outranks.
+           */
+          position: 'fixed', top: 0, left: 0, zIndex: 59,
           transform: open ? 'translateX(0)' : undefined,
           transition: 'transform 0.3s ease',
           overflowY: 'auto',
@@ -305,7 +326,7 @@ export default function DashboardNav() {
         {/* Logo + mobile dismiss */}
         <div style={{
           padding: '24px 20px', borderBottom: `1px solid ${COLORS.border}`,
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+          display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8,
           flexShrink: 0,
         }}>
           <button
@@ -322,13 +343,13 @@ export default function DashboardNav() {
               <path d="M18 6L6 18M6 6l12 12" />
             </svg>
           </button>
-          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+          <Link href="/" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
             <svg width="24" height="20" viewBox="0 0 38 32" fill="none" style={{ flexShrink: 0 }}>
               <rect x="2" y="8" width="34" height="22" rx="2" stroke="#B8944F" strokeWidth="2" fill="none" />
               <path d="M2 10L19 22L36 10" stroke="#B8944F" strokeWidth="2" fill="none" strokeLinejoin="round" />
               <path d="M4 8L19 0L34 8" stroke="#B8944F" strokeWidth="2" fill="none" strokeLinejoin="round" />
             </svg>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 4 }}>
               <span style={{ fontFamily: 'var(--font-script)', fontSize: 26, fontWeight: 400, color: COLORS.gold, lineHeight: 1 }}>Fancy</span>
               <span style={{ fontFamily: 'var(--font-serif)', fontSize: 16, fontWeight: 600, color: COLORS.charcoal, letterSpacing: '1.5px', textTransform: 'uppercase', lineHeight: 1 }}>RSVP</span>
             </div>
@@ -348,7 +369,7 @@ export default function DashboardNav() {
             padding: '12px 16px', borderBottom: `1px solid ${COLORS.border}`, flexShrink: 0,
           }}>
             <div style={{
-              fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+              fontSize: 'var(--fx-micro)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
               color: COLORS.stone, fontFamily: 'var(--font-sans)', marginBottom: 6,
             }}>
               Working on
@@ -386,7 +407,7 @@ export default function DashboardNav() {
             <div key={group.id} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               {group.label && (
                 <div style={{
-                  fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+                  fontSize: 'var(--fx-micro)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
                   color: '#A8A296', fontFamily: 'var(--font-sans)',
                   padding: '14px 14px 6px',
                 }}>
@@ -410,7 +431,7 @@ export default function DashboardNav() {
             onClick={() => setLogoutOpen(true)}
             aria-label="Log out"
             style={{
-              display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', width: '100%',
+              display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, padding: '10px 14px', width: '100%',
               background: 'transparent', border: `1px solid ${COLORS.border}`, borderRadius: 8, cursor: 'pointer',
               fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 600, color: COLORS.stone,
               transition: 'all 0.2s ease',

@@ -72,7 +72,7 @@ export default function TagListEditor({
                 style={{
                   width: 20, height: 20, borderRadius: '50%', border: 'none', cursor: 'pointer',
                   background: 'rgba(184,148,79,0.18)', color: C.gold, fontSize: 13, lineHeight: 1,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
                 }}
               >
                 ×
@@ -82,7 +82,7 @@ export default function TagListEditor({
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         <input
           type="text"
           value={draft}

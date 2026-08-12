@@ -88,7 +88,7 @@ export default function ResponsiveChartBoard({ stats }) {
               position: "relative",
               width: "144px",
               height: "144px",
-              display: "flex",
+              display: "flex", flexWrap: 'wrap',
               alignItems: "center",
               justifyContent: "center",
             }}
@@ -199,7 +199,7 @@ export default function ResponsiveChartBoard({ stats }) {
               <div
                 key={item.label}
                 style={{
-                  display: "flex",
+                  display: "flex", flexWrap: 'wrap',
                   alignItems: "center",
                   gap: "8px",
                   fontSize: "12px",
@@ -271,7 +271,7 @@ export default function ResponsiveChartBoard({ stats }) {
                   >
                     <div
                       style={{
-                        display: "flex",
+                        display: "flex", flexWrap: 'wrap',
                         justifyContent: "space-between",
                         fontWeight: 500,
                         color: "#191B1E",

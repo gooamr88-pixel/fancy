@@ -4,6 +4,8 @@ import React, { useState, useRef } from 'react';
 import { useModalA11y } from '../../hooks/useModalA11y';
 import Icon from '../../components/icons/Icon';
 import { sideLabel } from '../../utils/sideLabel';
+import { findMealField } from '../../utils/mealField';
+import { resolveSheetColumns, buildTemplateCsv } from '../../utils/guestSheetColumns';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -27,7 +29,14 @@ function parseCSVRows(text) {
   });
 }
 
-export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onImportComplete }) {
+export default function ImportGuestsModal({
+  isOpen, onClose, eventId, event, onImportComplete,
+  // Only so the template offered here is byte-identical to the one offered by
+  // the Guest list reference: both fill their examples with this event's real
+  // tables and meal options. Two templates that differ would be worse than one
+  // of them not existing.
+  tables = [], customFields = [],
+}) {
   const [fileContent, setFileContent] = useState('');
   const [fileName, setFileName] = useState('');
   const [preview, setPreview] = useState([]);
@@ -200,22 +209,49 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
   };
 
   const labelStyle = {
-    fontSize: '10px', fontWeight: 700, color: COLORS.stone, textTransform: 'uppercase',
+    fontSize: 'var(--fx-micro)', fontWeight: 700, color: COLORS.stone, textTransform: 'uppercase',
     letterSpacing: '0.08em', fontFamily: 'var(--font-sans)',
+  };
+
+  /**
+   * The same starter file the Guest list reference offers, built from the same
+   * spec module — so the two cannot drift into describing different formats.
+   * Built in the browser: there is nothing secret in it, and a round trip would
+   * turn a one-click action into a request that can fail.
+   */
+  const downloadTemplate = () => {
+    const columns = resolveSheetColumns({
+      event,
+      tables,
+      mealOptions: findMealField(customFields)?.options || [],
+      sideLabels: { partner1: sideLabel('partner1', event), partner2: sideLabel('partner2', event) },
+    });
+    const blob = new Blob([buildTemplateCsv(columns)], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const slug = (event?.title || 'event').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    a.download = `${slug || 'event'}-guest-list-template.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   };
 
   // Name the labels THIS event's export actually writes, because that is the
   // file organizers re-import most often and the generic hint ("groom/bride")
   // made its own export look unsupported. sideLabel is the same helper the
   // export and the backend importer resolve through, so all three agree.
-  const sideHint = `side (optional — ${sideLabel('partner1', event)} / ${sideLabel('partner2', event)})`;
+  const sideHint = event?.track_guest_side
+    ? `A side column accepts “${sideLabel('partner1', event)}” or “${sideLabel('partner2', event)}”.`
+    : '';
   const isXlsxSelected = fileName.toLowerCase().endsWith('.xlsx');
 
   return (
     <div
       onClick={onClose}
       style={{
-        position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center',
+        position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', flexWrap: 'wrap', alignItems: 'center',
         justifyContent: 'center', background: 'rgba(25, 27, 30, 0.45)', backdropFilter: 'blur(6px)',
         WebkitBackdropFilter: 'blur(6px)', animation: 'fadeIn 0.2s ease', padding: '16px',
         boxSizing: 'border-box',
@@ -236,7 +272,7 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
       >
         {/* Header */}
         <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between',
           padding: '20px 24px', borderBottom: `1px solid ${COLORS.border}`, flexShrink: 0,
         }}>
           <div>
@@ -251,7 +287,7 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
             onClick={onClose} aria-label="Close modal"
             style={{
               width: '32px', height: '32px', borderRadius: '8px', border: 'none', background: COLORS.ivory,
-              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
               color: COLORS.stone, transition: 'all 0.2s',
             }}
             onMouseEnter={(e) => { e.currentTarget.style.background = '#EDE8DD'; }}
@@ -273,7 +309,7 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
             }}>
               <div style={{
                 width: '56px', height: '56px', borderRadius: '50%', background: '#F0FDF4',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px',
+                display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px',
               }}>
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2.5">
                   <path d="M5 13l4 4L19 7" />
@@ -305,6 +341,44 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
                     : `${result.phoneRowCount} guest${result.phoneRowCount === 1 ? '' : 's'} have a phone number but no SMS consent on record, so they won’t receive text messages. They can opt in on their RSVP form.`}
                 </p>
               )}
+              {/**
+                * COLUMNS WE DID NOT RECOGNISE, NAMED.
+                *
+                * The single most valuable line in this panel, and it did not
+                * exist. A heading of `mobile` instead of `phone` produced a
+                * guest list with no phone numbers, a green tick, and nothing
+                * anywhere to explain it. Naming the column turns an unsolvable
+                * mystery into a rename and a re-upload.
+                *
+                * Not styled as an error: a file may legitimately carry columns
+                * that are the organizer's own business, and those rows imported
+                * perfectly well.
+                */}
+              {result.ignoredColumns && result.ignoredColumns.length > 0 && (
+                <div style={{
+                  marginTop: '14px', textAlign: 'left', padding: '11px 13px', borderRadius: '8px',
+                  background: COLORS.softBg, border: `1px solid ${COLORS.champagne}`,
+                }}>
+                  <p style={{ margin: 0, fontSize: '12px', fontWeight: 700, color: COLORS.charcoal, fontFamily: 'var(--font-sans)' }}>
+                    {result.ignoredColumns.length} column{result.ignoredColumns.length === 1 ? '' : 's'} in your file {result.ignoredColumns.length === 1 ? 'was' : 'were'} not recognised
+                  </p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '8px 0 0' }}>
+                    {result.ignoredColumns.map((c) => (
+                      <code key={c} className="fx-break" style={{
+                        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                        fontSize: '11px', background: COLORS.white, color: COLORS.charcoal,
+                        border: `1px solid ${COLORS.border}`, padding: '2px 7px', borderRadius: 4,
+                      }}>{c}</code>
+                    ))}
+                  </div>
+                  <p style={{ margin: '8px 0 0', fontSize: '11.5px', lineHeight: 1.6, color: COLORS.stone, fontFamily: 'var(--font-sans)' }}>
+                    Everything else imported normally. If one of these was meant to be a guest detail —
+                    a phone number, a table — rename it to the heading shown in{' '}
+                    <strong style={{ color: COLORS.charcoal }}>Guest list → Your guest sheet</strong> and upload again.
+                  </p>
+                </div>
+              )}
+
               {result.errors && result.errors.length > 0 && (
                 <div style={{ marginTop: '12px', textAlign: 'left' }}>
                   <p style={{ fontSize: '12px', color: '#C45E5E', fontFamily: 'var(--font-sans)', fontWeight: 600, marginBottom: '6px' }}>
@@ -370,7 +444,7 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
                 />
                 <div style={{
                   width: '48px', height: '48px', borderRadius: '12px', background: COLORS.ivory,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px',
+                  display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px',
                   color: COLORS.gold,
                 }}>
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -381,7 +455,7 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
                 </div>
                 {fileName ? (
                   <div>
-                    <p style={{ fontSize: '14px', fontWeight: 600, color: COLORS.charcoal, fontFamily: 'var(--font-sans)', margin: '0 0 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                    <p style={{ fontSize: '14px', fontWeight: 600, color: COLORS.charcoal, fontFamily: 'var(--font-sans)', margin: '0 0 4px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                       <Icon name="document" size={14} strokeWidth={1.6} /> {fileName}
                     </p>
                     <p style={{ fontSize: '12px', color: COLORS.stone, fontFamily: 'var(--font-sans)', margin: 0 }}>
@@ -393,32 +467,63 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
                     <p style={{ fontSize: '14px', fontWeight: 500, color: COLORS.charcoal, fontFamily: 'var(--font-sans)', margin: '0 0 4px' }}>
                       Drop your CSV or Excel file here or <span style={{ color: COLORS.gold, fontWeight: 600 }}>browse</span>
                     </p>
+                    {/**
+                      * The full column reference used to live HERE, as a run-on
+                      * list of nine names with no explanation of what any of them
+                      * accepted — and it disappeared the instant a file was
+                      * selected, so it was readable only before you had anything
+                      * to check it against.
+                      *
+                      * It now lives in the Guest list section as a real reference
+                      * with a downloadable template (GuestSheetGuide). What stays
+                      * here is the short version plus the same template, because
+                      * an organizer who opened this dialog and then realised they
+                      * do not know the format should not have to go and look for
+                      * it.
+                      */}
                     <p style={{ fontSize: '12px', color: COLORS.stone, fontFamily: 'var(--font-sans)', margin: 0 }}>
-                      Accepts .csv or .xlsx files · Columns: guest_name, email, phone, party_size, notes,
-                      response (optional — yes/no/maybe), table_name, meal_selections, {sideHint}
+                      Accepts <strong>.csv</strong> or <strong>.xlsx</strong>. One row per invitation, and the
+                      only column you must have is the guest&apos;s name.
                     </p>
-                    {/* Said out loud because `response` is the one column that
-                        writes a decision on a guest's behalf, and because the
-                        round trip is the reason most people are on this screen.
-                        Anything unrecognised or blank stays pending, which is
-                        also what a file with no such column gets. */}
                     <p style={{ fontSize: '11.5px', color: COLORS.stone, fontFamily: 'var(--font-sans)', margin: '6px 0 0', opacity: 0.9 }}>
                       A file exported from this event imports back as it was — answers, sides, tables, meals and
-                      texting permission included. Guests with no <strong>response</strong> value come in as
-                      pending, and a <strong>table_name</strong> is matched against your existing tables (none
-                      are created). Check-in columns are never imported — arrivals are only ever recorded at
-                      the door.
-                    </p>
-                    {/* Documented HERE rather than in a help page, because this
-                        is the one moment an organizer is looking at their column
-                        headers and can still change them. */}
-                    <p style={{ fontSize: '11.5px', color: COLORS.stone, fontFamily: 'var(--font-sans)', margin: '6px 0 0', opacity: 0.9 }}>
-                      Optional: add an <strong>sms_consent</strong> column with <em>yes</em> or <em>no</em> to say, per guest,
-                      whether you have their permission to text them.
+                      texting permission included. Guests with no <strong>response</strong> come in as pending,
+                      and a <strong>table_name</strong> must already exist on your chart. Check-in columns are
+                      never imported: arrivals are only ever recorded at the door. {sideHint}
                     </p>
                   </div>
                 )}
               </div>
+
+              {/* The template, reachable from the moment of upload as well as
+                  from the Guest list reference. Hidden once a file is chosen —
+                  by then the organizer has what they came for, and offering a
+                  different file to download beside the one they just picked
+                  invites a mis-click. */}
+              {!fileName && (
+                <div style={{ marginTop: '14px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={downloadTemplate}
+                    style={{
+                      padding: '8px 14px', minHeight: 'var(--fx-touch)', borderRadius: 8, cursor: 'pointer',
+                      border: `1px solid ${COLORS.border}`, background: COLORS.white,
+                      color: COLORS.charcoal, fontSize: 12, fontWeight: 700,
+                      fontFamily: 'var(--font-sans)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6,
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = COLORS.gold; e.currentTarget.style.color = COLORS.gold; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = COLORS.border; e.currentTarget.style.color = COLORS.charcoal; }}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                    Download the template
+                  </button>
+                  <span style={{ fontSize: 11.5, color: COLORS.stone, fontFamily: 'var(--font-sans)' }}>
+                    Already filled in with two example rows.
+                  </span>
+                </div>
+              )}
 
               {/* Excel files can't be parsed/previewed client-side without adding a
                   parser dependency — say so plainly instead of showing nothing,
@@ -435,7 +540,7 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
               {/* Preview */}
               {preview.length > 0 && (
                 <div style={{ marginTop: '20px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                     <span style={labelStyle}>Preview</span>
                     <span style={{ ...labelStyle, color: COLORS.gold }}>
                       {totalRows} data row{totalRows !== 1 ? 's' : ''} found
@@ -513,7 +618,7 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
                   border: `1px solid ${consentAttested ? COLORS.champagne : COLORS.border}`,
                   transition: 'background 0.2s, border-color 0.2s',
                 }}>
-                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                  <label style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
                     <input
                       type="checkbox"
                       checked={consentAttested}
@@ -552,7 +657,7 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
         {/* Footer */}
         {!result && (
           <div style={{
-            display: 'flex', justifyContent: 'flex-end', gap: '10px', padding: '16px 24px',
+            display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: '10px', padding: '16px 24px',
             borderTop: `1px solid ${COLORS.border}`, flexShrink: 0,
           }}>
             <button onClick={onClose} style={{
@@ -574,7 +679,7 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
                 background: (loading || !fileContent) ? COLORS.champagne : COLORS.gold,
                 color: COLORS.white, fontSize: '13px', fontWeight: 700, fontFamily: 'var(--font-sans)',
                 cursor: (loading || !fileContent) ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
-                display: 'flex', alignItems: 'center', gap: '8px',
+                display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px',
                 opacity: !fileContent ? 0.6 : 1,
               }}
               onMouseEnter={(e) => { if (!loading && fileContent) e.currentTarget.style.background = COLORS.goldHover; }}

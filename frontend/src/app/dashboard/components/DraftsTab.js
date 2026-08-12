@@ -54,7 +54,7 @@ function ConfirmDeleteModal({ isOpen, onClose, onConfirm, event, isDeleting }) {
       onClick={onClose}
       style={{
         position: 'fixed', inset: 0, zIndex: 1000,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
         background: 'rgba(25, 27, 30, 0.45)', backdropFilter: 'blur(8px)',
         WebkitBackdropFilter: 'blur(8px)',
         animation: 'draftModalFadeIn 0.2s ease', padding: '16px', boxSizing: 'border-box',
@@ -75,7 +75,7 @@ function ConfirmDeleteModal({ isOpen, onClose, onConfirm, event, isDeleting }) {
           <div style={{
             width: 52, height: 52, borderRadius: '50%',
             background: 'rgba(196,94,94,0.08)', border: '1px solid rgba(196,94,94,0.15)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
             margin: '0 auto 16px', fontSize: 24,
           }}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={C.danger} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -103,7 +103,7 @@ function ConfirmDeleteModal({ isOpen, onClose, onConfirm, event, isDeleting }) {
             background: 'rgba(212,160,74,0.06)', border: '1px solid rgba(212,160,74,0.20)',
           }}>
             <div style={{
-              display: 'flex', alignItems: 'flex-start', gap: 10,
+              display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 10,
             }}>
               <Icon name="warning" size={17} color="#8a6d2f" strokeWidth={1.5} style={{ flexShrink: 0, marginTop: 1 }} />
               <div>
@@ -116,7 +116,7 @@ function ConfirmDeleteModal({ isOpen, onClose, onConfirm, event, isDeleting }) {
                   lineHeight: 1.6, margin: 0,
                 }}>
                   This event has a pending payment
-                  {pendingPay.reference_number && <> (Ref: <code style={{ background: C.soft, padding: '1px 5px', borderRadius: 4, fontSize: 10, fontWeight: 700, color: C.gold }}>{pendingPay.reference_number}</code>)</>}.
+                  {pendingPay.reference_number && <> (Ref: <code style={{ background: C.soft, padding: '1px 5px', borderRadius: 4, fontSize: 'var(--fx-micro)', fontWeight: 700, color: C.gold }}>{pendingPay.reference_number}</code>)</>}.
                   Deleting it may affect your refund eligibility. Please contact <strong style={{ color: '#8a6d2f' }}>info@fancyrsvp.com</strong> before proceeding.
                 </p>
               </div>
@@ -144,7 +144,7 @@ function ConfirmDeleteModal({ isOpen, onClose, onConfirm, event, isDeleting }) {
 
         {/* Actions */}
         <div style={{
-          display: 'flex', gap: 10, padding: '24px 28px 28px',
+          display: 'flex', flexWrap: 'wrap', gap: 10, padding: '24px 28px 28px',
           marginTop: 4,
         }}>
           <button
@@ -168,7 +168,7 @@ function ConfirmDeleteModal({ isOpen, onClose, onConfirm, event, isDeleting }) {
               border: 'none', background: confirmDisabled ? 'rgba(196,94,94,0.5)' : C.danger,
               color: C.white, fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 700,
               cursor: confirmDisabled ? 'not-allowed' : 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 8,
               transition: 'all 0.2s',
               boxShadow: confirmDisabled ? 'none' : '0 4px 14px rgba(196,94,94,0.25)',
             }}
@@ -264,7 +264,7 @@ export default function DraftsTab({ events = [], apiUrl, onRefresh }) {
                 {isPending ? (
                   <span style={{
                     display: 'inline-flex', alignItems: 'center', gap: 5,
-                    fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 800,
+                    fontFamily: 'var(--font-sans)', fontSize: 'var(--fx-micro)', fontWeight: 800,
                     letterSpacing: '0.1em', textTransform: 'uppercase',
                     color: C.pending, background: 'rgba(212,160,74,0.10)',
                     border: '1px solid rgba(212,160,74,0.30)', padding: '3px 9px', borderRadius: 100,
@@ -273,15 +273,15 @@ export default function DraftsTab({ events = [], apiUrl, onRefresh }) {
                     Pending Payment
                   </span>
                 ) : (
-                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.gold, background: 'rgba(184,148,79,0.1)', border: '1px solid rgba(184,148,79,0.25)', padding: '3px 9px', borderRadius: 100 }}>Draft</span>
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fx-micro)', fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.gold, background: 'rgba(184,148,79,0.1)', border: '1px solid rgba(184,148,79,0.25)', padding: '3px 9px', borderRadius: 100 }}>Draft</span>
                 )}
                 {fmtDate(ev.updated_at) && <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: C.stone }}>Edited {fmtDate(ev.updated_at)}</span>}
               </div>
               <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 600, color: C.charcoal, margin: 0 }}>{ev.title || 'Untitled event'}</h3>
               <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: C.stone, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {fmtDate(ev.event_date) && <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Icon name="calendar" size={12} strokeWidth={1.7} /> {fmtDate(ev.event_date)}</span>}
-                {ev.location_name && <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Icon name="mapPin" size={12} strokeWidth={1.7} /> {ev.location_name}</span>}
-                {ev.slug && <span style={{ wordBreak: 'break-all', display: 'flex', alignItems: 'center', gap: 5 }}><Icon name="link" size={12} strokeWidth={1.7} style={{ flexShrink: 0 }} /> /{ev.slug}</span>}
+                {fmtDate(ev.event_date) && <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5 }}><Icon name="calendar" size={12} strokeWidth={1.7} /> {fmtDate(ev.event_date)}</span>}
+                {ev.location_name && <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5 }}><Icon name="mapPin" size={12} strokeWidth={1.7} /> {ev.location_name}</span>}
+                {ev.slug && <span style={{ wordBreak: 'break-all', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5 }}><Icon name="link" size={12} strokeWidth={1.7} style={{ flexShrink: 0 }} /> /{ev.slug}</span>}
               </div>
 
               {/* Pending payment info */}
@@ -294,12 +294,12 @@ export default function DraftsTab({ events = [], apiUrl, onRefresh }) {
                   <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: C.stone }}>Ref:</span>
                   <code style={{ background: C.soft, padding: '2px 8px', borderRadius: 5, color: C.gold, fontWeight: 700, fontSize: 12 }}>{pendingPay.reference_number}</code>
                   {pendingPay.tier_name && (
-                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, color: C.stone, marginLeft: 'auto' }}>{pendingPay.tier_name}</span>
+                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fx-micro)', color: C.stone, marginLeft: 'auto' }}>{pendingPay.tier_name}</span>
                   )}
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 6 }}>
                 <button onClick={() => continueDraft(ev.id)} style={{ ...goldBtn, flex: 1 }}>Continue setup</button>
                 <button onClick={() => handleDeleteClick(ev)} disabled={deleting === ev.id}
                   style={{ height: 40, padding: '0 14px', background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.2)', borderRadius: 10, color: C.danger, fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 700, cursor: deleting === ev.id ? 'not-allowed' : 'pointer' }}>
