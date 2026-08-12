@@ -26,7 +26,7 @@ export default function WizardShell({ step, onStepClick, children, labels }) {
         {/* Left: Back + Logo */}
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 14, flex: '1 1 0', minWidth: 0 }}>
           <Link href="/dashboard" style={{
-            color: C.gold, textDecoration: 'none', display: 'flex', flexWrap: 'wrap',
+            color: C.gold, textDecoration: 'none', display: 'flex',
             alignItems: 'center', gap: 6, fontSize: 13,
             fontFamily: 'var(--font-sans)', fontWeight: 600,
             opacity: 0.7, transition: 'opacity 0.2s',

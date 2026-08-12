@@ -458,12 +458,12 @@ export default function FormBuilder({ eventId }) {
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
                 <button onClick={() => startEdit(f)} title="Edit question" aria-label={`Edit the question: ${f.field_label}`}
-                  style={{ padding: '6px', background: 'rgba(184,148,79,0.08)', border: '1px solid rgba(184,148,79,0.2)', borderRadius: '8px', cursor: 'pointer', color: '#B8944F', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' }}
+                  style={{ padding: '6px', background: 'rgba(184,148,79,0.08)', border: '1px solid rgba(184,148,79,0.2)', borderRadius: '8px', cursor: 'pointer', color: '#B8944F', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                   onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,148,79,0.16)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(184,148,79,0.08)'}>
                   <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                 </button>
                 <button onClick={() => handleDeleteField(f.id, f.field_label)} title="Delete question" aria-label={`Delete the question: ${f.field_label}`}
-                  style={{ padding: '6px', background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.15)', borderRadius: '8px', cursor: 'pointer', color: '#C45E5E', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' }}
+                  style={{ padding: '6px', background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.15)', borderRadius: '8px', cursor: 'pointer', color: '#C45E5E', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                   onMouseEnter={e => e.currentTarget.style.background = 'rgba(196,94,94,0.12)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(196,94,94,0.06)'}>
                   <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                 </button>

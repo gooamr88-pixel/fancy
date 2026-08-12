@@ -468,7 +468,7 @@ export default function Stage3_Distribution({
             background: 'none', border: `1.5px solid ${C.charcoal}`,
             borderRadius: 12, fontFamily: 'var(--font-sans)',
             fontSize: 14, fontWeight: 700, color: C.charcoal,
-            cursor: 'pointer', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
+            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
             transition: 'all 0.2s',
           }}
             onMouseEnter={e => { e.currentTarget.style.background = C.charcoal; e.currentTarget.style.color = C.white; }}

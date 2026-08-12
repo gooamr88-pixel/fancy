@@ -46,8 +46,24 @@ export const SHAPES = {
   oval:        { label: 'Oval Table',      cat: 'table', w: 132, h: 86,  seatable: true,  round: true,  defaultCap: 10 },
   square:      { label: 'Square Table',    cat: 'table', w: 96,  h: 96,  seatable: true,  round: false, defaultCap: 10 },
   rectangle:   { label: 'Rectangle Table', cat: 'table', w: 168, h: 84,  seatable: true,  round: false, defaultCap: 10 },
-  banquet:     { label: 'Banquet Table',   cat: 'table', w: 230, h: 80,  seatable: true,  round: false, defaultCap: 10 },
-  head:        { label: 'Head Table',      cat: 'table', w: 250, h: 76,  seatable: true,  round: false, defaultCap: 10 },
+  /**
+   * `pickable: false` — STILL RENDERED, no longer OFFERED.
+   *
+   * These two are Rectangle Table at different proportions: same silhouette,
+   * same renderer, same seat maths, only wider. Six table buttons for two
+   * actual shapes made the picker look like it held more choice than it did,
+   * and an organizer who wants a long top table gets one by dropping a
+   * Rectangle and dragging its handle.
+   *
+   * NOT DELETED, and that distinction is load-bearing. `shape` is validated and
+   * drawn in four unlinked places plus a database CHECK constraint; removing a
+   * key here would make every existing banquet/head table on every live event
+   * fall through to "Invalid shape" or render as the wrong thing. They stay in
+   * the catalogue, keep their geometry, and simply do not appear in the Add
+   * panel — so old layouts are untouched and new ones stay simple.
+   */
+  banquet:     { label: 'Banquet Table',   cat: 'table', w: 230, h: 80,  seatable: true,  round: false, defaultCap: 10, pickable: false },
+  head:        { label: 'Head Table',      cat: 'table', w: 250, h: 76,  seatable: true,  round: false, defaultCap: 10, pickable: false },
   // ── non-seating venue zones ──
   stage:        { label: 'Stage',        cat: 'zone', w: 360, h: 150, icon: 'mic',         color: '#3B3A55' },
   dance_floor:  { label: 'Dance Floor',  cat: 'zone', w: 280, h: 280, icon: 'discoBall',   color: '#6B5FA8' },
@@ -67,6 +83,16 @@ export const SHAPES = {
 
 export const TABLE_SHAPES = Object.keys(SHAPES).filter((k) => SHAPES[k].cat === 'table');
 export const ZONE_SHAPES = Object.keys(SHAPES).filter((k) => SHAPES[k].cat === 'zone');
+
+/**
+ * What the Add panel offers — a subset of what the canvas can DRAW.
+ *
+ * Keep every consumer that validates or renders a shape reading TABLE_SHAPES /
+ * ZONE_SHAPES / SHAPES. Only the picker reads these. Confusing the two is how a
+ * legacy shape stops rendering.
+ */
+export const PICKABLE_TABLE_SHAPES = TABLE_SHAPES.filter((k) => SHAPES[k].pickable !== false);
+export const PICKABLE_ZONE_SHAPES = ZONE_SHAPES.filter((k) => SHAPES[k].pickable !== false);
 
 /**
  * Catalogue entry for a stored shape value. Maps the legacy 'rectangular' alias

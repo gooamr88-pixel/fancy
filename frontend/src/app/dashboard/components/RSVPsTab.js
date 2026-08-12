@@ -581,7 +581,7 @@ export default function RSVPsTab({
             style={{
               padding: '10px 18px', background: COLORS.gold, color: COLORS.white, border: 'none',
               borderRadius: 8, fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-sans)',
-              cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 7,
+              cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: 7,
               whiteSpace: 'nowrap',
             }}
             onMouseEnter={e => { e.currentTarget.style.background = COLORS.goldHover; e.currentTarget.style.transform = 'translateY(-1px)'; }}

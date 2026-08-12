@@ -73,7 +73,7 @@ export default function CustomBuilder({ config, onChange }) {
               <button key={p.name} onClick={() => onChange({ primary: p.primary, secondary: p.secondary, accent: p.accent, background: p.background })}
                 title={p.name}
                 style={{
-                  display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, padding: '5px 9px 5px 5px', minHeight: 'var(--fx-touch)', borderRadius: 999, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 6, padding: '5px 9px 5px 5px', minHeight: 'var(--fx-touch)', borderRadius: 999, cursor: 'pointer',
                   border: `1.5px solid ${active ? '#B8944F' : 'rgba(184,148,79,0.18)'}`,
                   background: active ? 'rgba(184,148,79,0.08)' : '#fff',
                   boxShadow: active ? '0 2px 8px rgba(184,148,79,0.15)' : 'none', transition: 'all 0.2s',

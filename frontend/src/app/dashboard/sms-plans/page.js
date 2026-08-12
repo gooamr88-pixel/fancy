@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { startSmsCreditPurchase } from '../../utils/smsPurchase';
 
 /**
@@ -79,7 +79,8 @@ const MESSAGE_TYPES = [
 
 export default function SmsPlansPage() {
   const params = useSearchParams();
-  const router = useRouter();
+  // `useRouter` went with the bounce-to-dashboard that used to stand in for a
+  // buy button; the no-event case is a real <Link> now.
   const eventId = params.get('event');
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
@@ -158,11 +159,56 @@ export default function SmsPlansPage() {
     };
   }, [cfg, guests, script]);
 
+  /**
+   * BUY, AND SAY WHAT HAPPENED.
+   *
+   * This used to be `.catch(() => {})` — every failure swallowed whole. The
+   * organizer pressed "Add messaging", a blank tab opened and closed, and
+   * nothing appeared anywhere. That is the reported bug: "the button is invalid
+   * and not redirect to stripe". The button was working; it was being refused,
+   * silently, for one of three reasons it never mentioned.
+   *
+   * It also began `if (!eventId) router.push('/dashboard')`, so arriving here
+   * without `?event=` — which the "What messages cost" link on the Text messages
+   * page did, and the wizard's link still legitimately does — turned the buy
+   * button into a bounce to the dashboard. Pressing a button labelled with a
+   * price and landing somewhere else is indistinguishable from a broken button.
+   * The no-event case is now stated on the button itself and handled below.
+   */
+  const [buyError, setBuyError] = useState(null);
+
   const handleBuy = () => {
-    if (!eventId) { router.push('/dashboard'); return; }
+    setBuyError(null);
     setBuying(true);
     startSmsCreditPurchase({ apiUrl, eventId, creditCount: quote?.recommended || 500 })
-      .catch(() => {})
+      .catch((err) => {
+        /**
+         * Two refusals are not failures and must not read like one — they are
+         * the platform's normal state today, and each has a different next step.
+         *
+         * `stripeEnabled()` requires BOTH a flag and a key and defaults to off
+         * (backend/config/features.js), so on this deployment card checkout is
+         * simply not the way messages get bought. And an organizer whose event
+         * was approved by bank transfer has no Stripe customer, so even with
+         * cards on, this specific top-up cannot bill them.
+         *
+         * In both cases messages are still purchasable — alongside the event
+         * licence, on the same manual payment — which is the thing to say.
+         */
+        if (err?.code === 'STRIPE_DISABLED') {
+          setBuyError({
+            title: 'Card payment is not available right now',
+            body: 'Messages are still available — they are added to your event by bank transfer, alongside the event licence. Contact us and we will add them to your balance.',
+          });
+        } else if (err?.code === 'NO_STRIPE_CUSTOMER') {
+          setBuyError({
+            title: 'This event was not paid by card',
+            body: 'Card top-ups need a card payment on file. Because this event was paid by bank transfer, messages are added the same way — contact us and we will top up your balance.',
+          });
+        } else {
+          setBuyError({ title: 'Could not open checkout', body: err?.message || 'Please try again in a moment.' });
+        }
+      })
       .finally(() => setBuying(false));
   };
 
@@ -403,20 +449,64 @@ export default function SmsPlansPage() {
               : 'Open the event you want to add messaging to, and this button will take you straight to checkout.'}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleBuy}
-          disabled={buying}
-          style={{
-            padding: '13px 26px', borderRadius: 10, border: 'none',
-            background: buying ? C.stone : C.gold, color: C.white,
-            fontSize: 15, fontWeight: 700, fontFamily: 'var(--font-sans)',
-            cursor: buying ? 'wait' : 'pointer', whiteSpace: 'nowrap',
-          }}
-        >
-          {buying ? 'Opening checkout…' : eventId ? `Add messaging — $${quote ? quote.dollars.toFixed(2) : '—'}` : 'Choose an event'}
-        </button>
+        {/**
+          * A LINK when there is no event, a button when there is.
+          *
+          * With no `?event=` there is nothing to buy, and the old code rendered a
+          * gold button reading "Choose an event" that pushed to /dashboard. A
+          * primary-styled button that navigates instead of doing what the page is
+          * about is the definition of a control that looks broken — and it is
+          * reached legitimately, from the wizard's "how this is priced" link,
+          * before any event exists.
+          */}
+        {eventId ? (
+          <button
+            type="button"
+            onClick={handleBuy}
+            disabled={buying}
+            style={{
+              padding: '13px 26px', borderRadius: 10, border: 'none',
+              minHeight: 'var(--fx-touch)',
+              background: buying ? C.stone : C.gold, color: C.white,
+              fontSize: 15, fontWeight: 700, fontFamily: 'var(--font-sans)',
+              cursor: buying ? 'wait' : 'pointer', whiteSpace: 'nowrap',
+            }}
+          >
+            {buying ? 'Opening checkout…' : `Add messaging — $${quote ? quote.dollars.toFixed(2) : '—'}`}
+          </button>
+        ) : (
+          <Link
+            href="/dashboard"
+            style={{
+              padding: '13px 26px', borderRadius: 10, minHeight: 'var(--fx-touch)',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              border: `1px solid ${C.champagne}`, background: 'transparent', color: C.ivory,
+              fontSize: 15, fontWeight: 700, fontFamily: 'var(--font-sans)',
+              whiteSpace: 'nowrap', textDecoration: 'none',
+            }}
+          >
+            Open an event first
+          </Link>
+        )}
       </div>
+
+      {/**
+        * WHY IT DID NOT OPEN.
+        *
+        * Rendered here rather than as a toast: two of the three reasons are not
+        * transient and carry an instruction ("messages are added by bank
+        * transfer"), which is not something to read in a box that disappears.
+        */}
+      {buyError && (
+        <div role="alert" style={{
+          marginTop: 16, padding: '14px 16px', borderRadius: 12,
+          background: 'rgba(196,94,94,0.07)', border: '1px solid rgba(196,94,94,0.3)',
+          fontFamily: 'var(--font-sans)',
+        }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#C45E5E' }}>{buyError.title}</div>
+          <p style={{ margin: '6px 0 0', fontSize: 13.5, lineHeight: 1.6, color: C.stone }}>{buyError.body}</p>
+        </div>
+      )}
 
     </div>
   );

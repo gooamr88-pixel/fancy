@@ -287,7 +287,7 @@ export default function ImportGuestsModal({
             onClick={onClose} aria-label="Close modal"
             style={{
               width: '32px', height: '32px', borderRadius: '8px', border: 'none', background: COLORS.ivory,
-              cursor: 'pointer', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: COLORS.stone, transition: 'all 0.2s',
             }}
             onMouseEnter={(e) => { e.currentTarget.style.background = '#EDE8DD'; }}
@@ -509,7 +509,7 @@ export default function ImportGuestsModal({
                       padding: '8px 14px', minHeight: 'var(--fx-touch)', borderRadius: 8, cursor: 'pointer',
                       border: `1px solid ${COLORS.border}`, background: COLORS.white,
                       color: COLORS.charcoal, fontSize: 12, fontWeight: 700,
-                      fontFamily: 'var(--font-sans)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6,
+                      fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: 6,
                     }}
                     onMouseEnter={(e) => { e.currentTarget.style.borderColor = COLORS.gold; e.currentTarget.style.color = COLORS.gold; }}
                     onMouseLeave={(e) => { e.currentTarget.style.borderColor = COLORS.border; e.currentTarget.style.color = COLORS.charcoal; }}
@@ -679,7 +679,7 @@ export default function ImportGuestsModal({
                 background: (loading || !fileContent) ? COLORS.champagne : COLORS.gold,
                 color: COLORS.white, fontSize: '13px', fontWeight: 700, fontFamily: 'var(--font-sans)',
                 cursor: (loading || !fileContent) ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
-                display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px',
+                display: 'flex', alignItems: 'center', gap: '8px',
                 opacity: !fileContent ? 0.6 : 1,
               }}
               onMouseEnter={(e) => { if (!loading && fileContent) e.currentTarget.style.background = COLORS.goldHover; }}

@@ -420,7 +420,7 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
                       padding: 6, background: 'rgba(184,148,79,0.08)',
                       border: '1px solid rgba(184,148,79,0.2)',
                       borderRadius: 8, cursor: 'pointer', color: C.gold,
-                      display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
                       transition: 'background 0.2s',
                     }}
                     onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,148,79,0.16)'}
@@ -437,7 +437,7 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
                       padding: 6, background: 'rgba(196,94,94,0.06)',
                       border: '1px solid rgba(196,94,94,0.15)',
                       borderRadius: 8, cursor: 'pointer', color: C.error,
-                      display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
                       transition: 'background 0.2s',
                     }}
                     onMouseEnter={e => e.currentTarget.style.background = 'rgba(196,94,94,0.12)'}

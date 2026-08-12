@@ -197,7 +197,7 @@ export default function StageTables({ apiUrl, eventId, onContinue, onBack }) {
             height: 48, padding: '0 24px', background: 'none',
             border: `1.5px solid ${C.charcoal}`, borderRadius: 12,
             fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 700, color: C.charcoal,
-            cursor: 'pointer', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
+            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
           }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M15 18l-6-6 6-6" /></svg>
             Back
@@ -208,7 +208,7 @@ export default function StageTables({ apiUrl, eventId, onContinue, onBack }) {
             background: 'linear-gradient(135deg, #B8944F, #a6833f)',
             color: C.white, border: 'none', borderRadius: 14,
             fontFamily: 'var(--font-sans)', fontSize: 15, fontWeight: 700,
-            cursor: 'pointer', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
+            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
           }}>
             {tables.length === 0 ? 'Skip for now' : 'Continue'}
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M9 18l6-6-6-6" /></svg>

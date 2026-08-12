@@ -307,7 +307,7 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
             aria-label="Close modal"
             style={{
               width: '32px', height: '32px', borderRadius: '8px', border: 'none', background: COLORS.ivory,
-              cursor: 'pointer', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: COLORS.stone, transition: 'all 0.2s',
             }}
             onMouseEnter={(e) => { e.currentTarget.style.background = '#EDE8DD'; }}
@@ -539,7 +539,7 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
                 background: loading ? COLORS.champagne : COLORS.gold, color: COLORS.white,
                 fontSize: '13px', fontWeight: 700, fontFamily: 'var(--font-sans)',
                 cursor: loading ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
-                display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px',
+                display: 'flex', alignItems: 'center', gap: '8px',
               }}
               onMouseEnter={(e) => { if (!loading) e.currentTarget.style.background = COLORS.goldHover; }}
               onMouseLeave={(e) => { if (!loading) e.currentTarget.style.background = COLORS.gold; }}

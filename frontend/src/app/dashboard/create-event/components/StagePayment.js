@@ -354,7 +354,7 @@ function PromoCodeBox({ onRedeem, processing }) {
             background: (busy || processing || !code.trim()) ? '#C9C4BA' : 'linear-gradient(135deg, #C5A86B, #A6833F)',
             color: C.white, fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 700,
             cursor: (busy || processing || !code.trim()) ? 'not-allowed' : 'pointer',
-            display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 6, whiteSpace: 'nowrap',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, whiteSpace: 'nowrap',
             transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
           }}
         >
@@ -904,7 +904,7 @@ export default function StagePayment({
                   fontFamily: 'var(--font-sans)', fontSize: 15, fontWeight: 700,
                   cursor: (processing || !selectedTierName) ? 'not-allowed' : 'pointer',
                   opacity: (processing || !selectedTierName) ? 0.5 : 1,
-                  display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 }}
               >
                 <Icon name="bank" size={16} strokeWidth={1.6} /> Manual / Bank Transfer
@@ -1053,7 +1053,7 @@ export default function StagePayment({
             height: 48, padding: '0 24px', background: 'none',
             border: `1.5px solid ${C.charcoal}`, borderRadius: 12,
             fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 700, color: C.charcoal,
-            cursor: processing ? 'not-allowed' : 'pointer', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
+            cursor: processing ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 8,
           }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M15 18l-6-6 6-6" /></svg>
             Back
@@ -1079,7 +1079,7 @@ export default function StagePayment({
                   color: C.white, border: 'none', borderRadius: 14,
                   fontFamily: 'var(--font-sans)', fontSize: 15, fontWeight: 700,
                   cursor: (processing || !continueReady) ? 'not-allowed' : 'pointer',
-                  display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
+                  display: 'flex', alignItems: 'center', gap: 8,
                 }}>
                   Continue
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M9 18l6-6-6-6" /></svg>

@@ -171,7 +171,7 @@ function PromoCodeRedeemBox({ eventId, apiUrl, onRedeemed }) {
             background: (busy || !code.trim()) ? '#C9C4BA' : 'linear-gradient(135deg, #C5A86B, #A6833F)',
             color: COLORS.white, fontSize: '12.5px', fontWeight: 700, fontFamily: 'var(--font-sans)',
             cursor: (busy || !code.trim()) ? 'not-allowed' : 'pointer',
-            display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap',
             transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
           }}
         >
@@ -1561,7 +1561,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
                 style={{
                   position: 'absolute', top: 8, right: 8, width: 28, height: 28,
                   borderRadius: '50%', border: 'none', background: 'rgba(25,27,30,0.7)',
-                  color: '#fff', cursor: 'pointer', fontSize: 14, display: 'flex', flexWrap: 'wrap',
+                  color: '#fff', cursor: 'pointer', fontSize: 14, display: 'flex',
                   alignItems: 'center', justifyContent: 'center',
                 }}
               >×</button>
@@ -1590,7 +1590,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
                   <img src={url} alt={`Gallery ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     onError={(e) => { e.target.style.display = 'none'; }} />
                   <button type="button" onClick={() => removeGalleryUrl(i)} title="Remove"
-                    style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: '50%', border: 'none', background: 'rgba(25,27,30,0.75)', color: '#fff', cursor: 'pointer', fontSize: 13, lineHeight: 1, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                    style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: '50%', border: 'none', background: 'rgba(25,27,30,0.75)', color: '#fff', cursor: 'pointer', fontSize: 13, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
                 </div>
               ))}
             </div>
@@ -1919,7 +1919,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
                 style={{
                   position: 'absolute', top: 8, right: 8, width: 28, height: 28,
                   borderRadius: '50%', border: 'none', background: 'rgba(25,27,30,0.7)',
-                  color: '#fff', cursor: 'pointer', fontSize: 14, display: 'flex', flexWrap: 'wrap',
+                  color: '#fff', cursor: 'pointer', fontSize: 14, display: 'flex',
                   alignItems: 'center', justifyContent: 'center',
                 }}
               >×</button>
@@ -2803,7 +2803,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             background: saving ? COLORS.champagne : COLORS.gold, color: COLORS.white,
             fontSize: '14px', fontWeight: 700, fontFamily: 'var(--font-sans)',
             cursor: saving ? 'not-allowed' : 'pointer', transition: 'all 0.2s cubic-bezier(0.16,1,0.3,1)',
-            display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', width: '100%', justifyContent: 'center',
+            display: 'flex', alignItems: 'center', gap: '8px', width: '100%', justifyContent: 'center',
             boxShadow: saving ? 'none' : '0 4px 16px rgba(184,148,79,0.28)',
           }}
           onMouseEnter={(e) => { if (!saving) { e.currentTarget.style.background = COLORS.goldHover; e.currentTarget.style.transform = 'translateY(-1px)'; } }}

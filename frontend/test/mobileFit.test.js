@@ -135,6 +135,22 @@ describe('the organizer dashboard fits a 320px phone', () => {
          */
         if (/textOverflow: *['"]ellipsis/.test(body)) continue;
         /**
+         * A BUTTON IS A LEAF, NOT A TOOLBAR.
+         *
+         * A control's own icon and label must never wrap onto two lines — that
+         * is not a layout adapting, it is a button coming apart. If a row of
+         * buttons does not fit, the PARENT wraps and the buttons move as whole
+         * units; that is what the rule above is for.
+         *
+         * The blanket sweep did not make this distinction and put
+         * `flexWrap: 'wrap'` inside 58 buttons and links across the dashboard,
+         * which is what "broken in mobile" turned out to mean in the guest-sheet
+         * card. Exempted here so the guard cannot ask for them back.
+         */
+        const owner = src.slice(Math.max(0, index - 320), index);
+        const tags = [...owner.matchAll(/<([A-Za-z][\w.]*)/g)].map((t) => t[1]);
+        if (['button', 'a', 'Link'].includes(tags[tags.length - 1])) continue;
+        /**
          * `.fx-row--scroll` is the sanctioned exception, and it has to be
          * recognised rather than budgeted.
          *

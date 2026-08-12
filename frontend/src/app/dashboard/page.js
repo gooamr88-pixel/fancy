@@ -1332,7 +1332,7 @@ function DashboardPageInner() {
               style={{
                 position: 'absolute', top: 12, right: 12,
                 width: '32px', height: '32px', borderRadius: '8px', border: 'none', background: COLORS.softBg,
-                cursor: 'pointer', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: COLORS.stone, transition: 'all 0.2s',
               }}
               onMouseEnter={(e) => { e.currentTarget.style.background = '#EDE8DD'; }}

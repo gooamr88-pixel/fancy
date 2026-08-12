@@ -58,7 +58,7 @@ function StatMini({ icon, value, sub, label, accent, active, onClick, title }) {
         background: active ? `${accent}0F` : COLORS.white,
         border: `1px solid ${active ? accent : COLORS.border}`,
         borderRadius: '12px',
-        padding: '18px 20px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '14px',
+        padding: '18px 20px', display: 'flex', alignItems: 'center', gap: '14px',
         borderLeft: `3px solid ${accent}`,
         transition: 'box-shadow 0.25s ease, background 0.2s ease, border-color 0.2s ease',
         cursor: 'pointer', textAlign: 'left', width: '100%',
@@ -181,7 +181,7 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, custom
               title="Edit guest"
               aria-label={`Edit ${guest.guest_name || 'guest'}`}
               style={{
-              display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', width: '44px', height: '44px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', width: '44px', height: '44px',
               borderRadius: '6px', border: 'none', background: 'transparent', cursor: 'pointer', color: COLORS.stone,
             }}
               onMouseEnter={e => { e.currentTarget.style.background = COLORS.ivory; e.currentTarget.style.color = COLORS.gold; }}
@@ -195,7 +195,7 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, custom
               aria-label={`Remove ${guest.guest_name || 'guest'} from this event`}
               disabled={deleting}
               style={{
-              display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', width: '44px', height: '44px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', width: '44px', height: '44px',
               borderRadius: '6px', border: 'none', background: 'transparent', cursor: deleting ? 'wait' : 'pointer',
               color: COLORS.stone, opacity: deleting ? 0.4 : 1,
             }}
@@ -313,7 +313,7 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, custom
             <button onClick={() => setExpanded(v => !v)} style={{
               background: 'none', border: 'none', cursor: 'pointer', padding: 0,
               fontSize: '11px', fontWeight: 700, color: COLORS.gold, fontFamily: 'var(--font-sans)',
-              display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px',
+              display: 'flex', alignItems: 'center', gap: '4px',
             }}>
               {expanded ? '▾' : '▸'} {expanded ? 'Hide details' : 'Show details'}
             </button>
@@ -626,7 +626,7 @@ export default function GuestsTab({
           <button onClick={onOpenImport} style={{
             padding: '9px 18px', minHeight: 'var(--fx-touch)', background: COLORS.white, color: COLORS.stone, border: `1px solid ${COLORS.border}`,
             borderRadius: '8px', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-sans)',
-            cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px',
+            cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px',
           }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = COLORS.gold; e.currentTarget.style.color = COLORS.gold; }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = COLORS.border; e.currentTarget.style.color = COLORS.stone; }}
@@ -654,7 +654,7 @@ export default function GuestsTab({
             <button onClick={() => setExportOpen(o => !o)} aria-expanded={exportOpen} style={{
               padding: '9px 18px', minHeight: 'var(--fx-touch)', background: COLORS.white, color: COLORS.stone, border: `1px solid ${COLORS.border}`,
               borderRadius: '8px', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-sans)',
-              cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px',
+              cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px',
             }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = COLORS.gold; e.currentTarget.style.color = COLORS.gold; }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = COLORS.border; e.currentTarget.style.color = COLORS.stone; }}
@@ -667,7 +667,7 @@ export default function GuestsTab({
             <button onClick={() => setClearOpen(true)} style={{
               padding: '9px 18px', minHeight: 'var(--fx-touch)', background: COLORS.white, color: '#C45E5E', border: '1px solid #FECACA',
               borderRadius: '8px', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-sans)',
-              cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px',
+              cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px',
             }}
               onMouseEnter={e => { e.currentTarget.style.background = '#FEF2F2'; e.currentTarget.style.borderColor = '#C45E5E'; }}
               onMouseLeave={e => { e.currentTarget.style.background = COLORS.white; e.currentTarget.style.borderColor = '#FECACA'; }}

@@ -67,7 +67,7 @@ export default function MobileDisclosure({
         style={{
           width: '100%', minHeight: 'var(--fx-touch)',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          gap: 10, flexWrap: 'wrap',
+          gap: 10,
           padding: '10px 14px', borderRadius: 10, cursor: 'pointer',
           background: COLORS.white, border: `1px solid ${COLORS.border}`,
           font: 'inherit', textAlign: 'left', fontFamily: 'var(--font-sans)',

@@ -331,7 +331,7 @@ export default function SendInvitationModal({
             aria-label="Close"
             style={{
               width: '36px', height: '36px', flexShrink: 0, borderRadius: '8px', border: 'none',
-              background: COLORS.ivory, cursor: 'pointer', display: 'flex', flexWrap: 'wrap',
+              background: COLORS.ivory, cursor: 'pointer', display: 'flex',
               alignItems: 'center', justifyContent: 'center', color: COLORS.stone, transition: 'all 0.2s',
             }}
             onMouseEnter={(e) => { e.currentTarget.style.background = '#EDE8DD'; }}
@@ -437,7 +437,7 @@ export default function SendInvitationModal({
                 onClick={() => setShowOptional(v => !v)}
                 aria-expanded={showOptional}
                 style={{
-                  display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', width: '100%',
+                  display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
                   background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left',
                 }}
               >
@@ -795,22 +795,48 @@ function WhatWillHappen({ name, plan, smsRemaining, onBuySms }) {
 
 /** One "By email — name@example.com — Free" row. */
 function ChannelLine({ icon, what, to, cost, costColor }) {
+  /**
+   * TWO DELIBERATE ROWS, not four items left to wrap however they land.
+   *
+   * This was one flex row of icon + label + address + cost with `flexWrap`, and
+   * on a phone that is not a row at all. The arithmetic: at a 320px viewport the
+   * dialog is 288px wide, less 48 of form padding, less 34 of panel padding,
+   * less 22 of this card's own padding — about 184px of usable width. The four
+   * children want roughly 379px on one line ("By text message" ~99px and
+   * "Uses 1 of your 1,250" ~121px both refuse to shrink), so they wrapped into
+   * three ragged lines each — and with both channels switched on, that is six
+   * lines of debris where the two clearest facts on the screen should be.
+   *
+   * The fix is to stop leaving it to chance. Label and cost share the top row
+   * and sit at opposite ends; the address gets the full width beneath, where a
+   * long one belongs. Min-content is now icon(15) + gap(10) + max(label, cost,
+   * one broken character) ≈ 146px — inside 184 with room to spare, and the same
+   * shape at every width rather than a layout that only resolves on a desktop.
+   */
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px',
-      padding: '8px 11px', borderRadius: '8px',
+      display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap',
+      padding: '9px 11px', borderRadius: '8px',
       background: COLORS.white, border: `1px solid ${COLORS.border}`,
     }}>
-      <span style={{ display: 'flex', flexShrink: 0 }}>{icon}</span>
-      <span style={{ fontSize: '12px', fontWeight: 700, color: COLORS.charcoal, flexShrink: 0 }}>{what}</span>
-      {/* fx-break: an address with no spaces has a min-content width equal to its
-          full length, which is what pushes a 320px phone sideways. */}
-      <span className="fx-break" style={{ fontSize: '12px', color: COLORS.stone, minWidth: 0, flex: '1 1 120px' }}>
-        {to}
-      </span>
-      <span style={{ fontSize: 'var(--fx-micro)', fontWeight: 800, color: costColor, whiteSpace: 'nowrap', flexShrink: 0 }}>
-        {cost}
-      </span>
+      <span style={{ display: 'flex', flexShrink: 0, marginTop: 2 }}>{icon}</span>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{
+          display: 'flex', flexWrap: 'wrap', alignItems: 'baseline',
+          justifyContent: 'space-between', gap: '2px 10px',
+        }}>
+          <span style={{ fontSize: '12.5px', fontWeight: 700, color: COLORS.charcoal }}>{what}</span>
+          <span style={{ fontSize: 'var(--fx-micro)', fontWeight: 800, color: costColor, whiteSpace: 'nowrap' }}>
+            {cost}
+          </span>
+        </div>
+        {/* fx-break: an address or an E.164 number has no spaces, so its
+            min-content width is its entire length — the one thing here that
+            could still push the dialog sideways. */}
+        <div className="fx-break" style={{ fontSize: '12px', color: COLORS.stone, marginTop: 2, lineHeight: 1.45 }}>
+          {to}
+        </div>
+      </div>
     </div>
   );
 }

@@ -138,8 +138,21 @@ const CanvasElement = React.memo(function CanvasElement({ el, occupied, names = 
       ) : (
         <>
           {renderSeats(el.shape, cap, occupied, w, h)}
-          <span style={{ fontSize: 11, fontWeight: 700, color: C.charcoal, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%', padding: '0 4px', pointerEvents: 'none' }}>{el.table_name}</span>
-          <span style={{ fontSize: 9, color: C.stone, marginTop: 3, pointerEvents: 'none' }}>{occupied} / {cap}</span>
+          {/**
+            * THE TABLE NUMBER — the one thing on this canvas anyone reads.
+            *
+            * It was a flat 11px, with the seat count at 9px under it. On a floor
+            * plan zoomed out far enough to see the room, that is unreadable, and
+            * this label is the whole reason for looking at the map.
+            *
+            * Scaled to the table rather than fixed, so a small round table does
+            * not have its name overflow the shape: 15px on the smallest table,
+            * up to 22px on a wide one. Not a --fx-* token — this is canvas text
+            * inside a transform that already scales with zoom, so it needs to
+            * track the ELEMENT's size, not the viewport's.
+            */}
+          <span style={{ fontSize: Math.max(15, Math.min(22, Math.min(w, h) / 4.2)), fontWeight: 800, color: C.charcoal, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%', padding: '0 4px', pointerEvents: 'none', lineHeight: 1.15 }}>{el.table_name}</span>
+          <span style={{ fontSize: Math.max(11, Math.min(14, Math.min(w, h) / 7)), color: C.stone, marginTop: 3, pointerEvents: 'none' }}>{occupied} / {cap}</span>
           {names.length > 0 && (
             <span style={{ fontSize: 9, fontWeight: 600, color: C.gold, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '92%', padding: '0 4px', pointerEvents: 'none', textAlign: 'center' }}>
               {names[0]}{names.length > 1 ? ` +${names.length - 1} more` : ''}
@@ -183,7 +196,7 @@ function SelectMenuItem({ label, count, onClick }) {
     <button
       type="button" onClick={onClick} disabled={disabled}
       style={{
-        display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
         width: '100%', textAlign: 'left', background: 'none', border: 'none', borderRadius: 6,
         padding: '7px 9px', minHeight: 'var(--fx-touch)', fontSize: 12, fontFamily: 'var(--font-sans, sans-serif)',
         color: disabled ? C.border : C.charcoal, cursor: disabled ? 'not-allowed' : 'pointer',
@@ -332,7 +345,24 @@ export default function SeatingMapPage() {
   const [pending, setPending] = useState({});
   const [movedIds, setMovedIds] = useState(() => new Set());   // tables whose position changed
   const [saving, setSaving] = useState(false);
-  const layoutDirty = movedIds.size > 0;
+  /**
+   * How many elements have staged geometry (resize/rotate).
+   *
+   * Declared HERE, immediately above its only reader, and not beside
+   * `dirtyGeometryRef` further down where it naturally belongs — `layoutDirty`
+   * is evaluated during render, so a `const` declared later is in the temporal
+   * dead zone and throws "Cannot access before initialization". That failure
+   * does not show up in the dev server or the unit tests; it surfaced only when
+   * `next build` tried to prerender this route.
+   *
+   * A ref cannot drive a re-render, which is why this counter exists at all:
+   * without it the Save button could not know it had work to do.
+   */
+  const [geoDirtyCount, setGeoDirtyCount] = useState(0);
+
+  // Moves AND staged resize/rotate. It counted moves only, which was correct
+  // while geometry saved itself and became wrong the moment it stopped.
+  const layoutDirty = movedIds.size > 0 || geoDirtyCount > 0;
 
   // Professional Editor State
   // Off by default — every drag used to lock to a 32px grid from the moment
@@ -404,6 +434,9 @@ export default function SeatingMapPage() {
   // pointerup handler (below) always reads the latest rectangle, same reason
   // dragPos/groupDragPos are mirrored.
   const [marquee, setMarquee] = useState(null);
+  // Drives the cursor and the toolbar hint while space is held — the ref that
+  // actually gates the gesture cannot re-render anything.
+  const [spacePanHint, setSpacePanHint] = useState(false);
   const marqueeRef = useRef(null);
   const elementsRef = useRef(elements);                  // lets pointerup read latest elements w/o re-binding the effect
   const viewRef = useRef(view);                           // lets pointerup read the latest pan/zoom w/o re-binding the effect
@@ -881,14 +914,41 @@ export default function SeatingMapPage() {
 
   const onCanvasPointerDown = useCallback((e) => {
     if (e.target.closest('[data-el-id]')) return;
-    if (e.button !== 0) return;
+    if (e.button !== 0 && e.button !== 1) return;
 
-    // Shift-drag on empty canvas → rubber-band (marquee) select, so a cluster
-    // of tables can be box-selected in one mouse gesture instead of Ctrl/Cmd-
-    // clicking each one individually. Plain drag still pans, unchanged —
-    // Shift is the same "selection" modifier already used for click-to-toggle
-    // below, just extended to a drag.
-    if (e.shiftKey) {
+    /**
+     * DRAG SELECTS. Space-drag, middle-drag and touch pan.
+     *
+     * It was the other way round: plain drag panned and the marquee needed
+     * Shift held for the whole gesture, so box-selecting a cluster — the thing
+     * an organizer does constantly — was the awkward one, while panning a
+     * canvas that also has scroll-wheel zoom and a Reset View button was the
+     * easy one. Figma, Canva and every other layout tool make the same choice
+     * this now makes.
+     *
+     * TOUCH IS EXEMPT, deliberately. On a phone or tablet a one-finger drag is
+     * how you move around; there is no space bar and no middle button, so
+     * turning that into a marquee would leave no way to pan at all.
+     */
+    const wantsPan = e.button === 1 || spaceHeldRef.current || e.pointerType === 'touch';
+
+    if (!wantsPan) {
+      const rect = viewportRef.current.getBoundingClientRect();
+      const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+      setSelectedId(null);
+      // Shift or Cmd/Ctrl adds to the existing selection instead of replacing
+      // it, matching how those modifiers already work on a click.
+      if (!(e.shiftKey || e.ctrlKey || e.metaKey)) setSelectedIds(new Set());
+      const rectState = { x0: sx, y0: sy, x1: sx, y1: sy };
+      interaction.current = { mode: 'marquee', additive: e.shiftKey || e.ctrlKey || e.metaKey };
+      marqueeRef.current = rectState;
+      setMarquee(rectState);
+      return;
+    }
+
+    // Kept for the case where somebody still reaches for Shift-drag out of
+    // habit while also holding space — selection wins, as it did before.
+    if (e.shiftKey && !(e.button === 1)) {
       const rect = viewportRef.current.getBoundingClientRect();
       const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
       setSelectedId(null);
@@ -909,7 +969,97 @@ export default function SeatingMapPage() {
     interaction.current = { mode: 'pan', startX: e.clientX, startY: e.clientY, tx: view.tx, ty: view.ty };
   }, [view]);
 
-  /* ── persist a single element's geometry (resize/rotate) ── */
+  /**
+   * Space = "pan instead of select", held.
+   *
+   * A ref rather than state: onCanvasPointerDown reads it at pointerdown, and a
+   * state value would be captured in that callback's closure and could be one
+   * render stale — which on a pan gesture means selecting a box across the
+   * canvas instead of moving it.
+   *
+   * The keydown also has to swallow the space bar's default page-scroll while
+   * the canvas has focus, or holding it scrolls the dashboard behind the map.
+   */
+  /**
+   * NOTHING SAVES ITSELF NOW, so leaving with staged work has to be refused.
+   *
+   * While rotate and resize auto-saved, closing the tab lost only unsaved
+   * MOVES. With every geometry edit staged behind the button, a closed tab
+   * loses the whole session's arrangement — which is the cost of the explicit
+   * save model and the one thing that makes it unacceptable if unguarded.
+   *
+   * beforeunload covers the tab close, reload and external navigation. It does
+   * NOT cover Next's client-side router (the "Back to Dashboard" link), which
+   * is why that link checks `layoutDirty` itself.
+   */
+  useEffect(() => {
+    if (!layoutDirty) return undefined;
+    const warn = (e) => {
+      e.preventDefault();
+      // Browsers ignore custom text and show their own wording; returnValue
+      // still has to be set for the prompt to appear at all.
+      e.returnValue = '';
+      return '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [layoutDirty]);
+
+  const spaceHeldRef = useRef(false);
+  useEffect(() => {
+    const isTyping = (t) => t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
+    const down = (e) => {
+      if (e.code !== 'Space' || isTyping(e.target)) return;
+      spaceHeldRef.current = true;
+      setSpacePanHint(true);
+      e.preventDefault();
+    };
+    const up = (e) => {
+      if (e.code !== 'Space') return;
+      spaceHeldRef.current = false;
+      setSpacePanHint(false);
+    };
+    // Releasing space while the tab is not focused would otherwise leave it
+    // stuck on, and every later drag would pan.
+    const blur = () => { spaceHeldRef.current = false; setSpacePanHint(false); };
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    window.addEventListener('blur', blur);
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+      window.removeEventListener('blur', blur);
+    };
+  }, []);
+
+  /**
+   * ── STAGE a geometry change. Nothing on this canvas saves itself. ──
+   *
+   * The map used to have two save models at once: moving a table staged the
+   * change and lit up "Save Layout", while rotating or resizing PATCHed the
+   * server the moment you let go. So an organizer nudging a layout had some
+   * edits already committed and some not, with no way to tell them apart, no
+   * undo for half of them, and a Save button that did not cover what it
+   * appeared to cover.
+   *
+   * Every geometry edit now lands here and waits for the button.
+   *
+   * `dirtyGeometryRef` stays a ref because loadLayout() reads it during a
+   * refetch to re-apply local edits over server data, and it must see the
+   * current value rather than one captured in a closure. The counter beside it
+   * is what makes the Save button re-render — a ref alone changes nothing on
+   * screen, which is precisely how a "you have unsaved work" indicator would
+   * end up lying.
+   */
+  const markGeometryDirty = useCallback((id, patch) => {
+    dirtyGeometryRef.current = {
+      ...dirtyGeometryRef.current,
+      [id]: { ...(dirtyGeometryRef.current[id] || {}), ...patch },
+    };
+    setGeoDirtyCount(Object.keys(dirtyGeometryRef.current).length);
+  }, []);
+
+  /* ── write one element's geometry to the server (called only by saveLayout) ── */
   const persistGeometry = useCallback(async (id, body) => {
     try {
       await fetch(`${API_URL}/events/${eventId}/tables/${id}`, {
@@ -925,14 +1075,28 @@ export default function SeatingMapPage() {
      free-drag precision. Square-ish elements hide the button entirely (see
      the elWidth/elHeight guard at the call site) since a 90° turn on those
      looks identical. ── */
+  /**
+   * Rotate the WHOLE selection, and stage it.
+   *
+   * Two bugs in one line before: it read `selectedId` (the single-select slot)
+   * so a group of twelve tables rotated exactly one of them, and it PATCHed
+   * immediately so the change was already saved before anyone could undo it.
+   *
+   * Each element turns 90° about its own centre rather than the group's — for a
+   * seating chart that is what "turn these tables" means; orbiting a cluster
+   * around a shared origin would move tables the organizer had already placed.
+   */
   const rotateSelected = useCallback(() => {
-    if (!selectedId) return;
-    const el = elements.find(x => x.id === selectedId);
-    if (!el) return;
-    const next = ((Number(el.rotation) || 0) + 90) % 360;
-    setElements(prev => prev.map(x => x.id === selectedId ? { ...x, rotation: next } : x));
-    persistGeometry(selectedId, { rotation: next });
-  }, [selectedId, elements, persistGeometry]);
+    const ids = selectedIds.size > 0 ? [...selectedIds] : (selectedId ? [selectedId] : []);
+    if (ids.length === 0) return;
+
+    const targets = elements.filter(x => ids.includes(x.id));
+    if (targets.length === 0) return;
+
+    const nextById = new Map(targets.map(el => [el.id, ((Number(el.rotation) || 0) + 90) % 360]));
+    setElements(prev => prev.map(x => (nextById.has(x.id) ? { ...x, rotation: nextById.get(x.id) } : x)));
+    for (const [id, rotation] of nextById) markGeometryDirty(id, { rotation });
+  }, [selectedId, selectedIds, elements, markGeometryDirty]);
 
   /* ── shared move/group-move math — used by real pointermove events AND by
      the edge auto-pan loop below, which synthesizes the same update using the
@@ -1106,13 +1270,13 @@ export default function SeatingMapPage() {
         groupDragPosRef.current = null;
         setGroupDragPos(null);
       } else if (it.mode === 'resize' && it.newW != null) {
-        // Track dirty geometry so loadLayout() preserves it
-        dirtyGeometryRef.current = { ...dirtyGeometryRef.current, [it.id]: { ...(dirtyGeometryRef.current[it.id] || {}), width: it.newW, height: it.newH } };
-        persistGeometry(it.id, { width: Math.round(it.newW), height: Math.round(it.newH) });
+        // STAGED, not saved. See markGeometryDirty — resize and rotate used to
+        // PATCH the server the instant the pointer came up, while a move sat
+        // waiting for "Save Layout". One canvas, two rules, nothing on screen
+        // saying which was which.
+        markGeometryDirty(it.id, { width: Math.round(it.newW), height: Math.round(it.newH) });
       } else if (it.mode === 'rotate' && it.newRot != null) {
-        // Track dirty geometry so loadLayout() preserves it
-        dirtyGeometryRef.current = { ...dirtyGeometryRef.current, [it.id]: { ...(dirtyGeometryRef.current[it.id] || {}), rotation: it.newRot } };
-        persistGeometry(it.id, { rotation: it.newRot });
+        markGeometryDirty(it.id, { rotation: it.newRot });
       } else if (it.mode === 'marquee') {
         const rect = marqueeRef.current;
         marqueeRef.current = null;
@@ -1144,8 +1308,11 @@ export default function SeatingMapPage() {
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
     return () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
-    // view.scale is needed for coordinate conversion; dragPos intentionally read from ref
-  }, [view.scale, persistGeometry, snapToGrid]);
+    // view.scale is needed for coordinate conversion; dragPos intentionally read from ref.
+    // markGeometryDirty replaced persistGeometry here when resize/rotate stopped
+    // saving themselves — it is a stable useCallback([]), so listing it does not
+    // re-subscribe these listeners on every render.
+  }, [view.scale, markGeometryDirty, snapToGrid]);
 
   /* ── zoom on wheel (anchored to cursor) ── */
   const onWheel = useCallback((e) => {
@@ -1226,6 +1393,7 @@ export default function SeatingMapPage() {
       setPending({});
       // Clear dirty geometry since we just persisted layout
       dirtyGeometryRef.current = {};
+      setGeoDirtyCount(0);
       await Promise.all([loadLayout(), fetchGuests(1, true)]);
       setTableGuests([]);
     } catch (err) { toast.error(err.message); }
@@ -1254,6 +1422,7 @@ export default function SeatingMapPage() {
       }
       setMovedIds(new Set());
       dirtyGeometryRef.current = {};
+      setGeoDirtyCount(0);
 
       // Reset history baseline to the saved state
       initialLayoutRef.current = elements;
@@ -1322,24 +1491,82 @@ export default function SeatingMapPage() {
     } catch (err) { toast.error(err.message); }
   };
 
+  /**
+   * Delete the WHOLE selection.
+   *
+   * It read `selected` — the single-select slot — so selecting twelve tables
+   * and pressing Delete removed one, and clearing a section meant twelve
+   * confirmations. The group case is now the general case; a single selection
+   * is just a group of one and keeps its original wording.
+   *
+   * Occupied tables are FILTERED OUT rather than blocking the whole delete. On
+   * one table "unassign the guests first" is the right answer; on a selection of
+   * twenty it would refuse the entire operation because of one seated table and
+   * make the organizer hunt for it. The dialog says how many are being kept back
+   * and why, so nothing disappears — or survives — silently.
+   *
+   * This is NOT staged behind Save. Adding and deleting create and destroy
+   * records rather than editing geometry, they are already explicit actions
+   * behind their own button and confirmation, and a staged deletion would mean
+   * holding a tombstone list that "Save" has to replay. Geometry is what the
+   * Save button governs.
+   */
   const deleteElement = useCallback(async () => {
-    if (!selected) return;
-    if (!isZone(selected) && (occByTable[selected.id] || 0) > 0) { toast.error('Unassign guests before deleting this table.'); return; }
+    const ids = selectedIds.size > 0 ? [...selectedIds] : (selected ? [selected.id] : []);
+    if (ids.length === 0) return;
+
+    const targets = elements.filter(el => ids.includes(el.id));
+    if (targets.length === 0) return;
+
+    const occupied = targets.filter(el => !isZone(el) && (occByTable[el.id] || 0) > 0);
+    const removable = targets.filter(el => !occupied.includes(el));
+
+    if (removable.length === 0) {
+      toast.error(targets.length === 1
+        ? 'Unassign guests before deleting this table.'
+        : 'Every table you selected has guests seated at it. Unassign them first.');
+      return;
+    }
+
+    const single = removable.length === 1 && targets.length === 1;
+    const keptBack = occupied.length > 0
+      ? ` ${occupied.length} of them ${occupied.length === 1 ? 'has guests seated and will be kept' : 'have guests seated and will be kept'}.`
+      : '';
+
     if (!(await confirm({
-      title: `Delete ${selected.table_name}?`,
-      body: 'It is removed from the floor plan. Nobody is seated there, so no guest loses a seat.',
-      confirmLabel: 'Delete it',
-      cancelLabel: 'Keep it',
+      title: single
+        ? `Delete ${removable[0].table_name}?`
+        : `Delete ${removable.length} elements?`,
+      body: single
+        ? 'It is removed from the floor plan. Nobody is seated there, so no guest loses a seat.'
+        : `They are removed from the floor plan. Nobody is seated at them, so no guest loses a seat.${keptBack}`,
+      confirmLabel: single ? 'Delete it' : `Delete ${removable.length}`,
+      cancelLabel: single ? 'Keep it' : 'Keep them',
       tone: 'danger',
     }))) return;
+
     try {
-      const res = await fetch(`${API_URL}/events/${eventId}/tables/${selected.id}`, { method: 'DELETE', credentials: 'include' });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to delete');
+      // Sequential, not Promise.all: a 50-element delete fired at once is 50
+      // simultaneous connections, and a partial failure mid-flight would leave
+      // no way to say which ones went.
+      let removed = 0;
+      for (const el of removable) {
+        const res = await fetch(`${API_URL}/events/${eventId}/tables/${el.id}`, { method: 'DELETE', credentials: 'include' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.message || `Failed to delete ${el.table_name}.`);
+        removed += 1;
+      }
+      if (!single) toast.success(`Deleted ${removed} ${removed === 1 ? 'element' : 'elements'}.`);
       setSelectedId(null);
+      setSelectedIds(new Set());
       loadLayout();
-    } catch (err) { toast.error(err.message); }
-  }, [selected, occByTable, eventId, loadLayout, confirm]);
+    } catch (err) {
+      toast.error(err.message);
+      // Reload regardless: some may already be gone, and leaving the canvas
+      // showing elements the server no longer has is worse than the error.
+      loadLayout();
+    }
+  }, [selected, selectedIds, elements, occByTable, eventId, loadLayout, confirm]);
 
   const duplicateElement = useCallback(async () => {
     // Guard against runaway duplication: the "Duplicate" button and its Ctrl/Cmd+D
@@ -1656,7 +1883,7 @@ export default function SeatingMapPage() {
           <button
             onClick={() => setShowPrintPreview(true)}
             title="Preview and arrange the printable chart, then print or save as PDF"
-            style={{ ...btn, background: 'transparent', border: `1px solid ${C.gold}`, color: C.gold, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}
+            style={{ ...btn, background: 'transparent', border: `1px solid ${C.gold}`, color: C.gold, display: 'flex', alignItems: 'center', gap: 6 }}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
             Print / Export
@@ -1754,7 +1981,7 @@ export default function SeatingMapPage() {
                     disabled={elements.length === 0}
                     style={{
                       ...btn, background: C.white, border: `1px solid ${C.border}`, color: elements.length === 0 ? C.border : C.charcoal, padding: '6px 12px', minHeight: 'var(--fx-touch)',
-                      cursor: elements.length === 0 ? 'not-allowed' : 'pointer', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5,
+                      cursor: elements.length === 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 5,
                     }}
                     title="Select every table & zone, or narrow it to just tables, zones, or one shape (e.g. round tables only). Ctrl/Cmd/Shift-click individual elements on the canvas to select only those."
                   >
@@ -1836,7 +2063,7 @@ export default function SeatingMapPage() {
                 border: `1px solid ${snapToGrid ? C.gold : C.border}`,
                 color: snapToGrid ? C.gold : C.stone,
                 padding: '6px 12px', minHeight: 'var(--fx-touch)',
-                display: 'flex', flexWrap: 'wrap',
+                display: 'flex',
                 alignItems: 'center',
                 gap: 4
               }}>
@@ -1856,7 +2083,10 @@ export default function SeatingMapPage() {
             ref={viewportRef}
             onPointerDown={onCanvasPointerDown}
             onWheel={onWheel}
-            style={{ width: '100%', height: 590, background: C.ivory, border: `2px dashed ${C.border}`, borderRadius: 16, position: 'relative', overflow: 'hidden', cursor: panning ? 'grabbing' : 'default', touchAction: 'none' }}
+            style={{ width: '100%', height: 590, background: C.ivory, border: `2px dashed ${C.border}`, borderRadius: 16, position: 'relative', overflow: 'hidden', /* The cursor is how the changed gesture is discoverable: holding space turns
+   it into a grab hand, which is the only cue that pan moved off plain drag.
+   Otherwise a crosshair, because plain drag now draws a selection box. */
+            cursor: panning ? 'grabbing' : spacePanHint ? 'grab' : 'crosshair', touchAction: 'none' }}
           >
             <div style={{ position: 'absolute', left: 0, top: 0, width: WORLD_W, height: WORLD_H, transformOrigin: '0 0', transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.scale})`, backgroundImage: 'radial-gradient(#E0D8C6 1px, transparent 1px)', backgroundSize: '32px 32px' }}>
               {visibleElements.map(el => {
@@ -1901,20 +2131,65 @@ export default function SeatingMapPage() {
               }} />
             )}
           </div>
-          <p style={{ fontSize: 11, color: C.stone, textAlign: 'center' }}>Scroll to zoom · drag the background to pan · drag a guest onto a table to seat them · Shift-drag or Ctrl/Cmd/Shift-click to select multiple, then drag any one to move the group.</p>
+          <p style={{ fontSize: 11, color: C.stone, textAlign: 'center' }}>Scroll to zoom · drag the background to select · hold space or use the middle mouse button to pan · drag a guest onto a table to seat them · Ctrl/Cmd/Shift-click to add one to a selection.</p>
         </div>
 
         {/* ── Right: inspector ── */}
         <div style={{ background: C.white, border: `1px solid ${C.border}`, padding: 18, borderRadius: 12, display: 'flex', flexDirection: 'column', height: 640 }}>
           <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 16, fontWeight: 500, borderBottom: `1px solid ${C.border}`, paddingBottom: 12, marginBottom: 14 }}>Inspector</h3>
           {!selected ? (
-            <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
-              <p style={{ fontSize: 12, color: C.stone, maxWidth: 180 }}>
-                {selectedIds.size > 0
-                  ? `${selectedIds.size} element${selectedIds.size > 1 ? 's' : ''} selected. Drag any one of them on the canvas to move the whole group together.`
-                  : 'Select an element on the canvas to edit it.'}
-              </p>
-            </div>
+            /**
+             * THE GROUP PANEL — and the reason it has to exist.
+             *
+             * A marquee selection sets `selectedId` to null and fills
+             * `selectedIds`, so `selected` is null and this branch renders. It
+             * used to be a sentence and nothing else, which meant that after
+             * wiring bulk rotate and bulk delete the two buttons still had no
+             * surface: the only way to reach either was the Delete key, and
+             * rotate had no trigger at all. The handlers were fixed and the
+             * complaint — "you cannot delete or rotate the selected elements" —
+             * was still true through the interface.
+             */
+            selectedIds.size > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <p style={{ fontSize: 12.5, color: C.charcoal, margin: 0, lineHeight: 1.6 }}>
+                  <strong>{selectedIds.size} element{selectedIds.size > 1 ? 's' : ''} selected.</strong>{' '}
+                  Drag any one of them to move the whole group.
+                </p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  <button
+                    onClick={rotateSelected}
+                    disabled={saving}
+                    style={{ ...btn, background: 'rgba(184,148,79,0.06)', border: '1px solid rgba(184,148,79,0.2)', color: C.gold, padding: '7px 10px', minHeight: 'var(--fx-touch)', fontSize: 11, opacity: saving ? 0.6 : 1, cursor: saving ? 'default' : 'pointer' }}
+                  >
+                    Rotate all 90°
+                  </button>
+                  <button
+                    onClick={deleteElement}
+                    disabled={saving}
+                    style={{ ...btn, background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.2)', color: C.danger, padding: '7px 10px', minHeight: 'var(--fx-touch)', fontSize: 11, opacity: saving ? 0.6 : 1, cursor: saving ? 'default' : 'pointer' }}
+                  >
+                    Delete all
+                  </button>
+                  <button
+                    onClick={() => setSelectedIds(new Set())}
+                    style={{ ...btn, background: 'transparent', border: `1px solid ${C.border}`, color: C.stone, padding: '7px 10px', minHeight: 'var(--fx-touch)', fontSize: 11 }}
+                  >
+                    Clear
+                  </button>
+                </div>
+                <p style={{ fontSize: 11, color: C.stone, margin: 0, lineHeight: 1.55 }}>
+                  Rotating turns each element about its own centre. Tables with guests seated
+                  at them are kept when deleting.
+                </p>
+              </div>
+            ) : (
+              <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+                <p style={{ fontSize: 12, color: C.stone, maxWidth: 180 }}>
+                  Select an element on the canvas to edit it.
+                </p>
+              </div>
+            )
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14, flex: 1, overflowY: 'auto' }}>
               <div>
@@ -1940,7 +2215,7 @@ export default function SeatingMapPage() {
                 {` • ${Math.round(Number(selected.rotation) || 0)}°`}
               </div>
               {elWidth(selected) !== elHeight(selected) && (
-                <button onClick={rotateSelected} disabled={saving} style={{ ...btn, background: 'rgba(184,148,79,0.06)', border: '1px solid rgba(184,148,79,0.2)', color: C.gold, padding: '7px 10px', minHeight: 'var(--fx-touch)', fontSize: 11, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: saving ? 0.6 : 1, cursor: saving ? 'default' : 'pointer' }}>
+                <button onClick={rotateSelected} disabled={saving} style={{ ...btn, background: 'rgba(184,148,79,0.06)', border: '1px solid rgba(184,148,79,0.2)', color: C.gold, padding: '7px 10px', minHeight: 'var(--fx-touch)', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: saving ? 0.6 : 1, cursor: saving ? 'default' : 'pointer' }}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
                   {isZone(selected) ? 'Rotate 90°' : 'Rotate 90° (lengthwise / widthwise)'}
                 </button>
@@ -2629,8 +2904,16 @@ function AddElementModal({ onClose, onAdd, btn, view, saving, elements }) {
     }
   };
 
-  const tables = Object.entries(SHAPES).filter(([, m]) => m.cat === 'table');
-  const zones = Object.entries(SHAPES).filter(([, m]) => m.cat === 'zone');
+  /**
+   * The ADD panel offers pickable shapes only — Banquet and Head are Rectangle
+   * at other proportions, so they were three buttons for one silhouette.
+   *
+   * The "Select All ▾" filter above deliberately still lists EVERY shape: an
+   * organizer with existing banquet tables has to be able to select them.
+   * Offering a shape and recognising one are different questions.
+   */
+  const tables = Object.entries(SHAPES).filter(([, m]) => m.cat === 'table' && m.pickable !== false);
+  const zones = Object.entries(SHAPES).filter(([, m]) => m.cat === 'zone' && m.pickable !== false);
 
   const submit = () => {
     if (saving) return;

@@ -343,7 +343,7 @@ export default function DashboardNav() {
               <path d="M18 6L6 18M6 6l12 12" />
             </svg>
           </button>
-          <Link href="/" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
             <svg width="24" height="20" viewBox="0 0 38 32" fill="none" style={{ flexShrink: 0 }}>
               <rect x="2" y="8" width="34" height="22" rx="2" stroke="#B8944F" strokeWidth="2" fill="none" />
               <path d="M2 10L19 22L36 10" stroke="#B8944F" strokeWidth="2" fill="none" strokeLinejoin="round" />
@@ -431,7 +431,7 @@ export default function DashboardNav() {
             onClick={() => setLogoutOpen(true)}
             aria-label="Log out"
             style={{
-              display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, padding: '10px 14px', width: '100%',
+              display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', width: '100%',
               background: 'transparent', border: `1px solid ${COLORS.border}`, borderRadius: 8, cursor: 'pointer',
               fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 600, color: COLORS.stone,
               transition: 'all 0.2s ease',

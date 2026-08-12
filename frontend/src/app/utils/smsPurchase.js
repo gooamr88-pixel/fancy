@@ -25,8 +25,32 @@ export async function startSmsCreditPurchase({ apiUrl, eventId, creditCount }) {
       credentials: 'include',
       body: JSON.stringify({ creditCount: count }),
     });
-    const data = await res.json();
-    if (!res.ok || !data.checkoutUrl) throw new Error(data.message || 'Could not start credit purchase.');
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.checkoutUrl) {
+      /**
+       * The REASON travels with the error, not just a sentence.
+       *
+       * Two of the refusals here are not faults and need different handling from
+       * the caller, and both are common enough to be the normal case rather than
+       * an edge:
+       *
+       *   STRIPE_DISABLED (503)   — card payments are switched off platform-wide.
+       *                             The repo runs on the manual/bank-transfer path
+       *                             by default (config/features.js defaults OFF),
+       *                             so this is what an organizer hits today.
+       *   NO_STRIPE_CUSTOMER (400) — the org has never paid by card, so there is
+       *                             no Stripe customer to bill. Anyone whose event
+       *                             was approved by bank transfer is in this state
+       *                             permanently.
+       *
+       * Neither is "checkout failed to open". A caller that cannot tell them apart
+       * can only say something wrong.
+       */
+      const err = new Error(data.message || 'Could not start credit purchase.');
+      err.code = data.error || null;
+      err.status = res.status;
+      throw err;
+    }
     if (tab) tab.location.href = data.checkoutUrl;
     else window.open(data.checkoutUrl, '_blank');
     return { ok: true };

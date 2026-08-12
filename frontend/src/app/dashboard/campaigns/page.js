@@ -250,6 +250,7 @@ export default function MessagesPage() {
             balance={balance}
             coverage={data.coverage}
             onBuy={() => setBuyOpen(true)}
+            eventId={eventId}
           />
 
           {/* ── The switches ─────────────────────────────────────────────────
@@ -412,7 +413,9 @@ const cell = {
 };
 
 /* ── Balance ─────────────────────────────────────────────────────────────── */
-function BalanceCard({ balance, coverage, onBuy }) {
+// `eventId` is here only for the "What messages cost" link below — that page
+// cannot sell anything without it.
+function BalanceCard({ balance, coverage, onBuy, eventId }) {
   const remaining = balance?.remaining ?? 0;
   const purchased = balance?.purchased ?? 0;
   const pct = balance?.percentRemaining ?? 0;
@@ -478,7 +481,13 @@ function BalanceCard({ balance, coverage, onBuy }) {
           on this card. */}
       <div style={{ fontSize: 12.5, color: C.stone, marginTop: 12, fontFamily: 'var(--font-sans)' }}>
         These messages belong to this event only.{' '}
-        <Link href="/dashboard/sms-plans" style={{ color: C.gold, fontWeight: 700 }}>
+        {/* CARRIES THE EVENT. Without `?event=`, the pricing page has nothing to
+            buy for: its CTA falls back to "Choose an event" and pressing it
+            bounces to /dashboard instead of opening checkout. This link is the
+            most likely way anyone reaches that page — "an organizer wondering
+            what a message costs is standing on this card", per the note above —
+            so dropping the id here is what made the buy button look broken. */}
+        <Link href={eventId ? `/dashboard/sms-plans?event=${eventId}` : '/dashboard/sms-plans'} style={{ color: C.gold, fontWeight: 700 }}>
           What messages cost &rarr;
         </Link>
       </div>
@@ -562,7 +571,18 @@ function TopUpModal({ apiUrl, eventId, onClose }) {
   const buy = () => {
     setBusy(true);
     startSmsCreditPurchase({ apiUrl, eventId, creditCount: count })
-      .catch(() => toast.error('Could not open checkout.'))
+      /**
+       * The SERVER's sentence, not a generic one.
+       *
+       * This said "Could not open checkout" for every outcome, which is wrong
+       * for the two most likely ones: card payments being switched off
+       * platform-wide (503 STRIPE_DISABLED) and the organization having no card
+       * on file because the event was paid by bank transfer (400
+       * NO_STRIPE_CUSTOMER). Neither is a checkout that failed to open, and both
+       * have a different next step — the backend already words them for an
+       * organizer, so pass them through.
+       */
+      .catch((err) => toast.error(err?.message || 'Could not open checkout.'))
       .finally(() => setBusy(false));
   };
 

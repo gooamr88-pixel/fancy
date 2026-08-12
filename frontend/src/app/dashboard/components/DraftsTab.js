@@ -168,7 +168,7 @@ function ConfirmDeleteModal({ isOpen, onClose, onConfirm, event, isDeleting }) {
               border: 'none', background: confirmDisabled ? 'rgba(196,94,94,0.5)' : C.danger,
               color: C.white, fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 700,
               cursor: confirmDisabled ? 'not-allowed' : 'pointer',
-              display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 8,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               transition: 'all 0.2s',
               boxShadow: confirmDisabled ? 'none' : '0 4px 14px rgba(196,94,94,0.25)',
             }}

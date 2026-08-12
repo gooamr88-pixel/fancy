@@ -127,14 +127,29 @@ export default function GuestSheetGuide({ event, tables = [], customFields = [],
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', flexShrink: 0 }}>
+        {/**
+          * FULL-WIDTH AND STACKED ON A PHONE.
+          *
+          * "Download the template" and "What can it contain?" are 21 and 20
+          * characters at 12px bold with `whiteSpace: nowrap` — roughly 197px and
+          * 168px including padding. Two of those cannot share a line inside the
+          * ~252px this card offers at 320px, so they wrapped into two ragged
+          * left-aligned buttons of different widths beside a half-width
+          * paragraph. (`flexWrap` had also been swept INTO the gold button
+          * itself, which let its icon and its label split onto separate lines —
+          * that is what actually looked broken. Removed; a button is a leaf.)
+          *
+          * Below sm they are one per line at full width, which is the right
+          * shape for a thumb anyway. At sm and up nothing changes.
+          */}
+        <div className="gsg-actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', flexShrink: 0 }}>
           <button
             type="button"
             onClick={downloadTemplate}
             style={{
               padding: '9px 16px', minHeight: 'var(--fx-touch)', borderRadius: 8, border: 'none', cursor: 'pointer',
               background: COLORS.gold, color: COLORS.white, fontSize: 12, fontWeight: 700,
-              fontFamily: 'var(--font-sans)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6,
+              fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: 6,
               whiteSpace: 'nowrap',
             }}
             onMouseEnter={(e) => { e.currentTarget.style.background = COLORS.goldHover; }}
@@ -241,6 +256,12 @@ export default function GuestSheetGuide({ event, tables = [], customFields = [],
           table rendered by the nested ColumnTable function below — a documented
           silent failure mode in this build (see frontend/AGENTS.md). */}
       <style>{`
+        @media (max-width: 639.98px) {
+          /* One button per line, each filling the card. Two nowrap labels of
+             ~197px and ~168px cannot share the ~252px this card has at 320px. */
+          .gsg-actions { width: 100%; }
+          .gsg-actions button { width: 100%; justify-content: center; }
+        }
         @media (max-width: 767.98px) {
           /* The column reference is a genuine table: three columns of prose that
              cannot reflow into anything readable. It scrolls sideways inside its

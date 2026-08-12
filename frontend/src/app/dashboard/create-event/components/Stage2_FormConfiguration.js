@@ -79,7 +79,7 @@ function Section({ title, icon, defaultOpen = true, children }) {
       transition: 'border-color 0.3s',
     }}>
       <button onClick={() => setOpen(!open)} style={{
-        width: '100%', display: 'flex', flexWrap: 'wrap', alignItems: 'center',
+        width: '100%', display: 'flex', alignItems: 'center',
         gap: 10, padding: '18px 24px', background: 'none',
         border: 'none', cursor: 'pointer', textAlign: 'left',
       }}>
@@ -1122,7 +1122,7 @@ export default function Stage2_FormConfiguration({
                     position: 'absolute', top: 6, right: 6, width: 26, height: 26,
                     borderRadius: '50%', border: 'none', background: 'rgba(25,27,30,0.75)',
                     color: '#fff', cursor: 'pointer', fontSize: 14, lineHeight: 1,
-                    display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>×</button>
               </div>
             )}
@@ -1290,7 +1290,7 @@ export default function Stage2_FormConfiguration({
                     <img src={url} alt={`Gallery ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       onError={e => { e.target.style.display = 'none'; }} />
                     <button type="button" onClick={() => onRemoveGalleryUrl?.(i)} title="Remove"
-                      style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: '50%', border: 'none', background: 'rgba(25,27,30,0.75)', color: '#fff', cursor: 'pointer', fontSize: 13, lineHeight: 1, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                      style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: '50%', border: 'none', background: 'rgba(25,27,30,0.75)', color: '#fff', cursor: 'pointer', fontSize: 13, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
                   </div>
                 ))}
               </div>
@@ -1321,7 +1321,7 @@ export default function Stage2_FormConfiguration({
             background: 'none', border: `1.5px solid ${C.charcoal}`,
             borderRadius: 12, fontFamily: 'var(--font-sans)',
             fontSize: 14, fontWeight: 700, color: C.charcoal,
-            cursor: 'pointer', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
+            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
             transition: 'all 0.2s',
           }}
             onMouseEnter={e => { e.currentTarget.style.background = C.charcoal; e.currentTarget.style.color = C.white; }}
@@ -1343,7 +1343,7 @@ export default function Stage2_FormConfiguration({
                   fontSize: 14, fontWeight: 700, color: C.gold,
                   cursor: (!title || !slug || !eventDate || savingDraft) ? 'not-allowed' : 'pointer',
                   opacity: (!title || !slug || !eventDate || savingDraft) ? 0.5 : 1,
-                  display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, transition: 'all 0.2s',
+                  display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.2s',
                 }}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>

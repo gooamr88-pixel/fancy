@@ -549,7 +549,7 @@ function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
               cursor: (processing || !selectedTier) ? 'not-allowed' : 'pointer',
               opacity: (processing || !selectedTier) ? 0.5 : 1,
               transition: 'all 0.2s',
-              display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 8,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             }}>
             <Icon name="bank" size={15} strokeWidth={1.6} /> Manual / Bank Transfer
           </button>
@@ -1219,7 +1219,7 @@ export default function EventsTab({ events = [], activeEventId, onSelectEvent, o
           type="button"
           onClick={onOpenDrafts}
           style={{
-            display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 14, width: '100%', textAlign: 'left',
+            display: 'flex', alignItems: 'center', gap: 14, width: '100%', textAlign: 'left',
             padding: '14px 16px', borderRadius: 12, cursor: 'pointer',
             background: 'rgba(184,148,79,0.05)', border: '1px solid rgba(184,148,79,0.22)',
             fontFamily: 'var(--font-sans)',

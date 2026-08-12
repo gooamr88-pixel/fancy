@@ -385,7 +385,7 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
                     style={{
                       position: 'absolute', top: -6, right: -6, width: '18px', height: '18px', borderRadius: '50%',
                       border: 'none', background: 'rgba(25,27,30,0.75)', color: COLORS.white, cursor: 'pointer',
-                      fontSize: '11px', lineHeight: 1, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '11px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>×</button>
                 </div>
               )}
@@ -463,7 +463,7 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
             background: saving ? COLORS.champagne : COLORS.gold, color: COLORS.white,
             fontSize: '14px', fontWeight: 700, fontFamily: 'var(--font-sans)',
             cursor: saving ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
-            display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', width: '100%', justifyContent: 'center',
+            display: 'flex', alignItems: 'center', gap: '8px', width: '100%', justifyContent: 'center',
           }}
           onMouseEnter={(e) => { if (!saving) e.currentTarget.style.background = COLORS.goldHover; }}
           onMouseLeave={(e) => { if (!saving) e.currentTarget.style.background = COLORS.gold; }}
@@ -601,7 +601,7 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
               background: COLORS.white, color: COLORS.charcoal,
               fontSize: '13px', fontWeight: 600, fontFamily: 'var(--font-sans)',
               cursor: changingPassword ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
-              width: '100%', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: '8px'
+              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
             }}
             onMouseEnter={(e) => { if (!changingPassword) { e.currentTarget.style.background = COLORS.softBg; e.currentTarget.style.borderColor = COLORS.gold; } }}
             onMouseLeave={(e) => { if (!changingPassword) { e.currentTarget.style.background = COLORS.white; e.currentTarget.style.borderColor = COLORS.border; } }}

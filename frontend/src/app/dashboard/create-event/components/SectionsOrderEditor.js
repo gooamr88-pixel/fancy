@@ -106,7 +106,7 @@ export default function SectionsOrderEditor({ templateData, setTemplateData }) {
                 }}>↓</button>
               <button type="button" onClick={() => toggleSection(key)}
                 style={{
-                  flex: 1, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
                   padding: 0, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left',
                   fontFamily: 'var(--font-sans)', fontSize: 12.5, fontWeight: 600, color: C.charcoal,
                 }}>
