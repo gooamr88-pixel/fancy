@@ -237,6 +237,15 @@ export default function RSVPsTab({
   // The one-guest send. Mounted only while open so each visit starts empty —
   // same reasoning as ClearGuestListModal.
   const [inviteOpen, setInviteOpen] = useState(false);
+  /**
+   * Whether the four bulk sends are showing. PHONE ONLY — at md and up the CSS
+   * forces the panel open regardless, so this value is simply not consulted.
+   *
+   * Collapsed by default: the bar is pinned above the nav bar on a phone, and
+   * expanded it is ~330px of a ~667px screen. The organizer needs to see the
+   * guests they are ticking.
+   */
+  const [sendOpen, setSendOpen] = useState(false);
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('newest');
   const [page, setPage] = useState(1);
@@ -349,7 +358,10 @@ export default function RSVPsTab({
     });
   }, [visibleIds]);
 
-  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+  // Closes the send panel with the selection. The whole bar unmounts when the
+  // selection empties, so a stale `true` would re-open it expanded the next
+  // time somebody ticked a single guest — 330px of panel for one name.
+  const clearSelection = useCallback(() => { setSelectedIds(new Set()); setSendOpen(false); }, []);
 
   // Resolved against the FULL list, so a selection survives changing the filter.
   const selectedGuests = useMemo(
@@ -796,13 +808,37 @@ export default function RSVPsTab({
            * exist. A shadow, because a sticky element over a scrolling list has
            * to read as floating rather than as a row that stopped moving.
            */
+          /**
+           * ── THE SEND BOX ────────────────────────────────────────────────
+           *
+           * COMPACT AND COLLAPSED on a phone; unchanged at md and up.
+           *
+           * Pinning this to the bottom of the screen was right in intent and
+           * wrong in size. Measured at a 320px viewport it renders about 330px
+           * tall — a count line, two channel groups whose buttons each wrap onto
+           * two rows ("All their details (8)" alone is ~184px against 256px of
+           * usable width), and Clear. Sticky above the 60px nav bar, that covers
+           * more than half of a 667px screen: the organizer could no longer see
+           * the guests they were selecting.
+           *
+           * So the bar keeps only what has to be permanently visible — how many
+           * are selected, one Send toggle, and Clear — and the four sends live
+           * behind it. That is roughly 60px pinned instead of 330px.
+           *
+           * `.fx-disclose__body` is the same primitive the stat tiles use: hidden
+           * below md unless opened, forced visible at md and up, one rendering
+           * either way. It pairs with `.fx-sticky-actions` reverting at md too,
+           * so "collapsed" and "pinned" switch off together.
+           */
           <div className="fx-sticky-actions" style={{
-            display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12,
-            justifyContent: 'space-between',
             background: COLORS.white, border: `1px solid ${COLORS.gold}`,
             borderRadius: 12, padding: '12px 16px', marginBottom: 14,
             boxShadow: '0 6px 24px rgba(25,27,30,0.10)',
           }}>
+            <div className="rsvps-send-head" style={{
+              display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12,
+              justifyContent: 'space-between',
+            }}>
             <div style={{ minWidth: 0 }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.charcoal, fontFamily: 'var(--font-sans)' }}>
                 {selectedIds.size} selected
@@ -822,6 +858,38 @@ export default function RSVPsTab({
               )}
             </div>
 
+            {/* The phone-only controls. Hidden at md and up, where the four
+                sends are always on screen and a toggle would be a control for
+                something already visible. */}
+            <div className="fx-disclose__summary" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={() => setSendOpen((v) => !v)}
+                aria-expanded={sendOpen}
+                style={{
+                  padding: '9px 16px', minHeight: 'var(--fx-touch)', borderRadius: 9, border: 'none',
+                  background: 'linear-gradient(135deg, #D7BE80 0%, #B8944F 100%)', color: COLORS.white,
+                  fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-sans)', cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {sendOpen ? 'Close' : 'Send…'}
+              </button>
+              <button
+                type="button"
+                onClick={clearSelection}
+                aria-label="Clear selection"
+                style={{
+                  padding: '9px 12px', minHeight: 'var(--fx-touch)', borderRadius: 9,
+                  border: `1px solid ${COLORS.border}`, background: COLORS.white, color: COLORS.stone,
+                  fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-sans)', cursor: 'pointer',
+                }}
+              >
+                Clear
+              </button>
+            </div>
+            </div>
+
             {/**
               * FOUR bulk sends, grouped by channel, and the paid pair asks first.
               *
@@ -835,6 +903,11 @@ export default function RSVPsTab({
               * Email stays one click. It is free, and putting a dialog in front of
               * a free action teaches organizers to dismiss dialogs.
               */}
+            {/* The class goes on a BARE wrapper. Put it on the flex row itself
+                and the inline `display: 'flex'` beats `display: none`, so the
+                panel would never collapse and the class would be inert — the
+                one rule in AGENTS.md, and easy to walk into precisely here. */}
+            <div className={`fx-disclose__body${sendOpen ? ' fx-disclose__body--open' : ''}`}>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'flex-start' }}>
               <BulkGroup heading="By email" note="Free" noteColor={COLORS.greenDark}>
                 <BulkButton
@@ -900,6 +973,7 @@ export default function RSVPsTab({
               >
                 Clear
               </button>
+            </div>
             </div>
           </div>
         )}

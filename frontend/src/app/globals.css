@@ -535,9 +535,19 @@
   bottom: calc(60px + env(safe-area-inset-bottom) + 8px);
   z-index: 30;
 }
-@media (width >= theme(--breakpoint-lg)) {
-  /* lg, not md: the bottom bar itself only appears below 1023.98px, so this
-     has to revert on exactly the viewports where that bar is gone. */
+@media (width >= theme(--breakpoint-md)) {
+  /**
+   * md, not lg — and the reasoning that said lg was wrong.
+   *
+   * The argument was "revert where the bottom bar is gone", i.e. lg. But the
+   * cost of sticky is the bar's HEIGHT, not the nav bar underneath it: between
+   * 768 and 1023 a tablet would have pinned a fully-expanded action bar to the
+   * bottom of the screen for no benefit, since there is room to scroll to it.
+   *
+   * Sticky is now paired with the collapsed layout below md, and both switch
+   * off together at the same breakpoint. Above md there is no clearance to pay
+   * because there is nothing pinned.
+   */
   .fx-sticky-actions { position: static; }
 }
 
