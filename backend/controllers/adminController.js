@@ -580,6 +580,58 @@ const grantSmsCredits = async (req, res, next) => {
     });
     if (incError) throw incError;
 
+    /**
+     * SWITCH THE ADD-ON ON. Credits alone do nothing.
+     *
+     * This granted credits to `sms_credit_wallets` and stopped there, but the
+     * wallet is not what any send path consults. EVERY gate reads
+     * `events.sms_addon_purchased_at`:
+     *
+     *   • smsDispatch.sendTransactionalSms → skip('ADDON_INACTIVE')
+     *   • invitationService.sendInvitationSmsBulk → code ADDON_INACTIVE
+     *   • middleware/smsAddonGate.requireSmsAddon → 402
+     *   • the dashboard's `smsAddon.active`, which is why the organizer still
+     *     saw "Add texting" instead of "Invitation"
+     *
+     * So a comp grant produced an event with a funded wallet, texting still
+     * reported as switched off, and not one message able to send. The admin saw
+     * a success toast; the organizer saw nothing change.
+     *
+     * Only set when NULL — an event that bought its add-on keeps the date it
+     * actually paid, because that timestamp is also what the new-account
+     * send-rate ramp measures from (campaignController.resolveSendLimit).
+     * Overwriting it with today would silently re-throttle an established event.
+     */
+    const { error: activateError } = await supabase
+      .from('events')
+      .update({ sms_addon_purchased_at: new Date().toISOString() })
+      .eq('id', eventId)
+      .is('sms_addon_purchased_at', null);
+    if (activateError) {
+      // The credits are already in the wallet, so this is reported rather than
+      // thrown — but it must NOT be silent: an unactivated grant is exactly the
+      // failure this block exists to remove.
+      logger.error({ err: activateError, eventId }, '[admin] granted SMS credits but could not activate the add-on');
+      /**
+       * 500, NOT 207 — and the difference is the whole point of this branch.
+       *
+       * 207 was the semantically tidy choice for a partial success, and it was
+       * wrong here: the admin client (`utils/apiClient.apiFetch`) throws only on
+       * `!response.ok`, and **207 is a 2xx**, so it resolved cleanly and
+       * `admin/events/page.js` went on to show "Granted N SMS credits — Success".
+       *
+       * That is precisely the failure this whole endpoint change exists to
+       * remove: an admin told it worked and an organizer who still cannot send.
+       * Choosing the status by REST semantics rather than by what the caller
+       * does with it would have reintroduced the bug in a new costume.
+       */
+      return res.status(500).json({
+        success: false,
+        error: 'ADDON_NOT_ACTIVATED',
+        message: `The ${credits} credits were added, but text messaging could NOT be switched on for this event — the organizer still cannot send. Try the grant again.`,
+      });
+    }
+
     await supabase.from('activity_logs').insert({
       event_id: eventId,
       actor_id: req.user.id,

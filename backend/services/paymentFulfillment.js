@@ -17,6 +17,37 @@ const { captureReferralHold, spendReferralCredit, grantReferralRewardIfEligible,
  * Returns { ok, type, alreadyProcessed, eventId } so callers can shape a response.
  * Throws only on genuine/unexpected DB failures (so the webhook can 5xx → retry).
  */
+/**
+ * Remember the Stripe customer, if this organization did not have one.
+ *
+ * SMS-credit checkout now falls back to `customer_email` when the organization
+ * has no `stripe_customer_id` — which is the normal state for an event paid by
+ * promo code, bank transfer or an admin comp, since that column is only ever
+ * written by the card checkout. Stripe creates a customer for such a session
+ * and returns its id.
+ *
+ * Without capturing it here, every subsequent top-up creates ANOTHER customer:
+ * the organization accumulates duplicates in Stripe, no payment method is ever
+ * reusable, and the column stays null forever. Nothing breaks loudly, which is
+ * why it would not have been noticed.
+ *
+ * Guarded on the column still being null so a real card customer is never
+ * overwritten, and best-effort throughout: the credits are the point of this
+ * webhook, and failing to record a customer id must not fail fulfilment.
+ */
+async function rememberStripeCustomer(orgId, customerId) {
+  if (!orgId || !customerId || typeof customerId !== 'string') return;
+  try {
+    await supabase
+      .from('organizations')
+      .update({ stripe_customer_id: customerId })
+      .eq('id', orgId)
+      .is('stripe_customer_id', null);
+  } catch (err) {
+    logger.warn({ err, orgId }, '[fulfill] could not record the Stripe customer id');
+  }
+}
+
 const fulfillCheckoutSession = async (session) => {
   const { event_id, type } = session.metadata || {};
 
@@ -276,6 +307,15 @@ const fulfillCheckoutSession = async (session) => {
     const creditCount = parseInt(session.metadata.credit_count, 10);
     if (!Number.isInteger(creditCount) || creditCount <= 0) {
       throw new Error(`Invalid credit_count value: ${session.metadata.credit_count}`);
+    }
+
+    // Capture the customer Stripe created for an organization that had none —
+    // see rememberStripeCustomer. Before the credit RPC, so a duplicate webhook
+    // delivery (which returns early as already_processed) still fills the column
+    // if the first delivery somehow did not.
+    if (session.customer) {
+      const { data: orgRow } = await supabase.from('events').select('org_id').eq('id', event_id).maybeSingle();
+      await rememberStripeCustomer(orgRow?.org_id, session.customer);
     }
 
     // Single transactional RPC: ensures wallet, writes the idempotency ledger row,

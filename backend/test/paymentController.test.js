@@ -208,13 +208,31 @@ test('purchaseSMSCredits rejects a non-numeric / non-integer creditCount (400, n
   assert.equal(createCalls.length, 0);
 });
 
-test('purchaseSMSCredits requires an existing Stripe customer (first event must be paid)', async () => {
+/**
+ * THIS TEST USED TO ASSERT THE BUG.
+ *
+ * It read "purchaseSMSCredits requires an existing Stripe customer (first event
+ * must be paid)" and expected a 400 NO_STRIPE_CUSTOMER — encoding as a
+ * requirement the thing the operator later reported as broken.
+ *
+ * `stripe_customer_id` is written in exactly ONE place, the card checkout. An
+ * event paid by promo code (promoCodeService sets is_paid + manual_override and
+ * never touches Stripe), by bank transfer, or comped by an admin is fully paid
+ * and has no customer — and was refused with "complete your first event payment"
+ * forever. The parenthetical in the old name shows the assumption: that no
+ * customer means no payment. It never did.
+ *
+ * The refusal that remains is the one that is really a blocker: nothing to
+ * receipt the purchase to.
+ */
+test('purchaseSMSCredits still refuses when there is no billing contact at all', async () => {
   mock.setResolver(({ table }) => {
     if (table === 'super_admin_config') return { data: { sms_rate_cents_per_credit: 8, sms_markup_percentage: 40 } };
-    if (table === 'events') return { data: { org_id: 'org-1', organizations: { stripe_customer_id: null } } };
+    if (table === 'events') return { data: { org_id: 'org-1', organizations: { stripe_customer_id: null, email: null } } };
     return {};
   });
   const { res } = await invoke(purchaseSMSCredits, mockReq({ params: { eventId: 'evt-1' }, body: { creditCount: 500 }, user: { id: 'owner-1' } }));
   assert.equal(res.statusCode, 400);
-  assert.equal(res.body.error, 'NO_STRIPE_CUSTOMER');
+  assert.equal(res.body.error, 'NO_BILLING_CONTACT');
+  assert.doesNotMatch(res.body.message, /complete your first event payment/i);
 });

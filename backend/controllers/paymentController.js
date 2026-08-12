@@ -652,7 +652,7 @@ const purchaseSMSCredits = async (req, res, next) => {
     // 2. Fetch customer details
     const { data: eventData } = await supabase
       .from('events')
-      .select('org_id, organizations(stripe_customer_id)')
+      .select('org_id, organizations(stripe_customer_id, email)')
       .eq('id', eventId)
       .single();
 
@@ -665,19 +665,51 @@ const purchaseSMSCredits = async (req, res, next) => {
     }
 
     const customerId = eventData.organizations.stripe_customer_id;
+    // Trimmed, because a whitespace-only value is truthy: it would sail past the
+    // guard below and reach Stripe, which rejects it — turning a clear 400 into
+    // an opaque 500 from the checkout call.
+    const customerEmail = String(eventData.organizations.email || '').trim() || null;
 
-    if (!customerId) {
+    /**
+     * NO STRIPE CUSTOMER IS NOT A REASON TO REFUSE THE SALE.
+     *
+     * This returned 400 "Please complete your first event payment before
+     * purchasing SMS credits" whenever the organization had no
+     * `stripe_customer_id` — which is set in exactly one place, the card
+     * checkout. So every organizer who paid any other way could never buy
+     * messages, permanently:
+     *
+     *   • a PROMO CODE event (promoCodeService sets is_paid + manual_override
+     *     and never touches Stripe),
+     *   • a BANK TRANSFER event approved by an admin,
+     *   • an admin comp.
+     *
+     * All three are fully paid events. The message told them to complete a
+     * payment they had already made, in a form the platform itself had offered.
+     *
+     * Stripe does not need a pre-existing customer to take a payment: given
+     * `customer_email` it creates one and attaches it. Fulfillment is unaffected
+     * because it keys on `session.metadata.event_id`, not on the customer
+     * (services/paymentFulfillment.js) — so the credits land on the right event
+     * either way.
+     *
+     * The only genuine blocker left is having no email to bill to, which cannot
+     * happen for a real organization but is checked rather than assumed.
+     */
+    if (!customerId && !customerEmail) {
       return res.status(400).json({
         success: false,
-        error: 'NO_STRIPE_CUSTOMER',
-        message: 'Please complete your first event payment before purchasing SMS credits.'
+        error: 'NO_BILLING_CONTACT',
+        message: 'This organization has no email address on file, so a receipt cannot be sent. Add one in your profile and try again.'
       });
     }
 
     // 3. Create checkout session
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
-      customer: customerId,
+      // An existing customer when we have one; otherwise let Stripe create it
+      // from the email. Passing both is an error, hence the spread.
+      ...(customerId ? { customer: customerId } : { customer_email: customerEmail }),
       // Charge the computed total as a single line item. Splitting it into a
       // per-unit price × quantity would re-round per credit and silently discard
       // the markup/volume-discount cents (e.g. an intended 2188¢ collapses to 2000¢).
