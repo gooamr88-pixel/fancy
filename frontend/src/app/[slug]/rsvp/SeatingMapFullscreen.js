@@ -293,7 +293,22 @@ export default function SeatingMapFullscreen({ tables, myTableId, myTableName, h
                       fontFamily: 'var(--font-sans)', letterSpacing: '0.05em',
                       boxShadow: '0 8px 20px rgba(184,148,79,0.55)',
                     }}>♛ {isRTL ? (hostName ? `${hostName} — طاولتك` : 'طاولتك') : (hostName ? `${hostName} — your table` : 'Your table')}</span>
-                    {/* Pulsing ring */}
+                    {/**
+                      * Pulsing ring — the thing that makes "your table" findable
+                      * at a glance in a room of forty identical circles.
+                      *
+                      * It has never animated. The @keyframes lived in a
+                      * <style jsx> block at the bottom of this file, and
+                      * styled-jsx renames a scoped keyframe to
+                      * `fancySeatPulse-jsx-<hash>` — it cannot rewrite the name
+                      * inside an inline style object, so this `animation` was
+                      * resolving against a keyframe that does not exist and the
+                      * ring just sat there. Exactly the trap the ticket page
+                      * already documents for its spinner.
+                      *
+                      * The keyframe now lives in globals.css, unscoped, which is
+                      * the only place an inline-style animation can reach.
+                      */}
                     <span aria-hidden style={{
                       position: 'absolute', inset: -14,
                       borderRadius: meta.round ? '50%' : '14px',
@@ -354,13 +369,9 @@ export default function SeatingMapFullscreen({ tables, myTableId, myTableName, h
         </div>
       </div>
 
-      <style jsx>{`
-        @keyframes fancySeatPulse {
-          0%   { transform: scale(1);    opacity: 0.9; }
-          70%  { transform: scale(1.18); opacity: 0;   }
-          100% { transform: scale(1.18); opacity: 0;   }
-        }
-      `}</style>
+      {/* No <style jsx> here on purpose — fancySeatPulse is defined in
+          globals.css. A scoped keyframe gets renamed by styled-jsx and can
+          never be referenced from an inline style object; see the ring above. */}
     </div>
   );
 }

@@ -13,7 +13,17 @@ import {
 
 const GOLD = '#B8944F';
 
-export default function SeatingMiniMap({ tables, myTableId, youLabel = "You're here" }) {
+/**
+ * `maxHeight` — how tall this preview is allowed to grow.
+ *
+ * A prop rather than the old hard-coded 320 because the two callers want
+ * genuinely different things. Inside the RSVP flow the map IS the answer to
+ * the question the guest just asked, so it takes the room. On the emailed
+ * entry pass it is a thumbnail under the QR code: the guest opened that page
+ * at a venue door to show a barcode, and a half-screen floor plan pushed the
+ * one thing they came for off the top of the phone.
+ */
+export default function SeatingMiniMap({ tables, myTableId, youLabel = "You're here", maxHeight = 320 }) {
   const wrapRef = useRef(null);
   const [boxW, setBoxW] = useState(0);
 
@@ -52,7 +62,7 @@ export default function SeatingMiniMap({ tables, myTableId, youLabel = "You're h
   const contentH = Math.max(maxY - minY, 1);
 
   const targetW = boxW || 320;
-  const maxH = 320;
+  const maxH = maxHeight;
   const scale = Math.min(targetW / contentW, maxH / contentH);
   const renderW = contentW * scale;
   const renderH = contentH * scale;

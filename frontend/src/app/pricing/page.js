@@ -27,6 +27,28 @@ const faqData = [
     question: "Do you offer custom pricing for nonprofits or large organizations?",
     answer: "Contact our sales team with your organization's details — we review nonprofit and high-volume requests individually rather than through a fixed discount.",
   },
+  {
+    /**
+     * Two things this answer is careful NOT to claim.
+     *
+     * It does not name a tier: the plans above are loaded live from the pricing
+     * API and an admin can move `checkin_app` between tiers in Admin → Config at
+     * any time, so a hardcoded plan name here would silently go stale — the same
+     * trap buildGuestCapFaq below exists to avoid. Pointing at the feature list
+     * is safe because that list IS the registry label for whatever an admin
+     * assigned (getPublicPricing maps feature keys through getFeatureByKey).
+     *
+     * And it does not promise the browser scanner as a universal fallback.
+     * /checkin looks ungated because the page loads for anyone, but its two real
+     * actions are not: backend/routes/checkinRoutes.js puts requireFeature on
+     * both `qr_checkin` and `manual_checkin`, so on a plan without them the page
+     * opens and then 403s the moment somebody scans a guest at the door. That is
+     * a promise this page must not make on a purchase decision.
+     */
+    question: "Is there an app for checking guests in at the door?",
+    answer: "Yes — Fancy Check-in is a dedicated Android tablet app that turns any device into a door scanner. It holds your whole guest list on the device, so it keeps scanning through a venue's dead spots with no internet at all, and syncs back to your dashboard once it reconnects. There is also a browser-based scanner that runs on any device with a connection. Check the feature list above to see which plans include each one.",
+    link: { href: "/checkin-app", label: "See how the door app works" },
+  },
 ];
 
 /**
@@ -327,6 +349,14 @@ function FaqItem({ item, isOpen, onToggle }) {
           }}
         >
           {item.answer}
+          {/* Optional "and here is the thing itself" link. An answer that names
+              a product a visitor cannot then go and look at is half an answer,
+              and this FAQ is the last thing read before the pricing decision. */}
+          {item.link && (
+            <Link href={item.link.href} style={{ display: "inline-block", marginTop: "12px", fontWeight: 700, color: "#B8944F", textDecoration: "none" }}>
+              {item.link.label} →
+            </Link>
+          )}
         </div>
       )}
 

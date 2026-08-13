@@ -94,6 +94,17 @@ const PATHS = {
   sofa: <><path d="M5 12.5V9a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v3.5" /><path d="M3.5 12.5h17v5a1.5 1.5 0 0 1-1.5 1.5h-14A1.5 1.5 0 0 1 3.5 17.5v-5Z" /><path d="M5 17v2.5 M19 17v2.5" /><path d="M3.5 13.5a1.5 1.5 0 0 0 0 3 M20.5 13.5a1.5 1.5 0 0 0 0 3" /></>,
 };
 
+/**
+ * The raw 24×24 path fragments, for the one caller that cannot use <Icon>.
+ *
+ * The printed seating chart draws its zone glyphs INSIDE an existing <svg>,
+ * positioned by an SVG transform in world coordinates. <Icon> always renders
+ * its own <svg> wrapper with no x/y, so it cannot be placed there. Exporting
+ * the fragments keeps that one exception reading from this same catalogue
+ * rather than growing a second, silently-drifting copy of the artwork.
+ */
+export const ICON_PATHS = PATHS;
+
 export default function Icon({ name, size = 17, color = 'currentColor', strokeWidth = 1.5, style }) {
   const path = PATHS[name];
   if (!path) return null;

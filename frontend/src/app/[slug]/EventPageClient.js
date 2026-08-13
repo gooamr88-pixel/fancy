@@ -311,10 +311,18 @@ function buildInvitationCardData(event, isRTL) {
       const eyebrow = honoree ? `Honoring ${honoree}` : null;
       return { headline, eyebrow, dateLine, venueLine };
     }
+    // Custom Canvas, plus anything not named above. The adults-only fields ride
+    // along here for the same reason HeritageArchPage stopped gating its
+    // section on the template type: the organizer set `no_kids_allowed`, and
+    // which artwork they happened to pick is not a reason to drop it. Wedding
+    // and engagement build their own copies above only because their Arabic
+    // wording sits inside those blocks already.
     default: {
       const namesEn = event?.title || null;
       const names = (isRTL && titleAr) ? titleAr : namesEn;
-      return { names, dateLine, venueLine, dressCode };
+      const noKidsText = isRTL ? 'دعوة خاصة بالكبار فقط' : 'No Kids Allowed';
+      const noKidsNotice = !!event?.no_kids_allowed;
+      return { names, dateLine, venueLine, dressCode, noKidsText, noKidsNotice };
     }
   }
 }
@@ -647,8 +655,8 @@ export default function EventPageClient({
     };
   }, [youtubeMusicId]);
 
-  // Dress code expand
-  const [dressCodeExpanded, setDressCodeExpanded] = useState(false);
+  // (The dress-code accordion state that used to live here is gone with the
+  // accordion — see the Dress Code card below for why it never did anything.)
 
   // Photos & Location — collapsed by default to keep the page short;
   // expands in place rather than being two more always-visible scroll-stops.
@@ -1709,44 +1717,34 @@ export default function EventPageClient({
                     </BentoCard>
                   </StaggerItem>
 
-                  {/* Dress Code BentoCard (expandable) */}
+                  {/**
+                    * DRESS CODE — a plain card. It used to be an accordion, and
+                    * the accordion did nothing.
+                    *
+                    * Both branches rendered `localizedDressCode`: collapsed
+                    * showed it, expanded showed it again in a taller box. So the
+                    * chevron promised hidden detail, and clicking it revealed the
+                    * same two words that were already on screen — a control whose
+                    * only visible effect was the row growing by 4px. There is one
+                    * short string here and there has never been anything else to
+                    * reveal; the honest presentation is to simply show it.
+                    *
+                    * The icon went with it. A pictogram of a suit next to a label
+                    * that already reads "Dress Code" is a second, worse copy of
+                    * the word, and it was the only Icon in this row of cards that
+                    * was decorative rather than pointing somewhere (Where has a
+                    * pin because it maps to a place, Directions has a compass
+                    * because it opens one).
+                    */}
                   {event.dress_code && (
                     <StaggerItem style={{ gridColumn: '1 / -1' }}>
                       <BentoCard bg="rgba(255,255,255,0.85)" border="rgba(255,255,255,0.6)">
-                        <button
-                          onClick={() => setDressCodeExpanded(!dressCodeExpanded)}
-                          style={{
-                            background: 'none', border: 'none', cursor: 'pointer', padding: 0, width: '100%',
-                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontFamily: 'var(--font-sans)',
-                          }}
-                        >
-                          <span style={{ fontSize: '12px', color: themeColor, textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <Icon name="dressCode" size={13} strokeWidth={1.6} /> {t.dress_code}
-                          </span>
-                          <motion.span animate={{ rotate: dressCodeExpanded ? 180 : 0 }} transition={{ duration: 0.25 }} style={{ fontSize: '14px', color: themeColor }}>
-                            ▼
-                          </motion.span>
-                        </button>
-                        <AnimatePresence>
-                          {dressCodeExpanded && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: 'auto', opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              transition={{ duration: 0.35, ease: 'easeInOut' }}
-                              style={{ overflow: 'hidden' }}
-                            >
-                              <span style={{ fontSize: '15px', color: '#77736A', fontStyle: 'italic', display: 'block', marginTop: '16px' }}>
-                                {localizedDressCode}
-                              </span>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                        {!dressCodeExpanded && (
-                          <span style={{ fontSize: '15px', color: '#77736A', fontStyle: 'italic', display: 'block', marginTop: '12px' }}>
-                            {localizedDressCode}
-                          </span>
-                        )}
+                        <span style={{ fontSize: '12px', color: themeColor, textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 700, display: 'block', fontFamily: 'var(--font-sans)' }}>
+                          {t.dress_code}
+                        </span>
+                        <span style={{ fontSize: '18px', color: '#191B1E', fontWeight: 600, display: 'block', marginTop: '8px' }}>
+                          {localizedDressCode}
+                        </span>
                       </BentoCard>
                     </StaggerItem>
                   )}

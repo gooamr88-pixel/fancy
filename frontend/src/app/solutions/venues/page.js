@@ -39,7 +39,7 @@ const PAIN_POINTS = [
 
 const CAPABILITIES = [
   { title: "Floor plans that match your venue", desc: "Custom shapes, elements, and table layouts on a drag-and-drop canvas — build it once per room, reuse it for every booking." },
-  { title: "QR check-in at every entrance", desc: "Guests scan in on arrival with no manual list lookup, so front-of-house keeps pace even at full capacity." },
+  { title: "QR check-in at every entrance", desc: "Guests scan in on arrival with no manual list lookup, so front-of-house keeps pace even at full capacity — and the Fancy Check-in tablet app keeps working through a venue's dead spots, with no internet at all.", link: { href: "/checkin-app", label: "See the door app" } },
   { title: "A premium invitation for every booking", desc: "Custom colors, fonts, and cover imagery per event, so each client's invitation reflects your venue's standard of presentation." },
   { title: "Live headcount for your events team", desc: "Real-time accepted / declined / pending counts and dietary breakdowns, so catering and staffing numbers are never a guess." },
   { title: "One dashboard for every booking", desc: "If you host recurring events — weddings every weekend, monthly galas — manage every one from a single organizer account." },
@@ -115,6 +115,11 @@ export default function VenuesSolutionsPage() {
                 <div>
                   <h4 style={{ fontFamily: "var(--font-sans)", fontSize: "15.5px", fontWeight: 700, color: "#191B1E", marginBottom: "6px" }}>{c.title}</h4>
                   <p style={{ fontFamily: "var(--font-sans)", fontSize: "14px", color: "#5E5A52", lineHeight: 1.65, margin: 0 }}>{c.desc}</p>
+                  {c.link && (
+                    <Link href={c.link.href} style={{ display: "inline-block", marginTop: "8px", fontFamily: "var(--font-sans)", fontSize: "13.5px", fontWeight: 700, color: "#B8944F", textDecoration: "none" }}>
+                      {c.link.label} →
+                    </Link>
+                  )}
                 </div>
               </div>
             ))}

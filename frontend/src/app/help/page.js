@@ -125,6 +125,15 @@ const faqItems = [
     a: "Yes! You can schedule automated reminders via email or SMS for guests who haven't responded. Set custom timing (e.g., 2 weeks before, 1 week before) and personalize the message. Our smart send feature avoids duplicate notifications to guests who've already replied.",
   },
   {
+    q: "How do I check guests in at the door?",
+    // "Depending on your plan" is doing real work here, not hedging: both the
+    // Android app (checkin_app) and the browser scanner's scan/manual endpoints
+    // (qr_checkin, manual_checkin) are feature-gated per tier. See the note on
+    // the matching pricing FAQ entry.
+    a: "Every confirmed guest gets a personal QR entry pass by email, and it arrives again with their table number shortly before the event. At the door you scan it with Fancy Check-in — our Android tablet app, which holds the whole guest list on the device, so it keeps working with no internet and syncs back to your dashboard once it reconnects. Depending on your plan you can also check guests in from a browser, or find them by name if they arrive without their pass.",
+    link: { href: "/checkin-app", label: "See how the door app works" },
+  },
+  {
     q: "How secure is my guest data?",
     a: "Security is our top priority. All data is encrypted at rest (AES-256) and in transit (TLS 1.3). We are GDPR and CCPA compliant, conduct regular security audits, and never sell or share your guest information with third parties. You can export or delete your data at any time.",
   },
@@ -295,9 +304,23 @@ function FAQItem({ item, isOpen, onToggle }) {
           </svg>
         </div>
       </button>
+      {/**
+        * 1200px, not 300px — the cap is an animation device, not a layout one.
+        *
+        * `max-height` has to be a length for the transition to run at all, but
+        * the parent sets `overflow: hidden`, so any answer TALLER than the cap
+        * is silently cut off with no scrollbar and no indication. 300px is about
+        * eleven lines at desktop width and about seven on a 360px phone, where
+        * these answers wrap two to three times as often — so the longest ones
+        * were losing their last third, and anything appended after the text
+        * (the optional link below) never appeared on mobile at all.
+        *
+        * Overshooting is free: the easing just completes early on a short
+        * answer. Under-shooting silently destroys content.
+        */}
       <div
         style={{
-          maxHeight: isOpen ? "300px" : "0",
+          maxHeight: isOpen ? "1200px" : "0",
           opacity: isOpen ? 1 : 0,
           transition: "max-height 0.4s ease, opacity 0.3s ease, padding 0.3s ease",
           paddingBottom: isOpen ? "24px" : "0",
@@ -314,6 +337,14 @@ function FAQItem({ item, isOpen, onToggle }) {
         >
           {item.a}
         </p>
+        {/* Optional deep link on an answer that names a page of its own. The
+            accordion animates on max-height, so this sits inside the same
+            measured box rather than after it. */}
+        {item.link && (
+          <Link href={item.link.href} style={{ display: "inline-block", fontFamily: "var(--font-sans)", fontSize: "14.5px", fontWeight: 700, color: "#B8944F", textDecoration: "none" }}>
+            {item.link.label} →
+          </Link>
+        )}
       </div>
     </div>
   );

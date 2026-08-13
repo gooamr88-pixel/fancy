@@ -78,7 +78,7 @@ const SMS_MESSAGE_TYPES = [
     // it. The email with the actual scannable pass must still go out.
     replacesEmail: false,
     // The heaviest of the three: it fires when the guest is seated AND again in
-    // the day or two before the event, because a table number read weeks early is
+    // the 24 hours before the event, because a table number read weeks early is
     // not the one anybody is looking at while standing outside the venue.
     weight: 1.2,
   },

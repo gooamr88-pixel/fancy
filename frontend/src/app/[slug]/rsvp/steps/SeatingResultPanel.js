@@ -12,8 +12,14 @@ import { formatTableLabel } from '../../../utils/tableLabel';
  * Distinguishes the host (gold-bordered card with crown) from companions and
  * surfaces their meal/dietary notes. Deliberately never lists other parties
  * seated at the same table.
+ *
+ * `compact` tightens everything for the emailed entry pass (/ticket/[token]),
+ * where this panel sits BELOW a 200px QR code inside a 540px card rather than
+ * being the whole screen. Same component, same "you only ever see your own
+ * party" guarantee — only the map preview and the spacing change, so the two
+ * surfaces cannot drift apart in what they disclose.
  */
-export default function SeatingResultPanel({ view, loading, isRTL, onBack }) {
+export default function SeatingResultPanel({ view, loading, isRTL, onBack, compact = false }) {
   const [fullscreen, setFullscreen] = useState(false);
 
   if (loading) {
@@ -62,31 +68,63 @@ export default function SeatingResultPanel({ view, loading, isRTL, onBack }) {
         )}
       </div>
 
-      {/* Mini map + expand */}
-      <div style={{ position: 'relative' }}>
-        <SeatingMiniMap tables={view.tables} myTableId={view.myTableId} youLabel={isRTL ? 'مكانك' : "You're here"} />
-        {(view.tables || []).length > 0 && (
+      {/**
+        * MAP PREVIEW + A REAL BUTTON UNDER IT.
+        *
+        * The expand control used to be a small pill floating in the map's top
+        * corner. Three things were wrong with that on a phone: it covered the
+        * corner of the plan it was inviting you to look at, it sat exactly
+        * where a thumb rests while scrolling, and a translucent chip on top of
+        * a drawing does not read as the primary action — so guests pinched at
+        * the thumbnail instead, which does nothing, and concluded the map was
+        * simply too small to use.
+        *
+        * Now the preview is a tappable card and the action is stated in full
+        * underneath it, at touch size, in the event's own gold. `compact`
+        * callers (the emailed entry pass) shrink the preview further; the
+        * button is what carries the detail either way.
+        */}
+      {(view.tables || []).length > 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <button
+            type="button"
             onClick={() => setFullscreen(true)}
-            aria-label={isRTL ? 'تكبير الخريطة' : 'Expand map'}
+            aria-label={isRTL ? 'فتح خريطة الجلوس كاملة' : 'Open the full seating map'}
             style={{
-              position: 'absolute', top: '10px',
-              ...(isRTL ? { left: '10px' } : { right: '10px' }),
-              background: 'rgba(255,255,255,0.95)', border: '1px solid #E8E2D6',
-              borderRadius: '999px', padding: '7px 12px', cursor: 'pointer',
-              display: 'inline-flex', alignItems: 'center', gap: '6px',
-              fontFamily: 'var(--font-sans)', fontSize: '12px', fontWeight: 600, color: '#5E5A52',
-              boxShadow: '0 4px 12px rgba(25,27,30,0.08)',
+              display: 'block', width: '100%', padding: 0, border: 'none',
+              background: 'none', cursor: 'zoom-in', textAlign: 'inherit',
             }}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <SeatingMiniMap
+              tables={view.tables}
+              myTableId={view.myTableId}
+              youLabel={isRTL ? 'مكانك' : "You're here"}
+              maxHeight={compact ? 190 : 320}
+            />
+          </button>
+          <button
+            type="button"
+            onClick={() => setFullscreen(true)}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+              width: '100%', minHeight: '44px', padding: '11px 16px',
+              borderRadius: '12px', border: '1px solid #E7D9B8', cursor: 'pointer',
+              background: 'linear-gradient(180deg, #FFFDF8 0%, #F8F1E2 100%)',
+              fontFamily: 'var(--font-sans)', fontSize: '13.5px', fontWeight: 700, color: '#8A6D34',
+            }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <polyline points="15 3 21 3 21 9" /><polyline points="9 21 3 21 3 15" />
               <line x1="21" y1="3" x2="14" y2="10" /><line x1="3" y1="21" x2="10" y2="14" />
             </svg>
-            {isRTL ? 'تكبير' : 'Expand'}
+            {assigned
+              ? (isRTL ? 'كبّر الخريطة وشوف مكانك' : 'Open full map & find my seat')
+              : (isRTL ? 'كبّر خريطة القاعة' : 'Open the full venue map')}
           </button>
-        )}
-      </div>
+        </div>
+      ) : (
+        <SeatingMiniMap tables={view.tables} myTableId={view.myTableId} youLabel={isRTL ? 'مكانك' : "You're here"} maxHeight={compact ? 190 : 320} />
+      )}
 
       {/* Host card */}
       {host && (

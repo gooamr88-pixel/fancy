@@ -46,7 +46,10 @@ const PAIN_POINTS = [
 const CAPABILITIES = [
   { title: "Unlimited-scale guest lists", desc: "CSV/Excel bulk import, dedup on email or phone, and pagination built for lists in the thousands, not the dozens." },
   { title: "Real-time attendance dashboard", desc: "Live accepted / declined / pending counts, meal and dietary breakdowns, and check-in progress — shareable with anyone who needs the number." },
-  { title: "QR check-in at the door", desc: "Every confirmed guest gets a scannable entry pass; front-desk staff scan and go, no manual list lookup." },
+  // The one capability here with a product behind it that a buyer can go and
+  // look at before committing — the Android door app has its own page, and this
+  // list previously described the feature without ever saying so.
+  { title: "QR check-in at the door", desc: "Every confirmed guest gets a scannable entry pass; front-desk staff scan and go, no manual list lookup. On the night, the Fancy Check-in tablet app runs the door with no internet at all.", link: { href: "/checkin-app", label: "See the door app" } },
   { title: "Seating & table management", desc: "Drag-and-drop floor plans with capacity validation, built for ballroom-scale events." },
   { title: "SMS reminders at volume", desc: "Bulk campaigns with delivery tracking, so a change in venue or timing reaches every invitee, not just the ones who check email." },
   { title: "Bulk export for reporting", desc: "Full guest, RSVP, and check-in data exports to CSV or Excel whenever your team needs it for finance or leadership reporting." },
@@ -169,6 +172,11 @@ export default function CorporateSolutionsPage() {
                 <div>
                   <h4 style={{ fontFamily: "var(--font-sans)", fontSize: "15.5px", fontWeight: 700, color: "#191B1E", marginBottom: "6px" }}>{c.title}</h4>
                   <p style={{ fontFamily: "var(--font-sans)", fontSize: "14px", color: "#5E5A52", lineHeight: 1.65, margin: 0 }}>{c.desc}</p>
+                  {c.link && (
+                    <Link href={c.link.href} style={{ display: "inline-block", marginTop: "8px", fontFamily: "var(--font-sans)", fontSize: "13.5px", fontWeight: 700, color: "#B8944F", textDecoration: "none" }}>
+                      {c.link.label} →
+                    </Link>
+                  )}
                 </div>
               </div>
             ))}

@@ -79,6 +79,8 @@ const rsvpLinks = (partyId, eventId) => {
   return { accept: link('accepted'), decline: link('declined'), maybe: link('maybe'), manage: link(undefined) };
 };
 const orgEmailOk = (ev) => !(ev.notification_preferences && ev.notification_preferences.email === false);
+/** Subject lines follow the body's language — emailTemplates.pick is not exported. */
+const pickSubject = (lang, { en, ar }) => (lang === 'ar' ? ar : en);
 const primaryEmailOf = (party) => (party.guests || []).find((g) => g.is_primary_contact)?.email || null;
 
 /**
@@ -89,7 +91,7 @@ const primaryEmailOf = (party) => (party.guests || []).find((g) => g.is_primary_
  * seating_reminder template has a shape for that. Never throws — a missing link
  * degrades the message, it does not fail the send.
  */
-const ticketUrlFor = (party, ev, tableName = null) => {
+const ticketLinksFor = (party, ev, tableName = null) => {
   try {
     const token = tokenService.signQrTicketForResponse({
       response: party.response || 'yes',
@@ -99,11 +101,12 @@ const ticketUrlFor = (party, ev, tableName = null) => {
       partySize: (party.guests || []).length || 1,
       eventDate: ev.event_date,
     });
-    return token ? T.buildTicketLinks(token).ticketUrl : null;
+    return token ? T.buildTicketLinks(token) : null;
   } catch {
     return null;
   }
 };
+const ticketUrlFor = (party, ev, tableName = null) => ticketLinksFor(party, ev, tableName)?.ticketUrl || null;
 
 /**
  * Try to deliver a lifecycle message by SMS, and report whether the email should
@@ -174,32 +177,71 @@ async function jobRsvpReminders() {
   return sent;
 }
 
-/* ─── 2. Event reminders — confirmed guests, event imminent (+ table if revealed) ─── */
+/* ─── 2. The day-before reminder — table + entry pass, to confirmed guests ─── */
+
+/**
+ * How close the event has to be before this fires. Also the seating embargo:
+ * the guest ticket page keeps the chart locked until the same 24h mark.
+ */
+const EVENT_REMINDER_WINDOW_MS = DAY;
+
+/**
+ * ── WHY THIS WINDOW IS 24 HOURS AND NOT THREE DAYS ──
+ *
+ * It swept `event_date <= now + 3 days` while the table was attached only when
+ * `event_date <= now + 24 hours`. Both facts were correct in isolation and
+ * catastrophic together, because the dedupe key is `rsvp:<party>` for the whole
+ * event:
+ *
+ *   T-3d   first sweep matches → email sent with tableName = null
+ *   T-24h  sweep matches again → dispatch() sees the same (kind, ref) in
+ *          email_log and drops it as a duplicate
+ *
+ * So the ONLY reminder any guest ever received was the one that could not name
+ * their table — and it closed by promising that "your table assignment and QR
+ * check-in pass will arrive in a separate email closer to the day", an email no
+ * job in this file has ever sent. The seating leg failed identically: the
+ * `seating_reminder` text went out at T-3d under `evday:<party>` with a null
+ * table, and the day-before send was swallowed the same way.
+ *
+ * Narrowing the window to the reveal mark makes the first match the only match,
+ * and that match always has the table. One message per guest, at the moment it
+ * is useful, carrying everything: when, where, which table, and the scannable
+ * pass that opens the door.
+ *
+ * A guest seated for the first time inside this window is unaffected — that is
+ * jobSeatingNotices' `seat:<party>:<table>` ref, a different key on a different
+ * schedule.
+ */
 async function jobEventReminders() {
-  const soon = new Date(Date.now() + 3 * DAY).toISOString();
+  const soon = new Date(Date.now() + EVENT_REMINDER_WINDOW_MS).toISOString();
   const { data: events } = await supabase
     .from('events')
-    .select('id, title, slug, event_date, location_name, location_address, sms_addon_purchased_at, sms_settings')
+    // location_lat/location_lng are NOT optional now that this template renders
+    // the shared venue block: emailTemplates.buildMapsUrl prefers coordinates
+    // and silently falls back to a text search on the address when they are
+    // absent. That fallback works, but it drops a guest at whatever Google
+    // matches for a free-typed address rather than at the pin the organizer
+    // actually placed — on the one message they open outside the venue.
+    .select('id, title, slug, event_date, location_name, location_address, location_lat, location_lng, sms_addon_purchased_at, sms_settings')
     .eq('status', 'active').eq('is_paid', true)
     .gte('event_date', nowISO()).lte('event_date', soon)
     .limit(100);
   let sent = 0;
   for (const ev of (events || [])) {
-    const revealed = (new Date(ev.event_date).getTime() - Date.now()) <= DAY; // 24h seating reveal
     const { data: parties } = await supabase
-      .from('rsvp_parties').select('id, label, preferred_lang, guests(is_primary_contact, email), seating_assignments(tables(table_name))')
+      .from('rsvp_parties').select('id, label, response, preferred_lang, guests(is_primary_contact, email), seating_assignments(tables(table_name))')
       .eq('event_id', ev.id).eq('response', 'yes').limit(LIMIT);
     for (const party of (parties || [])) {
-      const tableName = revealed ? (party.seating_assignments?.[0]?.tables?.table_name || null) : null;
+      // Inside the window by construction, so the chart is revealed and this is
+      // the real, final table — no `revealed` check left to get out of step
+      // with the send window.
+      const tableName = party.seating_assignments?.[0]?.tables?.table_name || null;
+      const links = ticketLinksFor(party, ev, tableName);
+      const lang = party.preferred_lang === 'ar' ? 'ar' : 'en';
 
       /**
-       * THE DAY-BEFORE TEXT — the second and last time `seating_reminder` fires.
-       *
-       * A table number read weeks early is not the one anybody is looking at
-       * while standing outside a venue. This is the single most useful message in
-       * the whole lifecycle, and cutting the old `event_reminder` type without
-       * replacing it would have left a guest with nothing but a text from the day
-       * the organizer happened to seat them.
+       * THE DAY-BEFORE TEXT.
        *
        * ref is `evday:` and NOT `seat:` on purpose. The seating sweep uses
        * `seat:<party>:<table>`, so a guest seated at table 7 and then reminded
@@ -218,21 +260,29 @@ async function jobEventReminders() {
         ref: `evday:${party.id}`,
         // The language this guest actually used when they RSVP'd. Without it a
         // guest who replied in Arabic gets an English reminder days later.
-        lang: party.preferred_lang || 'en',
+        lang,
         context: {
           guestName: party.label,
           eventTitle: ev.title,
           dateLabel: T.formatEventDate ? T.formatEventDate(ev.event_date) : null,
           tableName,
-          ticketUrl: ticketUrlFor(party, ev, tableName),
+          ticketUrl: links?.ticketUrl || null,
         },
       });
 
       const email = primaryEmailOf(party);
       if (!email) continue;
       const r = { id: party.id, guest_name: party.label, email, party_size: (party.guests || []).length || 1 };
-      const html = T.getEventReminderTemplate(r, ev, { tableName });
-      const res = await dispatchWithRetry({ kind: 'event_reminder', ref: `rsvp:${party.id}`, to: email, subject: `See you soon at ${ev.title}`, html, eventId: ev.id });
+      const html = T.getEventReminderTemplate(r, ev, { tableName, links }, lang);
+      // No "Tomorrow:" here either — see the eyebrow note in
+      // getEventReminderTemplate. The send window is 0-24h, not exactly 24h,
+      // and event_date is UTC while "tomorrow" is a claim about the reader's
+      // local date.
+      const subject = pickSubject(lang, {
+        en: `Your table and entry pass for ${ev.title}`,
+        ar: `طاولتك وتذكرة دخولك لـ ${ev.title}`,
+      });
+      const res = await dispatchWithRetry({ kind: 'event_reminder', ref: `rsvp:${party.id}`, to: email, subject, html, eventId: ev.id });
       if (res.sent) sent++;
     }
   }

@@ -256,11 +256,27 @@ function TicketRoute({ token }) {
                     </p>
                   </div>
                 ) : (
-                  <SeatingResultPanel
-                    view={{ myTableName: payload.myTableName, myTableId: payload.myTableId, party: payload.party, tables: payload.tables }}
-                    loading={false}
-                    isRTL={isRTL}
-                  />
+                  <div style={{ borderTop: '1px solid #F0ECE3', paddingTop: '18px' }}>
+                    {/* A quiet heading so the seating block reads as a second
+                        section of the pass rather than more of the QR area —
+                        without it the map appeared to be part of the download
+                        instructions directly above. */}
+                    <span style={{
+                      display: 'block', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1.2px',
+                      color: '#77736A', fontWeight: 700, marginBottom: '12px', textAlign: 'center',
+                    }}>
+                      {isRTL ? 'مكانك في القاعة' : 'Where you are sitting'}
+                    </span>
+                    <SeatingResultPanel
+                      view={{ myTableName: payload.myTableName, myTableId: payload.myTableId, party: payload.party, tables: payload.tables }}
+                      loading={false}
+                      isRTL={isRTL}
+                      // The QR is what this page exists for. Everything below it
+                      // is reference, so the map preview shrinks and the expand
+                      // button carries anyone who actually wants to study it.
+                      compact
+                    />
+                  </div>
                 )}
               </>
             )}

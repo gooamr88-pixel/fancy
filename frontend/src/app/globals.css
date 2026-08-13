@@ -850,6 +850,18 @@ h3 {
   to { transform: rotate(360deg); }
 }
 
+/* The gold ring that marks "your table" on the guest's fullscreen seating map
+   (SeatingMapFullscreen). It lives here, unscoped, rather than in that
+   component's own <style jsx>: styled-jsx rewrites a scoped keyframe's name to
+   `fancySeatPulse-jsx-<hash>` but cannot rewrite the `animation:` string inside
+   an inline style object, so the scoped version silently matched nothing and
+   the ring never moved. Same trap already documented on the /ticket spinner. */
+@keyframes fancySeatPulse {
+  0%   { transform: scale(1);    opacity: 0.9; }
+  70%  { transform: scale(1.18); opacity: 0;   }
+  100% { transform: scale(1.18); opacity: 0;   }
+}
+
 .animate-fade-in-up {
   animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
@@ -1336,15 +1348,28 @@ html.fx-debug-overflow *:not(html):not(body) { outline-offset: -1px; }
     margin: 0 !important;
   }
 
-  /* Chrome/Edge strip background fills, tints, and shadows from print output
-     by default ("Background graphics" off) — losing exactly the zone tints
-     and table shading that make the printed chart read as a real floor plan
-     instead of a bare wireframe. Forces them on regardless of that setting. */
+  /* Chrome/Edge strip background fills and shadows from print output by
+     default ("Background graphics" off). The chart is now drawn entirely in
+     one ink on white — no tints, no fills, no shadows — so nothing depends on
+     this any more, but it stays: the white paper rect behind the floor plan
+     and the hairline rules are still backgrounds as far as that setting is
+     concerned, and dropping them would leave the plan floating on whatever
+     the printer decides. */
   .print-seating-chart,
   .print-seating-chart * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     color-adjust: exact !important;
+  }
+
+  /* Preview-only affordances inside the printable sheet — the selection halo
+     and the "moved on this printout" dashed outline. They live in the same
+     SVG the printer sees, so without this a chart printed while something was
+     still selected came out with a gold ring around it. Marking them rather
+     than clearing the selection before printing means the organizer can print,
+     look, adjust and print again without losing what they had picked. */
+  .ppm-screen-only {
+    display: none !important;
   }
 
   /* Bound the sheet to exactly one page. The on-screen preview sizes itself

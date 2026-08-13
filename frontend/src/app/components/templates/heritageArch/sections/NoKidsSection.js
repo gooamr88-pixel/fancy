@@ -86,8 +86,13 @@ function ChampagneGlyph({ color }) {
 // Promoted to its own premium section — previously the only guest-facing
 // trace of this toggle was 6.5px text on the miniature invitation card and a
 // generic "Note" row in the reveal's expand panel, easy to miss entirely.
+//
 // Organizer-gated (EventSettings "Adults-Only Notice" toggle,
-// event.no_kids_allowed) — off by default, wedding/engagement only.
+// event.no_kids_allowed) and off by default. NO LONGER wedding/engagement only:
+// HeritageArchPage now keys purely on the flag, so Custom Canvas and every
+// curated wedding variant can show it too. The copy below is deliberately
+// occasion-neutral ("this evening", "our adult guests") so it reads correctly
+// on a graduation dinner or a milestone birthday, not just a wedding.
 export default function NoKidsSection({ isRTL }) {
   const C = useFullPageTheme();
   const reduce = useReducedMotion();

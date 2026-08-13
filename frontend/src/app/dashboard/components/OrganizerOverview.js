@@ -251,26 +251,53 @@ function CheckInBanner() {
             Ready for guests to arrive?
           </h2>
           <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: '#B8B4A8', margin: '4px 0 0', lineHeight: 1.6 }}>
-            Open the check-in kiosk to scan tickets or search guests by name at the door.
+            Scan tickets or search guests by name at the door — in this browser, or on a tablet with the Fancy Check-in app.
           </p>
         </div>
       </div>
-      <Link
-        href="/checkin"
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        style={{
-          display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0,
-          padding: '11px 22px', borderRadius: 30, textDecoration: 'none',
-          background: hovered ? 'linear-gradient(135deg, #a6833f, #B8944F)' : 'linear-gradient(135deg, #D7BE80, #B8944F)',
-          color: '#191B1E', fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 700,
-          transition: 'all 0.25s ease', transform: hovered ? 'translateY(-2px)' : 'translateY(0)',
-          boxShadow: hovered ? '0 8px 22px rgba(184,148,79,0.35)' : '0 4px 14px rgba(184,148,79,0.2)',
-        }}
-      >
-        Open Check-In Kiosk
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
-      </Link>
+      {/**
+        * TWO DOORS, and this banner only ever offered one.
+        *
+        * It is the single most-seen surface in the 72 hours before an event —
+        * the whole reason `hasImminentEvent` gates it to that window — and it
+        * sent every organizer to the browser kiosk without ever mentioning that
+        * an offline tablet app exists. The app is the one that keeps working in
+        * a ballroom with no signal, which is exactly the situation this banner
+        * appears in.
+        *
+        * The kiosk stays the primary action: it works on any device, on any
+        * plan, right now, with nothing to install. The app is the secondary
+        * link because it needs a download, an Android tablet and a plan that
+        * includes it — see the note in dashboardNavItems for why the kiosk was
+        * kept as a permanent fallback rather than retired.
+        */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', flexShrink: 0 }}>
+        <Link
+          href="/checkin-app"
+          style={{
+            fontFamily: 'var(--font-sans)', fontSize: 12.5, fontWeight: 700,
+            color: '#D7BE80', textDecoration: 'none', whiteSpace: 'nowrap',
+          }}
+        >
+          Get the door app
+        </Link>
+        <Link
+          href="/checkin"
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0,
+            padding: '11px 22px', borderRadius: 30, textDecoration: 'none',
+            background: hovered ? 'linear-gradient(135deg, #a6833f, #B8944F)' : 'linear-gradient(135deg, #D7BE80, #B8944F)',
+            color: '#191B1E', fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 700,
+            transition: 'all 0.25s ease', transform: hovered ? 'translateY(-2px)' : 'translateY(0)',
+            boxShadow: hovered ? '0 8px 22px rgba(184,148,79,0.35)' : '0 4px 14px rgba(184,148,79,0.2)',
+          }}
+        >
+          Open Check-In Kiosk
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
+        </Link>
+      </div>
     </div>
   );
 }

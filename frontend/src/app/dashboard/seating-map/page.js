@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import { logout, apiFetch } from '../../utils/apiClient';
 import LogoutModal from '../../components/LogoutModal';
 import { useIsClient } from '../../utils/useIsClient';
-import Icon from '../../components/icons/Icon';
+import Icon, { ICON_PATHS } from '../../components/icons/Icon';
 import { useConfirm } from '../../components/useConfirm';
 // The shape catalogue and world geometry are shared with the two guest-facing
 // maps — see utils/seatingGeometry.js for why they must not be re-declared here.
@@ -19,6 +19,22 @@ import {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 const C = { gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC', champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF', danger: '#C45E5E' };
+/**
+ * THE PRINTED CHART IS DRAWN IN ONE INK.
+ *
+ * Not `C.charcoal` under a different name — a separate constant because it
+ * means something different. Everything inside the exported floor plan is this
+ * colour on white paper: no gold, no zone tints, no drop shadows, no fills.
+ *
+ * The screen map is colour-coded because colour is free there and helps an
+ * organizer scan a 200-element layout. On paper it is the opposite: half of
+ * these charts are printed on an office mono laser, where a #6B5FA8 dance floor
+ * and a #4A7C59 entrance both come out as the same indistinct grey wash behind
+ * the one thing anybody at the venue is actually reading — the table number.
+ * Weight, dash pattern and a glyph carry the distinctions instead, and all
+ * three survive a photocopier.
+ */
+const INK = '#101215';
 // Shared style for the "Select All ▾" menu's Type/Capacity <select> controls.
 const selectMenuInputStyle = { width: '100%', boxSizing: 'border-box', border: `1px solid ${C.border}`, borderRadius: 6, padding: '6px 8px', fontSize: 12, outline: 'none', marginTop: 3, background: C.white, color: C.charcoal, fontFamily: 'var(--font-sans, sans-serif)' };
 
@@ -34,6 +50,47 @@ const ROW_H = 58;          // guest row height (virtualization)
 const PAGE_SIZE = 100;     // server page size for guest list
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+/**
+ * ── THE VIEW CANNOT BE PANNED INTO NOTHING. ──
+ *
+ * `tx`/`ty` are the screen position of the world's origin, and until now they
+ * were completely unbounded. That was survivable while the only way to pan was
+ * to hold space and physically drag: getting lost took real effort, and "Fit"
+ * was there for when you did.
+ *
+ * It stops being survivable the moment the WHEEL pans. Two flicks of a trackpad
+ * move the view several thousand pixels, the 2600x1700 world leaves the
+ * viewport entirely, and the organizer is looking at blank ivory with no cue
+ * that their layout still exists — which is a new and worse version of the
+ * "مفيش حرية في التنقل" this whole change set out to fix.
+ *
+ * So: at least KEEP px of the world stays on screen on each axis. Not a hard
+ * "world must fill the viewport" clamp — you still need to pan a little past
+ * the edge to place an element near the boundary, and at a zoomed-out scale the
+ * world is SMALLER than the viewport, where such a rule would fight every
+ * gesture. `Math.min(KEEP, worldOnScreen)` handles that case by degrading to
+ * "the world may not leave the viewport at all".
+ *
+ * Applied centrally to every write that moves the view — drag, wheel, arrows,
+ * zoom buttons, and the drag-an-element edge auto-pan — so no future caller
+ * can reintroduce an unbounded one.
+ */
+const VIEW_KEEP_PX = 140;
+const clampView = (v, vw, vh) => {
+  // A zero-size viewport happens for one render before the ResizeObserver
+  // measures; clamping against it would slam tx/ty to nonsense.
+  if (!(vw > 0) || !(vh > 0)) return v;
+  const worldW = WORLD_W * v.scale;
+  const worldH = WORLD_H * v.scale;
+  const keepX = Math.min(VIEW_KEEP_PX, worldW);
+  const keepY = Math.min(VIEW_KEEP_PX, worldH);
+  return {
+    ...v,
+    tx: clamp(v.tx, keepX - worldW, vw - keepX),
+    ty: clamp(v.ty, keepY - worldH, vh - keepY),
+  };
+};
 
 /* ── Seat dots around a table ── */
 function renderSeats(shape, capacity, occupied, w, h) {
@@ -416,6 +473,11 @@ export default function SeatingMapPage() {
   const viewportRef = useRef(null);
   const [view, setView] = useState({ scale: 0.4, tx: 60, ty: 40 });
   const [containerSize, setContainerSize] = useState({ w: 900, h: 560 });
+  // Mirrors containerSize for the stable useCallback([]) handlers (onWheel, the
+  // pointermove pan, the edge auto-pan loop). Reading the state value there
+  // would capture whatever it was when the closure was created — 900x560, the
+  // placeholder — and clamp every pan against a viewport that isn't the real one.
+  const containerSizeRef = useRef({ w: 900, h: 560 });
   const [dragPos, setDragPos] = useState(null);          // { id, x, y } during element move
   const dragPosRef = useRef(null);                       // mirrors dragPos for pointerup closure
   const [selectedIds, setSelectedIds] = useState(() => new Set()); // multi-select (Select All, Ctrl/Cmd/Shift-click, + group move)
@@ -437,6 +499,23 @@ export default function SeatingMapPage() {
   // Drives the cursor and the toolbar hint while space is held — the ref that
   // actually gates the gesture cannot re-render anything.
   const [spacePanHint, setSpacePanHint] = useState(false);
+  /**
+   * ── THE ACTIVE TOOL. 'select' (default, unchanged) or 'hand'. ──
+   *
+   * Moving around this canvas used to require a gesture nobody discovers:
+   * hold space, or press the middle mouse button. A laptop trackpad has
+   * neither in easy reach, so on the machines most organizers actually use,
+   * the ONLY way to reach a part of the map that was off-screen was to hold a
+   * key down with one hand and drag with the other — "لازم الايد تسحب".
+   *
+   * A visible tool toggle is the fix every layout tool converged on, and it
+   * removes nothing: marquee-drag, space-drag, middle-drag and touch all still
+   * behave exactly as before while this sits on 'select'. It is a fourth way
+   * to pan, not a replacement for the first three.
+   */
+  const [tool, setTool] = useState('select');
+  const toolRef = useRef('select');
+  const setToolBoth = useCallback((next) => { toolRef.current = next; setTool(next); }, []);
   const marqueeRef = useRef(null);
   const elementsRef = useRef(elements);                  // lets pointerup read latest elements w/o re-binding the effect
   const viewRef = useRef(view);                           // lets pointerup read the latest pan/zoom w/o re-binding the effect
@@ -697,18 +776,23 @@ export default function SeatingMapPage() {
     return [...base, ...movedIn];
   }, [tableGuests, guests, pending, selected]);
 
-  /* ── container size (for culling) ── */
+  /* ── container size (for culling + the pan clamp) ── */
   useEffect(() => {
     const measure = () => {
       if (viewportRef.current) {
         const r = viewportRef.current.getBoundingClientRect();
+        containerSizeRef.current = { w: r.width, h: r.height };
         setContainerSize({ w: r.width, h: r.height });
       }
     };
     measure();
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
-  }, [loading]);
+    // The gate values matter for the same reason they do on the wheel listener:
+    // while this page is loading/errored/locked, viewportRef.current is null and
+    // a single run would measure nothing and never retry. `loading` alone was
+    // enough before the clamp needed a real size; it is not now.
+  }, [loading, error, authChecked, eventIsPaid, hasSeatingFeature]);
 
   /* ── culling: only render elements intersecting the viewport ── */
   const visibleElements = useMemo(() => {
@@ -795,6 +879,19 @@ export default function SeatingMapPage() {
   /* ════════ pointer interaction (pan / move / resize / rotate) ════════ */
   const onElementPointerDown = useCallback((e, id) => {
     if (e.button !== 0) return;
+
+    /**
+     * With the Hand tool picked, an element is just part of the floor.
+     *
+     * Falling through WITHOUT stopPropagation lets the canvas handler below
+     * start its pan, which is the whole point of the tool: "drag anywhere to
+     * move around" has to include dragging over a table, or the map is still
+     * unpannable in exactly the crowded middle where you most need it. It also
+     * makes the Hand tool a safe way to explore a finished layout — you
+     * cannot nudge a table out of place while looking at it.
+     */
+    if (toolRef.current === 'hand') return;
+
     e.stopPropagation();
 
     // A guest is "armed" from the list (tap-to-assign) — this tap seats them
@@ -913,8 +1010,16 @@ export default function SeatingMapPage() {
   }, [elements]);
 
   const onCanvasPointerDown = useCallback((e) => {
-    if (e.target.closest('[data-el-id]')) return;
-    if (e.button !== 0 && e.button !== 1) return;
+    // Pointers that landed on a table/zone belong to that element's own
+    // handler — EXCEPT under the Hand tool and the right button, the two
+    // gestures that mean "move the view" no matter what is underneath them.
+    // (onElementPointerDown deliberately does not stopPropagation in those
+    // cases, so the event reaches here.)
+    if (e.target.closest('[data-el-id]') && toolRef.current !== 'hand' && e.button !== 2) return;
+    // Button 2 (right) joins 0 and 1 here purely as a pan gesture — see
+    // wantsPan below and the onContextMenu that swallows the menu it would
+    // otherwise open. It never selects, never deselects and never marquees.
+    if (e.button !== 0 && e.button !== 1 && e.button !== 2) return;
 
     /**
      * DRAG SELECTS. Space-drag, middle-drag and touch pan.
@@ -930,7 +1035,8 @@ export default function SeatingMapPage() {
      * how you move around; there is no space bar and no middle button, so
      * turning that into a marquee would leave no way to pan at all.
      */
-    const wantsPan = e.button === 1 || spaceHeldRef.current || e.pointerType === 'touch';
+    const wantsPan = e.button === 1 || e.button === 2 || spaceHeldRef.current
+      || toolRef.current === 'hand' || e.pointerType === 'touch';
 
     if (!wantsPan) {
       const rect = viewportRef.current.getBoundingClientRect();
@@ -948,7 +1054,10 @@ export default function SeatingMapPage() {
 
     // Kept for the case where somebody still reaches for Shift-drag out of
     // habit while also holding space — selection wins, as it did before.
-    if (e.shiftKey && !(e.button === 1)) {
+    // The two pure-pan buttons are excluded: a Shift held during a middle- or
+    // right-drag is almost always left over from a previous gesture, and
+    // turning it into a marquee would make those two buttons unreliable.
+    if (e.shiftKey && e.button !== 1 && e.button !== 2) {
       const rect = viewportRef.current.getBoundingClientRect();
       const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
       setSelectedId(null);
@@ -962,9 +1071,18 @@ export default function SeatingMapPage() {
       return;
     }
 
-    // background → pan (and deselect)
-    setSelectedId(null);
-    setSelectedIds(new Set());
+    // background → pan.
+    //
+    // The two NEW pan gestures (right-drag, and the Hand tool) deliberately do
+    // NOT clear the selection: they exist to let you look at another part of
+    // the room while keeping hold of what you were working on. The three
+    // original ones keep clearing it, exactly as they always did, so nothing
+    // an organizer already relies on changes underneath them.
+    const keepsSelection = e.button === 2 || (toolRef.current === 'hand' && e.button === 0);
+    if (!keepsSelection) {
+      setSelectedId(null);
+      setSelectedIds(new Set());
+    }
     setPanning(true);
     interaction.current = { mode: 'pan', startX: e.clientX, startY: e.clientY, tx: view.tx, ty: view.ty };
   }, [view]);
@@ -1173,16 +1291,42 @@ export default function SeatingMapPage() {
         if (py < EDGE) stepY = speed(py);
         else if (py > rect.height - EDGE) stepY = -speed(rect.height - py);
         if (stepX !== 0 || stepY !== 0) {
-          setView(v => ({ ...v, tx: v.tx + stepX, ty: v.ty + stepY }));
-          // Panning tx/ty by +step shifts the world under a stationary cursor
-          // by -step/scale in world space; startX/Y must move the OPPOSITE
-          // way (+step) so applyMoveAt's (clientX - startX) delta shrinks to
-          // match — i.e. the dragged item stays glued to the cursor's screen
-          // position while the canvas scrolls underneath it, instead of
-          // drifting away from the pointer as the view pans.
-          it.startX += stepX;
-          it.startY += stepY;
-          applyMoveAt(lastPointerRef.current.x, lastPointerRef.current.y);
+          /**
+           * startX/Y are corrected by the distance the view ACTUALLY moved, not
+           * by the distance we asked it to move.
+           *
+           * Panning tx/ty by +step shifts the world under a stationary cursor by
+           * -step/scale in world space; startX/Y must move the OPPOSITE way
+           * (+step) so applyMoveAt's (clientX - startX) delta shrinks to match —
+           * i.e. the dragged item stays glued to the cursor instead of drifting
+           * away as the canvas scrolls underneath it.
+           *
+           * That correction was exact while pan was unbounded. It is not once
+           * clampView can refuse the move: at the world's edge the view would
+           * stop while startX kept accumulating, so every frame the pointer sat
+           * in the edge zone would shove the dragged element further from the
+           * cursor — at 16px/frame, right off the map.
+           *
+           * Read-then-write against viewRef rather than a functional setView
+           * updater: the correction is a side effect, and React invokes updaters
+           * twice under StrictMode to catch exactly that, which would double
+           * every correction in development. viewRef is assigned synchronously
+           * here so the next frame (16ms away, likely before React has committed
+           * and re-run the mirroring effect) reads the value this one produced.
+           */
+          const cur = viewRef.current;
+          const next = clampView({ ...cur, tx: cur.tx + stepX, ty: cur.ty + stepY }, rect.width, rect.height);
+          const dxApplied = next.tx - cur.tx;
+          const dyApplied = next.ty - cur.ty;
+          // Parked against the world edge: nothing moved, so don't re-render or
+          // nudge the drag origin 60 times a second for no reason.
+          if (dxApplied !== 0 || dyApplied !== 0) {
+            viewRef.current = next;
+            setView(next);
+            it.startX += dxApplied;
+            it.startY += dyApplied;
+            applyMoveAt(lastPointerRef.current.x, lastPointerRef.current.y);
+          }
         }
       }
       raf = requestAnimationFrame(tick);
@@ -1197,7 +1341,8 @@ export default function SeatingMapPage() {
       const it = interaction.current;
       if (!it) return;
       if (it.mode === 'pan') {
-        setView(v => ({ ...v, tx: it.tx + (e.clientX - it.startX), ty: it.ty + (e.clientY - it.startY) }));
+        const cs = containerSizeRef.current;
+        setView(v => clampView({ ...v, tx: it.tx + (e.clientX - it.startX), ty: it.ty + (e.clientY - it.startY) }, cs.w, cs.h));
       } else if (it.mode === 'move' || it.mode === 'group-move') {
         applyMoveAt(e.clientX, e.clientY);
       } else if (it.mode === 'resize') {
@@ -1314,24 +1459,84 @@ export default function SeatingMapPage() {
     // re-subscribe these listeners on every render.
   }, [view.scale, markGeometryDirty, snapToGrid]);
 
-  /* ── zoom on wheel (anchored to cursor) ── */
+  /**
+   * ── THE WHEEL SCROLLS THE MAP. Ctrl/Cmd + wheel zooms it. ──
+   *
+   * It used to zoom unconditionally, and that was the second half of "مفيش
+   * حرية في التنقل": the canvas has no scrollbars, so with the wheel spent on
+   * zoom there was no scroll gesture left at all. Wanting to see the tables
+   * below the ones on screen meant zooming out, losing all your detail, and
+   * zooming back in somewhere else.
+   *
+   * Plain wheel now pans vertically, Shift+wheel horizontally, and a trackpad's
+   * two-finger scroll pans in both axes at once (it reports a real deltaX,
+   * which the old handler threw away entirely). This is the same split Figma,
+   * Miro and Google Maps use, so Ctrl/Cmd+wheel remains the zoom for anyone
+   * with the muscle memory — and the toolbar's −/+/Fit buttons are untouched.
+   *
+   * deltaMode is honoured because a mouse wheel on Firefox reports LINE units
+   * (deltaY ≈ 3) rather than pixels; multiplying by a line height keeps one
+   * notch of a real wheel feeling like a scroll instead of a twitch.
+   */
   const onWheel = useCallback((e) => {
     e.preventDefault();
     const rect = viewportRef.current.getBoundingClientRect();
-    const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
-    setView(v => {
-      const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
-      const scale = clamp(v.scale * factor, MIN_SCALE, MAX_SCALE);
-      const k = scale / v.scale;
-      return { scale, tx: cx - (cx - v.tx) * k, ty: cy - (cy - v.ty) * k };
-    });
+
+    if (e.ctrlKey || e.metaKey) {
+      const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+      setView(v => {
+        const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+        const scale = clamp(v.scale * factor, MIN_SCALE, MAX_SCALE);
+        const k = scale / v.scale;
+        return clampView({ scale, tx: cx - (cx - v.tx) * k, ty: cy - (cy - v.ty) * k }, rect.width, rect.height);
+      });
+      return;
+    }
+
+    // DOM_DELTA_LINE = 1, DOM_DELTA_PAGE = 2; anything else is already pixels.
+    const unit = e.deltaMode === 1 ? 18 : e.deltaMode === 2 ? rect.height : 1;
+    let dx = e.deltaX * unit;
+    let dy = e.deltaY * unit;
+    // Shift+wheel is the conventional "scroll sideways" on a device with only
+    // one wheel axis. A trackpad already sends deltaX, so this only reassigns
+    // when there is no horizontal component to lose.
+    if (e.shiftKey && dx === 0) { dx = dy; dy = 0; }
+    // The view translates the world, so scrolling DOWN moves the world UP.
+    setView(v => clampView({ ...v, tx: v.tx - dx, ty: v.ty - dy }, rect.width, rect.height));
   }, []);
+
+  /**
+   * Bound by hand, NOT via JSX `onWheel`, and that is the whole reason wheel
+   * panning works at all.
+   *
+   * React registers `wheel` on its root container as a PASSIVE listener, so
+   * `preventDefault()` inside a synthetic onWheel handler is silently ignored
+   * (Chrome logs "Unable to preventDefault inside passive event listener").
+   * The dashboard page behind the canvas would therefore scroll on every
+   * notch while the map panned underneath it — the two moving at once. An
+   * explicit `{ passive: false }` listener is the same escape hatch
+   * SeatingMapFullscreen already uses for its own zoom.
+   */
+  useEffect(() => {
+    const node = viewportRef.current;
+    if (!node) return undefined;
+    node.addEventListener('wheel', onWheel, { passive: false });
+    return () => node.removeEventListener('wheel', onWheel);
+    // The gate values are dependencies because the canvas is BEHIND them: while
+    // this page is loading, errored, unauthenticated or payment-locked it
+    // returns early and viewportRef.current is null. With `[onWheel]` alone
+    // (a stable useCallback) this would run exactly once, on the loading
+    // render, find nothing to bind to, and never run again.
+  }, [onWheel, loading, error, authChecked, eventIsPaid, hasSeatingFeature]);
 
   const zoomBy = (factor) => setView(v => {
     const scale = clamp(v.scale * factor, MIN_SCALE, MAX_SCALE);
     const cx = containerSize.w / 2, cy = containerSize.h / 2, k = scale / v.scale;
-    return { scale, tx: cx - (cx - v.tx) * k, ty: cy - (cy - v.ty) * k };
+    return clampView({ scale, tx: cx - (cx - v.tx) * k, ty: cy - (cy - v.ty) * k }, containerSize.w, containerSize.h);
   });
+  // Deliberately NOT clamped: this IS the recovery action. Fit computes a
+  // known-good view from scratch, so running it through the clamp could only
+  // ever move it away from the one position guaranteed to show the layout.
   const resetView = () => setView({ scale: clamp(containerSize.w / WORLD_W, MIN_SCALE, MAX_SCALE), tx: 40, ty: 30 });
 
   /* ════════ guest drag & drop ════════ */
@@ -1670,13 +1875,57 @@ export default function SeatingMapPage() {
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') {
+      // Widened from INPUT/TEXTAREA to also cover SELECT and contenteditable:
+      // this handler now claims two bare letter keys (V and H), so anywhere a
+      // letter could legitimately be typed has to be excluded or the inspector's
+      // name field would start switching tools mid-word.
+      const ae = document.activeElement;
+      if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT' || ae.isContentEditable)) {
         return;
       }
 
       if (e.key === 'Escape' && selectedIds.size > 0) {
         e.preventDefault();
         setSelectedIds(new Set());
+        return;
+      }
+
+      /**
+       * V / H — the two tool shortcuts, matching every layout editor.
+       * Guarded on the modifier keys so they can never fire during Ctrl+V.
+       *
+       * `typeof e.key === 'string'` because this branch, unlike the Ctrl-key
+       * ones below it, runs on EVERY keydown. A synthetic or IME-composed event
+       * with no `key` would throw here and take the whole handler with it —
+       * meaning Delete, Ctrl+Z and the arrow keys would all stop working for the
+       * rest of the session, from a single malformed event.
+       */
+      if (typeof e.key === 'string' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const k = e.key.toLowerCase();
+        if (k === 'v') { e.preventDefault(); setToolBoth('select'); return; }
+        if (k === 'h') { e.preventDefault(); setToolBoth('hand'); return; }
+      }
+
+      /**
+       * ── ARROWS PAN THE VIEW WHEN NOTHING IS SELECTED. ──
+       *
+       * With a selection they nudge the element, which is what they have
+       * always done and is untouched below. With nothing selected they used to
+       * do nothing at all — an early `if (!selected) return` swallowed them —
+       * which is why the map felt like it had no keyboard navigation.
+       *
+       * Nudging is 1px (10 with Shift) because it is a precision act on one
+       * element; panning is a whole screen-ful of travel, so it uses a much
+       * larger screen-space step. Screen space, not world space, deliberately:
+       * a fixed world step would crawl when zoomed out and fly when zoomed in.
+       */
+      const ARROW_PAN = { ArrowUp: [0, 1], ArrowDown: [0, -1], ArrowLeft: [1, 0], ArrowRight: [-1, 0] };
+      if (!selected && selectedIds.size === 0 && ARROW_PAN[e.key]) {
+        e.preventDefault();
+        const [ux, uy] = ARROW_PAN[e.key];
+        const step = e.shiftKey ? 240 : 60;
+        const cs = containerSizeRef.current;
+        setView(v => clampView({ ...v, tx: v.tx + ux * step, ty: v.ty + uy * step }, cs.w, cs.h));
         return;
       }
 
@@ -1773,7 +2022,7 @@ export default function SeatingMapPage() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selected, selectedIds, snapToGrid, deleteElement, duplicateElement, undo, redo]);
+  }, [selected, selectedIds, snapToGrid, deleteElement, duplicateElement, undo, redo, setToolBoth]);
 
   const btn = { padding: '8px 16px', fontSize: 12, fontWeight: 700, borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', transition: 'all 0.2s' };
   const pendingCount = Object.keys(pending).length;
@@ -2057,6 +2306,46 @@ export default function SeatingMapPage() {
               )}
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+              {/* ── Select / Hand. The discoverable way to move around. ──
+                  Every other pan gesture (space, middle-drag, right-drag,
+                  one-finger touch) still works from either tool; this only
+                  changes what a PLAIN left-drag on empty canvas does, and it
+                  starts on Select so nothing behaves differently until it is
+                  deliberately switched. */}
+              {/* flexWrap is a no-op at any real width — the two buttons come to
+                  ~120px of min-content and the narrowest gutter leaves 280px —
+                  but test/mobileFit.test.js ratchets rigid horizontal rows to
+                  zero, and "it happens to fit today" is exactly the reasoning
+                  that put 397 rows on that list. */}
+              <div role="group" aria-label="Canvas tool" style={{ display: 'flex', flexWrap: 'wrap', border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden' }}>
+                {[
+                  { key: 'select', label: 'Select', hint: 'Select tool (V) — drag the background to box-select',
+                    icon: <path d="M3 2l7.5 18 2.4-7.1L20 10.5z" /> },
+                  { key: 'hand', label: 'Move', hint: 'Hand tool (H) — drag anywhere to move around the map',
+                    icon: <><path d="M18 11V6a2 2 0 0 0-4 0v5" /><path d="M14 10V4a2 2 0 0 0-4 0v7" /><path d="M10 10.5V6a2 2 0 0 0-4 0v9" /><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2a8 8 0 0 1-8-8v-1a2 2 0 1 1 4 0" /></> },
+                ].map(({ key, label, hint, icon }) => {
+                  const on = tool === key;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setToolBoth(key)}
+                      aria-pressed={on}
+                      title={hint}
+                      style={{
+                        ...btn, borderRadius: 0, border: 'none',
+                        background: on ? 'rgba(184,148,79,0.10)' : C.white,
+                        color: on ? C.gold : C.stone,
+                        padding: '6px 11px', minHeight: 'var(--fx-touch)',
+                        display: 'flex', alignItems: 'center', gap: 5,
+                      }}
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">{icon}</svg>
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
               <button onClick={() => setSnapToGrid(!snapToGrid)} style={{
                 ...btn,
                 background: snapToGrid ? 'rgba(184,148,79,0.08)' : C.white,
@@ -2082,11 +2371,16 @@ export default function SeatingMapPage() {
           <div
             ref={viewportRef}
             onPointerDown={onCanvasPointerDown}
-            onWheel={onWheel}
-            style={{ width: '100%', height: 590, background: C.ivory, border: `2px dashed ${C.border}`, borderRadius: 16, position: 'relative', overflow: 'hidden', /* The cursor is how the changed gesture is discoverable: holding space turns
-   it into a grab hand, which is the only cue that pan moved off plain drag.
-   Otherwise a crosshair, because plain drag now draws a selection box. */
-            cursor: panning ? 'grabbing' : spacePanHint ? 'grab' : 'crosshair', touchAction: 'none' }}
+            // Right-drag is a pan gesture here, so the browser menu that would
+            // otherwise open on mouseup has to be suppressed — without this the
+            // pan works but ends with a context menu over the map every time.
+            onContextMenu={(e) => e.preventDefault()}
+            style={{ width: '100%', height: 590, background: C.ivory, border: `2px dashed ${C.border}`, borderRadius: 16, position: 'relative', overflow: 'hidden', /* The cursor is the cue for which gesture is live: a grab hand while the
+   Hand tool is picked or space is held, a crosshair while a plain drag would
+   draw a selection box. (The wheel listener is attached imperatively in an
+   effect above, not here — React's synthetic onWheel is passive and cannot
+   preventDefault, which would let the dashboard scroll behind the map.) */
+            cursor: panning ? 'grabbing' : (tool === 'hand' || spacePanHint) ? 'grab' : 'crosshair', touchAction: 'none' }}
           >
             <div style={{ position: 'absolute', left: 0, top: 0, width: WORLD_W, height: WORLD_H, transformOrigin: '0 0', transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.scale})`, backgroundImage: 'radial-gradient(#E0D8C6 1px, transparent 1px)', backgroundSize: '32px 32px' }}>
               {visibleElements.map(el => {
@@ -2131,7 +2425,10 @@ export default function SeatingMapPage() {
               }} />
             )}
           </div>
-          <p style={{ fontSize: 11, color: C.stone, textAlign: 'center' }}>Scroll to zoom · drag the background to select · hold space or use the middle mouse button to pan · drag a guest onto a table to seat them · Ctrl/Cmd/Shift-click to add one to a selection.</p>
+          <p style={{ fontSize: 11, color: C.stone, textAlign: 'center' }}>
+            Scroll to move around · Shift-scroll sideways · Ctrl/Cmd-scroll or the −/+ buttons to zoom · arrow keys pan when nothing is selected<br />
+            Drag the background to select · switch to the Move tool, hold space, or drag with the right or middle mouse button to pan · drag a guest onto a table to seat them · Ctrl/Cmd/Shift-click to add one to a selection.
+          </p>
         </div>
 
         {/* ── Right: inspector ── */}
@@ -2376,43 +2673,45 @@ function getUniqueZoneName(elements, baseLabel) {
    surfaces the event details (table/zone/guest counts) a seating chart
    export should actually lead with — the previous version was a single
    centered stack with no real hierarchy and no event details at all. */
+/* Ink only, like the plan below it — the tinted gold stat pills and the gold
+   gradient rule went with the coloured floor plan. On a mono printer the pills
+   came out as grey lozenges competing with the event name; plain figures over a
+   hairline rule read as a document rather than a dashboard screenshot. The
+   wordmark keeps its own artwork: it is the brand signature, not decoration. */
 function PrintLetterhead({ eventTitle, organizerName, formattedDate, stats }) {
   const metaParts = [formattedDate, organizerName ? `Prepared for ${organizerName}` : null].filter(Boolean);
   return (
-    <div style={{ fontFamily: 'var(--font-sans, sans-serif)', flexShrink: 0 }}>
+    <div style={{ fontFamily: 'var(--font-sans, sans-serif)', flexShrink: 0, color: INK }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/logo.svg" alt="Fancy RSVP" style={{ height: 22, display: 'block' }} />
         <div style={{ textAlign: 'right' }}>
-          <p style={{ fontSize: 9.5, color: C.gold, margin: 0, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 800 }}>Seating Chart</p>
-          <p style={{ fontSize: 10, color: C.stone, margin: '2px 0 0' }}>Printed {new Date().toLocaleDateString()}</p>
+          <p style={{ fontSize: 9.5, color: INK, margin: 0, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800 }}>Seating Chart</p>
+          <p style={{ fontSize: 10, color: INK, opacity: 0.6, margin: '2px 0 0' }}>Printed {new Date().toLocaleDateString()}</p>
         </div>
       </div>
 
       <div style={{ textAlign: 'center', marginTop: 6 }}>
-        <h1 style={{ fontFamily: 'var(--font-serif, serif)', fontSize: 25, fontWeight: 600, margin: 0, color: C.charcoal, lineHeight: 1.2 }}>
+        <h1 style={{ fontFamily: 'var(--font-serif, serif)', fontSize: 25, fontWeight: 600, margin: 0, color: INK, lineHeight: 1.2 }}>
           {eventTitle || 'Seating Chart'}
         </h1>
         {metaParts.length > 0 && (
-          <p style={{ fontSize: 11.5, color: C.stone, margin: '4px 0 0', letterSpacing: '0.02em' }}>{metaParts.join('  ·  ')}</p>
+          <p style={{ fontSize: 11.5, color: INK, opacity: 0.65, margin: '4px 0 0', letterSpacing: '0.02em' }}>{metaParts.join('  ·  ')}</p>
         )}
       </div>
 
       {stats && stats.length > 0 && (
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'baseline', gap: 22, marginTop: 10, flexWrap: 'wrap' }}>
           {stats.map((s) => (
-            <div key={s.label} style={{
-              display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 5, padding: '5px 13px', borderRadius: 999,
-              background: 'rgba(184,148,79,0.07)', border: `1px solid rgba(184,148,79,0.25)`,
-            }}>
-              <span style={{ fontSize: 13, fontWeight: 800, color: C.gold }}>{s.value}</span>
-              <span style={{ fontSize: 9, color: C.stone, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>{s.label}</span>
-            </div>
+            <span key={s.label} style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5 }}>
+              <span style={{ fontSize: 13, fontWeight: 800, color: INK }}>{s.value}</span>
+              <span style={{ fontSize: 9, color: INK, opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.09em', fontWeight: 700 }}>{s.label}</span>
+            </span>
           ))}
         </div>
       )}
 
-      <div style={{ height: 1, margin: '12px 0 0', background: `linear-gradient(90deg, transparent, ${C.border} 15%, ${C.gold} 50%, ${C.border} 85%, transparent)` }} />
+      <div style={{ height: 1, margin: '11px 0 0', background: INK, opacity: 0.85 }} />
     </div>
   );
 }
@@ -2423,9 +2722,9 @@ function PrintLetterhead({ eventTitle, organizerName, formattedDate, stats }) {
 function PrintFooter() {
   return (
     <div style={{ textAlign: 'center', flexShrink: 0, fontFamily: 'var(--font-sans, sans-serif)' }}>
-      <div style={{ width: 88, height: 1, margin: '0 auto 8px', background: C.border }} />
-      <p style={{ fontSize: 9, color: C.stone, margin: 0, letterSpacing: '0.03em' }}>
-        Crafted with <span style={{ color: C.gold, fontWeight: 700 }}>Fancy RSVP</span>
+      <div style={{ width: 88, height: 1, margin: '0 auto 8px', background: INK, opacity: 0.25 }} />
+      <p style={{ fontSize: 9, color: INK, opacity: 0.6, margin: 0, letterSpacing: '0.03em' }}>
+        Crafted with <span style={{ fontWeight: 700 }}>Fancy RSVP</span>
       </p>
     </div>
   );
@@ -2465,6 +2764,24 @@ function compareTableNames(a, b) {
    Floor plan + roster share ONE page (see the file-level history in git
    blame / project memory for why — this used to force the roster onto a
    second page, and a long roster would then overflow onto a third).
+
+   ── THE DIAGRAM IS DRAWN IN ONE INK. See the INK constant at the top. ──
+
+   Every element is a white shape with a black outline. Tables carry their
+   NUMBER and nothing else; zones carry their catalogue GLYPH and nothing
+   else, with a legend beneath the plan naming them. Removed from the sheet
+   in the process: the paper tint, the gold table strokes, the translucent
+   zone fills, the white zone label chips, the drop shadow on every element,
+   and the "N / cap seated" line under each table number.
+
+   The glyph-plus-legend split is the part worth defending. Putting "DANCE
+   FLOOR" inside the shape means the longest words land on the largest zones
+   and the type either shrinks below reading size or spills over a table
+   sitting inside the zone — which is exactly what the old white label chip
+   was clipping around. A glyph is a fixed, dense mark that never collides,
+   and the legend gives it a name once, in body copy, at full size. It also
+   keeps a free-text "Custom Area" readable: its typed name lands in the
+   legend rather than being crushed into a 130px box.
    ════════════════════════════════════════════════════════════════ */
 function PrintPreviewModal({ eventTitle, eventDate, organizerName, elements, namesByTable, summary, onClose }) {
   const [overrides, setOverrides] = useState({});
@@ -2542,6 +2859,28 @@ function PrintPreviewModal({ eventTitle, eventDate, organizerName, elements, nam
       guests: [...(namesByTable[el.id] || [])].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })),
     }))
     .sort((a, b) => compareTableNames(a.name, b.name));
+
+  /**
+   * The key to the glyphs on the plan — one row per zone actually placed.
+   *
+   * Keyed by the zone's own NAME rather than its shape, so two "Bar" elements
+   * collapse to one row while a "Bar" and a "Champagne Bar" (both the `bar`
+   * shape, one renamed) stay distinct. Without that, an organizer who renamed
+   * their zones would get a legend that silently disagreed with the plan.
+   * Skips anything whose shape has no icon, since it draws nothing to explain.
+   */
+  const zoneLegend = useMemo(() => {
+    const seen = new Map();
+    (elements || []).filter(isZone).forEach((el) => {
+      const meta = shapeMeta(el.shape);
+      if (!meta.icon || !ICON_PATHS[meta.icon]) return;
+      const name = (el.table_name || meta.label || '').trim() || meta.label;
+      const key = `${meta.icon}::${name.toLowerCase()}`;
+      if (seen.has(key)) { seen.get(key).count += 1; return; }
+      seen.set(key, { key, icon: meta.icon, name, count: 1 });
+    });
+    return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+  }, [elements]);
 
   const totalGuests = roster.reduce((sum, t) => sum + t.guests.length, 0);
   const rosterCols = totalGuests > 260 ? 3 : totalGuests > 90 ? 2 : 1;
@@ -2718,23 +3057,24 @@ function PrintPreviewModal({ eventTitle, eventDate, organizerName, elements, nam
 
               <div style={{ flex: 1, minHeight: 0, display: 'flex', flexWrap: 'wrap', gap: 20, margin: '14px 0' }}>
                 {/* ── Floor plan — the visual centerpiece, ~60% of the sheet width ── */}
-                <div className="print-diagram-frame" style={{ flex: roster.length > 0 ? '1.45 1 0' : '1 1 0', minWidth: 0, borderRadius: 12, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
+                {/* The frame and the legend rule are INK too — C.border is a warm
+                    beige that prints as an off-grey next to true-black geometry,
+                    which is exactly the kind of near-miss that makes a mono
+                    printout look accidental rather than designed. */}
+                <div className="print-diagram-frame" style={{ flex: roster.length > 0 ? '1.45 1 0' : '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0, borderRadius: 12, border: `1px solid ${INK}33`, overflow: 'hidden', background: '#FFFFFF' }}>
                   <svg
                     ref={svgRef}
                     viewBox={`${minX} ${minY} ${boxW} ${boxH}`}
                     preserveAspectRatio="xMidYMid meet"
-                    style={{ width: '100%', height: '100%', display: 'block', touchAction: 'none' }}
+                    style={{ width: '100%', flex: 1, minHeight: 0, display: 'block', touchAction: 'none' }}
                     onPointerDown={onSvgBackgroundPointerDown}
                     onPointerMove={onSvgPointerMove}
                     onPointerUp={endDrag}
                     onPointerCancel={endDrag}
                   >
-                    <defs>
-                      <filter id="printElShadow" x="-30%" y="-30%" width="160%" height="160%">
-                        <feDropShadow dx="0" dy="3" stdDeviation="4" floodColor="#191B1E" floodOpacity="0.16" />
-                      </filter>
-                    </defs>
-                    <rect x={minX} y={minY} width={boxW} height={boxH} fill="#FDFCF9" />
+                    {/* Paper. Plain white, and nothing else is ever painted
+                        behind an element — see the INK note above. */}
+                    <rect x={minX} y={minY} width={boxW} height={boxH} fill="#FFFFFF" />
                     {displayElements.map((el) => {
                       const zone = isZone(el);
                       const meta = shapeMeta(el.shape);
@@ -2743,24 +3083,27 @@ function PrintPreviewModal({ eventTitle, eventDate, organizerName, elements, nam
                       const cx = elCenterX(el);
                       const cy = elCenterY(el);
                       const rot = Number(el.rotation) || 0;
-                      const names = namesByTable[el.id] || [];
-                      const cap = el.max_capacity || 0;
-                      const shapeColor = zone ? (el.color || meta.color || '#999999') : C.gold;
                       const moved = !!overrides[el.id];
                       const selected = selectedIds.has(el.id);
 
-                      // A custom-typed zone label (the one free-text shape name an
-                      // organizer can enter) has no length limit — clipped to the
-                      // shape's own bounds so a long label can never visually spill
-                      // across a neighboring table instead of just being cropped.
-                      const clipId = `clip-${el.id}`;
+                      // Zone glyph — sized to the shape but bounded, so a huge
+                      // hall outline doesn't get a comically large icon and a
+                      // small DJ booth still gets a legible one.
+                      const glyph = zone ? ICON_PATHS[meta.icon] : null;
+                      const gs = Math.max(34, Math.min(72, Math.min(w, h) * 0.42));
+                      // Number size tracks the table, bounded so a 96px round
+                      // table and a 250px head table both stay readable.
+                      const numSize = Math.max(26, Math.min(38, Math.min(w, h) * 0.42));
+
                       return (
                         <g key={el.id} onPointerDown={(e) => onElPointerDown(e, el)} style={{ cursor: dragging ? 'grabbing' : 'grab' }}>
-                          {/* Selection halo — a soft ring behind the shape, distinct
-                              from the moved indicator (dashed border) below, since an
-                              element can be selected without having been dragged yet. */}
+                          {/* Selection halo and the "moved on this printout" mark
+                              are PREVIEW affordances, not part of the document —
+                              .ppm-screen-only hides both at print time (globals.css),
+                              so a sheet printed with something still selected comes
+                              out identical to one printed with nothing selected. */}
                           {selected && (
-                            <g transform={`translate(${cx} ${cy}) rotate(${rot})`}>
+                            <g className="ppm-screen-only" transform={`translate(${cx} ${cy}) rotate(${rot})`}>
                               {meta.round ? (
                                 <ellipse rx={w / 2 + 7} ry={h / 2 + 7} fill="none" stroke={C.gold} strokeWidth={2.5} strokeOpacity={0.45} />
                               ) : (
@@ -2768,40 +3111,62 @@ function PrintPreviewModal({ eventTitle, eventDate, organizerName, elements, nam
                               )}
                             </g>
                           )}
-                          {/* Shape rotates with the table; labels below stay upright
-                              regardless, so a rotated table is still legible on paper. */}
-                          <g transform={`translate(${cx} ${cy}) rotate(${rot})`} filter="url(#printElShadow)">
+                          {moved && (
+                            <g className="ppm-screen-only" transform={`translate(${cx} ${cy}) rotate(${rot})`}>
+                              {meta.round ? (
+                                <ellipse rx={w / 2 + 3} ry={h / 2 + 3} fill="none" stroke={C.gold} strokeWidth={2} strokeDasharray="10 6" />
+                              ) : (
+                                <rect x={-w / 2 - 3} y={-h / 2 - 3} width={w + 6} height={h + 6} rx={zone ? 14 : 16} fill="none" stroke={C.gold} strokeWidth={2} strokeDasharray="10 6" />
+                              )}
+                            </g>
+                          )}
+
+                          {/* THE SHAPE. Ink outline, white fill, nothing else.
+                              A table is a solid rule; a zone is a dashed one, which
+                              is how every real floor plan distinguishes "furniture
+                              you sit at" from "an area of the room" without needing
+                              a single drop of colour. */}
+                          <g transform={`translate(${cx} ${cy}) rotate(${rot})`}>
                             {meta.round ? (
-                              <ellipse rx={w / 2} ry={h / 2} fill={zone ? shapeColor : '#FFFFFF'} fillOpacity={zone ? 0.16 : 1} stroke={moved ? C.gold : shapeColor} strokeWidth={zone ? 3 : 4} strokeDasharray={moved ? '10 6' : undefined} />
+                              <ellipse rx={w / 2} ry={h / 2} fill="#FFFFFF" stroke={INK} strokeWidth={zone ? 1.6 : 2.6} strokeOpacity={zone ? 0.55 : 1} strokeDasharray={zone ? '11 8' : undefined} />
                             ) : (
-                              <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={zone ? 12 : 14} fill={zone ? shapeColor : '#FFFFFF'} fillOpacity={zone ? 0.16 : 1} stroke={moved ? C.gold : shapeColor} strokeWidth={zone ? 3 : 4} strokeDasharray={moved ? '10 6' : undefined} />
+                              <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={zone ? 12 : 14} fill="#FFFFFF" stroke={INK} strokeWidth={zone ? 1.6 : 2.6} strokeOpacity={zone ? 0.55 : 1} strokeDasharray={zone ? '11 8' : undefined} />
                             )}
                           </g>
-                          <defs>
-                            <clipPath id={clipId}>
-                              {meta.round ? <ellipse rx={w / 2 - 3} ry={h / 2 - 3} /> : <rect x={-w / 2 + 3} y={-h / 2 + 3} width={w - 6} height={h - 6} />}
-                            </clipPath>
-                          </defs>
-                          <g transform={`translate(${cx} ${cy})`} clipPath={`url(#${clipId})`} fontFamily="var(--font-sans, sans-serif)" textAnchor="middle" style={{ pointerEvents: 'none' }}>
-                            {zone && (
-                              <rect
-                                x={-Math.min(w - 16, 240) / 2} y={-27}
-                                width={Math.min(w - 16, 240)} height={44} rx={10}
-                                fill="rgba(255,255,255,0.94)" stroke={shapeColor} strokeOpacity={0.24}
-                              />
-                            )}
-                            <text
-                              y={zone ? 8 : (cap > 0 ? -6 : 8)}
-                              fontSize={zone ? 26 : 32}
-                              fontWeight={zone ? 700 : 800}
-                              fill={C.charcoal}
-                              style={zone ? { textTransform: 'uppercase', letterSpacing: '1.5px' } : undefined}
-                            >
-                              {el.table_name}
-                            </text>
-                            {!zone && cap > 0 && (
-                              <text y={22} fontSize={18} fontWeight={600} fill={names.length >= cap ? '#C45E5E' : C.stone}>
-                                {names.length} / {cap} seated
+
+                          {/* THE ONE THING ON EACH ELEMENT.
+                              A table carries its number and nothing else — no
+                              occupancy count, no guest name, no fill. A zone
+                              carries its glyph and nothing else; the legend under
+                              the diagram is what names it. Both stay upright
+                              regardless of the shape's rotation. */}
+                          <g transform={`translate(${cx} ${cy})`} style={{ pointerEvents: 'none' }}>
+                            {zone ? (
+                              glyph && (
+                                <g
+                                  transform={`translate(${-gs / 2} ${-gs / 2}) scale(${gs / 24})`}
+                                  fill="none" stroke={INK} strokeOpacity={0.72}
+                                  strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"
+                                >
+                                  {glyph}
+                                </g>
+                              )
+                            ) : (
+                              <text
+                                // SVG text sits on its baseline, so optically
+                                // centring means dropping it by roughly a third
+                                // of the cap height. A fixed offset would float
+                                // high on a big head table and sit low on a small
+                                // round one; scaling with the type keeps every
+                                // number centred in its own shape.
+                                y={numSize * 0.35}
+                                textAnchor="middle"
+                                fontFamily="var(--font-sans, sans-serif)"
+                                fontSize={numSize}
+                                fontWeight={800}
+                                fill={INK}
+                              >
+                                {el.table_name}
                               </text>
                             )}
                           </g>
@@ -2820,6 +3185,28 @@ function PrintPreviewModal({ eventTitle, eventDate, organizerName, elements, nam
                       />
                     )}
                   </svg>
+
+                  {/* ── Key to the glyphs. Only rendered when there are zones. ──
+                      Sits inside the framed diagram rather than under it, so the
+                      plan and its key read as one figure and the key can never be
+                      separated from the drawing it explains by a page break. */}
+                  {zoneLegend.length > 0 && (
+                    <div style={{
+                      flexShrink: 0, borderTop: `1px solid ${INK}26`, padding: '8px 12px',
+                      display: 'flex', flexWrap: 'wrap', gap: '6px 18px', justifyContent: 'center',
+                      fontFamily: 'var(--font-sans, sans-serif)',
+                    }}>
+                      {zoneLegend.map((z) => (
+                        <span key={z.key} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 10, color: INK, letterSpacing: '0.04em' }}>
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={INK} strokeOpacity={0.72} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            {ICON_PATHS[z.icon]}
+                          </svg>
+                          <span style={{ textTransform: 'uppercase', fontWeight: 700 }}>{z.name}</span>
+                          {z.count > 1 && <span style={{ opacity: 0.55, fontWeight: 600 }}>×{z.count}</span>}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* ── Table Assignments — same sheet, right-hand column. Column
@@ -2827,7 +3214,7 @@ function PrintPreviewModal({ eventTitle, eventDate, organizerName, elements, nam
                     its own page. ── */}
                 {roster.length > 0 && (
                   <div style={{ flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                    <h2 style={{ fontFamily: 'var(--font-serif, serif)', fontSize: 15, fontWeight: 600, margin: '0 0 10px', color: C.charcoal, textAlign: 'center', fontStyle: 'italic', flexShrink: 0 }}>
+                    <h2 style={{ fontFamily: 'var(--font-serif, serif)', fontSize: 15, fontWeight: 600, margin: '0 0 10px', color: INK, textAlign: 'center', fontStyle: 'italic', flexShrink: 0 }}>
                       Table Assignments
                     </h2>
                     <div style={{
@@ -2835,11 +3222,16 @@ function PrintPreviewModal({ eventTitle, eventDate, organizerName, elements, nam
                       gridTemplateColumns: `repeat(${rosterCols}, 1fr)`, gap: '6px 12px', alignContent: 'start',
                     }}>
                       {roster.map((t) => (
-                        <div key={t.id} style={{ breakInside: 'avoid', padding: rosterPad, borderRadius: 9, border: `1px solid ${C.border}`, background: '#FDFCF9' }}>
-                          <div style={{ fontWeight: 800, fontSize: rosterFontSize + 1, color: C.charcoal, marginBottom: 2 }}>
-                            <span style={{ color: C.gold }}>{t.name}</span> <span style={{ fontWeight: 500, color: C.stone }}>({t.guests.length})</span>
+                        /* No card fill and no rounded box — a hairline rule under
+                           each table name. Fifty tinted cards on one sheet is the
+                           other half of "شيل اي خلفيات": on paper they read as
+                           fifty grey rectangles, and the guest names inside them
+                           are the thing anybody is trying to read. */
+                        <div key={t.id} style={{ breakInside: 'avoid', padding: rosterPad, paddingLeft: 0, paddingRight: 0 }}>
+                          <div style={{ fontWeight: 800, fontSize: rosterFontSize + 1, color: INK, marginBottom: 3, paddingBottom: 2, borderBottom: `1px solid ${INK}`, display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8 }}>
+                            <span>{t.name}</span> <span style={{ fontWeight: 600, opacity: 0.55 }}>{t.guests.length}</span>
                           </div>
-                          <div style={{ fontSize: rosterFontSize, lineHeight: 1.5, color: '#333333' }}>{t.guests.join(', ')}</div>
+                          <div style={{ fontSize: rosterFontSize, lineHeight: 1.5, color: INK, opacity: 0.85 }}>{t.guests.join(', ')}</div>
                         </div>
                       ))}
                     </div>

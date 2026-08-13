@@ -1019,7 +1019,12 @@ export default function Stage2_FormConfiguration({
             </label>
           </Field>
 
-          {(templateType === 'wedding' || templateType === 'engagement') && setNoKidsAllowed && (
+          {/* Offered for every full-page template, not just wedding/engagement.
+              A Custom Canvas event or one of the curated wedding variants could
+              not turn this on at all, even though the guest page renders the
+              notice for any event whose flag is set — see the matching gates in
+              HeritageArchPage and EventSettings, both widened alongside this. */}
+          {isFullPage(templateType) && setNoKidsAllowed && (
             <Field label="Adults-Only Notice">
               <label style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 10, fontSize: 13, color: C.charcoal, cursor: 'pointer', userSelect: 'none' }}>
                 <input type="checkbox" checked={!!noKidsAllowed}
@@ -1028,7 +1033,7 @@ export default function Stage2_FormConfiguration({
                 <span>
                   Show &quot;No Kids Allowed&quot; on the invitation
                   <span style={{ display: 'block', color: C.stone, fontSize: 12, marginTop: 3, fontWeight: 400, lineHeight: 1.5 }}>
-                    Off by default. When on, a quiet notice appears on the invitation card and the envelope reveal so guests know it&apos;s an adults-only celebration.
+                    Off by default. When on, a quiet notice appears on the invitation card and the envelope reveal, and the invitation page gains its own &quot;A Kind Note&quot; section, so guests know it&apos;s an adults-only celebration.
                   </span>
                 </span>
               </label>

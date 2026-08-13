@@ -230,7 +230,22 @@ export default function HeritageArchPage({
   // 6.5px text on the miniature invitation card and a generic "Note" row in
   // the reveal's expand panel — easy to miss entirely, not the premium,
   // unmissable notice an adults-only celebration needs guests to actually see.
-  const showNoKids = (event.template_type === 'wedding' || event.template_type === 'engagement') && !!event.no_kids_allowed;
+  /**
+   * THE FLAG IS THE GATE. The template is not.
+   *
+   * This used to also require `template_type` to be exactly 'wedding' or
+   * 'engagement', which quietly excluded every other event rendered by this
+   * same engine — Custom Canvas above all, the one template whose entire
+   * premise is "every feature from every event type, add or remove what you
+   * like". An organizer running an adults-only graduation dinner or a curated
+   * Tuscany wedding could not show the notice at all, and nothing told them
+   * why: the section simply never appeared.
+   *
+   * `no_kids_allowed` already defaults to false, so an event that has not
+   * asked for it still shows nothing. The template check was adding no safety
+   * on top of that — only a silent exclusion.
+   */
+  const showNoKids = !!event.no_kids_allowed;
   if (showNoKids) {
     middleSections.nokids = { id: 'ha-nokids', content: <NoKidsSection isRTL={isRTL} /> };
   }

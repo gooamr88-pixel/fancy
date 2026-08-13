@@ -34,6 +34,25 @@
  * Guest names and event titles are organizer/guest-supplied and unbounded. Left
  * raw, one long title turns a one-segment message into four, for the entire guest
  * list. Every interpolated value goes through `clip`.
+ *
+ * ── Plain words, not short words ──
+ *
+ * These are read by people of every age, on a lock screen, often in a second
+ * language, frequently while standing outside a venue. So the vocabulary is
+ * deliberately ordinary: "You are at table 12" rather than "Your table: 12",
+ * "Show this at the door" rather than "Entry pass", "you are coming to" rather
+ * than "you're confirmed for". Product nouns ("entry pass", "seating map") are
+ * things this company named; a table and a door are things everybody already
+ * knows.
+ *
+ * THE RULE WHEN EDITING COPY HERE: re-measure. Plainer is usually also longer,
+ * and length is billed. Every rewording above was checked against
+ * utils/smsSegments with the real 78-character compliance footer and a shortened
+ * link, and none of them crossed a segment boundary — the English bodies gained
+ * up to 16 characters inside two segments that hold 306, and the Arabic ones got
+ * SHORTER because UCS-2 gives them almost no room to spend (see the note in
+ * seating_reminder's Arabic builder). A rewrite that reads better and quietly
+ * adds a segment has made every event on the platform more expensive.
  */
 
 const EN = 'en';
@@ -124,20 +143,33 @@ const TEMPLATES = {
       const what = clip(eventTitle, TITLE_MAX);
       const table = tableName ? clip(tableName, TABLE_MAX) : null;
       const when = dateLabel ? ` is ${dateLabel}` : '';
-      if (table && when) return `${who}, ${what}${when}. Your table: ${table}. Entry pass: ${ticketUrl}`;
-      if (table) return `${who}, your table for ${what} is ${table}. Entry pass: ${ticketUrl}`;
-      if (when) return `${who}, ${what}${when}. Your entry pass: ${ticketUrl}`;
-      return `${who}, your entry pass for ${what}: ${ticketUrl}`;
+      if (table && when) return `${who}, ${what}${when}. You are at table ${table}. Show this at the door: ${ticketUrl}`;
+      if (table) return `${who}, you are at table ${table} for ${what}. Show this at the door: ${ticketUrl}`;
+      if (when) return `${who}, ${what}${when}. Show this at the door: ${ticketUrl}`;
+      return `${who}, show this at the door for ${what}: ${ticketUrl}`;
     },
     [AR]: ({ guestName, eventTitle, tableName, ticketUrl, dateLabel }) => {
       const who = clip(guestName, NAME_MAX);
       const what = clip(eventTitle, TITLE_MAX);
       const table = tableName ? clip(tableName, TABLE_MAX) : null;
       const when = dateLabel ? ` ${dateLabel}` : '';
-      if (table && when) return `${who}، ${what}${when}. طاولتك: ${table}. تذكرة الدخول: ${ticketUrl}`;
-      if (table) return `${who}، طاولتك في ${what}: ${table}. تذكرة الدخول: ${ticketUrl}`;
-      if (when) return `${who}، ${what}${when}. تذكرة دخولك: ${ticketUrl}`;
-      return `${who}، تذكرة دخولك لـ ${what}: ${ticketUrl}`;
+      /**
+       * The Arabic leg says "تذكرتك" where the English says "Show this at the
+       * door", and that asymmetry is a budget decision, not an oversight.
+       *
+       * Arabic forces UCS-2: 67 units per segment against GSM-7's 153. The
+       * English body has ~100 units of slack inside its two segments and can
+       * afford the longer, plainer instruction. The Arabic one sits ~15 units
+       * under its third segment boundary, so the same phrase (+5 units over the
+       * old wording) would tip a realistic message to four segments — a third
+       * more, for every guest, on every event. "تذكرتك" is both the plainer
+       * word AND six units shorter than the "تذكرة الدخول" it replaces, so this
+       * reads more simply and costs less than what was here before.
+       */
+      if (table && when) return `${who}، ${what}${when}. مكانك طاولة ${table}. تذكرتك: ${ticketUrl}`;
+      if (table) return `${who}، مكانك في ${what} طاولة ${table}. تذكرتك: ${ticketUrl}`;
+      if (when) return `${who}، ${what}${when}. تذكرتك: ${ticketUrl}`;
+      return `${who}، تذكرتك لـ ${what}: ${ticketUrl}`;
     },
   },
 
@@ -174,29 +206,29 @@ const TEMPLATES = {
    */
   rsvp_confirmation: {
     [EN]: ({ guestName, eventTitle, dateLabel, venue, tableName, companions, meals, ticketUrl }) => {
-      const parts = [`${clip(guestName, NAME_MAX)}, you're confirmed for ${clip(eventTitle, TITLE_MAX)}`];
+      const parts = [`${clip(guestName, NAME_MAX)}, you are coming to ${clip(eventTitle, TITLE_MAX)}`];
       if (dateLabel) parts.push(` on ${clip(dateLabel, 34)}`);
-      if (venue) parts.push(`, ${clip(venue, VENUE_MAX)}`);
+      if (venue) parts.push(` at ${clip(venue, VENUE_MAX)}`);
       parts.push('.');
-      if (tableName) parts.push(` Your table: ${clip(tableName, TABLE_MAX)}.`);
+      if (tableName) parts.push(` You are at table ${clip(tableName, TABLE_MAX)}.`);
       const withYou = clipList(companions, COMPANION_MAX, 3);
       if (withYou) parts.push(` With you: ${withYou}.`);
       const food = clipList(meals, MEAL_MAX, 4);
-      if (food) parts.push(` Meals: ${food}.`);
-      if (ticketUrl) parts.push(` Your pass and seating map: ${ticketUrl}`);
+      if (food) parts.push(` Food: ${food}.`);
+      if (ticketUrl) parts.push(` Your pass and map: ${ticketUrl}`);
       return parts.join('');
     },
     [AR]: ({ guestName, eventTitle, dateLabel, venue, tableName, companions, meals, ticketUrl }) => {
-      const parts = [`${clip(guestName, NAME_MAX)}، تم تأكيد حضورك لـ ${clip(eventTitle, TITLE_MAX)}`];
+      const parts = [`${clip(guestName, NAME_MAX)}، حضورك مؤكد في ${clip(eventTitle, TITLE_MAX)}`];
       if (dateLabel) parts.push(` ${clip(dateLabel, 34)}`);
       if (venue) parts.push(`، ${clip(venue, VENUE_MAX)}`);
       parts.push('.');
-      if (tableName) parts.push(` طاولتك: ${clip(tableName, TABLE_MAX)}.`);
+      if (tableName) parts.push(` مكانك طاولة ${clip(tableName, TABLE_MAX)}.`);
       const withYou = clipList(companions, COMPANION_MAX, 3);
       if (withYou) parts.push(` معك: ${withYou}.`);
       const food = clipList(meals, MEAL_MAX, 4);
-      if (food) parts.push(` الوجبات: ${food}.`);
-      if (ticketUrl) parts.push(` تذكرتك وخريطة الجلوس: ${ticketUrl}`);
+      if (food) parts.push(` الأكل: ${food}.`);
+      if (ticketUrl) parts.push(` تذكرتك والخريطة: ${ticketUrl}`);
       return parts.join('');
     },
   },
@@ -216,15 +248,15 @@ const TEMPLATES = {
       const who = clip(guestName, NAME_MAX);
       const what = clip(eventTitle, TITLE_MAX);
       return cancelled
-        ? `${who}, ${what} has been cancelled. Details: ${url}`
-        : `${who}, the details for ${what} have changed. See what's new: ${url}`;
+        ? `${who}, ${what} has been cancelled. Please read this: ${url}`
+        : `${who}, the date or place for ${what} has changed. Please check here: ${url}`;
     },
     [AR]: ({ guestName, eventTitle, url, cancelled }) => {
       const who = clip(guestName, NAME_MAX);
       const what = clip(eventTitle, TITLE_MAX);
       return cancelled
-        ? `${who}، تم إلغاء ${what}. التفاصيل: ${url}`
-        : `${who}، تغيّرت تفاصيل ${what}. التفاصيل الجديدة: ${url}`;
+        ? `${who}، تم إلغاء ${what}. اقرأ التفاصيل: ${url}`
+        : `${who}، اتغيّر ميعاد أو مكان ${what}. شوف التفاصيل: ${url}`;
     },
   },
 

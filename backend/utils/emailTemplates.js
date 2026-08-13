@@ -1079,29 +1079,88 @@ const getRsvpReminderTemplate = (rsvp, event, links, lang = 'en') => {
 };
 
 /** "See you soon" sent to confirmed guests as the event nears (with table if revealed). */
+/**
+ * THE DAY-BEFORE REMINDER — and, since it is the last thing a guest reads
+ * before they travel, the one that carries the pass.
+ *
+ * It used to promise one instead: "Your table assignment and QR check-in pass
+ * will arrive in a separate email closer to the day." No scheduled job has ever
+ * sent that email. `getQRTicketTemplate` is reachable only from the manual
+ * "Resend QR ticket" button and from the moment an organizer first seats
+ * someone — so a guest whose organizer never pressed that button, on an event
+ * with no seating chart, was told to wait for something that never came.
+ *
+ * `opts.links` (from buildTicketLinks) is what closes that. When present the
+ * scannable pass is embedded here directly, with the save-offline download
+ * beneath it. When absent — a declined guest, an unsigned token — the email
+ * degrades to exactly what it was: when, where, and the table if there is one.
+ * Nothing here promises a follow-up any more, because there isn't one.
+ */
 const getEventReminderTemplate = (rsvp, event, opts = {}, lang = 'en') => {
   const formattedDate = formatEventDateLang(event.event_date, lang);
   const where = event.location_name || event.location_address || null;
+  const { qrImageUrl, qrDownloadUrl, ticketUrl } = opts.links || {};
+  const formattedTable = formatTableLabel(opts.tableName, lang);
+  const partySize = Number(rsvp.party_size) || 1;
+  const rtl = isRtl(lang);
+
   const rows = [];
   if (formattedDate) rows.push([pick(lang, { en: 'When', ar: 'الموعد' }), escapeHtml(formattedDate)]);
-  if (where) rows.push([pick(lang, { en: 'Where', ar: 'المكان' }), escapeHtml(where)]);
-  if (opts.tableName) rows.push([pick(lang, { en: 'Your table', ar: 'طاولتك' }), escapeHtml(formatTableLabel(opts.tableName, lang)), BRAND.gold]);
+  if (where) rows.push([pick(lang, { en: 'Where', ar: 'المكان' }), venueValueHtml(event, lang)]);
+  if (formattedTable) rows.push([pick(lang, { en: 'Your table', ar: 'طاولتك' }), escapeHtml(formattedTable), BRAND.gold]);
+
   return emailShell({
     lang,
-    preheader: pick(lang, { en: `See you soon at ${event.title}`, ar: `نراك قريبًا في ${event.title}` }),
-    eyebrow: pick(lang, { en: 'See you soon', ar: 'نراك قريبًا' }),
+    /**
+     * NOT "tomorrow", and that is deliberate.
+     *
+     * jobEventReminders sweeps `now .. now + 24h`, so the guest this reaches is
+     * usually a day out — but not always. A party that replies "yes" six hours
+     * before the doors open, an event activated late, or the scheduler being
+     * switched on the same afternoon all put the FIRST (and, because of the
+     * dedupe ref, only) send a few hours before the event, where "tomorrow" is
+     * simply a lie. Worse, `event_date` is UTC and "tomorrow" is a claim about
+     * the reader's local calendar date, so even at T-23h it can be wrong for a
+     * guest in another timezone.
+     *
+     * The exact date is already in the details table below in the guest's own
+     * language. The eyebrow only has to convey urgency, which it can do without
+     * naming a day it cannot verify.
+     */
+    preheader: pick(lang, {
+      en: `${event.title} — your table and entry pass are in this email`,
+      ar: `${event.title} — طاولتك وتذكرة دخولك في هذه الرسالة`,
+    }),
+    eyebrow: pick(lang, { en: 'Almost here', ar: 'اقترب الموعد' }),
     heading: escapeHtml(event.title),
     contentHtml: `
       ${greeting(rsvp.guest_name, lang)}
       ${para(pick(lang, {
-        en: "Your event is almost here — we can't wait to celebrate with you. Here is everything you need:",
-        ar: 'اقترب موعد المناسبة — ولا يسعنا الانتظار للاحتفال معك. إليك كل ما تحتاجه:',
+        en: qrImageUrl
+          ? 'See you very soon. Everything you need is below — where to go, where you are sitting, and the code we scan at the door.'
+          : 'See you very soon. Here are the details for the day:',
+        ar: qrImageUrl
+          ? 'نراك قريبًا جدًا. كل ما تحتاجه بالأسفل — المكان، وأين ستجلس، والرمز الذي نمسحه عند الباب.'
+          : 'نراك قريبًا جدًا. إليك تفاصيل اليوم:',
       }))}
       ${rows.length ? dataTable(rows, lang) : ''}
-      ${opts.tableName ? '' : noticeBox(pick(lang, {
-        en: 'Your table assignment and QR check-in pass will arrive in a separate email closer to the day.',
-        ar: 'سيصلك رقم طاولتك ورمز الدخول QR في رسالة منفصلة مع اقتراب الموعد.',
-      }), 'neutral')}
+      ${qrImageUrl ? entryPass({
+        guestName: rsvp.guest_name,
+        eventTitle: event.title,
+        qrImageUrl,
+        ticketUrl,
+        tableIsAssigned: !!formattedTable,
+        tableValue: formattedTable || pick(lang, { en: 'Assigned when you arrive', ar: 'يُحدَّد عند وصولك' }),
+        admitsLabel: rtl ? guestCount(partySize, lang) : `Admits ${partySize}`,
+        reference: `#${String(rsvp.id || '').replace(/-/g, '').slice(-6).toUpperCase()}`,
+        lang,
+      }) : ''}
+      ${qrDownloadUrl ? button(qrDownloadUrl, pick(lang, { en: '&#11015; Save my QR code', ar: '&#11015; احفظ رمز الدخول' })) : ''}
+      ${ticketUrl ? button(ticketUrl, pick(lang, { en: 'Open my pass &amp; seating map', ar: 'افتح بطاقتي وخريطة الجلوس' }), { bg: BRAND.white, color: BRAND.goldDark, border: BRAND.gold }) : ''}
+      ${qrImageUrl ? para(pick(lang, {
+        en: 'Save the code to your photos so you can show it at the entrance even if there is no signal.',
+        ar: 'احفظ الرمز في صورك لتعرضه عند المدخل حتى لو لم يكن هناك إنترنت.',
+      }), { size: 13, color: BRAND.stone, align: 'center', mb: 6 }) : ''}
       ${para(pick(lang, { en: 'See you there!', ar: 'نراك هناك!' }), { mb: 0 })}
     `,
   });

@@ -4,22 +4,20 @@ import React from 'react';
 import { useFullPageTheme } from '../theme';
 import { SectionShell, SectionHeading, ScrollToRsvpHint } from '../shared';
 
-// A simple line-art illustration of two elegantly dressed guests — decorative,
-// bundled with the template rather than an organizer upload, tinted from the
-// event's own palette so it never clashes with a chosen color story.
-function AttireIllustration({ color }) {
-  return (
-    <svg width="120" height="90" viewBox="0 0 120 90" fill="none" aria-hidden="true">
-      {/* Dress silhouette */}
-      <path d="M40 14c0 5-2 8-2 8s10 3 10 16c0 10-6 12-14 12s-14-2-14-12c0-13 10-16 10-16s-2-3-2-8a6 6 0 0 1 12 0Z" stroke={color} strokeWidth="1.4" opacity="0.75" />
-      <circle cx="34" cy="14" r="6" stroke={color} strokeWidth="1.4" opacity="0.75" />
-      {/* Suit silhouette */}
-      <path d="M82 16v6l6 4-3 12h-6l-2 12h-16l-2-12h-6l-3-12 6-4v-6Z" stroke={color} strokeWidth="1.4" opacity="0.75" />
-      <path d="M82 16 86 22 82 34 78 22Z" stroke={color} strokeWidth="1.2" opacity="0.6" />
-      <circle cx="86" cy="10" r="6" stroke={color} strokeWidth="1.4" opacity="0.75" />
-    </svg>
-  );
-}
+/*
+ * NO ILLUSTRATION HERE ANY MORE.
+ *
+ * This section used to centre a line-art "dress + suit" drawing between the
+ * attire name and the Ladies/Gentlemen notes. It was removed deliberately, not
+ * lost: two gendered silhouettes are a decoration that also makes a claim, and
+ * the claim is wrong for plenty of events this template serves. It sat directly
+ * above the only two sentences on the slide that carry actual instructions,
+ * pushing them down and competing with them for attention.
+ *
+ * What replaces it is nothing — the attire name set large in the serif face,
+ * the colour palette, and the notes. A dress code is text; the premium version
+ * of it is typography, not clip art.
+ */
 
 export default function DressCodeSection({ dressCode, customColors, ladiesText, gentlemenText, isRTL }) {
   const C = useFullPageTheme();
@@ -38,7 +36,15 @@ export default function DressCodeSection({ dressCode, customColors, ladiesText, 
         border: `1px solid ${C.border}`, padding: '28px 24px', display: 'flex', flexDirection: 'column',
         alignItems: 'center', gap: '20px',
       }}>
-        <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '24px', color: C.maroon, margin: 0, textAlign: 'center' }}>
+        {/* The attire name is now the whole visual weight of this card, so it
+            carries the size the illustration used to take up.
+            Fluid, not a flat 30px: this is free text an organizer types, and a
+            single long unbreakable word ("Traditional", "Semi-Formal") at a
+            fixed 30px has a min-content width of ~180px — against roughly 230px
+            of usable space inside this card on a 320px phone, that is one
+            slightly longer word away from pushing the page sideways. Same
+            clamp() idiom NoKidsSection already uses for its headline. */}
+        <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 'clamp(22px, 5.2vw, 30px)', lineHeight: 1.25, color: C.maroon, margin: 0, textAlign: 'center', overflowWrap: 'anywhere' }}>
           {label}
         </h3>
 
@@ -60,8 +66,6 @@ export default function DressCodeSection({ dressCode, customColors, ladiesText, 
             </div>
           </div>
         )}
-
-        <AttireIllustration color={C.gold} />
 
         {hasSplit && (
           <div style={{

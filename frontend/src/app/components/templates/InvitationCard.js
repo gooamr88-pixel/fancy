@@ -86,6 +86,19 @@ export default function InvitationCard({ template, theme, guestName, config, dat
             {cfg.sections && typeof cfg.sections === "object" && !Array.isArray(cfg.sections) && Object.entries(cfg.sections).filter(([, v]) => v).map(([key, ], i) => (
               <span key={i} className="text-[7px] text-stone-500 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
             ))}
+
+            {/* Adults-only notice — the same line the serif (wedding/engagement)
+                card carries, in this card's own type scale.
+                Opt-IN here, unlike serif's `!== false`: that pattern shows the
+                notice by default and lets an event hide it, which is right for a
+                wedding. Custom Canvas covers graduations, baby showers and
+                birthdays too, so it appears only when `no_kids_allowed` is
+                actually set. */}
+            {d.noKidsNotice === true && (
+              <span className="text-[7px] font-sans font-bold uppercase tracking-[2px] mt-0.5" style={{ color: `${accentColor}CC` }}>
+                {d.noKidsText || "No Kids Allowed"}
+              </span>
+            )}
           </div>
 
           {cfg.ctaLabel && (
