@@ -6,6 +6,7 @@
 // imports it the same way.
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { PlanLockBadge, plansSentence } from './PlanLock';
 
 /**
  * The four things you can send ONE guest, named, and grouped by how they arrive.
@@ -59,6 +60,19 @@ export default function GuestSendMenu({
   busy = false,
   /** Whether this event bought texting at all. */
   smsActive = false,
+  /**
+   * Plan-level access: 'granted' | 'grandfathered' | 'locked'.
+   *
+   * Distinct from `smsActive`, and the distinction is what the organizer sees:
+   * "you have not bought messages yet" is a purchase away and the row routes to
+   * checkout, while "your plan does not include texting" is an upgrade away and
+   * routing to checkout would send them to a screen they cannot use.
+   */
+  smsAccess = 'granted',
+  /** Plan names that carry texting, for the locked wording. */
+  plansWithSms = [],
+  /** Called when texting is locked by PLAN, to route to the plans screen. */
+  onUpgradePlan,
   /** { reachable, label } from smsReachability — why this guest cannot be texted. */
   reach = null,
   /** Only an accepted guest has a seat and a pass to be told about. */
@@ -203,9 +217,17 @@ export default function GuestSendMenu({
     });
   }, [place]);
 
-  const textBlocked = !smsActive ? 'Texting is not switched on for this event'
-    : !reach?.reachable ? (reach?.label || 'This guest cannot be texted')
-      : null;
+  /**
+   * Three reasons texting can be unavailable, in the order they must be
+   * reported. Plan first: an organizer whose PLAN lacks texting cannot fix
+   * anything by buying an allowance, so telling them "not switched on for this
+   * event" sends them to a purchase screen that will refuse them.
+   */
+  const planLocked = smsAccess === 'locked';
+  const textBlocked = planLocked ? 'Your plan does not include text messaging'
+    : !smsActive ? 'Texting is not switched on for this event'
+      : !reach?.reachable ? (reach?.label || 'This guest cannot be texted')
+        : null;
 
   const groups = [
     {
@@ -235,8 +257,11 @@ export default function GuestSendMenu({
       heading: 'By text message',
       // Said once per group rather than on each button. The organizer is paying per
       // segment and has a right to see that before pressing, not after.
-      note: 'Uses your message balance',
+      // When the plan does not carry texting the group is merchandised instead:
+      // the price of a balance is irrelevant to somebody who cannot buy one.
+      note: planLocked ? null : 'Uses your message balance',
       noteColor: C.gold,
+      lockBadge: planLocked,
       items: [
         {
           channel: 'sms',
@@ -361,27 +386,40 @@ export default function GuestSendMenu({
                   fontSize: 'var(--fx-micro)', fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase',
                   color: C.stone, fontFamily: 'var(--font-sans)',
                 }}>{group.heading}</span>
-                <span style={{
-                  fontSize: 'var(--fx-micro)', fontWeight: 700, color: group.noteColor, fontFamily: 'var(--font-sans)',
-                  whiteSpace: 'nowrap',
-                }}>{group.note}</span>
+                {group.lockBadge ? (
+                  <PlanLockBadge label="Plan feature" title="Text messaging is part of a higher plan" />
+                ) : group.note ? (
+                  <span style={{
+                    fontSize: 'var(--fx-micro)', fontWeight: 700, color: group.noteColor, fontFamily: 'var(--font-sans)',
+                    whiteSpace: 'nowrap',
+                  }}>{group.note}</span>
+                ) : null}
               </div>
 
               {group.items.map((item) => {
                 const locked = !!item.disabled;
-                // Texting locked because it was never bought is the one "disabled"
-                // that has an action behind it, so it stays clickable and routes to
-                // the purchase page instead of being a dead row.
-                const buyInstead = locked && !smsActive && group.id === 'sms';
+                /**
+                 * Two "disabled" states in this group have an action behind
+                 * them, so they stay clickable rather than being dead rows —
+                 * and they lead to DIFFERENT places:
+                 *   plan does not include texting → the plans screen
+                 *   plan includes it, none bought → the purchase screen
+                 * Sending the first case to checkout is the bug this split
+                 * exists to prevent: that screen refuses them.
+                 */
+                const upgradeInstead = locked && planLocked && group.id === 'sms';
+                const buyInstead = locked && !planLocked && !smsActive && group.id === 'sms';
+                const actionable = upgradeInstead || buyInstead;
                 return (
                   <button
                     key={item.channel}
                     type="button"
                     role="menuitem"
-                    disabled={locked && !buyInstead}
+                    disabled={locked && !actionable}
                     title={locked ? item.disabled : undefined}
                     onClick={() => {
                       setOpen(false);
+                      if (upgradeInstead) { onUpgradePlan?.(); return; }
                       if (buyInstead) { onBuySms?.(); return; }
                       if (!locked) onSend?.(item.channel);
                     }}
@@ -394,11 +432,11 @@ export default function GuestSendMenu({
                       padding: '10px', minHeight: 'var(--fx-touch)',
                       borderRadius: 8, border: 'none',
                       background: 'transparent',
-                      cursor: locked && !buyInstead ? 'not-allowed' : 'pointer',
-                      opacity: locked && !buyInstead ? 0.5 : 1,
+                      cursor: locked && !actionable ? 'not-allowed' : 'pointer',
+                      opacity: locked && !actionable ? 0.5 : 1,
                       fontFamily: 'var(--font-sans)',
                     }}
-                    onMouseEnter={(e) => { if (!locked || buyInstead) e.currentTarget.style.background = C.hover; }}
+                    onMouseEnter={(e) => { if (!locked || actionable) e.currentTarget.style.background = C.hover; }}
                     onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
                   >
                     <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: C.charcoal }}>
@@ -407,9 +445,11 @@ export default function GuestSendMenu({
                     <span style={{ display: 'block', fontSize: 11.5, color: C.stone, lineHeight: 1.5, marginTop: 2 }}>
                       {locked ? item.disabled : item.hint}
                     </span>
-                    {buyInstead && (
+                    {(buyInstead || upgradeInstead) && (
                       <span style={{ display: 'block', fontSize: 11.5, color: C.gold, fontWeight: 700, marginTop: 3 }}>
-                        Add texting →
+                        {upgradeInstead
+                          ? (plansWithSms.length > 0 ? `On ${plansSentence(plansWithSms)} →` : 'See plans →')
+                          : 'Add texting →'}
                       </span>
                     )}
                   </button>

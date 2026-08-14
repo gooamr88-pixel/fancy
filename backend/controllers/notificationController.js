@@ -22,6 +22,15 @@ const sendConfirmationEmail = async (req, res, next) => {
     if (err.message === 'RSVP_NOT_FOUND') {
       return res.status(404).json({ success: false, error: 'RSVP_NOT_FOUND', message: 'RSVP not found.' });
     }
+    // Same refusal, same wording shape as the entry-pass route below: a declined
+    // guest is not a failure to retry, it is a guest who should not be sent this.
+    if (err.message === 'NOT_ATTENDING') {
+      return res.status(400).json({
+        success: false,
+        error: 'NOT_ATTENDING',
+        message: 'This guest has not accepted — a confirmation would tell them their place is booked. Change their response to attending first.',
+      });
+    }
     next(err);
   }
 };

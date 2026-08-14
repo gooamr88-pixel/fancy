@@ -41,16 +41,49 @@ const PLATFORM_FEATURES = [
   { key: 'checkin_app',          label: 'Fancy Check-in app (offline door scanner)', description: 'Dedicated Android app for the door: scans tickets and checks guests in with no internet at the venue.', category: 'Check-in', freeDefault: false },
 
   // ── Campaigns & SMS ──
-  // SMS is NOT gated by tier. It is a paid add-on bought per event at checkout and
-  // enforced by middleware/smsAddonGate.js against events.sms_addon_purchased_at —
-  // any plan can buy it, and buying it unlocks all seven message types.
-  //
-  // The key is retained ONLY so pricing tiers that already list it keep rendering
-  // their bullet without an unknown-key warning, and so removing it from admin
-  // config is not a required deploy step. `builtIn: false` marks it as decorative:
-  // no route mounts requireFeature('sms_campaigns') any more, so toggling it grants
-  // and revokes nothing. Delete the key once it is cleared from every tier.
-  { key: 'sms_campaigns',        label: 'SMS messaging (add-on)',        description: 'Purchased per event at checkout, on any plan — not granted by tier. See middleware/smsAddonGate.js.', category: 'Campaigns & SMS',   freeDefault: false, builtIn: false, supersededBy: 'sms_addon' },
+  /**
+   * TEXT MESSAGING — a REAL tier gate again, and a metered one.
+   *
+   * ── The history, because it explains the two-part rule ──
+   *
+   * This started as an ordinary tier feature, then became decorative
+   * (`builtIn: false`, `supersededBy: 'sms_addon'`) when SMS moved to a per-event
+   * add-on bought at checkout: any plan could buy it, so gating it by tier was
+   * wrong. The key stayed only so existing tiers would not show an unknown-key
+   * warning, and its own comment said to delete it.
+   *
+   * It is now switched on from Admin -> Config -> Subscription Tiers, and it means
+   * something again. The two questions are DIFFERENT, and both are asked:
+   *
+   *   1. May this plan use texting at all?   ← this feature, set per tier
+   *   2. Has this event paid for messages?   ← events.sms_addon_purchased_at
+   *
+   * A plan without the feature never sees the surface; a plan with it sees the
+   * surface and buys an allowance. Neither answer implies the other, which is
+   * exactly why the old single-question design could not express "available on
+   * Professional and above, still charged per message".
+   *
+   * ── meteredNote ──
+   *
+   * Every other feature in this registry is included in the price of the plan.
+   * This one is not: switching it on grants ACCESS to buy, not messages. The note
+   * rides with the feature so every surface that lists plan contents — the public
+   * pricing page, the payment step's tier cards, the admin toggle — says so in
+   * the same words, instead of three places inventing their own caveat or, worse,
+   * listing it as though it were included.
+   *
+   * Grandfathering lives in middleware/smsAddonGate.js: an event that already
+   * bought credits keeps sending even if its tier later loses this feature. You
+   * do not take away something somebody paid for.
+   */
+  {
+    key: 'sms_campaigns',
+    label: 'Text messaging',
+    description: 'Lets this plan send invitations, reminders and entry passes by SMS. Access only — messages are bought separately per event.',
+    category: 'Campaigns & SMS',
+    freeDefault: false,
+    meteredNote: 'Charged separately per message',
+  },
 
   // ── Branding ──
   { key: 'custom_branding',      label: 'Custom themes & branding',     description: 'Apply custom colors, logos, and themes to your RSVP pages.',                         category: 'Branding',          freeDefault: false, builtIn: false },
@@ -103,6 +136,18 @@ function getFeatureByKey(key) {
   return _byKey.get(key);
 }
 
+/**
+ * key -> the "this costs extra" caption, for every feature that is access-only.
+ *
+ * One map, handed to every surface that prints plan contents, so the caveat is
+ * worded identically on the public pricing page, the payment step's tier cards
+ * and the admin toggle. Without it each of those three invents its own — and the
+ * one that forgets lists a metered add-on as though the plan included it.
+ */
+const FEATURE_NOTES = Object.fromEntries(
+  PLATFORM_FEATURES.filter((f) => f.meteredNote).map((f) => [f.key, f.meteredNote]),
+);
+
 /** Checks whether a key exists in the registry. */
 function isValidFeatureKey(key) {
   return _byKey.has(key);
@@ -127,6 +172,7 @@ module.exports = {
   PLATFORM_FEATURES,
   FEATURE_CATEGORIES,
   FREE_TIER_FEATURES,
+  FEATURE_NOTES,
   getFeaturesByCategory,
   getFeatureByKey,
   isValidFeatureKey,

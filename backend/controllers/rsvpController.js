@@ -1813,6 +1813,7 @@ const getRsvpInvite = async (req, res, next) => {
         events!inner(id, title, description, event_date, event_end_date, slug, location_name, location_address,
           is_paid, status, rsvp_deadline, template_type, event_type, template_data, cover_image_url,
           custom_colors, custom_fonts, allow_guest_edits, track_guest_side,
+          no_kids_allowed, collect_dietary_restrictions,
           reveal_enabled, reveal_replay, access_password, custom_form_fields(*))`)
       .eq('id', payload.partyId)
       .eq('event_id', payload.eventId)
@@ -1866,6 +1867,15 @@ const getRsvpInvite = async (req, res, next) => {
       // colors, etc.), or those features silently fail to render even though the
       // backend still enforces them (e.g. a required meal selection with no UI to
       // satisfy it).
+      //
+      // "Full" is only as full as the SELECT above, which is the trap this
+      // comment did not prevent: `no_kids_allowed` and
+      // `collect_dietary_restrictions` were added to the events table and to
+      // getPublicEventBySlug, and never here. A guest arriving from the emailed
+      // RSVP button therefore got an adults-only event with no adults-only
+      // notice, while the same guest opening the invitation page got one — the
+      // asymmetry read as "the rule doesn't work on this template".
+      // Add new guest-visible columns to BOTH or neither.
       event: (() => {
         const { access_password, ...publicEvent } = event;
         return { ...publicEvent, location: event.location_name || event.location_address || null };

@@ -39,30 +39,85 @@
  *
  * These are read by people of every age, on a lock screen, often in a second
  * language, frequently while standing outside a venue. So the vocabulary is
- * deliberately ordinary: "You are at table 12" rather than "Your table: 12",
+ * deliberately ordinary: "Your table is 12" rather than "Your table: 12",
  * "Show this at the door" rather than "Entry pass", "you are coming to" rather
- * than "you're confirmed for". Product nouns ("entry pass", "seating map") are
- * things this company named; a table and a door are things everybody already
- * knows.
+ * than "you're confirmed for", "128 said yes" rather than "128 attending".
+ * Product nouns ("entry pass", "seating map") are things this company named; a
+ * table and a door are things everybody already knows.
  *
- * THE RULE WHEN EDITING COPY HERE: re-measure. Plainer is usually also longer,
- * and length is billed. Every rewording above was checked against
- * utils/smsSegments with the real 78-character compliance footer and a shortened
- * link, and none of them crossed a segment boundary — the English bodies gained
- * up to 16 characters inside two segments that hold 306, and the Arabic ones got
- * SHORTER because UCS-2 gives them almost no room to spend (see the note in
- * seating_reminder's Arabic builder). A rewrite that reads better and quietly
- * adds a segment has made every event on the platform more expensive.
+ * ── Friendly, and where the warmth is paid for ──
+ *
+ * A bare name and a comma — "Sara, you're invited" — is how a bank opens a
+ * message. The English bodies open "Hi Sara!" instead: four characters, and the
+ * single cheapest thing here that makes a text read as coming from a person.
+ * English can afford it (2 segments hold 306 GSM-7 units and the longest body
+ * uses ~245).
+ *
+ * ARABIC CANNOT. Measured at worst case, several Arabic bodies sit 2-4 units
+ * under a segment boundary, so a single added word costs a whole segment for
+ * every guest. Its warmth therefore comes from word CHOICE at equal or shorter
+ * length: "مدعو معانا" (invited with us) for "أنت مدعو إلى" (you are invited
+ * to), "طاولتك" for "مكانك طاولة", "معاك" for "معك", "تمام!" paid for by the
+ * two words those swaps removed. The Arabic bodies got friendlier and SHORTER.
+ *
+ * One exception, deliberate: the cancellation does NOT open with a greeting and
+ * carries no exclamation mark. "Hi Sara!" in front of "your wedding is
+ * cancelled" reads as a mistake, and "cancelled" has to stay inside the first
+ * six words where a skim-reader on a lock screen will see it.
+ *
+ * ── THE RULE WHEN EDITING COPY HERE: re-measure ──
+ *
+ * Plainer and friendlier are usually also longer, and length is billed. This is
+ * no longer an honour system: `test/smsCopyBudget.test.js` renders every body at
+ * worst case — every interpolated value at its clip cap, plus the real
+ * compliance footer and a real shortened link — and fails on any wording that
+ * crosses a segment boundary or leaves GSM-7. The friendlier rewrite above was
+ * verified segment-for-segment identical to the copy it replaced, in both
+ * languages, across all twenty branches.
+ *
+ * Raising a ceiling in that test is allowed. It is a pricing decision, and
+ * editing the number there is how it gets made on purpose rather than by
+ * accident.
  */
 
 const EN = 'en';
 const AR = 'ar';
 
-/** Hard cap on any interpolated value, so one long title cannot inflate a whole send. */
+/**
+ * Hard cap on any interpolated value, so one long title cannot inflate a whole send.
+ *
+ * ── THE MARKER IS THREE ASCII DOTS, AND THAT IS NOT A STYLE CHOICE ──
+ *
+ * This used to append '…' (U+2026). That single character is not in the GSM-7
+ * alphabet, so appending it flipped the ENTIRE message to UCS-2 — where a
+ * segment holds 67 units instead of 153. Measured on the real invitation body
+ * with the real compliance footer:
+ *
+ *   guest name 24 chars (no truncation)   GSM-7   2 segments
+ *   guest name 25 chars (truncation)      UCS-2   4 segments
+ *
+ * One character past the cap DOUBLED the cost of that guest's message. The
+ * function whose entire purpose is protecting the segment budget was the thing
+ * blowing it, and silently: nothing errors, the text looks right, and the bill
+ * arrives later. It fires on exactly the guests with the longest names and the
+ * events with the longest titles.
+ *
+ * '...' costs two more characters than '…' and keeps the message in GSM-7,
+ * which is worth roughly 80 characters of headroom. Any future marker must be
+ * checked against GSM_BASIC in utils/smsSegments — see the encoding test in
+ * test/smsCopyBudget.test.js.
+ */
 function clip(value, max) {
   const s = String(value == null ? '' : value).trim();
   if (s.length <= max) return s;
-  return `${s.slice(0, Math.max(0, max - 1)).trimEnd()}…`;
+  // Below four characters there is no room for both the text and the marker, so
+  // the marker goes. Without this the "cap" RETURNS MORE than the cap it was
+  // given ("..." is three characters against a max of two) — a length guard that
+  // can exceed its own limit is worse than none, because every caller trusts it.
+  // Not reachable from today's callers (the smallest cap here is 18); pinned
+  // anyway, since the whole point of this function is that the arithmetic holds.
+  if (max < 4) return s.slice(0, Math.max(0, max));
+  return `${s.slice(0, max - 3).trimEnd()}...`;
 }
 
 const NAME_MAX = 24;
@@ -115,12 +170,18 @@ const TEMPLATES = {
     [EN]: ({ guestName, eventTitle, rsvpUrl }) => {
       const who = clip(guestName, NAME_MAX);
       const what = clip(eventTitle, TITLE_MAX);
-      return `${who}, you're invited to ${what}. Open your invitation: ${rsvpUrl}`;
+      // "Hi <name>!" rather than "<name>," — a bare name and a comma is how a
+      // bank opens a message. The greeting is 4 characters and it is the single
+      // cheapest thing here that makes a text read as coming from a person.
+      return `Hi ${who}! You're invited to ${what}. Open your invitation and reply here: ${rsvpUrl}`;
     },
     [AR]: ({ guestName, eventTitle, rsvpUrl }) => {
       const who = clip(guestName, NAME_MAX);
       const what = clip(eventTitle, TITLE_MAX);
-      return `${who}، أنت مدعو إلى ${what}. دعوتك هنا: ${rsvpUrl}`;
+      // "مدعو معانا" — invited WITH US, not "you are invited to", which is the
+      // register of an official summons. Warmer, and one unit shorter, which is
+      // the only reason it is affordable: see the Arabic budget note above.
+      return `${who}، مدعو معانا في ${what}. دعوتك هنا: ${rsvpUrl}`;
     },
   },
 
@@ -142,11 +203,15 @@ const TEMPLATES = {
       const who = clip(guestName, NAME_MAX);
       const what = clip(eventTitle, TITLE_MAX);
       const table = tableName ? clip(tableName, TABLE_MAX) : null;
-      const when = dateLabel ? ` is ${dateLabel}` : '';
-      if (table && when) return `${who}, ${what}${when}. You are at table ${table}. Show this at the door: ${ticketUrl}`;
-      if (table) return `${who}, you are at table ${table} for ${what}. Show this at the door: ${ticketUrl}`;
-      if (when) return `${who}, ${what}${when}. Show this at the door: ${ticketUrl}`;
-      return `${who}, show this at the door for ${what}: ${ticketUrl}`;
+      // "is on Saturday" — the "on" costs three characters and is what stops
+      // the sentence reading like a timetable entry.
+      const when = dateLabel ? ` is on ${dateLabel}` : '';
+      // "Your table is 12" rather than "You are at table 12": fewer words, and
+      // it answers the question the guest is actually asking.
+      if (table && when) return `Hi ${who}! ${what}${when}. Your table is ${table}. Show this at the door: ${ticketUrl}`;
+      if (table) return `Hi ${who}! Your table at ${what} is ${table}. Show this at the door: ${ticketUrl}`;
+      if (when) return `Hi ${who}! ${what}${when}. Show this at the door: ${ticketUrl}`;
+      return `Hi ${who}! Show this at the door for ${what}: ${ticketUrl}`;
     },
     [AR]: ({ guestName, eventTitle, tableName, ticketUrl, dateLabel }) => {
       const who = clip(guestName, NAME_MAX);
@@ -166,8 +231,11 @@ const TEMPLATES = {
        * word AND six units shorter than the "تذكرة الدخول" it replaces, so this
        * reads more simply and costs less than what was here before.
        */
-      if (table && when) return `${who}، ${what}${when}. مكانك طاولة ${table}. تذكرتك: ${ticketUrl}`;
-      if (table) return `${who}، مكانك في ${what} طاولة ${table}. تذكرتك: ${ticketUrl}`;
+      // "طاولتك" (your table) rather than "مكانك طاولة" (your place is table N):
+      // one word instead of two, plainer, and it buys back the units the warmer
+      // wording elsewhere spends.
+      if (table && when) return `${who}، ${what}${when}. طاولتك ${table}. تذكرتك: ${ticketUrl}`;
+      if (table) return `${who}، طاولتك في ${what} هي ${table}. تذكرتك: ${ticketUrl}`;
       if (when) return `${who}، ${what}${when}. تذكرتك: ${ticketUrl}`;
       return `${who}، تذكرتك لـ ${what}: ${ticketUrl}`;
     },
@@ -206,26 +274,30 @@ const TEMPLATES = {
    */
   rsvp_confirmation: {
     [EN]: ({ guestName, eventTitle, dateLabel, venue, tableName, companions, meals, ticketUrl }) => {
-      const parts = [`${clip(guestName, NAME_MAX)}, you are coming to ${clip(eventTitle, TITLE_MAX)}`];
+      const parts = [`Hi ${clip(guestName, NAME_MAX)}! You are coming to ${clip(eventTitle, TITLE_MAX)}`];
       if (dateLabel) parts.push(` on ${clip(dateLabel, 34)}`);
       if (venue) parts.push(` at ${clip(venue, VENUE_MAX)}`);
       parts.push('.');
-      if (tableName) parts.push(` You are at table ${clip(tableName, TABLE_MAX)}.`);
+      if (tableName) parts.push(` Your table is ${clip(tableName, TABLE_MAX)}.`);
       const withYou = clipList(companions, COMPANION_MAX, 3);
-      if (withYou) parts.push(` With you: ${withYou}.`);
+      // "Coming with you" rather than "With you" — the bare label reads like a
+      // form field, and this is the line guests forward to their family.
+      if (withYou) parts.push(` Coming with you: ${withYou}.`);
       const food = clipList(meals, MEAL_MAX, 4);
       if (food) parts.push(` Food: ${food}.`);
       if (ticketUrl) parts.push(` Your pass and map: ${ticketUrl}`);
       return parts.join('');
     },
     [AR]: ({ guestName, eventTitle, dateLabel, venue, tableName, companions, meals, ticketUrl }) => {
-      const parts = [`${clip(guestName, NAME_MAX)}، حضورك مؤكد في ${clip(eventTitle, TITLE_MAX)}`];
+      // "تمام!" — one short word of acknowledgement, the Arabic equivalent of
+      // the English greeting, paid for by the shorter "طاولتك" below.
+      const parts = [`${clip(guestName, NAME_MAX)}، تمام! حضورك مؤكد في ${clip(eventTitle, TITLE_MAX)}`];
       if (dateLabel) parts.push(` ${clip(dateLabel, 34)}`);
       if (venue) parts.push(`، ${clip(venue, VENUE_MAX)}`);
       parts.push('.');
-      if (tableName) parts.push(` مكانك طاولة ${clip(tableName, TABLE_MAX)}.`);
+      if (tableName) parts.push(` طاولتك ${clip(tableName, TABLE_MAX)}.`);
       const withYou = clipList(companions, COMPANION_MAX, 3);
-      if (withYou) parts.push(` معك: ${withYou}.`);
+      if (withYou) parts.push(` معاك: ${withYou}.`);
       const food = clipList(meals, MEAL_MAX, 4);
       if (food) parts.push(` الأكل: ${food}.`);
       if (ticketUrl) parts.push(` تذكرتك والخريطة: ${ticketUrl}`);
@@ -247,16 +319,21 @@ const TEMPLATES = {
     [EN]: ({ guestName, eventTitle, url, cancelled }) => {
       const who = clip(guestName, NAME_MAX);
       const what = clip(eventTitle, TITLE_MAX);
+      // NO "Hi <name>!" on the cancellation, and that is deliberate. A cheerful
+      // greeting in front of bad news reads as a mistake, and the exclamation
+      // mark is the wrong note entirely. The apology comes AFTER the fact, so
+      // "cancelled" stays inside the first six words where a skim-reader sees
+      // it — the whole reason this branch is a separate sentence.
       return cancelled
-        ? `${who}, ${what} has been cancelled. Please read this: ${url}`
-        : `${who}, the date or place for ${what} has changed. Please check here: ${url}`;
+        ? `${who}, ${what} has been cancelled. We are very sorry. Here is why: ${url}`
+        : `Hi ${who}, the date or place of ${what} has changed. Please check the new details: ${url}`;
     },
     [AR]: ({ guestName, eventTitle, url, cancelled }) => {
       const who = clip(guestName, NAME_MAX);
       const what = clip(eventTitle, TITLE_MAX);
       return cancelled
-        ? `${who}، تم إلغاء ${what}. اقرأ التفاصيل: ${url}`
-        : `${who}، اتغيّر ميعاد أو مكان ${what}. شوف التفاصيل: ${url}`;
+        ? `${who}، للأسف تم إلغاء ${what}. التفاصيل: ${url}`
+        : `${who}، اتغيّر ميعاد أو مكان ${what}. شوف التفاصيل الجديدة: ${url}`;
     },
   },
 
@@ -266,10 +343,14 @@ const TEMPLATES = {
    * message — so it carries them, and links to the dashboard for the rest.
    */
   organizer_report: {
+    // "said yes" / "have not replied yet" rather than "attending" / "awaiting
+    // reply". This lands on a phone the night before an event, often while the
+    // organizer is doing five other things; counted people who SAID YES needs no
+    // decoding, and "awaiting reply" is a status field, not a sentence.
     [EN]: ({ eventTitle, attending, pending, dashboardUrl }) =>
-      `${clip(eventTitle, TITLE_MAX)}: ${attending} attending, ${pending} awaiting reply. ${dashboardUrl}`,
+      `${clip(eventTitle, TITLE_MAX)}: ${attending} said yes, ${pending} have not replied yet. ${dashboardUrl}`,
     [AR]: ({ eventTitle, attending, pending, dashboardUrl }) =>
-      `${clip(eventTitle, TITLE_MAX)}: ${attending} حضور، ${pending} بانتظار الرد. ${dashboardUrl}`,
+      `${clip(eventTitle, TITLE_MAX)}: ${attending} أكّدوا الحضور، ${pending} لسه مردوش. ${dashboardUrl}`,
   },
 };
 

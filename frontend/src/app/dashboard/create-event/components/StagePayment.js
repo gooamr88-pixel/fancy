@@ -419,7 +419,7 @@ export default function StagePayment({
   smsAddonEnabled = false, onToggleSmsAddon,
   smsAddonSegments = null, onChangeSmsAddonSegments,
   smsEstimate = null, smsVolumeDiscounts = null,
-  featureLabels = {}, hiddenTierFeatures = [],
+  featureLabels = {}, hiddenTierFeatures = [], featureNotes = {},
   smsRateCentsPerCredit = null, smsMarkupPercentage = 0,
 }) {
   const fmt = (cents) => `$${((cents || 0) / 100).toFixed(2)}`;
@@ -800,15 +800,31 @@ export default function StagePayment({
                 {tier.max_guests > 0 ? `Up to ${tier.max_guests} guests` : 'Unlimited guests'}
               </p>
               {/* Raw registry KEYS are what pricing_tiers stores; the customer must
-                  see the human label. `sms_campaigns` is dropped entirely — SMS is a
-                  per-event add-on now, so listing it here would say a plan includes
-                  the very thing the card below charges for. */}
+                  see the human label.
+
+                  `featureNotes` is what stops a bullet over-promising. Text
+                  messaging is a real plan feature again, but the plan grants the
+                  RIGHT TO BUY messages, not the messages — so its bullet carries
+                  "Charged separately per message" underneath. Without that line
+                  the card says a plan includes texting and the organizer finds
+                  out otherwise at the moment they try to send, which is the
+                  worst possible moment to learn it. */}
               {visibleFeatures(features).length > 0 && (
                 <ul style={{ listStyle: 'none', margin: '12px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {visibleFeatures(features).map((f, i) => (
                     <li key={i} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 8, fontFamily: 'var(--font-sans)', fontSize: 12, color: C.charcoal }}>
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 2 }}><path d="M5 13l4 4L19 7" /></svg>
-                      <span>{featureLabels[f] || f}</span>
+                      <span className="fx-min0">
+                        {featureLabels[f] || f}
+                        {/* --fx-micro, not a raw 10.5px: this file is on the
+                            reading-floor tokens, and a caveat about money is the
+                            last thing that should be set below the floor. */}
+                        {featureNotes[f] && (
+                          <span style={{ display: 'block', fontSize: 'var(--fx-micro)', color: C.stone, lineHeight: 1.45, marginTop: 1 }}>
+                            {featureNotes[f]}
+                          </span>
+                        )}
+                      </span>
                     </li>
                   ))}
                 </ul>

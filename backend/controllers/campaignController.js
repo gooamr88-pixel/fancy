@@ -17,6 +17,29 @@ const { buildGuestEventUrl } = require('../utils/emailTemplates');
 const tokenService = require('../services/tokenService');
 const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
+/* The SAME helper the send gate uses to answer "does this plan include texting?".
+   Imported rather than re-implemented: two answers to one entitlement question is
+   how a surface ends up visible and un-callable. */
+const { tierGrantsSms, SMS_FEATURE_KEY } = require('../middleware/smsAddonGate');
+
+/**
+ * The names of the plans that currently carry text messaging.
+ *
+ * So the locked state can say "available on Professional and Enterprise" rather
+ * than a bare "upgrade", which leaves the organizer to go and work out which
+ * plan they are being sold. Read from the live admin config, so renaming or
+ * re-pricing a tier updates the upsell everywhere without a deploy.
+ *
+ * Custom/enquiry tiers are excluded: naming a "Contact us" tier as the fix for a
+ * locked button is not an answer an organizer can act on by themselves.
+ */
+async function plansOfferingSms() {
+  const config = await getPlatformConfig();
+  return (config?.pricing_tiers || [])
+    .filter((t) => t && t.is_custom !== true && Array.isArray(t.features) && t.features.includes(SMS_FEATURE_KEY))
+    .map((t) => String(t.name || '').trim())
+    .filter(Boolean);
+}
 const {
   normalizePhone, isValidPhone,
   sendTransactionalSms, canonicalPhone, COMPLIANCE_FOOTER, HELP_REPLY,
@@ -335,7 +358,12 @@ const getSmsSettings = async (req, res, next) => {
   try {
     const { data: event, error } = await supabase
       .from('events')
-      .select('id, sms_addon_purchased_at, sms_settings')
+      // tier_name + manual_override are NOT optional here: they are what
+      // tierGrantsSms and the grandfathering check below read. Omitting them
+      // would make every event report `access: 'locked'` and lock the SMS
+      // surfaces for the entire platform — silently, since a missing column
+      // reads as undefined rather than throwing.
+      .select('id, sms_addon_purchased_at, sms_settings, tier_name, manual_override')
       .eq('id', eventId)
       .single();
     if (error || !event) {
@@ -400,10 +428,48 @@ const getSmsSettings = async (req, res, next) => {
     // re-fetching the very same row.
     const sendLimit = await resolveSendLimit(eventId, req.user, config);
 
+    /**
+     * WHETHER THE PLAN INCLUDES TEXTING — computed here, never on the client.
+     *
+     * The dashboard has to lock every SMS surface when the plan does not carry
+     * the feature, and it must reach the SAME verdict the send endpoints will.
+     * Re-deriving "does tier X include sms_campaigns?" in the browser is a
+     * second implementation of an entitlement rule, and the two disagree the
+     * first time an admin renames a tier — leaving a surface that looks open and
+     * 403s, or one that looks locked on an event that was allowed all along.
+     *
+     * So this endpoint — which is deliberately ungated, because an event WITHOUT
+     * access is exactly the one that needs to be told so — answers it once, from
+     * the same helper the gate uses.
+     *
+     * `access` is what the UI keys off:
+     *   'granted'      → the plan includes it (buy an allowance, then send)
+     *   'grandfathered'→ plan does not, but this event already paid — still works
+     *   'locked'       → neither: show the upgrade badge
+     */
+    let planIncludesSms = false;
+    try {
+      planIncludesSms = await tierGrantsSms(event);
+    } catch {
+      // Read-only surface: a config blip must not turn the page into an error.
+      // It degrades to "not granted", and the send endpoints still fail closed.
+      planIncludesSms = false;
+    }
+    const purchased = !!event.sms_addon_purchased_at || !!event.manual_override;
+    const access = planIncludesSms ? 'granted' : (purchased ? 'grandfathered' : 'locked');
+
     return res.json({
       success: true,
       addonActive: !!event.sms_addon_purchased_at,
       purchasedAt: event.sms_addon_purchased_at,
+      // ── Plan-level access (see above) ──
+      access,
+      planIncludesSms,
+      smsFeatureKey: SMS_FEATURE_KEY,
+      tierName: event.tier_name || null,
+      // Which plans DO carry texting, so the locked badge can name them instead
+      // of saying "upgrade" and leaving the organizer to go and find out which.
+      plansWithSms: await plansOfferingSms().catch(() => []),
       settings: sanitizeSmsSettings(event.sms_settings),
       messageTypes: SMS_MESSAGE_TYPES,
       wallet: wallet || { credits_purchased: 0, credits_used: 0, credits_remaining: 0 },

@@ -10,8 +10,15 @@ import Icon from '../../components/icons/Icon';
 import {
   WORLD_W, WORLD_H, shapeMeta, isZone, elWidth, elHeight, pctToPx,
 } from '../../utils/seatingGeometry';
-
-const GOLD = '#B8944F';
+/* And the LOOK is shared with SeatingMapFullscreen the same way, for the same
+   reason — see the header of seatingPlanStyle.js. Nothing about how an element
+   is painted, numbered or seated is decided in this file. */
+import {
+  planSurfaceStyle, floorGrainStyle, floorVignetteStyle,
+  elementStyle, seatPositions, seatStyle,
+  planNumeral, numeralStyle, numeralFits,
+  spotlightStyle, markerStyle, zoneGlyphSize, ZONE_GLYPH_OPACITY,
+} from '../../utils/seatingPlanStyle';
 
 /**
  * `maxHeight` — how tall this preview is allowed to grow.
@@ -23,7 +30,7 @@ const GOLD = '#B8944F';
  * at a venue door to show a barcode, and a half-screen floor plan pushed the
  * one thing they came for off the top of the phone.
  */
-export default function SeatingMiniMap({ tables, myTableId, youLabel = "You're here", maxHeight = 320 }) {
+export default function SeatingMiniMap({ tables, myTableId, maxHeight = 320 }) {
   const wrapRef = useRef(null);
   const [boxW, setBoxW] = useState(0);
 
@@ -67,9 +74,22 @@ export default function SeatingMiniMap({ tables, myTableId, youLabel = "You're h
   const renderW = contentW * scale;
   const renderH = contentH * scale;
 
+  /* Only worth pointing at something when there IS something to point at — with
+     no assignment the room renders at full strength rather than uniformly
+     dimmed, which just looks broken. */
+  const hasMine = els.some((el) => !isZone(el) && el.id === myTableId);
+
   return (
     <div ref={wrapRef} style={{ width: '100%', overflow: 'hidden' }}>
-      <div style={{ position: 'relative', width: renderW, height: renderH, margin: '0 auto', background: '#FAFAF8', border: '1px solid #E8E2D6', borderRadius: '12px' }}>
+      <div style={{
+        position: 'relative', width: renderW, height: renderH, margin: '0 auto',
+        overflow: 'hidden', ...planSurfaceStyle(14),
+      }}>
+        {/* The ruled floor and its corner shading. Both are decorative and both
+            sit under every element, so they are drawn first and marked hidden. */}
+        <div aria-hidden style={floorGrainStyle(scale)} />
+        <div aria-hidden style={floorVignetteStyle()} />
+
         {els.map(el => {
           const zone = isZone(el);
           const meta = shapeMeta(el.shape);
@@ -79,36 +99,41 @@ export default function SeatingMiniMap({ tables, myTableId, youLabel = "You're h
           const h = elHeight(el) * scale;
           const rotation = Number(el.rotation) || 0;
           const mine = !zone && el.id === myTableId;
-          const color = el.color || meta.color || GOLD;
+          const color = el.color || meta.color || '#B8944F';
+          const numeral = zone || !numeralFits(h) ? null : planNumeral(el.table_name);
+
           return (
-            <div key={el.id} style={{
-              position: 'absolute', left, top, width: w, height: h,
-              transform: `rotate(${rotation}deg)`, transformOrigin: 'center center',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
-              borderRadius: meta.round ? '50%' : zone ? '8px' : '6px',
-              border: mine ? `2px solid ${GOLD}` : `1px solid ${zone ? color : '#E0D8C8'}`,
-              background: mine ? 'rgba(184,148,79,0.18)' : zone ? `${color}1A` : '#FFFFFF',
-              boxShadow: mine ? '0 0 0 4px rgba(184,148,79,0.18), 0 6px 18px rgba(184,148,79,0.3)' : 'none',
-              zIndex: mine ? 3 : 1,
-            }}>
-              <span style={{
-                fontSize: Math.max(7, Math.min(11, h / 3)), fontWeight: mine ? 800 : 600,
-                color: mine ? '#7A5C1E' : zone ? '#5b574e' : '#77736A',
-                lineHeight: 1.1, padding: '0 2px', overflow: 'hidden', maxWidth: '100%',
-                fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2,
+            <React.Fragment key={el.id}>
+              {/* The spotlight is a SIBLING of the table, not a child: a child
+                  would be clipped by `border-radius: 50%` and would inherit the
+                  table's rotation, turning a glow into a smear. */}
+              {mine && <div aria-hidden style={spotlightStyle(left, top, w, h)} />}
+
+              <div style={{
+                ...elementStyle(el, { scale, mine, dimOthers: hasMine }),
+                left, top, width: w, height: h,
+                transform: `rotate(${rotation}deg)`, transformOrigin: 'center center',
               }}>
-                {zone && meta.icon && <Icon name={meta.icon} size={Math.max(8, Math.min(11, h / 3))} strokeWidth={1.6} style={{ flexShrink: 0 }} />}
-                {el.table_name}
-              </span>
-              {mine && (
-                <span style={{
-                  position: 'absolute', top: -10, left: '50%', transform: 'translateX(-50%)',
-                  background: GOLD, color: '#FFFFFF', fontSize: '8px', fontWeight: 800,
-                  padding: '2px 7px', borderRadius: '8px', whiteSpace: 'nowrap',
-                  fontFamily: 'var(--font-sans)', letterSpacing: '0.04em', zIndex: 4,
-                }}>★ {youLabel}</span>
-              )}
-            </div>
+                {zone && meta.icon && (
+                  <Icon
+                    name={meta.icon}
+                    size={zoneGlyphSize(w, h)}
+                    color={color}
+                    strokeWidth={1.6}
+                    style={{ opacity: ZONE_GLYPH_OPACITY, flexShrink: 0 }}
+                  />
+                )}
+                {numeral && <span style={numeralStyle(h, mine, rotation)}>{numeral}</span>}
+                {!zone && seatPositions(el).map((pos, i) => (
+                  <span key={i} aria-hidden style={seatStyle(pos, scale, mine)} />
+                ))}
+                {/* A mark, not a word. The old "★ You're here" pill was 8px type
+                    and wider than the 96px table it pointed at, so on a dense
+                    plan it covered the two tables either side of the one it was
+                    identifying. */}
+                {mine && <span aria-hidden style={markerStyle(w)}>★</span>}
+              </div>
+            </React.Fragment>
           );
         })}
       </div>

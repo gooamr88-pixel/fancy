@@ -11,6 +11,7 @@ import ConfirmBulkTextModal from './ConfirmBulkTextModal';
 import ConfirmRemoveGuestModal from './ConfirmRemoveGuestModal';
 import SendInvitationModal from './SendInvitationModal';
 import FeatureGate from './FeatureGate';
+import { PlanLockBadge, plansSentence } from './PlanLock';
 import MobileDisclosure from './MobileDisclosure';
 
 const COLORS = {
@@ -178,7 +179,7 @@ const SummaryCard = React.memo(function SummaryCard({ count, people, label, acce
  * their details" are unambiguous under "By text message"; spelled out on every
  * button they would be four long labels repeating the same two words.
  */
-function BulkGroup({ heading, note, noteColor, children }) {
+function BulkGroup({ heading, note, noteColor, badge, children }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 8 }}>
@@ -186,9 +187,13 @@ function BulkGroup({ heading, note, noteColor, children }) {
           fontSize: 'var(--fx-micro)', fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase',
           color: COLORS.stone, fontFamily: 'var(--font-sans)',
         }}>{heading}</span>
-        <span style={{ fontSize: 'var(--fx-micro)', fontWeight: 700, color: noteColor, fontFamily: 'var(--font-sans)' }}>
-          {note}
-        </span>
+        {/* A badge replaces the note rather than sitting beside it: the price of
+            a balance is irrelevant to somebody who cannot buy one. */}
+        {badge || (note ? (
+          <span style={{ fontSize: 'var(--fx-micro)', fontWeight: 700, color: noteColor, fontFamily: 'var(--font-sans)' }}>
+            {note}
+          </span>
+        ) : null)}
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>{children}</div>
     </div>
@@ -223,6 +228,16 @@ function BulkButton({ primary, busy, disabled, onClick, label, busyLabel, title 
 export default function RSVPsTab({
   rsvps = [], eventId, event, customFields, onRefresh,
   smsAddonActive = false, smsMaxPerSend = 0, onBuySms,
+  /* Plan-level SMS access — see the note on dashboard/page.js's smsAddon state.
+     Threaded to every send surface so "your plan does not include texting" and
+     "you have not bought messages yet" stay distinguishable at the point of use:
+     they lead to different screens, and offering a purchase to somebody whose
+     plan forbids texting sends them to a checkout that refuses them. */
+  smsAccess = 'granted', plansWithSms = [], onUpgradePlan,
+  // Derived once: the bulk bar and both send menus must agree on why texting is
+  // unavailable, or the same event tells the organizer two different stories
+  // depending on whether they selected one guest or twenty.
+  smsPlanLocked = smsAccess === 'locked',
   // Balance figures for the banner. Supplied by the dashboard, which already
   // holds them for the sidebar — refetching here would put a second, slightly
   // different number on the same screen as the first.
@@ -931,33 +946,52 @@ export default function RSVPsTab({
                 />
               </BulkGroup>
 
-              <BulkGroup heading="By text message" note="Uses your balance" noteColor={COLORS.gold}>
+              {/* THREE states, not two. The per-guest send menu already made
+                  this distinction and the bulk bar did not, so a plan-locked
+                  organizer selecting twenty guests was offered "Add texting"
+                  and sent to a checkout that refuses them — the exact bug the
+                  menu's upgradeInstead/buyInstead split exists to prevent. */}
+              <BulkGroup
+                heading="By text message"
+                note={smsPlanLocked ? null : 'Uses your balance'}
+                noteColor={COLORS.gold}
+                badge={smsPlanLocked ? <PlanLockBadge label="Plan feature" /> : null}
+              >
                 <BulkButton
                   primary
                   busy={sending === 'bulk:sms'}
-                  disabled={sending !== null || (smsAddonActive && reach.reachable === 0)}
-                  onClick={() => (smsAddonActive
-                    ? askBulkSms('sms', [...selectedIds], reach.reachable)
-                    : onBuySms?.())}
-                  label={smsAddonActive
-                    ? `Invitation${reach.reachable !== selectedIds.size ? ` (${reach.reachable})` : ''}`
-                    : 'Add texting'}
+                  disabled={sending !== null || (!smsPlanLocked && smsAddonActive && reach.reachable === 0)}
+                  onClick={() => {
+                    if (smsPlanLocked) return onUpgradePlan?.();
+                    return smsAddonActive
+                      ? askBulkSms('sms', [...selectedIds], reach.reachable)
+                      : onBuySms?.();
+                  }}
+                  label={smsPlanLocked
+                    ? 'See plans'
+                    : smsAddonActive
+                      ? `Invitation${reach.reachable !== selectedIds.size ? ` (${reach.reachable})` : ''}`
+                      : 'Add texting'}
                   busyLabel="Texting…"
-                  title={smsAddonActive
-                    ? `Text the invitation to ${reach.reachable} of the ${selectedIds.size} selected`
-                    : 'Text messaging is not switched on for this event yet.'}
+                  title={smsPlanLocked
+                    ? `Text messaging is part of a higher plan${plansWithSms.length ? ` — ${plansSentence(plansWithSms)}` : ''}.`
+                    : smsAddonActive
+                      ? `Text the invitation to ${reach.reachable} of the ${selectedIds.size} selected`
+                      : 'Text messaging is not switched on for this event yet.'}
                 />
                 <BulkButton
                   busy={sending === 'bulk:detail-sms'}
-                  disabled={sending !== null || !smsAddonActive || detailReachable === 0}
+                  disabled={sending !== null || smsPlanLocked || !smsAddonActive || detailReachable === 0}
                   onClick={() => askBulkSms('detail-sms', attendingSelectedIds, detailReachable)}
                   label={`All their details${detailReachable !== selectedIds.size ? ` (${detailReachable})` : ''}`}
                   busyLabel="Texting…"
-                  title={!smsAddonActive
-                    ? 'Text messaging is not switched on for this event yet.'
-                    : detailReachable === 0
-                      ? 'Needs guests who accepted and agreed to texts'
-                      : `Text table, companions, meals and pass link to ${detailReachable} guests`}
+                  title={smsPlanLocked
+                    ? 'Text messaging is part of a higher plan.'
+                    : !smsAddonActive
+                      ? 'Text messaging is not switched on for this event yet.'
+                      : detailReachable === 0
+                        ? 'Needs guests who accepted and agreed to texts'
+                        : `Text table, companions, meals and pass link to ${detailReachable} guests`}
                 />
               </BulkGroup>
 
@@ -1044,6 +1078,9 @@ export default function RSVPsTab({
                     onSendGuest={handleSendGuest}
                     onBuySms={onBuySms}
                     smsAddonActive={smsAddonActive}
+                    smsAccess={smsAccess}
+                    plansWithSms={plansWithSms}
+                    onUpgradePlan={onUpgradePlan}
                   />
                 ))}
               </tbody>
@@ -1065,6 +1102,9 @@ export default function RSVPsTab({
                 onSendGuest={handleSendGuest}
                 onBuySms={onBuySms}
                 smsAddonActive={smsAddonActive}
+                smsAccess={smsAccess}
+                plansWithSms={plansWithSms}
+                onUpgradePlan={onUpgradePlan}
               />
             ))}
           </div>
@@ -1193,7 +1233,7 @@ export default function RSVPsTab({
 }
 
 /* ── Table Row ───────────────────────────────────────────────── */
-const RSVPRow = React.memo(function RSVPRow({ rsvp, isEven, deletingId, onDelete, resending, onEdit, selected, onToggleSelect, sending, onSendGuest, smsAddonActive, onBuySms }) {
+const RSVPRow = React.memo(function RSVPRow({ rsvp, isEven, deletingId, onDelete, resending, onEdit, selected, onToggleSelect, sending, onSendGuest, smsAddonActive, onBuySms, smsAccess, plansWithSms, onUpgradePlan }) {
   const [hovered, setHovered] = useState(false);
   const badge = responseBadge(rsvp.response);
   const reach = smsReachability(rsvp);
@@ -1340,6 +1380,9 @@ const RSVPRow = React.memo(function RSVPRow({ rsvp, isEven, deletingId, onDelete
             guestName={rsvp.guest_name}
             busy={[sending, resending].some((k) => !!k && String(k).startsWith(`${rsvp.id}:`))}
             smsActive={smsAddonActive}
+            smsAccess={smsAccess}
+            plansWithSms={plansWithSms}
+            onUpgradePlan={onUpgradePlan}
             reach={reachability}
             attending={isAccepted(rsvp.response)}
             onBuySms={onBuySms}
@@ -1359,7 +1402,7 @@ const RSVPRow = React.memo(function RSVPRow({ rsvp, isEven, deletingId, onDelete
 });
 
 /* ── Mobile Card (same data/actions as RSVPRow, stacked instead of tabular) ── */
-const RSVPCard = React.memo(function RSVPCard({ rsvp, deletingId, onDelete, resending, onEdit, selected, onToggleSelect, sending, onSendGuest, smsAddonActive, onBuySms }) {
+const RSVPCard = React.memo(function RSVPCard({ rsvp, deletingId, onDelete, resending, onEdit, selected, onToggleSelect, sending, onSendGuest, smsAddonActive, onBuySms, smsAccess, plansWithSms, onUpgradePlan }) {
   const badge = responseBadge(rsvp.response);
   const reach = smsReachability(rsvp);
   return (
@@ -1420,6 +1463,9 @@ const RSVPCard = React.memo(function RSVPCard({ rsvp, deletingId, onDelete, rese
           guestName={rsvp.guest_name}
           busy={[sending, resending].some((k) => !!k && String(k).startsWith(`${rsvp.id}:`))}
           smsActive={smsAddonActive}
+          smsAccess={smsAccess}
+          plansWithSms={plansWithSms}
+          onUpgradePlan={onUpgradePlan}
           reach={reach}
           attending={isAccepted(rsvp.response)}
           onBuySms={onBuySms}

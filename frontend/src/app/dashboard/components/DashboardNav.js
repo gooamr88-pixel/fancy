@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { apiFetch, logout } from '../../utils/apiClient';
 import LogoutModal from '../../components/LogoutModal';
+import { PlanLockBadge } from './PlanLock';
 import {
   NAV_GROUPS, MOBILE_BAR_KEYS, NAV_BY_KEY, resolveActiveKey,
 } from './dashboardNavItems';
@@ -116,6 +117,40 @@ export default function DashboardNav() {
     return () => { cancelled = true; };
   }, []);
 
+  /**
+   * Is text messaging on this event's plan?
+   *
+   * Fetched, not derived. `events` above already carries `tier_features`, so it
+   * is tempting to read `tier_features.includes('sms_campaigns')` here and save
+   * a request — and that is precisely the mistake this avoids. The send gate and
+   * the Text messages page both resolve access from the live admin config
+   * (tier name → tier definition → feature list), and a second implementation in
+   * the nav disagrees the first time an admin renames a tier: the sidebar shows
+   * a padlock over a page that works, or no padlock over one that 403s. One
+   * server answer, three surfaces.
+   *
+   * Cheap and non-blocking: the same ungated endpoint the dashboard already
+   * calls, keyed on the event, and a failure simply leaves the item unbadged —
+   * a nav that cannot resolve an entitlement is still a nav.
+   */
+  const [smsLocked, setSmsLocked] = useState(false);
+  useEffect(() => {
+    if (!effectiveEventId) { return undefined; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await apiFetch(`/events/${effectiveEventId}/campaigns/settings`);
+        if (cancelled) return;
+        // A missing `access` (older API) reads as allowed — never badge a paying
+        // customer's working feature as locked because of a version skew.
+        setSmsLocked(data?.access === 'locked');
+      } catch {
+        if (!cancelled) setSmsLocked(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [effectiveEventId]);
+
   /* The drawer is closed by the thing that closes it — every nav link's own
      onClick below, the X, and the overlay.
    *
@@ -194,6 +229,14 @@ export default function DashboardNav() {
           <NavIcon paths={item.icon} />
         </span>
         <span style={{ flex: 1, minWidth: 0 }}>{item.label}</span>
+
+        {/* Padlock on the one destination the plan may not include. Rendered
+            here rather than as a `blocked` item on purpose: the page is still
+            worth reaching — it explains what texting does and which plans carry
+            it — so this marks the item, it does not disable it. */}
+        {item.key === 'campaigns' && smsLocked && (
+          <PlanLockBadge label="Plan" title="Text messaging is part of a higher plan" style={{ letterSpacing: '0.04em' }} />
+        )}
 
         {item.badge === 'drafts' && draftCount > 0 && (
           <span style={{

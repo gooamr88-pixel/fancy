@@ -7,6 +7,7 @@ import { LockIcon } from '../../../guest/RsvpIcons';
 import { ConfettiExplosion } from '../../../guest/GuestAnimations';
 import GuestPassCard from '../../../guest/GuestPassGenerator';
 import ContactRegisteredNotice from '../../../guest/rsvp/ContactRegisteredNotice';
+import AdultsOnlyNotice from '../../../guest/AdultsOnlyNotice';
 import CompanionMealCounter, { trimMealCounts } from '../../../guest/rsvp/CompanionMealCounter';
 import CountryCodePhoneInput from '../../../CountryCodePhoneInput';
 import SmsConsentText, { SmsConsentIndependence } from '../../../guest/SmsConsentText';
@@ -1082,6 +1083,16 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
                         )}
 
                         <PartyStepper value={partySize} onChange={handlePartySizeChange} label={isRTL ? 'عدد الضيوف (بما فيهم أنت)' : 'Number of guests (including you)'} isRTL={isRTL} C={C} />
+
+                        {/* Directly under the stepper, because this is the
+                            control the rule constrains — "Number of guests
+                            (including you)" with the notice only somewhere
+                            further up the invitation page reads as an open
+                            invitation to count the children. Mirrored in
+                            StepPartyDetails for the other RSVP path. */}
+                        {!!event?.no_kids_allowed && (
+                          <AdultsOnlyNotice isRTL={isRTL} themeColor={C.gold} />
+                        )}
 
                         {/* Companions — one name each, in ONE card rather than a
                             card per person. Each used to get a full block (email,

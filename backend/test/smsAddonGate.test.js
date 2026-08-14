@@ -7,22 +7,50 @@ const { mockReq } = require('./helpers/http');
 const { injectModule } = require('./helpers/inject');
 
 /**
- * SMS ADD-ON GATE — the single authorization for sending text messages.
+ * SMS GATE — the single authorization for sending text messages.
  *
  * Two properties are under test, and the second is the one that was actually
  * broken in production:
  *
- *  1. An event that has not bought the add-on cannot send.
+ *  1. An event that may not send, cannot send.
  *  2. That answer is the same on BOTH routes that can reach the dispatcher.
  *     /events/:id/campaigns/send-sms was gated; /events/:id/invitations/send was
  *     not — and its `channel: 'sms'` branch forwards straight into the same
  *     campaign controller. Anyone who noticed could send campaigns for free by
  *     switching endpoints. A test that only covers the campaigns route would have
  *     stayed green throughout, so the invitations route is asserted explicitly.
+ *
+ * ── The rule this file covers changed, and these tests changed with it ──
+ *
+ * Texting used to be a per-event add-on available on EVERY plan, and this file
+ * asserted exactly that: "a paid add-on passes, regardless of pricing tier". It
+ * is now also a tier feature (`sms_campaigns`), switched on per plan by a super
+ * admin — so the tier is no longer irrelevant, and two of the cases below assert
+ * the opposite of what they used to.
+ *
+ * The full entitlement matrix — plan yes/no × purchased yes/no, grandfathering,
+ * deleted tiers — lives in smsPlanFeature.test.js. This file keeps the cases it
+ * has always owned: the 402, the comp, the 404, failing closed, and both doors.
  */
 
 const mock = createMockSupabase();
 injectModule('../../config/supabase', { supabase: mock.supabase });
+
+/**
+ * A platform config where 'Premium' carries texting and 'Basic' does not.
+ *
+ * Injected because the gate now resolves the tier's feature list before deciding
+ * between "buy messages" (402) and "upgrade your plan" (403). Without it every
+ * case here would take the config-failure branch and 500.
+ */
+injectModule('../../utils/configCache', {
+  getPlatformConfig: async () => ({
+    pricing_tiers: [
+      { name: 'Premium', features: ['sms_campaigns'] },
+      { name: 'Basic', features: ['rsvp_basic'] },
+    ],
+  }),
+});
 
 const { requireSmsAddon } = require('../middleware/smsAddonGate');
 
@@ -48,7 +76,10 @@ async function runGate(eventRow, user = { id: 'owner-1' }) {
   return { nextCalled, res, req };
 }
 
-test('an event that never bought the add-on is refused with 402', async () => {
+test('an event on a texting plan that never bought the add-on is refused with 402', async () => {
+  // 'Premium' carries the feature, so the plan is not the obstacle — the missing
+  // allowance is. That distinction is what makes 402 the right answer here and
+  // 403 the right answer for a plan without texting (see smsPlanFeature.test.js).
   const { nextCalled, res } = await runGate({
     id: EVENT, is_paid: true, tier_name: 'Premium', sms_addon_purchased_at: null, manual_override: false,
   });
@@ -60,9 +91,16 @@ test('an event that never bought the add-on is refused with 402', async () => {
     'the client needs to know WHICH purchase unlocks this, not just that it is blocked');
 });
 
-test('a paid add-on passes, regardless of pricing tier', async () => {
-  // The cheapest possible plan. SMS is sold per event, so the tier is irrelevant —
-  // this is the whole point of replacing the tier-based feature gate.
+test('a paid add-on passes even on a plan that no longer carries texting', async () => {
+  /**
+   * GRANDFATHERING, and the reason this case survived the rule change with its
+   * expectation intact while its NAME had to change.
+   *
+   * 'Basic' does not include texting. This event bought messages anyway — under
+   * the old rule, where any plan could. Money changed hands for credits sitting
+   * in a wallet, so an admin reorganising which plans carry texting must not be
+   * able to strand them mid-event. The purchase is checked before the tier.
+   */
   const { nextCalled, res } = await runGate({
     id: EVENT, is_paid: true, tier_name: 'Basic',
     sms_addon_purchased_at: '2026-08-04T12:00:00.000Z', manual_override: false,

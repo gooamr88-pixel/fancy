@@ -1033,7 +1033,13 @@ export default function Stage2_FormConfiguration({
                 <span>
                   Show &quot;No Kids Allowed&quot; on the invitation
                   <span style={{ display: 'block', color: C.stone, fontSize: 12, marginTop: 3, fontWeight: 400, lineHeight: 1.5 }}>
-                    Off by default. When on, a quiet notice appears on the invitation card and the envelope reveal, and the invitation page gains its own &quot;A Kind Note&quot; section, so guests know it&apos;s an adults-only celebration.
+                    {/* Kept identical to EventSettings' copy — the organizer
+                        reads one of these when creating and the other when
+                        editing, and two descriptions of one switch is how a
+                        feature acquires a reputation for being unpredictable.
+                        The "envelope reveal" clause was removed from both: the
+                        reveal has carried no adults-only copy since its rebuild. */}
+                    Off by default. When on, a quiet notice appears on the invitation card, the invitation page gains its own &quot;A Kind Note&quot; section, and guests are reminded on the RSVP form as they choose how many people are coming.
                   </span>
                 </span>
               </label>

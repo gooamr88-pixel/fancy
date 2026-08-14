@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { toast } from '../../utils/toast';
+import PlanLock from '../components/PlanLock';
 import { startSmsCreditPurchase } from '../../utils/smsPurchase';
 
 /**
@@ -66,6 +67,7 @@ export default function MessagesPage() {
    * only the first load, before the URL names anything.
    */
   const urlEventId = params.get('event') || '';
+  const router = useRouter();
   const [fallbackEventId, setFallbackEventId] = useState('');
   const [events, setEvents] = useState([]);
   const eventId = (urlEventId && events.some((e) => e.id === urlEventId))
@@ -179,6 +181,10 @@ export default function MessagesPage() {
 
   const balance = data?.balance;
   const active = !!data?.addonActive;
+  /* Server's verdict, not re-derived here — see the note on campaigns/settings.
+     A missing `access` (older API) reads as allowed, so a version skew never
+     hides a paying customer's texting behind an upsell. */
+  const planLocked = data?.access === 'locked';
   const activeEvent = events.find((e) => e.id === eventId) || null;
 
   /* ── Empty state: no events at all ────────────────────────────────────── */
@@ -236,6 +242,20 @@ export default function MessagesPage() {
 
       {loading ? (
         <p style={{ color: C.stone, fontFamily: 'var(--font-sans)' }}>Loading…</p>
+      ) : planLocked ? (
+        /* ── The plan does not carry texting ──────────────────────────────
+           Checked BEFORE `!active`, because the two look identical to a
+           customer and lead to opposite places. "Not on for this event" offers
+           a purchase; this plan cannot make that purchase, so offering it would
+           walk the organizer into a checkout that refuses them. */
+        <PlanLock
+          title="Text messaging is not on your plan"
+          description="Send invitations, reminders and entry passes straight to your guests' phones — and reach the guests who never open email."
+          plans={data?.plansWithSms || []}
+          meteredNote="Messages are charged separately, per message"
+          onUpgrade={() => router.push('/dashboard?tab=events')}
+          upgradeLabel="See plans"
+        />
       ) : !active ? (
         /* ── Not purchased. Sell it; do not scold. ───────────────────────── */
         <Empty

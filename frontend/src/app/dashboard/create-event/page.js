@@ -222,6 +222,11 @@ export default function CreateEventWizard() {
   // Registry key -> human label, so tier bullets never print `add_guest_manual`.
   const [featureLabels, setFeatureLabels] = useState({});
   const [hiddenTierFeatures, setHiddenTierFeatures] = useState([]);
+  // Registry key -> "charged separately" caption, for features a plan grants
+  // ACCESS to rather than includes outright (text messaging). Without it a tier
+  // bullet reading plain "Text messaging" is a promise the product does not
+  // keep, and the organizer discovers the difference when they try to send.
+  const [featureNotes, setFeatureNotes] = useState({});
   // Which paid integrations are live right now (server-driven). Default OFF so the
   // UI is manual-first until the backend reports card/SMS are enabled.
   const [features, setFeatures] = useState({ stripeEnabled: false, smsEnabled: false });
@@ -554,6 +559,7 @@ export default function CreateEventWizard() {
           if (data.smsPricing?.volume_discounts) setSmsVolumeDiscounts(data.smsPricing.volume_discounts);
           if (data.featureLabels) setFeatureLabels(data.featureLabels);
           if (Array.isArray(data.hiddenTierFeatures)) setHiddenTierFeatures(data.hiddenTierFeatures);
+          if (data.featureNotes) setFeatureNotes(data.featureNotes);
         }
       } catch { /* non-fatal — payment step shows a skip option */ }
     })();
@@ -1581,6 +1587,7 @@ export default function CreateEventWizard() {
               smsVolumeDiscounts={smsVolumeDiscounts}
               featureLabels={featureLabels}
               hiddenTierFeatures={hiddenTierFeatures}
+              featureNotes={featureNotes}
               smsRateCentsPerCredit={smsRateCentsPerCredit}
               smsMarkupPercentage={smsMarkupPercentage}
               processing={payProcessing}

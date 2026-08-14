@@ -7,6 +7,16 @@ import Icon from '../../components/icons/Icon';
 import {
   WORLD_W, WORLD_H, shapeMeta, isZone, elWidth, elHeight, pctToPx, elCenterX, elCenterY,
 } from '../../utils/seatingGeometry';
+/* The look is shared with SeatingMiniMap — see the header of
+   seatingPlanStyle.js. This file decides how the plan MOVES; that one decides
+   how it is drawn. */
+import {
+  planSurfaceStyle, floorGrainStyle, floorVignetteStyle,
+  elementStyle, seatPositions, seatStyle,
+  planNumeral, numeralStyle, numeralFits,
+  spotlightStyle, markerStyle, zoneGlyphSize, ZONE_GLYPH_OPACITY,
+  planLegend,
+} from '../../utils/seatingPlanStyle';
 
 /**
  * Fullscreen, pannable + zoomable viewer for the guest's seating chart.
@@ -22,8 +32,17 @@ const MIN_SCALE = 0.15;
 const MAX_SCALE = 3;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-export default function SeatingMapFullscreen({ tables, myTableId, myTableName, hostName, isRTL, onClose }) {
+/* `hostName` is gone from the props. It only ever fed the "Sara — your table"
+   pill above the guest's table, and that pill has been replaced by a gold star:
+   the guest's own name on their own table is the one label on the plan that told
+   them nothing they did not already know, and it was wide enough to cover the
+   two tables either side of it. The header above still names the table. */
+export default function SeatingMapFullscreen({ tables, myTableId, myTableName, isRTL, onClose }) {
   const els = useMemo(() => (tables || []).filter(Boolean), [tables]);
+  /* What the zone glyphs mean, named once, off the plan itself — this is what
+     makes removing the zone names cost the guest nothing. */
+  const legend = useMemo(() => planLegend(els), [els]);
+  const hasMine = useMemo(() => els.some((el) => !isZone(el) && el.id === myTableId), [els, myTableId]);
   const containerRef = useRef(null);
   const [view, setView] = useState({ scale: 0.4, tx: 0, ty: 0 });
   const [dragging, setDragging] = useState(false);
@@ -216,9 +235,10 @@ export default function SeatingMapFullscreen({ tables, myTableId, myTableName, h
         </button>
       </div>
 
-      {/* Canvas — plain white/ivory floor with the same fine dot-grid used by
-          the organizer's own editor and the printed seating chart, so every
-          seating-map surface in the product shares one visual language. */}
+      {/* Canvas — the plan is drawn as a sheet of drafting paper floating on a
+          plain ground, so panning reads as moving a printed plan around rather
+          than scrolling a webpage. The paper, its ruling and every element on it
+          come from seatingPlanStyle. */}
       <div
         ref={containerRef}
         onMouseDown={onPointerDown}
@@ -231,7 +251,9 @@ export default function SeatingMapFullscreen({ tables, myTableId, myTableName, h
         style={{
           flex: 1, position: 'relative', overflow: 'hidden',
           cursor: dragging ? 'grabbing' : 'grab',
-          background: '#FFFFFF',
+          // A quiet warm ground, not white: the plan is a sheet of paper resting
+          // on it, and a white sheet on a white ground has no edge.
+          background: '#EDE9E0',
           touchAction: 'none',
         }}
       >
@@ -239,14 +261,13 @@ export default function SeatingMapFullscreen({ tables, myTableId, myTableName, h
           position: 'absolute', left: 0, top: 0, width: WORLD_W, height: WORLD_H,
           transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.scale})`,
           transformOrigin: '0 0', willChange: 'transform',
+          ...planSurfaceStyle(28),
         }}>
-          {/* Floor dot-grid — subtle, fades out at high zoom */}
-          <div aria-hidden style={{
-            position: 'absolute', inset: 0,
-            backgroundImage: 'radial-gradient(#E0D8C6 1.5px, transparent 1.5px)',
-            backgroundSize: '32px 32px',
-            opacity: 0.7, pointerEvents: 'none',
-          }} />
+          {/* The ruled floor + corner shading. `scale` is 1 here on purpose: this
+              layer lives INSIDE the transformed world, so the module is already
+              in world px and the browser scales it with everything else. */}
+          <div aria-hidden style={floorGrainStyle(1)} />
+          <div aria-hidden style={floorVignetteStyle()} />
 
           {els.map((el) => {
             const zone = isZone(el);
@@ -257,68 +278,60 @@ export default function SeatingMapFullscreen({ tables, myTableId, myTableName, h
             const rotation = Number(el.rotation) || 0;
             const mine = !zone && el.id === myTableId;
             const color = el.color || meta.color || GOLD;
+            // World px, so `numeralFits` is always satisfied here — the guard
+            // exists for the thumbnail. Kept anyway so the two maps run the same
+            // rule rather than one of them assuming it.
+            const numeral = zone || !numeralFits(h) ? null : planNumeral(el.table_name);
+
             return (
-              <div key={el.id} style={{
-                position: 'absolute', left, top, width: w, height: h,
-                transform: `rotate(${rotation}deg)`, transformOrigin: 'center center',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
-                borderRadius: meta.round ? '50%' : zone ? '12px' : '10px',
-                border: mine ? `4px solid ${GOLD}` : `1.5px solid ${zone ? color : '#E0D8C8'}`,
-                background: mine
-                  ? 'linear-gradient(135deg, #FFFBF0, #F3E4C4)'
-                  : zone ? `${color}1A` : '#FFFFFF',
-                boxShadow: mine
-                  ? '0 0 0 10px rgba(184,148,79,0.16), 0 16px 40px rgba(184,148,79,0.35)'
-                  : '0 2px 8px rgba(25,27,30,0.06)',
-                zIndex: mine ? 5 : (zone ? 1 : 2),
-              }}>
-                <span style={{
-                  fontSize: Math.max(11, Math.min(22, h / 4)),
-                  fontWeight: mine ? 800 : 700,
-                  color: mine ? '#5C4516' : zone ? '#3A3631' : '#3A3631',
-                  lineHeight: 1.1, padding: '0 4px', maxWidth: '100%',
-                  fontFamily: 'var(--font-sans)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+              <React.Fragment key={el.id}>
+                {mine && <div aria-hidden style={spotlightStyle(left, top, w, h)} />}
+
+                <div style={{
+                  ...elementStyle(el, { scale: 1, mine, dimOthers: hasMine }),
+                  left, top, width: w, height: h,
+                  transform: `rotate(${rotation}deg)`, transformOrigin: 'center center',
                 }}>
-                  {zone && meta.icon && <Icon name={meta.icon} size={Math.max(11, Math.min(18, h / 5))} strokeWidth={1.8} color={color} style={{ flexShrink: 0 }} />}
-                  {el.table_name}
-                </span>
-                {mine && (
-                  <>
-                    <span style={{
-                      position: 'absolute', top: -28, left: '50%', transform: 'translateX(-50%)',
-                      background: GOLD, color: '#FFFFFF',
-                      fontSize: '13px', fontWeight: 800,
-                      padding: '5px 14px', borderRadius: '999px', whiteSpace: 'nowrap',
-                      fontFamily: 'var(--font-sans)', letterSpacing: '0.05em',
-                      boxShadow: '0 8px 20px rgba(184,148,79,0.55)',
-                    }}>♛ {isRTL ? (hostName ? `${hostName} — طاولتك` : 'طاولتك') : (hostName ? `${hostName} — your table` : 'Your table')}</span>
-                    {/**
-                      * Pulsing ring — the thing that makes "your table" findable
-                      * at a glance in a room of forty identical circles.
-                      *
-                      * It has never animated. The @keyframes lived in a
-                      * <style jsx> block at the bottom of this file, and
-                      * styled-jsx renames a scoped keyframe to
-                      * `fancySeatPulse-jsx-<hash>` — it cannot rewrite the name
-                      * inside an inline style object, so this `animation` was
-                      * resolving against a keyframe that does not exist and the
-                      * ring just sat there. Exactly the trap the ticket page
-                      * already documents for its spinner.
-                      *
-                      * The keyframe now lives in globals.css, unscoped, which is
-                      * the only place an inline-style animation can reach.
-                      */}
-                    <span aria-hidden style={{
-                      position: 'absolute', inset: -14,
-                      borderRadius: meta.round ? '50%' : '14px',
-                      border: `2px solid ${GOLD}`,
-                      animation: 'fancySeatPulse 1.8s ease-out infinite',
-                      pointerEvents: 'none',
-                    }} />
-                  </>
-                )}
-              </div>
+                  {zone && meta.icon && (
+                    <Icon
+                      name={meta.icon}
+                      size={zoneGlyphSize(w, h)}
+                      color={color}
+                      strokeWidth={1.6}
+                      style={{ opacity: ZONE_GLYPH_OPACITY, flexShrink: 0 }}
+                    />
+                  )}
+                  {numeral && <span style={numeralStyle(h, mine, rotation)}>{numeral}</span>}
+                  {!zone && seatPositions(el).map((pos, i) => (
+                    <span key={i} aria-hidden style={seatStyle(pos, 1, mine)} />
+                  ))}
+                  {mine && (
+                    <>
+                      <span aria-hidden style={markerStyle(w)}>★</span>
+                      {/**
+                        * Pulsing ring — what makes "your table" findable at a
+                        * glance in a room of forty identical circles.
+                        *
+                        * The keyframe lives in globals.css, UNSCOPED. It used to
+                        * sit in a <style jsx> block at the bottom of this file,
+                        * where styled-jsx renamed it to
+                        * `fancySeatPulse-jsx-<hash>` — a name it cannot rewrite
+                        * inside an inline style object, so the animation
+                        * resolved against a keyframe that did not exist and the
+                        * ring simply sat there. Same trap the ticket page
+                        * documents for its spinner.
+                        */}
+                      <span aria-hidden style={{
+                        position: 'absolute', inset: -14,
+                        borderRadius: meta.round ? '50%' : '18px',
+                        border: `2px solid ${GOLD}`,
+                        animation: 'fancySeatPulse 1.8s ease-out infinite',
+                        pointerEvents: 'none',
+                      }} />
+                    </>
+                  )}
+                </div>
+              </React.Fragment>
             );
           })}
         </div>
@@ -349,7 +362,7 @@ export default function SeatingMapFullscreen({ tables, myTableId, myTableName, h
                 boxShadow: '0 10px 20px rgba(184,148,79,0.4)',
               }}
             >
-              ♛ {isRTL ? 'مكاني' : 'My seat'}
+              ★ {isRTL ? 'مكاني' : 'My seat'}
             </button>
           )}
         </div>
@@ -368,6 +381,45 @@ export default function SeatingMapFullscreen({ tables, myTableId, myTableName, h
           {isRTL ? 'اسحب للتحريك • العجلة أو الإصبعين للتكبير' : 'Drag to pan • Scroll or pinch to zoom'}
         </div>
       </div>
+
+      {/**
+        * THE LEGEND — and the reason the plan can be clean.
+        *
+        * The zones on the plan carry a glyph and a colour and no text, which is
+        * what a printed floor plan does and what stops fourteen labels competing
+        * with the one table that matters. That only works if "what is the purple
+        * square" is answered SOMEWHERE, so it is answered here, once, under the
+        * plan, at a size that can actually be read.
+        *
+        * Built from the elements actually present, so a small venue gets three
+        * entries rather than a catalogue of fourteen.
+        */}
+      {legend.length > 0 && (
+        <div
+          style={{
+            // Wraps rather than scrolls: a legend that runs off the side of a
+            // phone is a legend nobody reads the end of.
+            display: 'flex', flexWrap: 'wrap', gap: '8px 20px',
+            padding: '12px 20px',
+            paddingBottom: 'max(12px, calc(env(safe-area-inset-bottom) + 6px))',
+            background: '#FDFBF6', borderTop: '1px solid #EFE7D6',
+            fontFamily: 'var(--font-sans)',
+          }}
+        >
+          {legend.map((z) => (
+            <span key={z.shape} style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', fontSize: '11.5px', color: '#6B6355' }}>
+              <span aria-hidden style={{
+                width: '20px', height: '20px', borderRadius: '6px', flexShrink: 0,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                background: `${z.color}2E`, border: `1px solid ${z.color}5E`,
+              }}>
+                <Icon name={z.icon} size={12} color={z.color} strokeWidth={1.7} />
+              </span>
+              {z.label}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* No <style jsx> here on purpose — fancySeatPulse is defined in
           globals.css. A scoped keyframe gets renamed by styled-jsx and can

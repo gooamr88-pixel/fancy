@@ -725,6 +725,7 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
                       showSidePicker={!!event?.track_guest_side}
                       showDietary={event?.collect_dietary_restrictions !== false}
                       isWedding={event?.event_type === 'wedding'}
+                      noKidsAllowed={!!event?.no_kids_allowed}
                       smsConsent={smsConsent} setSmsConsent={setSmsConsent}
                       themeColor={themeColor} secondaryColor={secondaryColor}
                     />

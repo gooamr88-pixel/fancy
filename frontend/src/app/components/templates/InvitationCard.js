@@ -243,10 +243,18 @@ export default function InvitationCard({ template, theme, guestName, config, dat
               )}
             </span>
 
-            {/* Adults-only notice — one of the "invitation details" that belongs
-                on the card itself; shown by default for this pattern (wedding +
-                the engagement reskin), hideable per-event via d.noKidsNotice. */}
-            {d.noKidsNotice !== false && (
+            {/* Adults-only notice — opt-IN, matching the custom pattern above.
+
+                This was `!== false`, which for a LIVE event behaves identically
+                (buildInvitationCardData always sets the flag to a real boolean)
+                but differs in the organizer's template picker, where no event
+                data is passed at all: `undefined !== false` is true, so every
+                wedding card in the gallery advertised "No Kids Allowed" as if it
+                were part of the artwork, while the Custom card next to it did
+                not. An organizer picking a template was shown a rule they had
+                not chosen — and, worse, one they could not find a switch for
+                until after the event existed. */}
+            {d.noKidsNotice === true && (
               <span className="text-[8px] font-sans font-bold uppercase tracking-[1.5px] mt-1" style={{ color: `${accentColor}CC` }}>
                 {d.noKidsText || "No Kids Allowed"}
               </span>

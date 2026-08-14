@@ -31,7 +31,42 @@ const { computeSmsChargeCents, describeSmsCharge, volumeDiscountsFromConfig } = 
 const { sanitizeAllowanceRequest, estimateAllowance } = require('../utils/smsEstimator');
 const { normalizeSmsPricing, describeSmsPricingAdjustments, DEFAULT_SMS_PRICING, LIMITS: SMS_PRICING_LIMITS } = require('../config/smsPricing');
 const { SMS_MESSAGE_TYPES } = require('../config/smsMessageTypes');
-const { PLATFORM_FEATURES } = require('../config/featureRegistry');
+const { PLATFORM_FEATURES, FEATURE_NOTES } = require('../config/featureRegistry');
+const { SMS_FEATURE_KEY } = require('../middleware/smsAddonGate');
+
+/**
+ * Refuse to SELL an SMS allowance on a plan that does not include texting.
+ *
+ * Returns null when the request is fine, or `{ status, body }` to send back.
+ *
+ * ── Why this has to exist on the payment path, not just the send path ──
+ *
+ * The send gate grandfathers any event with `sms_addon_purchased_at` set, so
+ * that an admin reorganising plan contents cannot strand a balance somebody
+ * paid for. That protection is right, and it is also a loophole if the checkout
+ * will sell an allowance to anyone: buy the cheapest plan, add messages in the
+ * same session, and the grandfather clause permanently exempts the event from
+ * the tier restriction. The plan gate would then be worth exactly the price of
+ * the add-on.
+ *
+ * Refused rather than silently dropped from the basket: quietly charging for
+ * the plan while ignoring the messages the organizer asked for produces an
+ * event that cannot send and a customer who believes they paid for one that can.
+ */
+function assertTierAllowsSmsAddon(tier, requestedSegments) {
+  if (!requestedSegments) return null;
+  const features = Array.isArray(tier?.features) ? tier.features : [];
+  if (features.includes(SMS_FEATURE_KEY)) return null;
+  return {
+    status: 400,
+    body: {
+      success: false,
+      error: 'SMS_NOT_IN_TIER',
+      message: `The '${tier?.name || 'selected'}' plan does not include text messaging. Choose a plan that includes it, or continue without the messaging add-on.`,
+      upgrade_action: 'upgrade_plan',
+    },
+  };
+}
 const { fulfillCheckoutSession, handleChargeRefunded, handleDisputeEvent } = require('../services/paymentFulfillment');
 const { getPlatformConfig, invalidate: invalidateConfigCache } = require('../utils/configCache');
 const {
@@ -242,6 +277,16 @@ const createCheckoutSession = async (req, res, next) => {
         error: 'CUSTOM_TIER',
         message: `The '${tier.name}' plan is custom-priced — please contact sales to activate it.`
       });
+    }
+
+    // The plan has to carry texting before this request may sell any. Without
+    // this the tier gate is decorative: a client posts a Starter tier plus an
+    // SMS allowance, pays, and fulfilment stamps sms_addon_purchased_at — which
+    // the send gate grandfathers, so the plan restriction is bought around for
+    // the price of the add-on. See assertTierAllowsSmsAddon.
+    {
+      const smsGuard = assertTierAllowsSmsAddon(tier, smsAddonSegments);
+      if (smsGuard) return res.status(smsGuard.status).json(smsGuard.body);
     }
 
     // 2. Fetch or create stripe customer ID for organization
@@ -1342,10 +1387,24 @@ const getPricingConfig = async (req, res, next) => {
       // a list of features. The registry already holds the labels; this hands them
       // over rather than making the client keep its own copy.
       featureLabels: Object.fromEntries(PLATFORM_FEATURES.map((f) => [f.key, f.label])),
-      // Keys that must NOT appear as a tier bullet. `sms_campaigns` is granted by
-      // nothing now — SMS is a per-event add-on available on every plan — so
-      // listing it under Enterprise tells a customer they already have the thing
-      // the card directly below is asking them to pay for.
+      /**
+       * key -> "this costs extra" caption, for features a plan grants ACCESS to
+       * rather than includes outright.
+       *
+       * Text messaging is the case this exists for. It is a real tier feature
+       * again — an admin switches it on per plan — but switching it on grants
+       * the right to buy messages, not the messages themselves. A bullet reading
+       * plain "Text messaging" on a plan card is therefore a promise the product
+       * does not keep, and the organizer discovers the difference at the moment
+       * they try to send. The caveat travels with the feature so every surface
+       * says it in the same words.
+       */
+      featureNotes: FEATURE_NOTES,
+      // Keys that must NOT appear as a tier bullet — features superseded by
+      // another mechanism, which grant nothing and would tell a customer they
+      // already have something the card below is asking them to pay for.
+      // `sms_campaigns` is deliberately NOT in this list any more: it grants
+      // real access again, so it belongs on the card, with its note.
       hiddenTierFeatures: PLATFORM_FEATURES.filter((f) => f.supersededBy).map((f) => f.key),
       // Tells the dashboard which paid integrations are live right now, so the
       // payment step can render manual-first and hide card / SMS-purchase CTAs.
@@ -1518,6 +1577,16 @@ const initiateManualPayment = async (req, res, next) => {
         error: 'CUSTOM_TIER',
         message: `The '${tier.name}' plan is custom-priced — please contact sales to activate it.`
       });
+    }
+
+    // The plan has to carry texting before this request may sell any. Without
+    // this the tier gate is decorative: a client posts a Starter tier plus an
+    // SMS allowance, pays, and fulfilment stamps sms_addon_purchased_at — which
+    // the send gate grandfathers, so the plan restriction is bought around for
+    // the price of the add-on. See assertTierAllowsSmsAddon.
+    {
+      const smsGuard = assertTierAllowsSmsAddon(tier, smsAddonSegments);
+      if (smsGuard) return res.status(smsGuard.status).json(smsGuard.body);
     }
     const tierMaxGuests = Number.isFinite(tier.max_guests) ? tier.max_guests : null;
 

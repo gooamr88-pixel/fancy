@@ -11,6 +11,7 @@ import { TITLE_OPTIONS, splitName, joinName } from '../../../utils/nameFields';
 import CountryCodePhoneInput from '../../../components/CountryCodePhoneInput';
 import SmsConsentText, { SmsConsentIndependence } from '../../../components/guest/SmsConsentText';
 import ContactRegisteredNotice from '../../../components/guest/rsvp/ContactRegisteredNotice';
+import AdultsOnlyNotice from '../../../components/guest/AdultsOnlyNotice';
 import CompanionMealCounter from '../../../components/guest/rsvp/CompanionMealCounter';
 import { BoltIcon, CalendarIcon, PlaneIcon, ClipboardIcon, HeartPulseIcon, DotsIcon, ClockIcon, EnvelopeIcon, PeopleIcon } from '../../../components/guest/RsvpIcons';
 
@@ -40,6 +41,9 @@ export default function StepPartyDetails({
   contactRegistered, onConfirmContactUpdate, confirmingContact = false,
   companionMealCounts = {}, setCompanionMealCount,
   smsConsent, setSmsConsent,
+  // The organizer's adults-only toggle (events.no_kids_allowed), threaded from
+  // RsvpWizard's `event`. Off by default, exactly as the column is.
+  noKidsAllowed = false,
   themeColor = '#B8944F', secondaryColor = '#D7BE80',
 }) {
   // NOTE: organizer-authored meal options have no Arabic-translation mechanism
@@ -445,6 +449,15 @@ export default function StepPartyDetails({
       <FadeInUp delay={0.1} y={15}>
         <PartySizeStepper value={partySize} onChange={setPartySize} label={t.party_size_label} isRTL={isRTL} />
       </FadeInUp>
+
+      {/* Directly under the stepper — the control the rule constrains. The
+          other RSVP path (RsvpSection) renders the same component in the same
+          position; see AdultsOnlyNotice for why it is one component. */}
+      {noKidsAllowed && (
+        <FadeInUp delay={0.14} y={10}>
+          <AdultsOnlyNotice isRTL={isRTL} themeColor={themeColor} />
+        </FadeInUp>
+      )}
 
       {renderHostDetailsCard(true)}
 

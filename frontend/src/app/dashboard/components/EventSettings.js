@@ -2474,7 +2474,13 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               <span>
                 Show &quot;No Kids Allowed&quot; on the invitation
                 <span style={{ display: 'block', color: '#77736A', fontSize: '12px', marginTop: '3px', fontWeight: 400, lineHeight: 1.5 }}>
-                  Off by default. When on, a quiet notice appears on the invitation card and the envelope reveal, and the invitation page gains its own &quot;A Kind Note&quot; section, so guests know it&apos;s an adults-only celebration.
+                  {/* Says only what actually happens. This promised the notice
+                      appeared "on the envelope reveal" — the reveal has carried
+                      no adults-only copy since it was rebuilt, on any template,
+                      so that clause was describing a feature nobody could find.
+                      It now names the RSVP form instead, which is both true and
+                      the placement that matters most. */}
+                  Off by default. When on, a quiet notice appears on the invitation card, the invitation page gains its own &quot;A Kind Note&quot; section, and guests are reminded on the RSVP form as they choose how many people are coming.
                 </span>
               </span>
             </label>

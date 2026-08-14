@@ -74,6 +74,31 @@ const sendConfirmationEmail = async (eventId, partyId, lang = 'en') => {
     throw new Error('RSVP_NOT_FOUND');
   }
 
+  /**
+   * A CONFIRMATION IS ONLY EVER SENT TO SOMEBODY WHO IS COMING, OR MIGHT BE.
+   *
+   * The two live submit paths (rsvpController.submitPublicRSVP and the one-click
+   * token path) both call this only for 'yes' or 'maybe', and route a decline to
+   * the separate thank-you mail. This function did not know that rule, so the
+   * organizer's resend endpoint — POST .../notifications/send-confirmation —
+   * would happily render it for a party sitting at 'no' or 'pending'.
+   *
+   * What that produced is worse than a stray email. The template's eyebrow and
+   * subject are hard-coded to "RSVP confirmed" for anything that is not a
+   * 'maybe', so a guest who had declined received a mail headed *"RSVP
+   * confirmed"* with a "Declined" row inside it — telling them their place was
+   * booked and contradicting itself in the same breath.
+   *
+   * Thrown rather than returned false: the caller distinguishes "no address on
+   * file" (a shrug) from "this guest must not be sent this" (a refusal), and
+   * only an error carries that difference to the organizer.
+   */
+  if (party.response !== 'yes' && party.response !== 'maybe') {
+    logger.warn({ partyId, eventId, response: party.response },
+      'Confirmation email refused — party has not accepted');
+    throw new Error('NOT_ATTENDING');
+  }
+
   const primaryEmail = (party.guests || []).find((g) => g.is_primary_contact)?.email || null;
   if (!primaryEmail) {
     // warn, not info: a guest who answered and got nothing back is a defect to

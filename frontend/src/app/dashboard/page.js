@@ -306,6 +306,26 @@ function DashboardPageInner() {
    */
   const [smsAddon, setSmsAddon] = useState({
     active: false, maxPerSend: 0, remaining: 0, purchased: 0, coverage: null,
+    /**
+     * PLAN-LEVEL access, distinct from `active` (which is "has this event bought
+     * messages?").
+     *
+     *   'granted'       the plan includes texting
+     *   'grandfathered' it does not, but this event already paid — still works
+     *   'locked'        neither → every SMS surface shows PlanLock instead
+     *
+     * Server-computed (campaigns/settings) rather than derived here from
+     * tier_features: the send endpoints resolve it from the live admin config,
+     * and a second implementation in the browser disagrees the first time a tier
+     * is renamed — leaving surfaces that look open and 403, or look locked on an
+     * event that was allowed all along.
+     *
+     * Defaults to 'granted' so a failed lookup NEVER hides a paying customer's
+     * texting behind an upsell. The real gate still fails closed server-side, so
+     * the worst case here is a 402/403 the organizer can act on — strictly better
+     * than falsely telling them to upgrade.
+     */
+    access: 'granted', plansWithSms: [], tierName: null,
   });
   const [showQRModal, setShowQRModal] = useState(false);
   const [qrModalTab, setQrModalTab] = useState('qr');
@@ -387,6 +407,12 @@ function DashboardPageInner() {
             // client: a second implementation of "is this enough?" is a second
             // answer waiting to disagree with the one on the checkout screen.
             coverage: data.coverage || null,
+            // Older deployments answer without these; treating a missing
+            // `access` as 'granted' keeps them behaving exactly as before rather
+            // than locking every event the moment the API is a version behind.
+            access: data.access || 'granted',
+            plansWithSms: Array.isArray(data.plansWithSms) ? data.plansWithSms : [],
+            tierName: data.tierName || null,
           });
         }
       } catch { /* defaults stand */ }
@@ -1225,6 +1251,9 @@ function DashboardPageInner() {
               customFields={customFields}
               onRefresh={loadDashboardData}
               smsAddonActive={smsAddon.active}
+              smsAccess={smsAddon.access}
+              plansWithSms={smsAddon.plansWithSms}
+              onUpgradePlan={() => goTo('events')}
               smsMaxPerSend={smsAddon.maxPerSend}
               smsRemaining={smsAddon.remaining}
               smsPurchased={smsAddon.purchased}
@@ -1247,6 +1276,9 @@ function DashboardPageInner() {
               onRefresh={loadDashboardData}
               onOpenImport={() => setShowImportModal(true)}
               smsAddonActive={smsAddon.active}
+              smsAccess={smsAddon.access}
+              plansWithSms={smsAddon.plansWithSms}
+              onUpgradePlan={() => goTo('events')}
               smsRemaining={smsAddon.remaining}
               smsPurchased={smsAddon.purchased}
               smsCoverage={smsAddon.coverage}

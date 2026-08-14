@@ -95,11 +95,13 @@ export default function SeatingResultPanel({ view, loading, isRTL, onBack, compa
               background: 'none', cursor: 'zoom-in', textAlign: 'inherit',
             }}
           >
+            {/* No `youLabel` any more: the guest's table is marked with a gold
+                star, not a worded pill — see markerStyle in seatingPlanStyle.js
+                for why the words had to go. */}
             <SeatingMiniMap
               tables={view.tables}
               myTableId={view.myTableId}
-              youLabel={isRTL ? 'مكانك' : "You're here"}
-              maxHeight={compact ? 190 : 320}
+              maxHeight={compact ? 240 : 340}
             />
           </button>
           <button
@@ -123,7 +125,7 @@ export default function SeatingResultPanel({ view, loading, isRTL, onBack, compa
           </button>
         </div>
       ) : (
-        <SeatingMiniMap tables={view.tables} myTableId={view.myTableId} youLabel={isRTL ? 'مكانك' : "You're here"} maxHeight={compact ? 190 : 320} />
+        <SeatingMiniMap tables={view.tables} myTableId={view.myTableId} maxHeight={compact ? 240 : 340} />
       )}
 
       {/* Host card */}
@@ -208,8 +210,13 @@ export default function SeatingResultPanel({ view, loading, isRTL, onBack, compa
         </div>
       )}
 
+      {/* Says how to read the plan now that it carries numerals instead of
+          names — without this the gold star is decoration the guest has to
+          decode. */}
       <p style={{ fontSize: '11px', color: '#A09A91', fontStyle: 'italic', fontFamily: 'var(--font-sans)' }}>
-        {isRTL ? 'الخريطة توضّح مكان طاولتك في القاعة فقط.' : 'The map shows where your table is in the venue.'}
+        {isRTL
+          ? 'الأرقام على الخريطة هي أرقام الطاولات، وطاولتك عليها نجمة ذهبية.'
+          : 'The numbers on the plan are table numbers. Yours is the one marked with a gold star.'}
       </p>
 
       {fullscreen && (
@@ -217,7 +224,6 @@ export default function SeatingResultPanel({ view, loading, isRTL, onBack, compa
           tables={view.tables}
           myTableId={view.myTableId}
           myTableName={view.myTableName}
-          hostName={host?.name}
           isRTL={isRTL}
           onClose={() => setFullscreen(false)}
         />

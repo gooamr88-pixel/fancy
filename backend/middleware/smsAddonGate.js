@@ -1,23 +1,40 @@
 /**
- * SMS ADD-ON GATE.
+ * SMS ACCESS GATE — the single answer to "may this event send text messages?"
  *
- * Replaces `requireFeature('sms_campaigns')` as the authorization for every SMS
- * capability, and does so for two distinct reasons.
- *
- * ── 1. It closes a real bypass ──
- * The tier gate was mounted on /events/:id/campaigns but NOT on
+ * ── It closes a real bypass ──
+ * The old tier gate was mounted on /events/:id/campaigns but NOT on
  * /events/:id/invitations, whose `channel: 'sms'` branch forwards straight to the
- * same campaign dispatcher (invitationController.sendInvitations). An organizer on
- * a tier without SMS could therefore launch a full campaign through the
- * invitations endpoint. Because this middleware is the single answer to "may this
- * event send SMS at all", mounting it on both routes makes that class of gap
- * structural rather than a thing to remember.
+ * same dispatcher. An organizer without SMS could therefore send through the
+ * invitations endpoint. Because this middleware is the ONE answer to the
+ * question, mounting it on both routes makes that class of gap structural rather
+ * than a thing to remember.
  *
- * ── 2. Paying for SMS is no longer a property of the plan ──
- * SMS is an add-on bought at event checkout, available on ANY tier. Tying it to
- * the tier meant a customer who wanted only SMS had to buy a plan for it, while a
- * customer on the right plan could still have no allowance. `sms_addon_purchased_at`
- * is the honest question: did this event pay for SMS?
+ * ── TWO QUESTIONS, BOTH ASKED, IN THIS ORDER ──
+ *
+ *   1. MAY this plan text at all?  → the `sms_campaigns` tier feature, switched
+ *      on per plan in Admin -> Config -> Subscription Tiers.
+ *   2. HAS this event paid for messages? → events.sms_addon_purchased_at.
+ *
+ * They are genuinely different and neither implies the other, which is why this
+ * file previously could not express what the product needed. It briefly asked
+ * only (2) — on the reasoning that any plan could buy the add-on — and that made
+ * texting un-gateable: there was no way to sell it as part of a plan tier, and
+ * nothing for an admin to switch. Before that it asked only (1), and a customer
+ * on the right plan could still have no allowance.
+ *
+ * The failures are deliberately DIFFERENT, because the fix is different:
+ *   • no tier feature → 403 FEATURE_NOT_AVAILABLE   ("upgrade your plan")
+ *   • tier ok, unpaid → 402 SMS_ADDON_REQUIRED      ("buy messages")
+ * Collapsing them would send an organizer to a purchase screen they are not
+ * allowed to use, or to an upgrade page when their plan was never the problem.
+ *
+ * ── GRANDFATHERING, and why it comes first ──
+ *
+ * An event that has ALREADY bought credits keeps sending, even if its tier later
+ * loses the feature. Money changed hands for messages that are sitting in a
+ * wallet; revoking access would strand a paid balance mid-event, and an admin
+ * re-organising plan contents must not be able to do that by accident. So the
+ * purchase is checked BEFORE the tier, not after.
  *
  * The allowance BALANCE is deliberately not checked here. Running out mid-event is
  * a per-message condition handled at dispatch (where the automated types fall back
@@ -27,6 +44,31 @@
 
 const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
+const { getPlatformConfig } = require('../utils/configCache');
+const { getFeatureByKey } = require('../config/featureRegistry');
+
+/** The registry key an admin toggles per tier to sell texting with a plan. */
+const SMS_FEATURE_KEY = 'sms_campaigns';
+
+/**
+ * Does this event's plan include texting?
+ *
+ * Mirrors featureGate.requireFeature's resolution exactly — tier name off the
+ * event, tier definition out of the cached platform config, feature key in the
+ * tier's `features` array — because two different answers to "does this plan
+ * include X" is how a surface ends up visible and un-callable.
+ *
+ * A missing or renamed tier grants NOTHING, matching featureGate's safe
+ * fallback: a deleted tier must not become a wildcard.
+ */
+async function tierGrantsSms(event) {
+  if (!event.tier_name) return false;
+  const config = await getPlatformConfig();
+  const tier = (config.pricing_tiers || []).find(
+    (t) => (t.name || '').toLowerCase() === String(event.tier_name).toLowerCase(),
+  );
+  return Array.isArray(tier?.features) && tier.features.includes(SMS_FEATURE_KEY);
+}
 
 const requireSmsAddon = async (req, res, next) => {
   const { eventId } = req.params;
@@ -49,20 +91,51 @@ const requireSmsAddon = async (req, res, next) => {
       });
     }
 
-    // manual_override is how support comps an event; it has always implied full
-    // access, and silently excluding SMS from it would make comped events behave
-    // differently from the paid ones they are meant to imitate.
-    if (!event.sms_addon_purchased_at && !event.manual_override) {
-      return res.status(402).json({
+    // ① Already paid for messages → in, whatever the tier says now. See the
+    //    grandfathering note above. manual_override is how support comps an
+    //    event and has always implied full access.
+    if (event.sms_addon_purchased_at || event.manual_override) {
+      req.event = event;
+      return next();
+    }
+
+    // ② Otherwise the plan has to include texting before anything else is
+    //    offered — including the purchase screen.
+    let planHasSms = false;
+    try {
+      planHasSms = await tierGrantsSms(event);
+    } catch (configErr) {
+      // Fail CLOSED, same as featureGate: an unverifiable entitlement must not
+      // permit sending, because the alternative is billing an organizer whose
+      // access we could not confirm.
+      logger.error({ err: configErr, eventId }, 'smsAddonGate: tier lookup failed — denying');
+      return res.status(500).json({
         success: false,
-        error: 'SMS_ADDON_REQUIRED',
-        message: 'Text messaging is not enabled for this event. Add SMS messaging to unlock invitations, reminders, entry-pass links and campaigns by text.',
-        upgrade_action: 'purchase_sms_addon',
+        error: 'CONFIG_ERROR',
+        message: 'Could not verify text messaging access. Please try again.',
       });
     }
 
-    req.event = event;
-    return next();
+    if (!planHasSms) {
+      const feat = getFeatureByKey(SMS_FEATURE_KEY);
+      return res.status(403).json({
+        success: false,
+        error: 'FEATURE_NOT_AVAILABLE',
+        feature: SMS_FEATURE_KEY,
+        featureLabel: feat?.label || 'Text messaging',
+        message: `Your current plan${event.tier_name ? ` ('${event.tier_name}')` : ''} does not include text messaging. Upgrade your plan to send invitations and reminders by SMS.`,
+        currentTier: event.tier_name || null,
+        upgrade_action: 'upgrade_plan',
+      });
+    }
+
+    // ③ Plan allows it, this event just has not bought an allowance yet.
+    return res.status(402).json({
+      success: false,
+      error: 'SMS_ADDON_REQUIRED',
+      message: 'Text messaging is not enabled for this event. Add SMS messaging to unlock invitations, reminders, entry-pass links and campaigns by text.',
+      upgrade_action: 'purchase_sms_addon',
+    });
   } catch (err) {
     // Fail CLOSED. An unverifiable add-on state must not permit sending: the
     // alternative is billing an organizer whose entitlement we could not confirm.
@@ -164,4 +237,4 @@ const requireSendLimit = async (req, res, next) => {
   }
 };
 
-module.exports = { requireSmsAddon, requireSendLimit };
+module.exports = { requireSmsAddon, requireSendLimit, tierGrantsSms, SMS_FEATURE_KEY };
