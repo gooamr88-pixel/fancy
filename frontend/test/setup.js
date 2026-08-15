@@ -46,6 +46,39 @@ beforeEach(() => {
 
   // navigator.sendBeacon — the analytics hook's preferred transport.
   if (!navigator.sendBeacon) navigator.sendBeacon = vi.fn(() => true);
+
+  /* IntersectionObserver — jsdom ships none, and the guest page's shell uses
+     one to reveal sections as they scroll into view. Without this, rendering
+     the real page in a test throws before anything can be asserted.
+
+     Deliberately inert (observe/unobserve/disconnect are no-ops) rather than
+     auto-firing: SnapShell already has a 2.5s failsafe that reveals every
+     section if the observer never reports, and a stub that eagerly fired
+     would test the observer path while hiding whether that failsafe works.
+     Tests that care about reveal timing should drive the callback themselves. */
+  /* scrollIntoView / scrollTo — jsdom implements neither. The guest RSVP form
+     calls scrollIntoView from a requestAnimationFrame callback the moment a
+     guest picks yes/no, and an exception thrown inside rAF does not fail the
+     test that caused it: it surfaces as an unhandled error that fails the
+     whole FILE, with the passing tests still reported as passing. Stubbed as
+     no-ops — scroll position is not something jsdom can meaningfully assert. */
+  if (!window.HTMLElement.prototype.scrollIntoView) {
+    window.HTMLElement.prototype.scrollIntoView = function scrollIntoView() {};
+  }
+  if (!window.scrollTo || !vi.isMockFunction(window.scrollTo)) {
+    window.scrollTo = vi.fn();
+  }
+
+  if (!window.IntersectionObserver) {
+    window.IntersectionObserver = class {
+      constructor(callback) { this.callback = callback; }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+      takeRecords() { return []; }
+    };
+    globalThis.IntersectionObserver = window.IntersectionObserver;
+  }
 });
 
 afterEach(() => {

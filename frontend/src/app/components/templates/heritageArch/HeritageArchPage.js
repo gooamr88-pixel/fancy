@@ -6,6 +6,10 @@ import { FullPageThemeProvider, buildPalette } from './theme';
 import { HERITAGE_ARCH_DEFAULTS as D } from './defaultContent';
 import { getHaDays } from '../../../utils/haDays';
 import { CUSTOM_CATEGORY_BY_KEY } from '../../../utils/customEventCategories';
+import { getCinematicTemplate } from '../cinematic/cinematicThemes';
+import VelvetRingHero from '../cinematic/VelvetRingHero';
+import DoorOfJoyHero from '../cinematic/DoorOfJoyHero';
+import AmbientFx from '../../guest/fx/AmbientFx';
 import HeroSection from './sections/HeroSection';
 import EventDateSection from './sections/EventDateSection';
 import CoverPhotoSection from './sections/CoverPhotoSection';
@@ -59,7 +63,22 @@ export default function HeritageArchPage({
   event, guestRsvp, lang, setLang, isRTL, t, timeLeft, musicPlaying, toggleMusic,
   hasBackgroundMusic, hasResponded, responseStatus, allowGuestEdits, slug, effectiveRsvpId, trackEvent,
   invitationPattern, invitationTheme, invitationGuestName, invitationData,
+  /* Fill EMPTY sections with curated sample content. True for the marketing
+     demo and for Stage 1 of the wizard, where the organizer is judging a
+     template and has entered nothing yet — a page of hidden sections would
+     show them nothing to judge.
+     FALSE for the Stage 2 preview, where every empty section must stay hidden:
+     the question there is "what will my guests get", and inventing hotels and
+     an itinerary they never entered answers a different one. */
   isPreview = false,
+  /* Nothing here may write. Separate from isPreview on purpose — the Stage 2
+     preview wants real content (isPreview false) AND an inert RSVP, and
+     conflating the two would have that preview POST a real submission to an
+     event that does not exist yet. */
+  readOnly = false,
+  // Rendered inside a frame (the organizer's preview) rather than as the
+  // document. Only affects how the scroll container is sized — see SnapShell.
+  embedded = false,
 }) {
   const td = event.template_data || {};
   const customColors = event.custom_colors || {};
@@ -108,7 +127,10 @@ export default function HeritageArchPage({
   // That's wrong for an engagement (nobody's married yet) — this event hasn't
   // happened — so both paths need their own explicit override instead of
   // silently inheriting the wedding copy.
-  const isEngagementEvent = event.template_type === 'engagement' || customCategory === 'engagement';
+  // 'ring' is Velvet Ring, the cinematic engagement — without it the hero
+  // would fall through to HeroSection's couple default and tell an engaged
+  // couple they are getting married.
+  const isEngagementEvent = event.template_type === 'engagement' || event.template_type === 'ring' || customCategory === 'engagement';
   const heroTitle = isHonoreeCategory ? (td.custom_honoree || event.title)
     : isBabyShowerCategory ? (td.custom_parents || event.title)
     : event.title;
@@ -279,7 +301,10 @@ export default function HeritageArchPage({
   // were a city). Destination-style variants and Custom Canvas keep it —
   // they're the events where telling a guest which city they're flying to
   // is genuinely useful.
-  const isWeddingOrEngagement = event.template_type === 'wedding' || event.template_type === 'engagement';
+  // The cinematic pair join them: both show the full venue name and address
+  // in Venues/Getting There, so a "city" screen would be the same information
+  // a third time — and it is the one that guesses when unset.
+  const isWeddingOrEngagement = ['wedding', 'engagement', 'ring', 'bab'].includes(event.template_type);
   if (invitedToCity && sectionOn('invited') && !isWeddingOrEngagement) {
     middleSections.invited = { id: 'ha-invited', content: <InvitedToSection city={invitedToCity} lat={invitedToLat} lng={invitedToLng} isRTL={isRTL} /> };
   }
@@ -332,18 +357,44 @@ export default function HeritageArchPage({
   };
   const withLabel = (entry) => (entry ? { ...entry, label: SECTION_LABELS[entry.id] || '' } : entry);
 
+  /* The cinematic templates (Velvet Ring, Door of Joy) swap the hero — and
+     only the hero. Everything below it is this file's ordinary section list,
+     built from the organizer's dashboard exactly as it is for every other
+     template, and recoloured to the template's own palette by buildPalette
+     above. The photography stops at the fold; the content does not change. */
+  const cinematic = getCinematicTemplate(event.template_type);
+  const CinematicHero = cinematic
+    ? (cinematic.hero === 'velvetRing' ? VelvetRingHero : DoorOfJoyHero)
+    : null;
+  const heroDisplayName = (isRTL && titleAr) ? titleAr
+    : (partner1 && partner2 ? `${partner1} & ${partner2}` : (heroTitle || partner1 || partner2 || ''));
+  const heroCoupleNames = (!(isRTL && titleAr) && partner1 && partner2) ? [partner1, partner2] : null;
+
   const sections = [
     {
       id: 'ha-hero',
       label: SECTION_LABELS['ha-hero'],
-      content: (
+      content: CinematicHero ? (
+        <CinematicHero
+          template={cinematic}
+          names={heroDisplayName}
+          coupleNames={heroCoupleNames}
+          // The template's own worded line is the fallback, not a hardcoded
+          // "we are getting married" — Velvet Ring is an engagement.
+          tagline={(isPreview ? D.tagline : heroTagline) || cinematic.copy[isRTL ? 'ar' : 'en'].sub}
+          dateLine={[dateLine, timeLine].filter(Boolean).join(isRTL ? ' — ' : ' — ')}
+          coverImageUrl={event.cover_image_url || null}
+          invitationPattern={invitationPattern} invitationTheme={invitationTheme}
+          invitationGuestName={invitationGuestName} invitationData={invitationData}
+          title={heroTitle} isRTL={isRTL}
+        />
+      ) : (
         <HeroSection
           partner1={partner1} partner2={partner2} title={heroTitle}
           tagline={isPreview ? D.tagline : heroTagline} titleAr={titleAr}
           invitationPattern={invitationPattern} invitationTheme={invitationTheme}
           invitationGuestName={invitationGuestName} invitationData={invitationData}
           categoryBadge={isPreview ? null : categoryBadge}
-          heroVideoUrl={td.ha_hero_video_url || null}
           isRTL={isRTL} t={t}
         />
       ),
@@ -353,7 +404,11 @@ export default function HeritageArchPage({
   // The date/time, promoted to its own full section right after the Hero/
   // invitation-card showcase — previously a small pill crowded underneath
   // the card itself, easy to miss on the single most important fact here.
-  if (dateLine) {
+  // Skipped for the cinematic templates: their hero states the date and time
+  // directly under the names, so a full "Save the Date" screen immediately
+  // below would be the same sentence twice in a row — the same reason
+  // startTimeLine is suppressed for single-day events above.
+  if (dateLine && !cinematic) {
     sections.push({
       id: 'ha-date',
       label: SECTION_LABELS['ha-date'],
@@ -387,12 +442,20 @@ export default function HeritageArchPage({
         event={event} slug={slug} guestRsvp={guestRsvp} hasResponded={hasResponded}
         responseStatus={responseStatus} allowGuestEdits={allowGuestEdits} effectiveRsvpId={effectiveRsvpId}
         mealOptions={mealOptions} isRTL={isRTL} trackEvent={trackEvent}
+        readOnly={readOnly}
       />
     ),
   });
 
   return (
     <FullPageThemeProvider palette={palette}>
+      {/* Gold dust, drifting petals and the pointer sparkle — fixed to the
+          viewport, so the motion carries across every section instead of
+          restarting at each one. A sibling of the shell rather than a child:
+          it is position:fixed either way, and keeping it out of the scroll
+          container means no future transform/filter on that container can
+          silently re-anchor it. */}
+      {cinematic && <AmbientFx recipe={cinematic.fx} cssVars={cinematic.cssVars} />}
       <SnapShell
         sections={sections}
         event={event}
@@ -402,6 +465,7 @@ export default function HeritageArchPage({
         musicPlaying={musicPlaying}
         toggleMusic={toggleMusic}
         hasBackgroundMusic={hasBackgroundMusic}
+        embedded={embedded}
       />
     </FullPageThemeProvider>
   );

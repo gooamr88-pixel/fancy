@@ -10,7 +10,7 @@ import { buildCalendarLinks } from '../../guest/GuestUI';
    a side dot-nav tracking which section is in view, a top-corner language
    pill, a bottom-corner music toggle (when the event has music), a floating
    "add to calendar" button, and a top scroll-progress bar. */
-export default function SnapShell({ sections, lang, setLang, isRTL, musicPlaying, toggleMusic, hasBackgroundMusic, event }) {
+export default function SnapShell({ sections, lang, setLang, isRTL, musicPlaying, toggleMusic, hasBackgroundMusic, event, embedded = false }) {
   const C = useFullPageTheme();
   const reduceMotion = useReducedMotion();
   const containerRef = useRef(null);
@@ -91,7 +91,14 @@ export default function SnapShell({ sections, lang, setLang, isRTL, musicPlaying
         // halt on a section boundary — that's what made scrolling feel slow and
         // sticky. `scroll-behavior: smooth` is kept only so the "scroll to RSVP"
         // hint glides rather than jumps.
-        height: '100dvh', overflowY: 'auto', overflowX: 'hidden',
+        /* `embedded` is the organizer's preview, where this page is rendered
+           inside a phone frame rather than as the document. 100dvh there means
+           the BROWSER viewport, so the page would be taller than the frame and
+           its own scroll container would never actually scroll — the guest
+           experience would look frozen at the hero. Filling the frame instead
+           is the only difference between the two; everything below is
+           identical, which is what makes the preview trustworthy. */
+        height: embedded ? '100%' : '100dvh', overflowY: 'auto', overflowX: 'hidden',
         scrollBehavior: 'smooth',
         position: 'relative', background: C.background,
         fontFamily: 'var(--font-sans)',

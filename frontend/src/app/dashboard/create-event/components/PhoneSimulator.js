@@ -29,13 +29,14 @@ function useFitScale(baseWidth, maxScale = 1) {
   return [ref, scale];
 }
 
-/* ═══ RSVP flow simulator stepper ═══ */
+/* ═══ The journey, as three real moments ═══
+   `attending` / `declined` are gone: they drove a mock RSVP sheet that has
+   been deleted. The RSVP is now the real form at the foot of the real page,
+   so "see the RSVP" means scrolling to it, exactly as a guest does. */
 const FLOW_STEPS = [
   { key: 'received', label: 'Receive' },
   { key: 'envelope', label: 'Open' },
-  { key: 'opened', label: 'Details' },
-  { key: 'attending', label: 'Attending' },
-  { key: 'declined', label: 'Decline' },
+  { key: 'opened', label: 'Invitation' },
 ];
 
 function FlowStepper({ step, onSelect, compact }) {
@@ -88,9 +89,12 @@ function FlowStepper({ step, onSelect, compact }) {
   );
 }
 
-export default function PhoneSimulator({ template, theme, guestName, onGuestNameChange, config, heroVideoUrl, isMobile = false }) {
-  // The journey starts at the closed envelope. A fresh template layout resets
-  // it because Stage1 remounts this component via `key={templateType}`.
+export default function PhoneSimulator({ template, theme, guestName, onGuestNameChange, event, slug, invitationData, isMobile = false }) {
+  /* Starts on the invitation rather than the arrival. Stage 1 remounts this
+     on every template switch (`key={templateType}`), and replaying a cover
+     each time the organizer clicks a different template would put a video
+     between them and the comparison they are actually making. The stepper is
+     right there for anyone who wants to watch the arrival. */
   const [step, setStep] = useState('opened');
   const [wrapRef, scale] = useFitScale(BASE_W, 1);
 
@@ -139,12 +143,12 @@ export default function PhoneSimulator({ template, theme, guestName, onGuestName
             background: '#000', position: 'relative', display: 'flex', flexDirection: 'column',
           }}>
             <MobilePreview
-              template={template}
-              theme={theme}
+              event={event}
+              slug={slug}
               guestName={guestName}
-              config={config}
-              heroVideoUrl={heroVideoUrl}
-              isBare={true}
+              invitationPattern={template?.pattern}
+              invitationTheme={theme}
+              invitationData={invitationData}
               step={step}
               onStepChange={setStep}
             />

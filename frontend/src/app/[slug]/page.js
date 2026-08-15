@@ -2,6 +2,7 @@ import { Suspense, cache } from 'react';
 import EventPageClient from './EventPageClient';
 import { safeJsonLdHtml } from '../utils/jsonLdSafe.mjs';
 import { preloadRevealAssets } from '../components/guest/revealAssets';
+import { getCinematicTemplate, preloadCinematicAssets } from '../components/templates/cinematic/cinematicThemes';
 
 // Server-side renders talk to the backend over LOOPBACK, never via the public
 // hostname. Going out through https://fancyrsvp.com hairpins back in through
@@ -129,7 +130,14 @@ export default async function EventPage({ params, searchParams }) {
   // client-side state (password gate, private link, ?noreveal=1), and those
   // are the rare paths — waiting to find out would cost every normal guest
   // the head start this exists to give them.
-  preloadRevealAssets();
+  // The cinematic templates open on their own cover — a velvet box or a
+  // door — so the envelope artwork is four files they will never draw. Each
+  // preloads only what it actually shows.
+  if (getCinematicTemplate(event?.template_type)) {
+    preloadCinematicAssets(event.template_type);
+  } else {
+    preloadRevealAssets();
+  }
 
   return (
     <>

@@ -1,5 +1,5 @@
 import "./globals.css";
-import { Aboreto, Google_Sans, Great_Vibes, Aref_Ruqaa, Playfair_Display, Montserrat, Dancing_Script, Mrs_Saint_Delafield } from 'next/font/google';
+import { Aboreto, Google_Sans, Great_Vibes, Aref_Ruqaa, Playfair_Display, Montserrat, Dancing_Script, Mrs_Saint_Delafield, Amiri, El_Messiri, Reem_Kufi, Tajawal, Cormorant_Garamond } from 'next/font/google';
 import ToastHost from './components/ToastHost';
 
 /* ═══ Google Fonts — Core Brand Typography Stack ═══
@@ -95,6 +95,63 @@ const mrsSaintDelafield = Mrs_Saint_Delafield({
   display: 'swap',
 });
 
+/* ═══ Cinematic templates (Velvet Ring, Door of Joy) ═══
+   These two invitation templates are Arabic-first and their look rests on a
+   purpose-picked Arabic type pairing — an ornate calligraphic face for the
+   couple's names, a naskh for the verse, a kufi/geometric for section labels
+   and a humanist sans for body copy. Aref Ruqaa (above) already covers the
+   first role.
+
+   SELF-HOSTED, like every other face here, and that is the whole point: the
+   original templates pulled these from fonts.googleapis.com at render time.
+   See the note in [slug]/EventPageClient.js — that host is blackholed in
+   several countries and by many corporate proxies, a blackholed host hangs
+   rather than fails, and a <link rel=stylesheet> blocks rendering while it is
+   pending. Loading them here means the invitation cannot freeze on a font.
+
+   Weights are trimmed to exactly what the openings and heroes use; adding a
+   weight is cheap, but shipping the full family is not. */
+const amiri = Amiri({
+  subsets: ['arabic', 'latin'],
+  weight: ['400', '700'],
+  style: ['normal', 'italic'],
+  variable: '--font-amiri',
+  display: 'swap',
+});
+
+const elMessiri = El_Messiri({
+  subsets: ['arabic', 'latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-messiri',
+  display: 'swap',
+});
+
+const reemKufi = Reem_Kufi({
+  subsets: ['arabic', 'latin'],
+  weight: ['400', '500', '600'],
+  variable: '--font-reem',
+  display: 'swap',
+});
+
+const tajawal = Tajawal({
+  subsets: ['arabic', 'latin'],
+  weight: ['300', '400', '500', '700'],
+  variable: '--font-tajawal',
+  display: 'swap',
+});
+
+/* The Latin accent word ("Engagement") set above the couple's names on the
+   Velvet Ring hero — the one piece of Latin type in an otherwise Arabic
+   composition, so it gets an italic old-style serif rather than borrowing one
+   of the Arabic faces' Latin cuts. */
+const cormorantGaramond = Cormorant_Garamond({
+  subsets: ['latin', 'latin-ext'],
+  weight: ['400', '500', '600'],
+  style: ['normal', 'italic'],
+  variable: '--font-cormorant',
+  display: 'swap',
+});
+
 export const metadata = {
   title: "Fancy RSVP — Elegant RSVPs. Effortless Planning.",
   description: "The all-in-one RSVP and guest management platform for weddings and special events. Create beautiful digital invitations with real-time tracking.",
@@ -132,7 +189,7 @@ export default function RootLayout({ children }) {
   return (
     <html
       lang="en"
-      className={`${aboreto.variable} ${googleSans.variable} ${greatVibes.variable} ${arefRuqaa.variable} ${playfairDisplay.variable} ${montserrat.variable} ${dancingScript.variable} ${mrsSaintDelafield.variable}`}
+      className={`${aboreto.variable} ${googleSans.variable} ${greatVibes.variable} ${arefRuqaa.variable} ${playfairDisplay.variable} ${montserrat.variable} ${dancingScript.variable} ${mrsSaintDelafield.variable} ${amiri.variable} ${elMessiri.variable} ${reemKufi.variable} ${tajawal.variable} ${cormorantGaramond.variable}`}
     >
       <body>
         {children}

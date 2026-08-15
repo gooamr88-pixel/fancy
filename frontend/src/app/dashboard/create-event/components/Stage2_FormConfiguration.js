@@ -12,7 +12,6 @@ import { getHaDays } from '../../../utils/haDays';
 import { CUSTOM_CATEGORIES, CUSTOM_CATEGORY_BY_KEY } from '../../../utils/customEventCategories';
 import EventCategoryIcon from '../../../components/icons/EventCategoryIcon';
 import Icon from '../../../components/icons/Icon';
-import { HERO_VIDEO_MAX_LABEL } from '../../../utils/heroVideoUpload';
 
 const C = {
   gold: '#B8944F', goldHover: '#a6833f',
@@ -30,6 +29,9 @@ const DRESS_CODES = ['', 'Black Tie', 'Cocktail Attire', 'Semi-Formal', 'Busines
 const WEDDING_STYLE_TEMPLATE_KEYS = [
   'wedding', 'tuscany', 'marrakesh', 'kyoto', 'nordic', 'havana',
   'estate', 'roseAtelier', 'orchid', 'clay', 'alpine', 'coastal', 'heritageArch',
+  // Door of Joy — cinematic wedding. Velvet Ring is cinematic ENGAGEMENT and
+  // so belongs with 'engagement' below, not here.
+  'bab',
 ];
 
 // Templates rendered as the full-page snap-scroll guest experience — the
@@ -37,8 +39,16 @@ const WEDDING_STYLE_TEMPLATE_KEYS = [
 // same ha_* section fields (corporate/birthday/gala keep the continuous-
 // scroll layout and their own content fields).
 // Keep in sync with FULL_PAGE_TEMPLATES in [slug]/EventPageClient.js.
-const FULL_PAGE_TEMPLATE_KEYS = [...WEDDING_STYLE_TEMPLATE_KEYS, 'engagement', 'custom'];
+const FULL_PAGE_TEMPLATE_KEYS = [...WEDDING_STYLE_TEMPLATE_KEYS, 'engagement', 'custom', 'ring'];
 const isFullPage = (t) => FULL_PAGE_TEMPLATE_KEYS.includes(t);
+
+// Engagement-schema templates: the base Engagement and Velvet Ring, the
+// cinematic one. Both collect Partner 1/2 names and emails plus a proposal
+// story, rather than the wedding pair's ceremony/reception venues — so every
+// place that used to test `templateType === 'engagement'` has to ask this
+// instead, or Velvet Ring silently renders with no name fields at all.
+const ENGAGEMENT_TEMPLATE_KEYS = ['engagement', 'ring'];
+const isEngagementStyle = (t) => ENGAGEMENT_TEMPLATE_KEYS.includes(t);
 
 // Custom's "what kind of event is this?" picker — imported from a shared file
 // (also used by the guest-facing HeritageArchPage) so the organizer's picker
@@ -165,11 +175,10 @@ export default function Stage2_FormConfiguration({
   noKidsAllowed, setNoKidsAllowed,
   collectDietaryRestrictions, setCollectDietaryRestrictions,
   coverImageUrl, setCoverImageUrl, onCoverImageUpload, coverImageUploading,
-  onHeroVideoUpload, heroVideoUploading,
   backgroundMusicUrl, setBackgroundMusicUrl, onMusicUpload, musicUploading,
   galleryUrls = [], onGalleryUpload, galleryUploading, onRemoveGalleryUrl,
   customFields, onFieldsChange,
-  onNext, onBack, onSaveDraft, savingDraft,
+  onNext, onBack, onSaveDraft, savingDraft, onPreview,
 }) {
   const tpl = templates.find(t => t.key === templateType) || templates[0];
   // Dress code starts in "custom" mode if it's already set to something outside
@@ -178,7 +187,7 @@ export default function Stage2_FormConfiguration({
   const [customDressMode, setCustomDressMode] = useState(!!dressCode && !DRESS_CODES.includes(dressCode));
   const td = (key) => templateData[key] || '';
   const setTd = (key) => (val) => setTemplateData(d => ({ ...d, [key]: val }));
-  const anyMediaUploading = !!(musicUploading || coverImageUploading || heroVideoUploading || galleryUploading);
+  const anyMediaUploading = !!(musicUploading || coverImageUploading || galleryUploading);
 
   // Actually attempts to embed the pasted YouTube link (debounced while
   // typing) so a song that can't play on the live guest page — a very common
@@ -354,7 +363,11 @@ export default function Stage2_FormConfiguration({
         {/* ═══ Section B: Template-Specific ═══ */}
         {(
           <Section title={`${tpl.label} Details`} icon="palette">
-            {(templateType === 'wedding' || templateType === 'engagement') && customColors && setCustomColors && (
+            {/* The cinematic pair are included: their sections recolour from
+                these values through buildPalette exactly like the others do,
+                so withholding the picker would leave the one template whose
+                palette is most visible the only one that can't be tuned. */}
+            {(templateType === 'wedding' || isEngagementStyle(templateType) || templateType === 'bab') && customColors && setCustomColors && (
               <div style={{
                 marginBottom: 18, padding: 14, borderRadius: 12,
                 background: C.softBg, border: `1px solid ${C.border}`,
@@ -532,7 +545,7 @@ export default function Stage2_FormConfiguration({
                 `showCoupleFields`, which is false for it) since it renders its
                 own dedicated Partner 1/2 Email block below — without this,
                 both blocks rendered at once, bound to the same two keys. */}
-            {isFullPage(templateType) && !showCoupleFields && templateType !== 'engagement' && (
+            {isFullPage(templateType) && !showCoupleFields && !isEngagementStyle(templateType) && (
               <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                 <Field label="Notify by Email" hint="This person also gets an email every time a guest RSVPs">
                   <input type="email" value={td('partner1_email')} onChange={e => setTd('partner1_email')(e.target.value)}
@@ -681,7 +694,7 @@ export default function Stage2_FormConfiguration({
               </>
             )}
 
-            {templateType === 'engagement' && (
+            {isEngagementStyle(templateType) && (
               <>
                 <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                   <Field label="Partner 1 Name">
@@ -803,53 +816,6 @@ export default function Stage2_FormConfiguration({
               placeholder="Auto from event name" style={iStyle} onFocus={onFocus} onBlur={onBlur} maxLength={24} />
           </Field>
 
-          {/* Every template. Both guest render paths mount the same
-              HeroVideoBackground behind their hero — the full-page engine via
-              heritageArch/HeroSection, the continuous-scroll page via #lg-hero
-              — so this field is not gated on templateType. */}
-          <Field label="Hero Background Video" hint="Optional — a looping video behind the hero heading, fading to nothing at the bottom. Leave empty to keep the generated gradient background.">
-            <div
-              onClick={() => {
-                if (heroVideoUploading) return;
-                const fi = document.createElement('input');
-                fi.type = 'file'; fi.accept = 'video/mp4,video/webm';
-                fi.onchange = (ev) => onHeroVideoUpload?.(ev);
-                fi.click();
-              }}
-              style={{
-                marginTop: 10, padding: '18px 16px', borderRadius: 12,
-                border: `2px dashed ${C.border}`, background: C.softBg,
-                textAlign: 'center', transition: 'all 0.25s', cursor: heroVideoUploading ? 'wait' : 'pointer',
-              }}
-            >
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={C.stone} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="2" y="5" width="15" height="14" rx="2"/><path d="m17 10 5-3v10l-5-3"/>
-                </svg>
-                <span style={{ fontSize: 12, fontWeight: 600, color: C.stone, fontFamily: 'var(--font-sans)' }}>
-                  {heroVideoUploading ? 'Uploading…' : 'Click to browse for a video'}
-                </span>
-                <span style={{ fontSize: 'var(--fx-micro)', color: '#A09A91', fontFamily: 'var(--font-sans)' }}>MP4, WebM • Max {HERO_VIDEO_MAX_LABEL}</span>
-              </div>
-            </div>
-            {td('ha_hero_video_url') && (
-              <div style={{
-                borderRadius: 12, overflow: 'hidden',
-                border: `1px solid ${C.border}`, height: 140,
-                background: '#000', marginTop: 10, position: 'relative',
-              }}>
-                <video src={td('ha_hero_video_url')} muted loop playsInline autoPlay
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                <button type="button" onClick={() => setTd('ha_hero_video_url')('')}
-                  style={{
-                    position: 'absolute', top: 6, right: 6, width: 26, height: 26,
-                    borderRadius: '50%', border: 'none', background: 'rgba(25,27,30,0.75)',
-                    color: '#fff', cursor: 'pointer', fontSize: 14, lineHeight: 1,
-                  }}
-                >×</button>
-              </div>
-            )}
-          </Field>
         </Section>
 
         {/* ═══ Section C: Settings ═══ */}
@@ -1343,6 +1309,31 @@ export default function Stage2_FormConfiguration({
           </button>
 
           <div className="s2-footer-actions" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
+            {/* Deliberately here, immediately before Continue: this is the last
+                moment the organizer can look at what they are publishing, and
+                the whole reason it exists is that they were previously asked to
+                commit without ever having seen it. Gated on the same three
+                fields as Save as Draft — with no title or date there is not yet
+                an invitation to show. */}
+            {onPreview && (
+              <button onClick={onPreview} type="button" className="s2-footer-btn"
+                disabled={!title || !eventDate}
+                title="See the real invitation your guests will receive"
+                style={{
+                  height: 48, padding: '0 22px',
+                  background: C.white, border: `1.5px solid ${C.charcoal}`,
+                  borderRadius: 12, fontFamily: 'var(--font-sans)',
+                  fontSize: 14, fontWeight: 700, color: C.charcoal,
+                  cursor: (!title || !eventDate) ? 'not-allowed' : 'pointer',
+                  opacity: (!title || !eventDate) ? 0.5 : 1,
+                  display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.2s',
+                }}
+              >
+                <Icon name="search" size={15} strokeWidth={1.9} />
+                Preview
+              </button>
+            )}
+
             {onSaveDraft && (
               <button onClick={onSaveDraft} type="button" className="s2-footer-btn"
                 disabled={!title || !slug || !eventDate || savingDraft}

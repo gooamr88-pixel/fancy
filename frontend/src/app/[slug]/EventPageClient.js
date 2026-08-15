@@ -37,9 +37,11 @@ import {
 import { ScrollProgressBar as LegacyScrollProgressBar, DotNav as LegacyDotNav, FloatingCalendarButton as LegacyFloatingCalendarButton, ScrollHint as LegacyScrollHint } from '../components/guest/LegacyChrome';
 import InvitationReveal from '../components/guest/InvitationReveal';
 import InvitationCard from '../components/templates/InvitationCard';
+import { CINEMATIC_KEYS, getCinematicTemplate } from '../components/templates/cinematic/cinematicThemes';
 import { rememberedId } from '../components/guest/rsvp/useRsvpResolver';
+import { WEDDING_VARIANT_TEMPLATES } from '../utils/templateFamilies';
+import { buildInvitationCardData } from '../utils/invitationCardData';
 import Icon from '../components/icons/Icon';
-import HeroVideoBackground from '../components/guest/HeroVideoBackground';
 
 /* ═══════════════════════════════════════════════════════════════
    Route-level code splitting
@@ -73,6 +75,13 @@ const RsvpExperience = dynamic(
 );
 const RsvpWizard = dynamic(() => import('./rsvp/RsvpWizard'));
 
+/* The cinematic openings, split for the same reason as everything above: a
+   guest whose event uses the envelope must not download a video choreography
+   engine and a Web Audio synthesiser they will never run, and vice versa.
+   Only one of the three can ever mount for a given event. */
+const VelvetBoxOpening = dynamic(() => import('../components/guest/openings/VelvetBoxOpening'));
+const KnockDoorOpening = dynamic(() => import('../components/guest/openings/KnockDoorOpening'));
+
 /* ═══════════════════════════════════════════════════════════════
    Helpers
    ═══════════════════════════════════════════════════════════════ */
@@ -91,6 +100,10 @@ const INVITATION_PATTERN_BY_TEMPLATE = {
   birthday: 'floral',
   gala: 'minimal',
   custom: 'custom',
+  // The cinematic pair show photography at the fold instead of a card, but
+  // the card is still what "Save the invitation" captures.
+  ring: 'serif',
+  bab: 'serif',
   tuscany: 'tuscany',
   marrakesh: 'marrakesh',
   kyoto: 'kyoto',
@@ -105,14 +118,7 @@ const INVITATION_PATTERN_BY_TEMPLATE = {
   heritageArch: 'heritageArch',
 };
 
-// Curated templates that are visual variants of a wedding — same content
-// schema (partner names, ceremony/reception) and "wedding" chrome as the
-// base template, just a different InvitationCard pattern + color story.
-// Keep in sync with WEDDING_STYLE_TEMPLATE_KEYS in create-event/page.js.
-const WEDDING_VARIANT_TEMPLATES = [
-  'tuscany', 'marrakesh', 'kyoto', 'nordic', 'havana',
-  'estate', 'roseAtelier', 'orchid', 'clay', 'alpine', 'coastal', 'heritageArch',
-];
+
 
 // The full-viewport, snap-scrolled page shell (HeritageArchPage) — originally
 // only Heritage Arch — is now the guest experience for the wedding-style
@@ -131,8 +137,13 @@ const WEDDING_VARIANT_TEMPLATES = [
 // program, celebrant details) have no section in the full-page engine, and
 // they're retired from the organizer picker — kept only so already-existing
 // events of those types keep rendering.
+// The cinematic pair (Velvet Ring, Door of Joy) belong here too: they are the
+// same full-page engine with the same organizer-configured sections, and
+// differ only in what happens above the fold — a video opening in place of
+// the envelope, and their own hero. See components/templates/cinematic/.
 const FULL_PAGE_TEMPLATES = new Set([
   ...WEDDING_VARIANT_TEMPLATES, 'wedding', 'engagement', 'custom',
+  ...CINEMATIC_KEYS,
 ]);
 
 const templateLabels = {
@@ -158,6 +169,9 @@ WEDDING_VARIANT_TEMPLATES.forEach(key => {
   templateLabels.en[key] = 'wedding invitation';
   templateLabels.ar[key] = 'دعوة زفاف';
 });
+// Velvet Ring is the cinematic engagement, so it takes engagement's label.
+templateLabels.en.ring = 'engagement invitation';
+templateLabels.ar.ring = 'دعوة خطوبة';
 
 // The /demo-wedding route renders a fixed showcase event — fully
 // deterministic from the slug, so it's provided via lazy initial state
@@ -183,148 +197,6 @@ function getDemoEventData(slug) {
     cover_image_url: 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=2070',
     custom_colors: { primary: '#B8944F', secondary: '#D7BE80', accent: '#191B1E', background: '#F8F4EC' },
   };
-}
-
-function formatEventDateLine(event, isRTL) {
-  if (!event?.event_date) return null;
-  return new Date(event.event_date).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', {
-    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
-    timeZone: 'UTC',
-  });
-}
-
-// Renders an HTML <input type="time"> value ("HH:MM", 24h) as a locale time string.
-function formatTimeOfDay(value, isRTL) {
-  if (!value) return null;
-  const [h, m] = value.split(':').map(Number);
-  if (Number.isNaN(h)) return value;
-  return new Date(2000, 0, 1, h, m || 0).toLocaleTimeString(isRTL ? 'ar-EG' : 'en-US', {
-    hour: 'numeric', minute: '2-digit',
-  });
-}
-
-// Ceremony/reception can be entered two ways depending on when the event was
-// created: the current Venue-search + time-picker fields (`${prefix}_venue_name`
-// / `${prefix}_time_of_day`), or the older single free-text field
-// (`${prefix}_time` from EventSettings, `${prefix}Location` from the create-event
-// wizard) that mixed the time and place into one string. Prefer the structured
-// fields; fall back to whichever legacy string exists so older events still display.
-function ceremonyReceptionLine(td, prefix, isRTL) {
-  const venue = td[`${prefix}_venue_name`];
-  const time = formatTimeOfDay(td[`${prefix}_time_of_day`], isRTL);
-  if (venue || time) return [time, venue].filter(Boolean).join(isRTL ? ' – ' : ' at ');
-  return td[`${prefix}_time`] || td[`${prefix}Location`] || null;
-}
-
-// Builds the real-data props for InvitationCard from the live event record,
-// replacing the demo placeholder copy (fake names/dates/venues) the card
-// otherwise renders for the organizer simulator / marketing showcase.
-function buildInvitationCardData(event, isRTL) {
-  const td = event?.template_data || {};
-  const venueName = event?.location_name || null;
-  const venueAddress = event?.location_address || null;
-  const venueLine = [venueName, venueAddress].filter(Boolean).join(' · ') || null;
-  const dateLine = formatEventDateLine(event, isRTL);
-  const dressCode = (isRTL && td.dress_code_ar) || event?.dress_code || null;
-  // Arabic title override (stored in template_data by EventSettings)
-  const titleAr = td.title_ar || null;
-
-  if (WEDDING_VARIANT_TEMPLATES.includes(event?.template_type)) {
-    // The organizer's create-event wizard (Stage2_FormConfiguration) writes
-    // partner1/partner2 + ceremonyLocation/receptionLocation; the post-creation
-    // edit page (EventSettings) writes bride_name/groom_name + ceremony_time/
-    // reception_time into the same template_data column — read both shapes.
-    const a = td.groom_name || td.partner1Name || td.partner1;
-    const b = td.bride_name || td.partner2Name || td.partner2;
-    const namesEn = a && b ? `${a} & ${b}` : (event?.title || null);
-    const names = (isRTL && titleAr) ? titleAr : namesEn;
-    const monogram = a && b ? `${a[0]}${b[0]}`.toUpperCase() : null;
-    const ceremonyLine = ceremonyReceptionLine(td, 'ceremony', isRTL);
-    const receptionLine = ceremonyReceptionLine(td, 'reception', isRTL);
-    // Tuscan Vineyard's "Save the Date" layout upgrades to a real photo once
-    // the organizer has uploaded a cover image; other wedding patterns ignore this.
-    const coverImageUrl = event?.template_type === 'tuscany' ? (event?.cover_image_url || null) : undefined;
-    return { names, monogram, dateLine, venueLine, venueName, venueAddress, ceremonyLine, receptionLine, coverImageUrl };
-  }
-
-  switch (event?.template_type) {
-    case 'wedding': {
-      // The organizer's create-event wizard (Stage2_FormConfiguration) writes
-      // partner1/partner2 + ceremonyLocation/receptionLocation; the post-creation
-      // edit page (EventSettings) writes bride_name/groom_name + ceremony_time/
-      // reception_time into the same template_data column — read both shapes.
-      const a = td.groom_name || td.partner1Name || td.partner1;
-      const b = td.bride_name || td.partner2Name || td.partner2;
-      const namesEn = a && b ? `${a} & ${b}` : (event?.title || null);
-      const names = (isRTL && titleAr) ? titleAr : namesEn;
-      const monogram = a && b ? `${a[0]}${b[0]}`.toUpperCase() : null;
-      const ceremonyLine = ceremonyReceptionLine(td, 'ceremony', isRTL);
-      const receptionLine = ceremonyReceptionLine(td, 'reception', isRTL);
-      const noKidsText = isRTL ? 'دعوة خاصة بالكبار فقط' : 'No Kids Allowed';
-      // Organizer-controlled (dashboard "Adults-Only Notice" toggle) — off
-      // by default; previously this rendered unconditionally for every
-      // wedding, which wrongly assumed every couple wants it.
-      const noKidsNotice = !!event?.no_kids_allowed;
-      return { names, monogram, dateLine, venueLine, venueName, venueAddress, ceremonyLine, receptionLine, noKidsText, noKidsNotice };
-    }
-    // Engagement reuses the exact "serif" card layout wedding uses (see
-    // INVITATION_PATTERN_BY_TEMPLATE above) — only the copy differs, since
-    // "Request the honor of your presence at the marriage of…" and "The
-    // Marriage Celebration" are wrong for two people who aren't married yet.
-    case 'engagement': {
-      const a = td.partner1Name || td.partner1;
-      const b = td.partner2Name || td.partner2;
-      const namesEn = a && b ? `${a} & ${b}` : (event?.title || null);
-      const names = (isRTL && titleAr) ? titleAr : namesEn;
-      const monogram = a && b ? `${a[0]}${b[0]}`.toUpperCase() : null;
-      const ceremonyLine = ceremonyReceptionLine(td, 'ceremony', isRTL);
-      const receptionLine = ceremonyReceptionLine(td, 'reception', isRTL);
-      const celebrationLabel = isRTL ? 'حفل الخطوبة' : 'The Engagement Celebration';
-      const honorLine1 = isRTL ? 'يسعدنا دعوتكم لحضور' : 'Request the honor of your presence';
-      const honorLine2 = isRTL ? 'حفل خطوبة' : 'at the engagement of';
-      const noKidsText = isRTL ? 'دعوة خاصة بالكبار فقط' : 'No Kids Allowed';
-      const noKidsNotice = !!event?.no_kids_allowed;
-      return {
-        names, monogram, dateLine, venueLine, venueName, venueAddress, ceremonyLine, receptionLine,
-        celebrationLabel, honorLine1, honorLine2, noKidsText, noKidsNotice, dressCode,
-      };
-    }
-    case 'corporate': {
-      const headlineEn = event?.title || null;
-      const headline = (isRTL && titleAr) ? titleAr : headlineEn;
-      const eyebrow = td.company_name || td.companyName || td.company || null;
-      return { headline, eyebrow, dateLine };
-    }
-    case 'birthday': {
-      const headlineEn = td.birthdayPersonName || td.celebrant || event?.title || null;
-      const headline = (isRTL && titleAr) ? titleAr : headlineEn;
-      const subtitle = td.theme || td.partyTheme || null;
-      const replyBy = event?.rsvp_deadline
-        ? `Kindly reply by ${new Date(event.rsvp_deadline).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}`
-        : null;
-      return { headline, subtitle, dateLine, venueLine, replyBy };
-    }
-    case 'gala': {
-      const headlineEn = event?.title || null;
-      const headline = (isRTL && titleAr) ? titleAr : headlineEn;
-      const honoree = td.honorees || td.honoree || null;
-      const eyebrow = honoree ? `Honoring ${honoree}` : null;
-      return { headline, eyebrow, dateLine, venueLine };
-    }
-    // Custom Canvas, plus anything not named above. The adults-only fields ride
-    // along here for the same reason HeritageArchPage stopped gating its
-    // section on the template type: the organizer set `no_kids_allowed`, and
-    // which artwork they happened to pick is not a reason to drop it. Wedding
-    // and engagement build their own copies above only because their Arabic
-    // wording sits inside those blocks already.
-    default: {
-      const namesEn = event?.title || null;
-      const names = (isRTL && titleAr) ? titleAr : namesEn;
-      const noKidsText = isRTL ? 'دعوة خاصة بالكبار فقط' : 'No Kids Allowed';
-      const noKidsNotice = !!event?.no_kids_allowed;
-      return { names, dateLine, venueLine, dressCode, noKidsText, noKidsNotice };
-    }
-  }
 }
 
 function sanitizeFontName(name) {
@@ -423,7 +295,7 @@ export default function EventPageClient({
   const [lang, setLang] = useState('en');
 
   const isWedding = event?.template_type === 'wedding' || WEDDING_VARIANT_TEMPLATES.includes(event?.template_type);
-  const isRomantic = isWedding || event?.template_type === 'engagement';
+  const isRomantic = isWedding || event?.template_type === 'engagement' || event?.template_type === 'ring';
   const customColors = event?.custom_colors || {};
   const themeColor = customColors.primary || (isWedding ? '#B8944F' : '#191B1E');
 
@@ -1165,6 +1037,46 @@ export default function EventPageClient({
   const invitationGuestName = guestRsvp?.guest_name || (isRTL ? 'ضيفنا الكريم' : 'Esteemed Guest');
   const invitationTheme = { primary: themeColor, secondary: customColors.secondary || '#D7BE80' };
   const invitationData = buildInvitationCardData(event, isRTL);
+
+  // Velvet Ring / Door of Joy. Null for every other template, which is what
+  // keeps the envelope branch below the default.
+  const cinematicTemplate = getCinematicTemplate(event.template_type);
+  // The names carved on the cover, before any section has rendered. Same
+  // resolution order the hero uses — Arabic title override, then the couple,
+  // then the event's own title — so the cover and the page never disagree
+  // about whose celebration this is.
+  const cinematicOpeningNames = (() => {
+    if (isRTL && titleAr) return titleAr;
+    const a = td.groom_name || td.partner1Name || td.partner1;
+    const b = td.bride_name || td.partner2Name || td.partner2;
+    return a && b ? `${a} & ${b}` : (localizedTitle || event.title || '');
+  })();
+
+  /* Door of Joy's hero video is 1.7MB and sits directly behind the door. The
+     knocks plus the door swing take roughly eight seconds — spending them
+     fetching means the doves are already decoded when the guest arrives,
+     instead of a poster that pops a beat later. Fired on the FIRST knock,
+     not at page load, so it never competes with the door video that is on
+     screen right now. A bare <link rel=preload> in the document head would;
+     this doesn't.
+
+     A plain function rather than useCallback deliberately: this sits below
+     nine early returns (loading, error, private, password, not-live…), so a
+     hook here would be a CONDITIONAL hook — the render that bails at
+     `if (loading)` would run fewer hooks than the one that reaches this line,
+     and React would throw on the transition between them. It guards against
+     re-entry with a DOM lookup instead of a stable identity. */
+  const preloadCinematicHeroVideo = () => {
+    const src = cinematicTemplate?.assets?.heroVideo;
+    if (!src || typeof document === 'undefined') return;
+    if (document.querySelector(`link[data-cine-preload="${src}"]`)) return;
+    const link = document.createElement('link');
+    link.rel = 'preload';
+    link.as = 'video';
+    link.href = src;
+    link.setAttribute('data-cine-preload', src);
+    document.head.appendChild(link);
+  };
   const hasGallery = !!(event.gallery_urls && Array.isArray(event.gallery_urls) && event.gallery_urls.length > 0);
   const hasMap = !!(event.location_address || (event.location_lat && event.location_lng));
 
@@ -1195,22 +1107,52 @@ export default function EventPageClient({
   if (FULL_PAGE_TEMPLATES.has(event.template_type)) {
     return (
       <PageTransition>
-        {/* One-time premium envelope reveal — the same fixed overlay the
-            continuous-scroll templates use, layered above the full-page
-            experience so every full-page style (including Heritage Arch)
-            keeps the same envelope intro. */}
+        {/* The arrival. Every full-page template gets exactly one of these,
+            gated by the same `showReveal` — so `reveal_enabled`,
+            `reveal_replay` and the ?noreveal=1 compliance bypass all keep
+            working identically whichever one is mounted.
+
+            The cinematic templates bring their own: a velvet box that opens
+            on film, or a door you knock on. Their opening IS their envelope,
+            so mounting both would mean breaking a wax seal only to be handed
+            a second gate. Everything else keeps InvitationReveal. */}
         <AnimatePresence>
           {showReveal && (
-            <InvitationReveal
-              key="guest-reveal"
-              mode="invitation"
-              event={event}
-              guestName={guestRsvp?.guest_name || ''}
-              lang={lang}
-              sessionKey={revealSessionKey}
-              onComplete={handleRevealComplete}
-              musicRef={musicRef}
-            />
+            cinematicTemplate ? (
+              cinematicTemplate.opening === 'velvetBox' ? (
+                <VelvetBoxOpening
+                  key="guest-opening"
+                  template={cinematicTemplate}
+                  names={cinematicOpeningNames}
+                  lang={lang}
+                  sessionKey={revealSessionKey}
+                  onComplete={handleRevealComplete}
+                  onGesture={resumeIfNotUserPaused}
+                />
+              ) : (
+                <KnockDoorOpening
+                  key="guest-opening"
+                  template={cinematicTemplate}
+                  names={cinematicOpeningNames}
+                  lang={lang}
+                  sessionKey={revealSessionKey}
+                  onComplete={handleRevealComplete}
+                  onGesture={resumeIfNotUserPaused}
+                  onFirstKnock={preloadCinematicHeroVideo}
+                />
+              )
+            ) : (
+              <InvitationReveal
+                key="guest-reveal"
+                mode="invitation"
+                event={event}
+                guestName={guestRsvp?.guest_name || ''}
+                lang={lang}
+                sessionKey={revealSessionKey}
+                onComplete={handleRevealComplete}
+                musicRef={musicRef}
+              />
+            )
           )}
         </AnimatePresence>
         {youtubeMusicId ? (
@@ -1408,14 +1350,6 @@ export default function EventPageClient({
             }}
             aria-hidden="true"
           />
-
-          {/* Organizer-uploaded hero video, same field (template_data
-              .ha_hero_video_url) and same component the full-page engine uses.
-              Sits above the ambient gradient and below the particles, so the
-              gradient stays as the base the video fades down into. */}
-          {td.ha_hero_video_url && (
-            <HeroVideoBackground src={td.ha_hero_video_url} zIndex={0} />
-          )}
 
           <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
             <FloatingParticles count={30} color={themeColor} />

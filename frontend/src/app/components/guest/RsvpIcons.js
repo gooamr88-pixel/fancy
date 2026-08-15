@@ -1,5 +1,13 @@
 'use client';
 
+/* Explicit, even though Next's automatic JSX runtime does not need it. Vitest
+   transforms this tree with esbuild's CLASSIC runtime (see vitest.config.mjs —
+   .js files here contain JSX, which esbuild has to be told about), and under
+   that runtime every JSX expression compiles to React.createElement. Without
+   this import the icons throw "React is not defined" the moment a test renders
+   the RSVP form — which is exactly the surface most worth testing. */
+import React from 'react';
+
 /**
  * Line-art icon set for the guest RSVP flow — replaces the native-emoji icons
  * previously used there (rendering is inconsistent across iOS/Android/Windows

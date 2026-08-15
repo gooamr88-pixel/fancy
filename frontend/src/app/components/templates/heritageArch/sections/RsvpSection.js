@@ -190,7 +190,7 @@ function AttendanceChoice({ value, onSelect, C, isRTL }) {
   );
 }
 
-export default function RsvpSection({ event, slug, guestRsvp, hasResponded, responseStatus, allowGuestEdits, effectiveRsvpId, mealOptions: mealOptionsProp, isRTL, trackEvent }) {
+export default function RsvpSection({ event, slug, guestRsvp, hasResponded, responseStatus, allowGuestEdits, effectiveRsvpId, mealOptions: mealOptionsProp, isRTL, trackEvent, readOnly = false }) {
   const C = useFullPageTheme();
   // Whether this event's page is a dark theme (several style variants ship
   // dark backgrounds — marrakesh, saffron, orchid). Used below so the RSVP
@@ -282,6 +282,9 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
   const [editing, setEditing] = useState(false);
   const [errors, setErrors] = useState({});
   const [customAnswers, setCustomAnswers] = useState({});
+  // Organizer preview only: their submit passed validation and stopped there.
+  // Says so, rather than appearing to have done nothing.
+  const [previewNotice, setPreviewNotice] = useState(false);
 
   // Cloudflare Turnstile — mirrors RsvpWizard. When NEXT_PUBLIC_TURNSTILE_SITEKEY
   // is set, the backend's verifyTurnstile middleware rejects any submit without a
@@ -610,6 +613,21 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
 
   const handleSubmit = async () => {
     if (!validate()) return;
+
+    /* The organizer's preview runs everything above this line — every required
+       field, every custom question, the meal tally, the companion rows — because
+       checking that the form they built actually works is most of why they
+       opened the preview. It stops here.
+
+       Deliberately AFTER validate(), not before: a submit button that succeeds
+       without checking anything would be its own kind of lie, and the organizer
+       would ship a form whose validation they had never seen fire. And the
+       event does not exist yet at this point in the wizard, so there is no
+       `slug` to post to — this would 404 rather than record anything. */
+    if (readOnly) {
+      setPreviewNotice(true);
+      return;
+    }
 
     const isAttending = attending === 'yes';
     const dietaryNotes = [...allergies, otherAllergy.trim()].filter(Boolean).join(', ') || null;
@@ -1231,6 +1249,29 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
                     ? (isRTL ? 'جارٍ الإرسال...' : 'Sending...')
                     : attending === 'no' ? (isRTL ? 'إرسال الاعتذار' : 'Send my reply') : (isRTL ? 'تأكيد الحضور' : 'Send RSVP')}
                 </motion.button>
+
+                {/* Preview only. The form validated and stopped — without
+                    saying so, a submit that visibly does nothing reads as a
+                    broken button, which is the opposite of the reassurance
+                    this screen exists to give. */}
+                <AnimatePresence>
+                  {previewNotice && (
+                    <motion.p
+                      role="status"
+                      initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                      style={{
+                        margin: '12px 0 0', padding: '12px 14px', borderRadius: '12px',
+                        background: alpha(C.gold, 0.12), border: `1px dashed ${C.gold}`,
+                        color: C.ink, fontSize: '12.5px', lineHeight: 1.6, textAlign: 'center',
+                        fontFamily: 'var(--font-sans)',
+                      }}
+                    >
+                      {isRTL
+                        ? 'هذه معاينة — الاستمارة تعمل كما سيراها ضيوفك، لكن لا يُسجَّل أي ردّ من هنا.'
+                        : "This is a preview — the form works exactly as your guests will see it, but nothing is recorded from here."}
+                    </motion.p>
+                  )}
+                </AnimatePresence>
               </div>
             </motion.div>
           )}

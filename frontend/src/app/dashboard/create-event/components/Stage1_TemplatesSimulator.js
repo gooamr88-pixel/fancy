@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import TemplateCard from './TemplateCard';
 import PhoneSimulator from './PhoneSimulator';
 import CustomBuilder from './CustomBuilder';
+import { buildPreviewEvent } from './previewEvent';
 import EventCategoryIcon from '../../../components/icons/EventCategoryIcon';
 // This file's own SSR-safe useSyncExternalStore hook was the good one in
 // the codebase; it has been promoted to src/app/hooks/useMediaQuery.js so
@@ -21,6 +22,12 @@ const TEMPLATE_PREVIEW_MAP = {
   birthday:   { name: 'Garden Party',     pattern: 'floral',  accent: '#E88FAC' },
   gala:       { name: 'Pure & Simple',    pattern: 'minimal', accent: '#C5A059' },
   custom:     { name: 'Woodland Romance', pattern: 'organic', accent: '#8B7355' },
+  // The cinematic pair. Their guest page opens on photography rather than a
+  // stationery card, but the simulator still previews the card — it is what
+  // "Save the invitation" produces — so they map to the same serif artwork
+  // Wedding and Engagement use, tinted to their own accent.
+  ring:       { name: 'Velvet Ring',       pattern: 'serif',       accent: '#d4af6a' },
+  bab:        { name: 'Door of Joy',       pattern: 'serif',       accent: '#a97fc0' },
   tuscany:    { name: 'Tuscan Vineyard',   pattern: 'tuscany',     accent: '#6B7A4F' },
   marrakesh:  { name: 'Marrakesh Nights',  pattern: 'marrakesh',   accent: '#D9A94E' },
   kyoto:      { name: 'Kyoto Blossom',     pattern: 'kyoto',       accent: '#B23A48' },
@@ -35,28 +42,11 @@ const TEMPLATE_PREVIEW_MAP = {
   heritageArch: { name: 'Heritage Arch',   pattern: 'heritageArch', accent: '#7A1E2C' },
 };
 
-/* ═══ Envelope lining gradient mapping ═══ */
-function getLiningGradId(templateKey, presetIndex) {
-  if (templateKey === 'wedding') {
-    return ['goldGrad', 'emeraldGrad', 'burgundyGrad'][presetIndex] || 'goldGrad';
-  }
-  if (templateKey === 'gala') {
-    return ['goldGrad', 'burgundyGrad', 'goldGrad'][presetIndex] || 'goldGrad';
-  }
-  if (templateKey === 'tuscany') {
-    return ['oliveGrad', 'terracottaGrad', 'oliveGrad', 'burgundyGrad'][presetIndex] || 'oliveGrad';
-  }
-  // Hue-matched to each template's palette — reuses the existing gradient set
-  // rather than commissioning a bespoke SVG gradient per curated template.
-  const HUE_MATCH = {
-    marrakesh: 'goldGrad', kyoto: 'burgundyGrad', nordic: 'goldGrad',
-    havana: 'terracottaGrad', estate: 'emeraldGrad', roseAtelier: 'burgundyGrad',
-    orchid: 'goldGrad', clay: 'terracottaGrad', alpine: 'emeraldGrad', coastal: 'emeraldGrad',
-    heritageArch: 'burgundyGrad',
-  };
-  if (HUE_MATCH[templateKey]) return HUE_MATCH[templateKey];
-  return 'goldGrad';
-}
+/* getLiningGradId lived here, mapping each template to an SVG gradient id for
+   the envelope's paper lining. Removed with the preview rewrite: the envelope
+   is now the real InvitationReveal, which derives its own colours from
+   `event.custom_colors` rather than taking a gradient id. The id was still
+   being computed and threaded through two components to reach nobody. */
 
 /* Deterministic pseudo-random so SSR and client markup match exactly (no hydration mismatch, no effect) */
 function pseudoRandom(seed) {
@@ -227,10 +217,7 @@ function MobilePresetRow({ template, activePresetIndex, onPresetSelect }) {
 export default function Stage1_TemplatesSimulator({
   templates, templateType, onTemplateSelect,
   selectedPresets, onPresetSelect, activePresetColors,
-  customConfig, onCustomConfigChange, onNext,
-  // Only ever set when the organizer uploaded a hero video in Stage 2 and then
-  // stepped back here — the field itself lives on the next screen.
-  heroVideoUrl,
+  customConfig, onCustomConfigChange, onNext, onPreview,
 }) {
   const isCustom = templateType === 'custom';
   const activeTemplate = templates.find(t => t.key === templateType) || templates[0];
@@ -269,17 +256,27 @@ export default function Stage1_TemplatesSimulator({
         primary: customConfig?.primary || '#8B7355',
         secondary: customConfig?.secondary || '#D4C5A9',
         accent: customConfig?.accent || customConfig?.primary || '#8B7355',
-        liningGradId: 'goldGrad',
       }
     : {
         id: (activePresetColors?.name || 'default').toLowerCase().replace(/\s+/g, '-'),
         primary: activePresetColors?.primary || '#B8944F',
         secondary: activePresetColors?.secondary || '#D7BE80',
         accent: activePresetColors?.accent || activePresetColors?.primary || '#B8944F',
-        liningGradId: getLiningGradId(templateType, presetIdx),
       };
-  /* config only applies to the Custom template (CTA label, sections, fonts…) */
-  const simulatorConfig = isCustom ? customConfig : undefined;
+  /* The event the phone renders. Nothing has been entered at this step — the
+     organizer is choosing a look, not filling in details — so this carries
+     only the template and its colours, and HeritageArchPage's `isPreview`
+     fills the sections with curated sample content. That is the honest thing
+     to show here: "this is the template, with example content". Stage 2's
+     Preview then shows the same page with their own words in it. */
+  const simulatorEvent = useMemo(() => buildPreviewEvent({
+    templateType,
+    customColors: isCustom
+      ? { primary: customConfig?.primary, secondary: customConfig?.secondary, accent: customConfig?.accent }
+      : activePresetColors,
+    customConfig,
+    templateData: {},
+  }), [templateType, isCustom, customConfig, activePresetColors]);
 
   return (
     <div style={{
@@ -355,8 +352,7 @@ export default function Stage1_TemplatesSimulator({
                 theme={simulatorTheme}
                 guestName={guestName}
                 onGuestNameChange={setGuestName}
-                config={simulatorConfig}
-                heroVideoUrl={heroVideoUrl}
+                event={simulatorEvent}
                 isMobile={true}
               />
             </div>
@@ -415,6 +411,27 @@ export default function Stage1_TemplatesSimulator({
 
             {/* CTA */}
             <div style={{ padding: '0 20px' }}>
+              {/* Before Continue, because Continue leads to payment. The phone
+                  above is a 320px window onto the same page; this opens it at
+                  full size, in either language, with the arrival playing. */}
+              {onPreview && (
+                <button
+                  onClick={onPreview}
+                  type="button"
+                  style={{
+                    marginTop: 16, width: '100%', height: 48,
+                    background: '#FFFFFF', color: '#191B1E',
+                    border: '1.5px solid #191B1E', borderRadius: 16,
+                    fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 700,
+                    cursor: 'pointer', display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', gap: 8,
+                    WebkitTapHighlightColor: 'transparent',
+                  }}
+                >
+                  <EventCategoryIcon name={templateType} size={15} color="#191B1E" strokeWidth={1.7} />
+                  See the full experience
+                </button>
+              )}
               <button
                 onClick={onNext}
                 data-testid="wizard-next"
@@ -497,11 +514,28 @@ export default function Stage1_TemplatesSimulator({
             )}
 
             {/* CTA Button */}
+            {onPreview && (
+              <button
+                onClick={onPreview}
+                type="button"
+                style={{
+                  marginTop: 24, width: '100%', height: 48,
+                  background: '#FFFFFF', color: '#191B1E',
+                  border: '1.5px solid #191B1E', borderRadius: 14,
+                  fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 700,
+                  cursor: 'pointer', display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', gap: 8,
+                }}
+              >
+                <EventCategoryIcon name={templateType} size={15} color="#191B1E" strokeWidth={1.7} />
+                See the full experience
+              </button>
+            )}
             <button
               onClick={onNext}
               data-testid="wizard-next"
               style={{
-                marginTop: 32, width: '100%', height: 52,
+                marginTop: onPreview ? 12 : 32, width: '100%', height: 52,
                 background: 'linear-gradient(135deg, #B8944F, #a6833f)',
                 color: '#FFFFFF', border: 'none', borderRadius: 14,
                 fontFamily: 'var(--font-sans)', fontSize: 14,
@@ -535,8 +569,7 @@ export default function Stage1_TemplatesSimulator({
               theme={simulatorTheme}
               guestName={guestName}
               onGuestNameChange={setGuestName}
-              config={simulatorConfig}
-              heroVideoUrl={heroVideoUrl}
+              event={simulatorEvent}
             />
           </div>
         </div>

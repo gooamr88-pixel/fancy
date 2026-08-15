@@ -7,9 +7,6 @@ import { DiamondDivider, ScrollToRsvpHint } from '../shared';
 import InvitationCard from '../../InvitationCard';
 import EventCategoryIcon from '../../../icons/EventCategoryIcon';
 import Icon from '../../../icons/Icon';
-// Shared with the continuous-scroll page's #lg-hero — see the note in the
-// component itself for why there is only one copy of this.
-import HeroVideoBackground from '../../../guest/HeroVideoBackground';
 
 // A small corner flourish drawn in the theme's gold — mirrored into each corner
 // of the stationery frame so the hero reads as an engraved invitation rather
@@ -27,7 +24,7 @@ function CornerFlourish({ color, style }) {
 export default function HeroSection({
   partner1, partner2, title, tagline, titleAr,
   invitationPattern, invitationTheme, invitationGuestName, invitationData,
-  categoryBadge, isRTL, t, heroVideoUrl,
+  categoryBadge, isRTL, t,
 }) {
   const C = useFullPageTheme();
   const reduce = useReducedMotion();
@@ -81,17 +78,12 @@ export default function HeroSection({
       padding: 'clamp(72px, 10vh, 100px) 20px clamp(80px, 11vh, 100px)', boxSizing: 'border-box',
       // Layered, luminous background — two soft radial pools of the theme's gold
       // and accent over a vertical gradient — instead of a single flat fill.
-      // When an organizer-uploaded hero video is present, HeroVideoBackground
-      // (its own scrim included) covers this entirely; kept as the fallback
-      // for events with no video, and as the base layer video fades into.
       background: `
         radial-gradient(ellipse 70% 55% at 50% 8%, ${C.gold}26 0%, transparent 60%),
         radial-gradient(ellipse 90% 60% at 50% 100%, ${C.maroon}14 0%, transparent 55%),
         linear-gradient(176deg, ${C.cream} 0%, ${C.background} 55%, ${C.paper} 100%)
       `,
     }}>
-      {heroVideoUrl && <HeroVideoBackground src={heroVideoUrl} />}
-
       {/* Engraved stationery frame — a thin double gold rule inset from the
           screen edge, with a flourish in each corner. */}
       <div aria-hidden="true" style={{

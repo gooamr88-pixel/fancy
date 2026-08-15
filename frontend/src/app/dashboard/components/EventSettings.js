@@ -20,7 +20,6 @@ import SectionsOrderEditor from '../create-event/components/SectionsOrderEditor'
 import { getHaDays } from '../../utils/haDays';
 import { TEMPLATES } from '../../utils/curatedTemplates';
 import { CUSTOM_CATEGORIES, CUSTOM_CATEGORY_BY_KEY } from '../../utils/customEventCategories';
-import { HERO_VIDEO_MAX_BYTES, HERO_VIDEO_MAX_LABEL, HERO_VIDEO_TOO_LARGE, heroVideoErrorMessage } from '../../utils/heroVideoUpload';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -39,6 +38,8 @@ const FULL_PAGE_TEMPLATE_KEYS = [
   'wedding', 'tuscany', 'marrakesh', 'kyoto', 'nordic', 'havana',
   'estate', 'roseAtelier', 'orchid', 'clay', 'alpine', 'coastal', 'heritageArch',
   'engagement', 'custom',
+  // The cinematic pair — same full-page sections, different opening and hero.
+  'ring', 'bab',
 ];
 const isFullPage = (t) => FULL_PAGE_TEMPLATE_KEYS.includes(t);
 
@@ -47,6 +48,9 @@ const isFullPage = (t) => FULL_PAGE_TEMPLATE_KEYS.includes(t);
 const WEDDING_STYLE_TEMPLATE_KEYS = [
   'wedding', 'tuscany', 'marrakesh', 'kyoto', 'nordic', 'havana',
   'estate', 'roseAtelier', 'orchid', 'clay', 'alpine', 'coastal', 'heritageArch',
+  // Door of Joy. Velvet Ring ('ring') is an engagement and gets its couple
+  // fields through the same path 'engagement' does.
+  'bab',
 ];
 
 const DRESS_CODES = ['', 'Black Tie', 'Cocktail Attire', 'Semi-Formal', 'Business Casual', 'Smart Casual', 'Casual', 'Festive', 'Traditional'];
@@ -280,7 +284,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     ha_invited_to_city: '', ha_invited_to_lat: null, ha_invited_to_lng: null, ha_our_story: '',
     ha_menu_courses: [], ha_things_to_do: [], ha_getting_there: '',
     ha_gift_bank_name: '', ha_gift_account_name: '', ha_gift_iban: '', ha_gift_registry_label: '', ha_gift_message: '',
-    ha_hero_video_url: '', ha_dress_ladies: '', ha_dress_gentlemen: '', ha_closing_message: '',
+    ha_dress_ladies: '', ha_dress_gentlemen: '', ha_closing_message: '',
   });
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -314,7 +318,6 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     return () => { cancelled = true; clearTimeout(timer); };
   }, [form.background_music_url]);
   const [coverUploading, setCoverUploading] = useState(false);
-  const [heroVideoUploading, setHeroVideoUploading] = useState(false);
   const [galleryUploading, setGalleryUploading] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   // Cancelling is a different action from deleting, so it gets its own state
@@ -441,44 +444,6 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
       return;
     }
     setCoverUploading(false);
-  };
-
-  // Hero background video — stored in template_data (ha_hero_video_url), not
-  // a top-level event column, so no migration was needed. No base64 fallback
-  // here unlike the image/audio uploads above: at video file sizes (tens of
-  // MB) an inflated base64 payload would blow well past the API's body-size
-  // limit, so a failed storage upload just fails outright with a clear error
-  // instead of silently trying a path that can't work.
-  const handleHeroVideoUpload = async (e) => {
-    const file = e.target.files?.[0];
-    // Clearing the input means picking the SAME file again after removing it
-    // still fires change; otherwise the second attempt silently does nothing.
-    e.target.value = '';
-    if (!file) return;
-    if (file.size > HERO_VIDEO_MAX_BYTES) {
-      toast.error(HERO_VIDEO_TOO_LARGE);
-      return;
-    }
-    setHeroVideoUploading(true);
-    try {
-      if (!supabase) throw new Error('Supabase client is not initialized.');
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${eventId}-${Date.now()}.${fileExt}`;
-      const filePath = `hero-video/${fileName}`;
-      const { error: uploadErr } = await supabase.storage
-        .from('event-assets')
-        .upload(filePath, file, { cacheControl: '3600', upsert: true });
-      if (uploadErr) throw uploadErr;
-      const { data: { publicUrl } } = supabase.storage
-        .from('event-assets')
-        .getPublicUrl(filePath);
-      setTemplateData(prev => ({ ...prev, ha_hero_video_url: publicUrl }));
-      setSuccess(false);
-    } catch (err) {
-      console.error('Hero video upload failed:', err);
-      toast.error(heroVideoErrorMessage(err));
-    }
-    setHeroVideoUploading(false);
   };
 
   /* Shared upload path for the gallery/seal/background fields below — tries
@@ -686,7 +651,6 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         ha_gift_iban: event.template_data?.ha_gift_iban || '',
         ha_gift_registry_label: event.template_data?.ha_gift_registry_label || '',
         ha_gift_message: event.template_data?.ha_gift_message || '',
-        ha_hero_video_url: event.template_data?.ha_hero_video_url || '',
         ha_dress_ladies: event.template_data?.ha_dress_ladies || '',
         ha_dress_gentlemen: event.template_data?.ha_dress_gentlemen || '',
         ha_closing_message: event.template_data?.ha_closing_message || '',
@@ -1092,7 +1056,10 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
   const customCategoryMeta = CUSTOM_CATEGORY_BY_KEY[templateData.custom_category] || null;
   const showCoupleFields = WEDDING_STYLE_TEMPLATE_KEYS.includes(effectiveTemplateType)
     || (effectiveTemplateType === 'custom' && customCategoryMeta?.kind === 'couple')
-    || effectiveTemplateType === 'engagement'
+    // 'ring' is Velvet Ring, the cinematic engagement — same Partner 1/2
+    // fields as the base Engagement template, so it has to be asked for here
+    // too or the couple's names have no edit surface after creation.
+    || effectiveTemplateType === 'engagement' || effectiveTemplateType === 'ring'
     // Legacy fallback: events saved before `template_type` existed, where
     // `effectiveTemplateType` above is '' and only `event_type` says engagement.
     || (!form.template_type && form.event_type === 'engagement');
@@ -1875,71 +1842,6 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         />
       )}
 
-      {/* ═══ HERO BACKGROUND VIDEO ═══
-          Every template. Both guest render paths mount the same
-          HeroVideoBackground behind their hero — the full-page engine via
-          heritageArch/HeroSection, the continuous-scroll page via #lg-hero —
-          so this field no longer needs gating on template_type. */}
-      <div style={sectionStyle}>
-        <h3 style={sectionTitleStyle}>
-          <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
-            <span style={iconBadgeStyle}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><rect x="2" y="5" width="15" height="14" rx="2"/><path d="m17 10 5-3v10l-5-3"/></svg></span>
-            Hero Background Video
-          </span>
-        </h3>
-        <p style={{ fontSize: '12.5px', color: COLORS.stone, lineHeight: 1.6, margin: '0 0 14px', fontFamily: 'var(--font-sans)' }}>
-          Optional — a looping video behind the hero heading, fading to nothing at the bottom.
-          Leave empty to keep the generated gradient background.
-        </p>
-        <div style={fieldGroupStyle}>
-          <div
-            style={{
-              marginTop: '8px', padding: '16px', borderRadius: '12px',
-              border: `2px dashed ${COLORS.border}`, background: COLORS.softBg,
-              textAlign: 'center', transition: 'all 0.2s',
-            }}
-          >
-            <input
-              type="file" accept="video/mp4,video/webm" onChange={handleHeroVideoUpload}
-              disabled={heroVideoUploading}
-              style={{ display: 'none' }} id="hero-video-file-upload"
-            />
-            <label htmlFor="hero-video-file-upload" style={{
-              cursor: heroVideoUploading ? 'wait' : 'pointer', display: 'flex',
-              flexDirection: 'column', alignItems: 'center', gap: '8px',
-            }}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={COLORS.stone} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="5" width="15" height="14" rx="2"/><path d="m17 10 5-3v10l-5-3"/>
-              </svg>
-              <span style={{ fontSize: '12px', fontWeight: 600, color: COLORS.stone }}>
-                {heroVideoUploading ? 'Uploading…' : 'Click to browse for a video'}
-              </span>
-              <span style={{ fontSize: 'var(--fx-micro)', color: '#A09A91' }}>MP4, WebM • Max {HERO_VIDEO_MAX_LABEL}</span>
-            </label>
-          </div>
-
-          {templateData.ha_hero_video_url && (
-            <div style={{
-              marginTop: '10px', borderRadius: '12px', overflow: 'hidden',
-              border: `1px solid ${COLORS.border}`, height: '140px',
-              background: '#000', position: 'relative',
-            }}>
-              <video src={templateData.ha_hero_video_url} muted loop playsInline autoPlay
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              />
-              <button type="button"
-                onClick={() => { setTemplateData(prev => ({ ...prev, ha_hero_video_url: '' })); setSuccess(false); }}
-                style={{
-                  position: 'absolute', top: 8, right: 8, width: 28, height: 28,
-                  borderRadius: '50%', border: 'none', background: 'rgba(25,27,30,0.7)',
-                  color: '#fff', cursor: 'pointer', fontSize: 14, display: 'flex',
-                  alignItems: 'center', justifyContent: 'center',
-                }}
-              >×</button>
-            </div>
-          )}
-        </div>
-      </div>
       </>
       )}
 

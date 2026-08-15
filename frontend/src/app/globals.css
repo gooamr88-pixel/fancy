@@ -1,4 +1,10 @@
 @import "tailwindcss";
+/* Openings, heroes and the ambient motion layer for the cinematic invitation
+   templates (Velvet Ring, Door of Joy). Kept in its own file rather than
+   appended here: it is ~700 lines of one self-contained subsystem, and every
+   selector in it carries the `cine-` prefix precisely so it can never reach
+   the `fx-` responsive primitives defined further down this file. */
+@import "./styles/cinematic.css";
 
 /* ═══════════════════════════════════════════════
    FANCY RSVP — Brand Design System

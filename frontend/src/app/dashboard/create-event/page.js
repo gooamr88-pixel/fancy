@@ -7,8 +7,8 @@ import dynamic from 'next/dynamic';
 import { supabase } from '../../utils/supabaseClient';
 import { startSmsCreditPurchase } from '../../utils/smsPurchase';
 import { toTagArray } from '../components/TagListEditor';
-import { TEMPLATES } from '../../utils/curatedTemplates';
-import { HERO_VIDEO_MAX_BYTES, HERO_VIDEO_TOO_LARGE, heroVideoErrorMessage } from '../../utils/heroVideoUpload';
+import { TEMPLATES, TEMPLATE_PREVIEW_PATTERN } from '../../utils/curatedTemplates';
+import { buildPreviewEvent } from './components/previewEvent';
 
 /* ═══════════════════════════════════════════════════════
    LAZY-LOADED STAGE COMPONENTS
@@ -19,6 +19,10 @@ const Stage2_FormConfiguration = dynamic(() => import('./components/Stage2_FormC
 const StagePayment = dynamic(() => import('./components/StagePayment'), { ssr: false });
 const StageTables = dynamic(() => import('./components/StageTables'), { ssr: false });
 const Stage3_Distribution = dynamic(() => import('./components/Stage3_Distribution'), { ssr: false });
+/* Split for the same reason the stages are: it pulls the entire guest renderer
+   — every section, the RSVP form, both cinematic openings — and most organizers
+   reach Continue without ever opening it. */
+const PreviewModal = dynamic(() => import('./components/PreviewModal'), { ssr: false });
 
 /* Wizard step labels (drives the top progress bar). Payment now comes right
    after picking a template/tier and before the event-details form, per the
@@ -45,6 +49,11 @@ const C = {
 const WEDDING_STYLE_TEMPLATE_KEYS = [
   'tuscany', 'marrakesh', 'kyoto', 'nordic', 'havana',
   'estate', 'roseAtelier', 'orchid', 'clay', 'alpine', 'coastal', 'heritageArch',
+  // Door of Joy — cinematic, but a wedding in every way that matters here:
+  // Groom's/Bride's Side labels, meal selection, the partner and
+  // ceremony/reception fields. Velvet Ring is an engagement and so keeps
+  // engagement's own field set below, exactly like the Engagement template.
+  'bab',
 ];
 
 /**
@@ -126,6 +135,9 @@ const TEMPLATE_TYPE_FIELD_KEYS = {
   // engagement is a full-page template, so it keeps the ha_* section fields;
   // corporate/birthday/gala render continuous-scroll and use only their own.
   engagement: ['partner1', 'partner2', 'partner1_email', 'partner2_email', 'proposalStory', 'giftRegistry', ...HA_SECTION_FIELD_KEYS],
+  // Velvet Ring — the cinematic engagement. Same field set as Engagement, so
+  // switching between the two never drops what the organizer already typed.
+  ring: ['partner1', 'partner2', 'partner1_email', 'partner2_email', 'proposalStory', 'giftRegistry', ...HA_SECTION_FIELD_KEYS],
   // Custom is also a full-page template — it gets the same ha_* section fields
   // (schedule, venues, accommodation, FAQ, menu, gift list, etc.) as wedding
   // and engagement, so the organizer can freely fill in and toggle any
@@ -291,7 +303,6 @@ export default function CreateEventWizard() {
   const [collectDietaryRestrictions, setCollectDietaryRestrictions] = useState(true);
   const [coverImageUrl, setCoverImageUrl] = useState('');
   const [coverImageUploading, setCoverImageUploading] = useState(false);
-  const [heroVideoUploading, setHeroVideoUploading] = useState(false);
   const [backgroundMusicUrl, setBackgroundMusicUrl] = useState('');
   const [musicUploading, setMusicUploading] = useState(false);
   const [galleryUrls, setGalleryUrls] = useState([]);
@@ -739,6 +750,20 @@ export default function CreateEventWizard() {
   const activePresetIndex = selectedPresets[templateType] || 0;
   const activePresetColors = activeTemplate.presets[activePresetIndex];
 
+  /* ═══ "What your guests will see" ═══
+     The real guest renderer, fed this wizard's unsaved state. Built on demand
+     rather than memoised: it is only read while the modal is open, and every
+     field it maps is state this component already re-renders on. */
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const previewEvent = previewOpen ? buildPreviewEvent({
+    templateType, title, description, eventDate, eventEndDate,
+    locationName, locationAddress, locationLat, locationLng,
+    dressCode, rsvpDeadline, coverImageUrl, galleryUrls,
+    customColors, templateData, customConfig,
+    allowGuestEdits, trackGuestSide, noKidsAllowed, collectDietaryRestrictions,
+    customFields, slug,
+  }) : null;
+
   /* ═══ Template selection handlers ═══ */
   const handleTemplateSelect = useCallback((key) => {
     setTemplateType(key);
@@ -813,37 +838,6 @@ export default function CreateEventWizard() {
       toast.error('Cover image upload failed. Please try again.');
     } finally {
       setCoverImageUploading(false);
-    }
-  }, []);
-
-  /* ═══ Hero background video upload (Supabase storage — no base64 fallback:
-     at video file sizes an inflated base64 payload would blow past the API's
-     body-size limit, so a failed upload fails outright rather than trying a
-     path that can't work). Written straight into template_data, not a
-     top-level field, so no migration was needed for this. ═══ */
-  const handleHeroVideoUpload = useCallback(async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > HERO_VIDEO_MAX_BYTES) {
-      toast.error(HERO_VIDEO_TOO_LARGE);
-      return;
-    }
-    setHeroVideoUploading(true);
-    try {
-      if (!supabase) throw new Error('Storage client not configured.');
-      const ext = file.name.split('.').pop();
-      const filePath = `hero-video/wizard-${Date.now()}.${ext}`;
-      const { error: uploadErr } = await supabase.storage
-        .from('event-assets')
-        .upload(filePath, file, { cacheControl: '3600', upsert: true });
-      if (uploadErr) throw uploadErr;
-      const { data: { publicUrl } } = supabase.storage.from('event-assets').getPublicUrl(filePath);
-      setTemplateData(prev => ({ ...prev, ha_hero_video_url: publicUrl }));
-    } catch (err) {
-      console.error('Hero video upload failed:', err);
-      toast.error(heroVideoErrorMessage(err));
-    } finally {
-      setHeroVideoUploading(false);
     }
   }, []);
 
@@ -1555,7 +1549,7 @@ export default function CreateEventWizard() {
               customConfig={customConfig}
               onCustomConfigChange={handleCustomConfigChange}
               onNext={handleTemplateNext}
-              heroVideoUrl={templateData.ha_hero_video_url}
+              onPreview={() => setPreviewOpen(true)}
             />
           </motion.div>
         )}
@@ -1644,7 +1638,6 @@ export default function CreateEventWizard() {
               collectDietaryRestrictions={collectDietaryRestrictions} setCollectDietaryRestrictions={setCollectDietaryRestrictions}
               coverImageUrl={coverImageUrl} setCoverImageUrl={setCoverImageUrl}
               onCoverImageUpload={handleCoverImageUpload} coverImageUploading={coverImageUploading}
-              onHeroVideoUpload={handleHeroVideoUpload} heroVideoUploading={heroVideoUploading}
               backgroundMusicUrl={backgroundMusicUrl} setBackgroundMusicUrl={setBackgroundMusicUrl}
               onMusicUpload={handleMusicUpload} musicUploading={musicUploading}
               galleryUrls={galleryUrls} onGalleryUpload={handleGalleryUpload}
@@ -1652,6 +1645,7 @@ export default function CreateEventWizard() {
               customFields={customFields} onFieldsChange={setCustomFields}
               onNext={handleConfigureNext} onBack={goBack}
               onSaveDraft={handleSaveDraft} savingDraft={savingDraft}
+              onPreview={() => setPreviewOpen(true)}
             />
           </motion.div>
         )}
@@ -1706,6 +1700,24 @@ export default function CreateEventWizard() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {previewOpen && previewEvent && (
+        <PreviewModal
+          event={previewEvent}
+          // The same card artwork the guest page picks for this template — it
+          // is what "Save the invitation" captures inside the hero.
+          invitationPattern={TEMPLATE_PREVIEW_PATTERN[templateType] || 'serif'}
+          invitationTheme={{
+            primary: customColors.primary || activePresetColors?.primary,
+            secondary: customColors.secondary || activePresetColors?.secondary,
+          }}
+          // Step 0 is the template picker: nothing has been typed yet, so the
+          // sections fill with sample content. From Configure onward it is
+          // their own page, empty sections and all.
+          showSampleContent={step === 0}
+          onClose={() => setPreviewOpen(false)}
+        />
+      )}
     </WizardShell>
   );
 }

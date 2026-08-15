@@ -3,6 +3,7 @@
 import React, { createContext, useContext } from 'react';
 import { lighten, darken, alpha, isDark, luminance } from '../../../utils/color';
 import { HERITAGE_ARCH_COLORS } from './defaultContent';
+import { getCinematicTemplate } from '../cinematic/cinematicThemes';
 
 /* ═══════════════════════════════════════════════════════════════
    Full-page experience theme.
@@ -41,9 +42,19 @@ export function useFullPageTheme() {
 export function buildPalette(customColors = {}, templateType) {
   if (templateType === 'heritageArch') return HERITAGE_ARCH_COLORS;
 
-  const primary = customColors.primary || HERITAGE_ARCH_COLORS.maroon;
-  const secondary = customColors.secondary || customColors.accent || HERITAGE_ARCH_COLORS.gold;
-  const background = customColors.background || HERITAGE_ARCH_COLORS.background;
+  /* The cinematic templates are photographic: their sections have to sit in
+     the same room as a velvet stage or a sunlit doorway, and Heritage Arch's
+     burgundy-on-cream is the wrong room for both. Their own colours become
+     the fallback, so an event created without custom_colors — through the
+     API, or before the organizer ever opened the colour picker — still
+     renders as the template it claims to be rather than as a stranger's
+     palette. An organizer who HAS picked colours still wins: every value
+     below reads customColors first. */
+  const fallback = getCinematicTemplate(templateType)?.colors || HERITAGE_ARCH_COLORS;
+
+  const primary = customColors.primary || fallback.primary || HERITAGE_ARCH_COLORS.maroon;
+  const secondary = customColors.secondary || customColors.accent || fallback.secondary || HERITAGE_ARCH_COLORS.gold;
+  const background = customColors.background || fallback.background || HERITAGE_ARCH_COLORS.background;
   const dark = isDark(background);
   const paper = dark ? lighten(background, 0.08) : darken(background, 0.05);
 

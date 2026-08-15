@@ -50,6 +50,42 @@ export const TEMPLATES = [
     specs: ['Cinematic Envelope Reveal', 'Modern Glassmorphism', 'Gold Accents', 'Interactive RSVP', 'Every Section Toggleable'],
     fields: ['Partner Names', 'Proposal Story', 'Gift Registry'],
   },
+  /* ── The cinematic pair ──────────────────────────────────────────────
+     These two differ from the three above in exactly one place: the
+     opening and the hero. A guest taps a velvet box or knocks on a door
+     instead of breaking a wax seal, and the fold is photographic rather
+     than stationery. Everything below the fold is the same full-page
+     engine, the same organizer-configured sections, and the same RSVP —
+     recoloured to each one's palette. See components/templates/cinematic/.
+
+     Their presets lead with the template's native palette, because that is
+     the colour story the photography was shot in; the alternates are there
+     for organizers who want to shift it, not because the first is a
+     placeholder. */
+  {
+    key: 'ring', label: 'Velvet Ring', tier: 'Engagement',
+    tagline: 'Cinematic · Velvet & Gold',
+    desc: 'A velvet ring box on a darkened stage. Your guests touch it, the lid opens on film, and the invitation dissolves out of the light — then the whole page carries gold dust and drifting petals as they scroll.',
+    presets: [
+      { name: 'Velvet Rose', primary: '#8f3c52', secondary: '#d4af6a', accent: '#d4af6a', background: '#2a100b' },
+      { name: 'Midnight Gold', primary: '#6b3b5a', secondary: '#e0c07d', accent: '#e0c07d', background: '#1d0f18' },
+      { name: 'Deep Garnet', primary: '#7d2438', secondary: '#c9973f', accent: '#c9973f', background: '#25090c' },
+    ],
+    specs: ['Cinematic Box Opening', 'Gold Dust & Petals Throughout', 'Arabic Display Typography', 'Interactive RSVP', 'Every Section Toggleable'],
+    fields: ['Partner Names', 'Proposal Story', 'Gift Registry'],
+  },
+  {
+    key: 'bab', label: 'Door of Joy', tier: 'Wedding',
+    tagline: 'Cinematic · Wood & Lilac',
+    desc: 'A carved door your guests knock on three times — it answers, swings open on the light beyond, and doves lift from the garden gate behind your names. Blossom drifts down the page as they read.',
+    presets: [
+      { name: 'Lilac Bloom', primary: '#7d5694', secondary: '#c9a45c', accent: '#a97fc0', background: '#f6f1e4' },
+      { name: 'Olive Courtyard', primary: '#5c6b4a', secondary: '#c9a45c', accent: '#7d8f66', background: '#f4f1e2' },
+      { name: 'Rose Stone', primary: '#9c5a63', secondary: '#c9a45c', accent: '#c98a93', background: '#f8f2ea' },
+    ],
+    specs: ['Knock-to-Enter Opening', 'Sound & Haptics', 'Living Hero Video', 'Arabic Display Typography', 'Every Section Toggleable'],
+    fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
+  },
   {
     key: 'custom', label: 'Custom Canvas', tier: 'Build your own',
     tagline: 'Fully editable',
@@ -68,5 +104,11 @@ export const TEMPLATES = [
 export const TEMPLATE_PREVIEW_PATTERN = {
   wedding: 'serif',
   engagement: 'serif',
+  // The cinematic pair keep their own hero photography rather than showing a
+  // stationery card at the fold, but the card still exists — it is what the
+  // "Save the invitation" button captures (see cinematic/HeroCardDownload.js)
+  // — so it needs a pattern like every other template.
+  ring: 'serif',
+  bab: 'serif',
   custom: 'custom',
 };

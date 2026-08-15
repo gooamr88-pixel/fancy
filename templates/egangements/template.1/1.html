@@ -1,0 +1,991 @@
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#2a100b" />
+  <title>دعوة خطوبة مصطفى &amp; مريم</title>
+  <meta name="description" content="يوم الجمعة، ٤ كانون الأول ٢٠٢٦ • قاعة اللؤلؤة" />
+  <meta property="og:title" content="دعوة خطوبة مصطفى &amp; مريم" />
+  <meta property="og:description" content="يوم الجمعة، ٤ كانون الأول ٢٠٢٦ • قاعة اللؤلؤة" />
+  <meta property="og:type" content="website" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Amiri:ital,wght@0,400;0,700;1,400&family=El+Messiri:wght@400;500;600;700&family=Tajawal:wght@300;400;500;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet" />
+  <link rel="preload" as="image" href="templates/ring/assets/video-poster.jpg" fetchpriority="high" />
+  <link rel="preload" as="image" href="templates/ring/assets/box-open.jpg" />
+  <link rel="preload" as="video" href="templates/ring/assets/box-video.mp4" type="video/mp4" />
+  <link rel="stylesheet" href="templates/ring/styles.css" />
+  <meta property="og:image" content="templates/ring/assets/share.jpg"/>
+  <meta property="og:url" content="https://da3wa.co/d/demo-ring"/>
+  <meta property="og:type" content="website"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <meta name="twitter:image" content="templates/ring/assets/share.jpg"/>
+<script>!function(f,b,e,v,n,t,s)
+{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];
+s.parentNode.insertBefore(t,s)}(window, document,'script',
+'https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', '1380854407276995');
+fbq('track', 'PageView');</script>
+<noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=1380854407276995&ev=PageView&noscript=1" alt="" /></noscript>
+<script async src="templates/ring/js.js"></script>
+<script>window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', 'G-9BWS6CWC35');</script>
+</head>
+<body class="locked">
+
+  <!-- ================= COVER: المسرح المخملي (مشهد فوتوغرافي) ================= -->
+  <div class="cover" id="cover">
+    <div class="cover-bg" id="coverBg" aria-hidden="true"><img class="bg-photo" alt="" /></div>
+
+    <!-- المشهدان: الصندوق مغلق ← مفتوح بالخاتم -->
+    <div class="scene-photo" aria-hidden="true">
+      <img class="ph ph-closed" id="phClosed" src="templates/ring/assets/video-poster.jpg" alt="" />
+      <video class="ph ph-video" id="boxVideo" src="templates/ring/assets/box-video.mp4" muted playsinline webkit-playsinline preload="auto"></video>
+      <img class="ph ph-open" id="phOpen" src="templates/ring/assets/box-open.jpg" alt="" />
+      <!-- وميض متقاطع فوق الخاتم بعد الكشف -->
+      <span class="ring-glints">
+        <span class="cross-glint cg-1"></span>
+        <span class="cross-glint cg-2"></span>
+        <span class="cross-glint cg-3"></span>
+      </span>
+    </div>
+
+    <!-- غبار ذهبي يطفو داخل شعاع الضوء -->
+    <div class="beam-dust" aria-hidden="true">
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
+
+    <!-- توهج اللمسة فوق الصندوق ثم الوميض الذهبي الكاشف -->
+    <div class="tap-glow" aria-hidden="true"></div>
+    <div class="flash" aria-hidden="true"></div>
+
+    <button class="cover-tap" id="openBtn" type="button" aria-label="المس الصندوق لفتح الدعوة"></button>
+
+    <div class="cover-ui">
+      <p class="latin-accent" aria-hidden="true">Engagement</p>
+      <p class="cover-kicker">دعوة خطوبة</p>
+      <p class="cover-names" id="coverNames">اسم الخطيب و اسم الخطيبة</p>
+      <p class="cover-hint"><span class="hint-ring" aria-hidden="true"></span><span id="hintLabel">المس الصندوق</span></p>
+    </div>
+  </div>
+
+  <!-- ================= INVITATION ================= -->
+  <main class="invite" id="invite" aria-hidden="true">
+
+    <!-- fixed velvet backdrop behind all content -->
+    <div class="scene" aria-hidden="true">
+      <div class="velvet-wall"></div>
+      <div class="scene-glow"></div>
+      <div class="dust-ambient">
+        <span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span>
+      </div>
+    </div>
+
+    <div class="page">
+
+      <!-- HERO -->
+      <header class="hero reveal" id="hero">
+        <div class="hero-scene" aria-hidden="true"></div>
+
+        <button class="emblem" id="ringEmblem" type="button" aria-label="لمسة فرح">
+          <svg viewBox="0 0 40 46" aria-hidden="true">
+            <circle cx="20" cy="28" r="11" fill="none" stroke="#d4af6a" stroke-width="3.4"/>
+            <polygon points="13,12 20,5 27,12 20,20" fill="#eef8ff" stroke="#d4af6a" stroke-width="1"/>
+          </svg>
+        </button>
+
+        <div class="hero-inner">
+          <p class="latin-accent" aria-hidden="true">Engagement</p>
+          <p class="hero-kicker">دعوة خطوبة</p>
+
+          <div class="hero-photo" id="heroPhoto" hidden>
+            <img id="heroPhotoImg" alt="" />
+          </div>
+
+          <h1 class="couple">
+            <span class="couple-name" id="groomName">اسم الخطيب</span>
+            <span class="couple-sep" aria-hidden="true">&amp;</span>
+            <span class="couple-name" id="brideName">اسم الخطيبة</span>
+          </h1>
+          <p class="hero-sub" id="heroSub">يتشرّفان بدعوتكم لمشاركتهما فرحة الخطوبة</p>
+          <p class="hero-date" id="heroDate">—</p>
+          <span class="scroll-cue" aria-hidden="true">
+            <span class="scroll-cue-label">مرّر للأسفل</span>
+            <span class="scroll-cue-arrow">&#9662;</span>
+          </span>
+        </div>
+      </header>
+
+      <!-- VERSE / دعاء -->
+      <section class="card verse-card reveal">
+        <span class="card-jewel" aria-hidden="true">
+          <svg viewBox="0 0 26 26"><polygon points="13,2 24,13 13,24 2,13" fill="none" stroke="#c9973f" stroke-width="1.6"/><polygon points="13,7 19,13 13,19 7,13" fill="#eec3c9"/></svg>
+        </span>
+        <p class="verse" id="verseText">—</p>
+      </section>
+
+      <!-- INVITATION TEXT + FAMILIES -->
+      <section class="card invite-card reveal">
+        <h2 class="sec-title"><span>بطاقة دعوة</span></h2>
+        <p class="invitation-text" id="invitationText">—</p>
+        <div class="families">
+          <div class="family">
+            <span class="family-label">أهل الخطيب</span>
+            <p class="family-names" id="groomParents">—</p>
+          </div>
+          <span class="families-jewel" aria-hidden="true">
+            <svg viewBox="0 0 26 26"><circle cx="13" cy="15" r="7" fill="none" stroke="#c9973f" stroke-width="2"/><polygon points="9,8 13,4 17,8 13,12" fill="#f7dfe4" stroke="#c9973f" stroke-width=".8"/></svg>
+          </span>
+          <div class="family">
+            <span class="family-label">أهل الخطيبة</span>
+            <p class="family-names" id="brideParents">—</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- COUNTDOWN -->
+      <section class="card count-card reveal">
+        <h2 class="sec-title"><span>العد التنازلي لليوم الموعود</span></h2>
+        <div class="countdown" id="countdown" role="timer" aria-label="الوقت المتبقّي">
+          <div class="cd-unit"><span class="cd-num" id="cdDays">٠٠</span><span class="cd-lbl">يوم</span></div>
+          <div class="cd-unit"><span class="cd-num" id="cdHours">٠٠</span><span class="cd-lbl">ساعة</span></div>
+          <div class="cd-unit"><span class="cd-num" id="cdMins">٠٠</span><span class="cd-lbl">دقيقة</span></div>
+          <div class="cd-unit"><span class="cd-num" id="cdSecs">٠٠</span><span class="cd-lbl">ثانية</span></div>
+        </div>
+        <p class="cd-arrived" id="cdArrived" hidden>اليوم يوم الخطوبة 🎉</p>
+      </section>
+
+      <!-- PROGRAM -->
+      <section class="card timeline-card reveal">
+        <h2 class="sec-title"><span>برنامج الحفل</span></h2>
+        <ul class="timeline" id="timeline"></ul>
+      </section>
+
+      <!-- VENUE -->
+      <section class="card venue-card reveal">
+        <h2 class="sec-title"><span>الموقع</span></h2>
+        <p class="venue-date"><span id="weddingDate">—</span></p>
+        <p class="venue-time" id="weddingTime">—</p>
+        <p class="venue-name" id="venueName">—</p>
+        <p class="venue-addr" id="venueAddr">—</p>
+        <a class="btn btn-map" id="mapBtn" href="#" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><path d="M12 21 s7-6.2 7-11 a7 7 0 1 0 -14 0 c0 4.8 7 11 7 11 Z" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="10" r="2.5" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>
+          الموقع على الخريطة
+        </a>
+      </section>
+
+      <!-- NOTES -->
+      <section class="card notes-card reveal">
+        <h2 class="sec-title"><span>ملاحظات</span></h2>
+        <ul class="notes" id="notesList"></ul>
+      </section>
+
+      <!-- CLOSING -->
+      <section class="closing reveal">
+        <div class="closing-divider" aria-hidden="true">
+          <span></span>
+          <svg viewBox="0 0 26 26" width="22" height="22"><polygon points="13,2 24,13 13,24 2,13" fill="none" stroke="#d4af6a" stroke-width="1.4"/><polygon points="13,7 19,13 13,19 7,13" fill="#d4af6a"/></svg>
+          <span></span>
+        </div>
+        <p class="closing-note" id="closingNote">—</p>
+        <p class="closing-hashtag" id="closingHashtag">—</p>
+        <p class="closing-families" id="closingFamilies">—</p>
+      </section>
+
+      <!-- CONTACT -->
+      <section class="card contact-card reveal" id="contactBox">
+        <h2 class="sec-title"><span id="contactLabel">للاستفسار والتأكيد</span></h2>
+        <p class="contact-name" id="contactName">—</p>
+        <a class="btn btn-tel" id="contactLink" href="#">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 4 h4 l1.6 4.2 -2.4 1.8 a12 12 0 0 0 5.8 5.8 l1.8 -2.4 L20 15 v4 a2 2 0 0 1 -2 2 A15 15 0 0 1 3 6 a2 2 0 0 1 2 -2 Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+          <span class="btn-tel-num" id="contactPhoneText">اتصال</span>
+        </a>
+      </section>
+
+    </div>
+  
+
+<section id="da3wa-cal" dir="rtl">
+  <style>
+    #da3wa-cal{position:relative;z-index:5;padding:6px 18px 44px;font-family:"Tajawal",system-ui,sans-serif}
+    #da3wa-cal .cal-title{text-align:center;font-family:"Aref Ruqaa",serif;font-size:23px;color:#d4af6a;margin:0 0 16px;letter-spacing:normal;font-weight:700;text-shadow:0 1px 14px rgba(0,0,0,.5)}
+    #da3wa-cal .cal{max-width:258px;margin:0 auto;background:rgba(24,9,7,.62);border:1px solid rgba(212,175,106,.5);border-radius:20px;overflow:hidden;box-shadow:0 20px 46px rgba(0,0,0,.5);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);}
+    #da3wa-cal .cal-top{background:linear-gradient(135deg, #d4af6a, #b0546e);color:#2a100b;text-align:center;padding:13px 10px 11px;font-weight:800;font-size:16px;position:relative}
+    #da3wa-cal .cal-top::before,#da3wa-cal .cal-top::after{content:"";position:absolute;top:-6px;width:8px;height:15px;border-radius:4px;background:rgba(255,255,255,.4);box-shadow:0 1px 2px rgba(0,0,0,.15)}
+    #da3wa-cal .cal-top::before{right:33%}
+    #da3wa-cal .cal-top::after{left:33%}
+    #da3wa-cal .cal-body{padding:14px 10px 18px;text-align:center}
+    #da3wa-cal .cal-wd{color:rgba(249,231,236,.72);font-weight:700;font-size:15px;margin-bottom:2px}
+    #da3wa-cal .cal-day{font-family:"Aref Ruqaa",serif;font-size:62px;line-height:1.15;color:#d4af6a;letter-spacing:normal;font-weight:700}
+    #da3wa-cal .cal-time{color:#f9e7ec;font-weight:700;font-size:14px;margin-top:8px}
+    #da3wa-cal .cal-foot{border-top:1px dashed rgba(212,175,106,.5);padding:12px 12px 15px;text-align:center}
+    #da3wa-cal .cal-cap{color:rgba(249,231,236,.72);font-size:12px;font-weight:700;margin:0 0 9px}
+    #da3wa-cal .cal-btns{display:flex;gap:7px;justify-content:center;flex-wrap:wrap}
+    #da3wa-cal .cal-btns a{display:inline-flex;align-items:center;border:1.5px solid #d4af6a;color:#f9e7ec;background:rgba(255,255,255,.07);text-decoration:none;font-weight:700;font-size:12.5px;border-radius:999px;padding:7px 13px;transition:.15s}
+    #da3wa-cal .cal-btns a:active{transform:scale(.97)}
+  </style>
+  <p class="cal-title">احفظ الموعد 💍</p>
+  <div class="cal">
+    <div class="cal-top">كانون الأول 2026</div>
+    <div class="cal-body">
+      <div class="cal-wd">الجمعة</div>
+      <div class="cal-day">4</div>
+      <div class="cal-time">الساعة السابعة مساءً</div>
+    </div>
+      <div class="cal-foot">
+        <p class="cal-cap">📲 أضِف الموعد إلى تقويم هاتفك بضغطة</p>
+        <div class="cal-btns">
+          <a href="https://calendar.google.com/calendar/render?action=TEMPLATE&amp;text=%D8%AF%D8%B9%D9%88%D8%A9%20%D8%AE%D8%B7%D9%88%D8%A8%D8%A9%20%D9%85%D8%B5%D8%B7%D9%81%D9%89%20%26%20%D9%85%D8%B1%D9%8A%D9%85&amp;dates=20261204T190000/20261204T230000&amp;ctz=Asia/Baghdad&amp;location=%D9%82%D8%A7%D8%B9%D8%A9%20%D8%A7%D9%84%D9%84%D8%A4%D9%84%D8%A4%D8%A9%20%E2%80%94%20%D8%A8%D8%BA%D8%AF%D8%A7%D8%AF%20%E2%80%94%20%D8%A7%D9%84%D9%85%D9%86%D8%B5%D9%88%D8%B1&amp;details=%D8%B1%D8%A7%D8%A8%D8%B7%20%D8%A7%D9%84%D8%AF%D8%B9%D9%88%D8%A9%3A%20https%3A%2F%2Fda3wa.co%2Fd%2Fdemo-ring" target="_blank" rel="noopener">تقويم جوجل</a>
+          <a href="/cal/demo-ring">تقويم آيفون</a>
+        </div>
+      </div>
+  </div>
+</section>
+
+<section id="da3wa-rsvp" data-inv="4d60b02f-eb63-49f1-8356-189b0610e0cf" data-cap="" dir="rtl">
+  <style>
+    #da3wa-rsvp{position:relative;z-index:5;padding:48px 18px 64px;font-family:"Tajawal",system-ui,sans-serif}
+    #da3wa-rsvp .rsvp-card{max-width:440px;margin:0 auto;background:rgba(24,9,7,.62);border:1px solid rgba(212,175,106,.5);border-radius:20px;padding:26px 22px;box-shadow:0 24px 60px rgba(0,0,0,.5);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);text-align:center}
+    #da3wa-rsvp h3{font-family:"Aref Ruqaa",serif;font-size:26px;color:#f9e7ec;margin:0 0 4px;letter-spacing:normal;font-weight:700}
+    #da3wa-rsvp .orn-line{display:flex;align-items:center;justify-content:center;gap:10px;margin:0 0 6px}
+    #da3wa-rsvp .orn-line i{flex:0 1 54px;height:1.5px;background:linear-gradient(90deg,transparent,#d4af6a);border:none}
+    #da3wa-rsvp .orn-line i:last-child{transform:scaleX(-1)}
+    #da3wa-rsvp .orn-line b{font-size:17px;line-height:1;font-weight:400}
+    #da3wa-rsvp p.sub{color:rgba(249,231,236,.72);font-size:14px;margin:0 0 18px}
+    /* شارة الحد الأقصى للحضور */
+    #da3wa-rsvp .cap-note{display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.08);border:1px dashed #d4af6a;color:#f9e7ec;border-radius:999px;padding:7px 16px;font-size:13px;font-weight:700;margin:0 0 16px;line-height:1.7}
+    /* تنبيه خاص بدعوة Bassam & Neyra — أسفل حد الحضور مباشرةً */
+    #da3wa-rsvp .names-notice{display:block;margin:-4px 0 12px;padding:8px 11px;border-radius:7px;background:#dc1745;color:#fff;font-size:13px;font-weight:800;line-height:1.35;text-align:center;box-shadow:0 7px 16px rgba(220,23,69,.22)}
+    /* تنبيه بلوغ الحد — يظهر بنبضة لطيفة ويختفي */
+    #da3wa-rsvp .cap-max{display:block;color:#ffe9a8;font-size:13px;font-weight:800;margin-top:8px;opacity:0;transform:translateY(-4px);transition:opacity .3s ease,transform .3s ease}
+    #da3wa-rsvp .cap-max.on{opacity:1;transform:none;animation:dwPop .45s ease}
+    #da3wa-rsvp .step.at-cap #da3wa-plus{opacity:.4;cursor:not-allowed}
+    #da3wa-rsvp .step.shake{animation:dwShake .4s ease}
+    @keyframes dwPop{0%{transform:scale(.85)}55%{transform:scale(1.06)}100%{transform:scale(1)}}
+    @keyframes dwShake{0%,100%{transform:translateX(0)}25%{transform:translateX(4px)}50%{transform:translateX(-4px)}75%{transform:translateX(3px)}}
+    /* start لا right: القسم يحمل dir حسب اللغة، فالإنكليزية كانت تصفّ التسميات يميناً */
+    #da3wa-rsvp label{display:block;text-align:start;font-weight:700;font-size:13px;color:#f9e7ec;margin:12px 0 5px}
+    #da3wa-rsvp input,#da3wa-rsvp textarea{width:100%;padding:11px 14px;border:1.5px solid rgba(212,175,106,.5);border-radius:12px;font-family:inherit;font-size:15px;background:rgba(255,255,255,.08);color:#f9e7ec;box-sizing:border-box}
+    #da3wa-rsvp input::placeholder,#da3wa-rsvp textarea::placeholder{color:rgba(249,231,236,.72);opacity:.85}
+    #da3wa-rsvp .pills{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:6px}
+    /* font-family:inherit — بلا هذا يرث الزر خط المتصفح (Arial) فتشذّ نعم/لا/ربما عن خط الدعوة */
+    #da3wa-rsvp .pill{padding:11px;border:1.5px solid rgba(212,175,106,.5);border-radius:12px;background:rgba(255,255,255,.08);font-family:inherit;font-weight:700;cursor:pointer;font-size:15px;color:#f9e7ec;transition:.15s}
+    #da3wa-rsvp .pill[aria-pressed="true"]{background:#d4af6a;color:#2a100b;border-color:#d4af6a}
+    #da3wa-rsvp .step{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:6px}
+    #da3wa-rsvp .step button{width:38px;height:38px;border-radius:50%;border:1.5px solid rgba(212,175,106,.5);background:rgba(255,255,255,.08);font-size:20px;cursor:pointer;color:#f9e7ec}
+    #da3wa-rsvp .step span{font-size:20px;font-weight:800;min-width:28px;color:#f9e7ec;text-align:center}
+    #da3wa-rsvp .send{width:100%;margin-top:20px;padding:13px;border:none;border-radius:999px;background:#d4af6a;color:#2a100b;font-weight:700;font-size:16px;font-family:inherit;cursor:pointer;box-shadow:0 12px 26px -10px rgba(0,0,0,.6)}
+    #da3wa-rsvp .send:disabled{opacity:.6}
+    #da3wa-rsvp .ok{padding:18px}
+    #da3wa-rsvp .ok .emoji{font-size:46px}
+    #da3wa-rsvp .ok h3{margin-top:8px}
+    /* قمع الضيوف — بارز لكنه لا يزاحم تأكيد الحضور نفسه */
+    #da3wa-rsvp .gcta{margin:18px auto 2px;max-width:340px;padding:14px 16px;border-radius:16px;
+      background:rgba(255,255,255,.92);border:1px solid rgba(20,14,30,.10);box-shadow:0 10px 26px -16px rgba(20,14,30,.45)}
+    #da3wa-rsvp .gcta-t{margin:0;font-weight:800;font-size:15px;color:#2a2140;letter-spacing:normal}
+    #da3wa-rsvp .gcta-s{margin:5px 0 11px;font-size:12.5px;line-height:1.7;color:#6e6780;letter-spacing:normal}
+    #da3wa-rsvp .gcta-b{display:inline-block;background:#ff4d7d;color:#fff;text-decoration:none;font-weight:800;
+      font-size:13.5px;padding:9px 22px;border-radius:999px;letter-spacing:normal;
+      box-shadow:0 8px 18px -8px rgba(255,77,125,.9);transition:opacity .16s,transform .16s}
+    #da3wa-rsvp .gcta-b:active{opacity:.75;transform:scale(.97)}
+    /* بطاقة الدخول (QR) — تظهر كاملة على شاشة النجاح للـVIP */
+    #da3wa-rsvp .ticket{margin-top:16px;padding:16px;border-radius:20px;border:1px solid rgba(212,175,106,.5);background:rgba(255,255,255,.06);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);}
+    #da3wa-rsvp .ticket-title{font-family:"Aref Ruqaa",serif;font-size:15px;letter-spacing:.04em;color:rgba(249,231,236,.72);margin:0 0 10px}
+    #da3wa-rsvp .ticket-qr{width:min(72vw,250px);height:auto;display:block;margin:0 auto;border-radius:12px;background:#fff;padding:10px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+    #da3wa-rsvp .ticket-hint{font-size:.8rem;opacity:.8;margin:10px auto 0;max-width:280px;line-height:1.7}
+    #da3wa-rsvp .ticket-save{display:inline-flex;align-items:center;gap:6px;margin-top:14px;padding:.72rem 1.6rem;border:none;border-radius:999px;background:#d4af6a;color:#2a100b;font-family:inherit;font-weight:800;font-size:14.5px;cursor:pointer;box-shadow:0 12px 26px -10px rgba(0,0,0,.6)}
+    #da3wa-rsvp .ticket-save:disabled{opacity:.7;cursor:default}
+    #da3wa-rsvp .ticket-open{display:block;margin-top:10px;font-size:.82rem;color:#d4af6a;text-decoration:underline}
+    #da3wa-rsvp .err{color:#ff9db6;font-size:13px;margin-top:8px;min-height:18px}
+    /* حالة «مؤكَّد» للرابط الشخصي — يفتحها الضيف العائد بدل استمارة فارغة */
+    #da3wa-rsvp .done-mark{font-size:40px;line-height:1}
+    #da3wa-rsvp .done-t{margin:6px 0 2px;font-family:"Aref Ruqaa",serif;font-size:22px;color:#f9e7ec;letter-spacing:normal}
+    #da3wa-rsvp .done-n{margin:0;font-size:15px;font-weight:800;color:#d4af6a}
+    #da3wa-rsvp .done-c{margin:8px 0 0;font-size:14px;color:rgba(249,231,236,.72)}
+    #da3wa-rsvp .done-hint{margin:12px auto 0;max-width:300px;font-size:12.5px;line-height:1.75;color:rgba(249,231,236,.72);opacity:.9}
+    #da3wa-rsvp .done-edit{margin-top:16px;padding:11px 26px;border:1.5px solid rgba(212,175,106,.5);border-radius:999px;background:rgba(255,255,255,.08);color:#f9e7ec;font-family:inherit;font-weight:700;font-size:14.5px;cursor:pointer}
+    #da3wa-rsvp .done-lock{margin:14px auto 0;max-width:300px;padding:9px 12px;border-radius:10px;background:rgba(255,255,255,.07);border:1px dashed #d4af6a;color:#f9e7ec;font-size:12.5px;font-weight:700;line-height:1.6}
+    /* الاسم المثبّت من الرابط: يُعرض ولا يُكتب */
+    #da3wa-rsvp input[readonly]{opacity:.85;cursor:default}
+    /* جدار التهاني */
+    #da3wa-rsvp .wishes{max-width:460px;margin:30px auto 0}
+    #da3wa-rsvp .wishes-h{text-align:center;margin-bottom:16px}
+    #da3wa-rsvp .wishes-h h3{font-size:21px;display:inline-block;background:rgba(24,9,7,.62);color:#f9e7ec;border:1px solid rgba(212,175,106,.5);border-radius:999px;padding:7px 22px;box-shadow:0 10px 26px rgba(0,0,0,.4);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);letter-spacing:normal}
+    #da3wa-rsvp .wish-list{display:grid;gap:10px}
+    #da3wa-rsvp .wish{display:flex;gap:11px;align-items:flex-start;background:rgba(24,9,7,.62);border:1px solid rgba(212,175,106,.5);border-radius:16px;padding:13px 15px;box-shadow:0 8px 24px rgba(0,0,0,.35);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);animation:dwIn .5s ease both}
+    #da3wa-rsvp .wish-av{flex-shrink:0;width:40px;height:40px;border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;font-family:"Aref Ruqaa",serif;font-size:19px}
+    #da3wa-rsvp .wish-body{text-align:start;flex:1;min-width:0}
+    #da3wa-rsvp .wish-name{font-weight:700;color:#f9e7ec;font-size:14px}
+    #da3wa-rsvp .wish-msg{color:rgba(249,231,236,.72);font-size:14px;line-height:1.7;word-wrap:break-word}
+    #da3wa-rsvp .wishes-empty{text-align:center;color:rgba(249,231,236,.72);font-size:14px;padding:16px;background:rgba(24,9,7,.62);border:1px solid rgba(212,175,106,.5);border-radius:16px;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);}
+    #da3wa-rsvp .wish.wish-hid{display:none}
+    #da3wa-rsvp .wishes-more{display:block;margin:16px auto 0;padding:10px 26px;border:1px solid rgba(212,175,106,.5);border-radius:999px;background:rgba(24,9,7,.62);color:#f9e7ec;font-family:inherit;font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 10px 26px rgba(0,0,0,.4);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);}
+    @keyframes dwIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+    /* ستوري الحضور — عرض البطاقة بعد التأكيد */
+    #da3wa-rsvp .story-offer{margin-top:20px;padding-top:18px;border-top:1px dashed rgba(212,175,106,.5);text-align:center}
+    #da3wa-rsvp .so-t{margin:0;font-family:"Aref Ruqaa",serif;font-size:20px;color:#f9e7ec;letter-spacing:normal}
+    #da3wa-rsvp .so-s{margin:4px 0 0;color:rgba(249,231,236,.72);font-size:13.5px}
+    #da3wa-rsvp .so-img{width:172px;border-radius:14px;border:1px solid rgba(212,175,106,.5);box-shadow:0 14px 30px rgba(0,0,0,.45);margin:14px auto 12px;display:block;min-height:120px;background:rgba(255,255,255,.08)}
+    #da3wa-rsvp .so-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:320px;margin:0 auto}
+    #da3wa-rsvp .so-btn{padding:11px;border:none;border-radius:999px;font-weight:700;font-size:14.5px;font-family:inherit;cursor:pointer}
+    #da3wa-rsvp .so-dl{background:#d4af6a;color:#2a100b}
+    #da3wa-rsvp .so-sh{background:rgba(255,255,255,.08);color:#f9e7ec;border:1.5px solid rgba(212,175,106,.5)}
+    /* زر فتح الستوري — حين الباركود مفعّل يتصدّر هو والستوري خلف هذا الزر */
+    #da3wa-rsvp .so-open{margin-top:18px;padding:11px 24px;border:1.5px solid rgba(212,175,106,.5);border-radius:999px;background:rgba(255,255,255,.08);color:#f9e7ec;font-weight:700;font-size:14px;font-family:inherit;cursor:pointer}
+    /* قلوب تطفو من جانبي الشاشة */
+    #da3wa-rsvp .heart{position:fixed;bottom:-24px;font-size:24px;color:#d4af6a;pointer-events:none;z-index:55;opacity:0;will-change:transform,opacity;animation:dwHeart ease-in forwards;filter:drop-shadow(0 4px 6px rgba(0,0,0,.4))}
+    @keyframes dwHeart{0%{opacity:0;transform:translateY(0) scale(.5) rotate(0)}12%{opacity:.95}100%{opacity:0;transform:translateY(-108vh) scale(1.15) rotate(var(--rot,8deg))}}
+  </style>
+  <div class="rsvp-card" id="da3wa-rsvp-card">
+    <div class="orn-line" aria-hidden="true"><i></i><b>💍</b><i></i></div>
+    
+    <div id="da3wa-form-wrap">
+    <h3>تأكيد الحضور</h3>
+    <p class="sub">يسعدنا تأكيد حضوركم</p>
+    
+    
+    <form id="da3wa-rsvp-form">
+      <label>الاسم الكريم</label>
+      <input name="guest_name" required maxlength="80" placeholder="اسمك" />
+      <label>هل ستحضر؟</label>
+      <div class="pills" id="da3wa-att">
+        <button type="button" class="pill" data-v="yes" aria-pressed="true">نعم</button>
+        <button type="button" class="pill" data-v="no">لا</button>
+        <button type="button" class="pill" data-v="maybe">ربما</button>
+      </div>
+      <label>عدد المرافقين (عدا حضورك — ٠ إن كنت وحدك)</label>
+      <div class="step" id="da3wa-step"><button type="button" id="da3wa-minus">−</button><span id="da3wa-guests">0</span><button type="button" id="da3wa-plus">+</button></div>
+      
+      <label>كلمة للمخطوبين 💍</label><textarea name="message" rows="2" maxlength="300" placeholder="اكتب تهنئتك للمخطوبين..."></textarea>
+      <button class="send" type="submit">إرسال التأكيد</button>
+      <div class="err" id="da3wa-err"></div>
+    </form>
+    </div>
+  </div>
+
+  <div class="wishes" id="da3wa-wishes">
+    <div class="wishes-h"><h3>كلمات المهنّئين 💍</h3></div>
+    <div class="wish-list" id="da3wa-wish-list"><div class="wish"><div class="wish-av" style="background:#d4af6a">ر</div><div class="wish-body"><div class="wish-name">رنا</div><div class="wish-msg">ألف مبروك 💍 وعقبال ليلة العمر يا رب</div></div></div><div class="wish"><div class="wish-av" style="background:#b0546e">م</div><div class="wish-body"><div class="wish-name">مصطفى</div><div class="wish-msg">ألف مبروك، خطوة مباركة وعقبال الفرحة الكبيرة</div></div></div><div class="wish"><div class="wish-av" style="background:#c9973f">ز</div><div class="wish-body"><div class="wish-name">زينب</div><div class="wish-msg">الله يتمم لكم على خير، فرحانين لكم من كل قلبنا</div></div></div><div class="wish"><div class="wish-av" style="background:#e79aac">أ</div><div class="wish-body"><div class="wish-name">أحمد</div><div class="wish-msg">مبارك! وعقبال ما نجتمع بفرحتكم الجاية 😄</div></div></div><div class="wish"><div class="wish-av" style="background:#8f3c52">ه</div><div class="wish-body"><div class="wish-name">هبة</div><div class="wish-msg">أجمل خبر سمعناه اليوم، مبروك للحبيبين</div></div></div></div>
+    
+    
+  </div>
+
+  <script>(function(){
+    var inv="4d60b02f-eb63-49f1-8356-189b0610e0cf";
+    var LINKC="";
+    var AV=["#d4af6a","#b0546e","#c9973f","#e79aac","#8f3c52"];
+    var STORY={"kicker":"حفل خطوبة","primary":"مصطفى \u0026 مريم","dateText":"يوم الجمعة، ٤ كانون الأول ٢٠٢٦"};
+    /* الكردية: خطوط القوالب الزخرفية لا تغطي حروفها — الكانفس يرسم بڤازیرماتن */
+    var ST={orn:"💍",accent:"#d4af6a",font:"\"Aref Ruqaa\"",body:"Tajawal",honored:"يتشرّف",attend:"بتلبية الدعوة لحضور",promise:"إن شاء الله حاضرون 🤍",brand:"صُنع من خلال منصة دعوة"};
+    var WO=false; /* وضع «تهانٍ فقط» */
+    var DEMOW=true; /* جدار ديمو: تعليقات الزوار لا تُعرَض */
+    /* PREV: للرابط الشخصي ردّ سابق مرسوم بالخادم — الإرسال هنا تعديلٌ له لا ردّ جديد */
+    var PREV=false;
+    var att=WO?"maybe":"yes";
+    var pills=document.querySelectorAll('#da3wa-att .pill');
+    pills.forEach(function(p){p.addEventListener('click',function(){att=p.getAttribute('data-v');pills.forEach(function(x){x.setAttribute('aria-pressed', x===p?'true':'false');});});});
+    var g=document.getElementById('da3wa-guests');
+    var minus=document.getElementById('da3wa-minus'),plus=document.getElementById('da3wa-plus');
+    /* العدّاد = المرافقون فقط (يبدأ من صفر لمن يأتي وحده).
+       الحد الأقصى شامل المدعو → أقصى مرافقين = الحد − ١. المجموع يُحسب عند الإرسال. */
+    var CAP=50;
+    var COMP_MAX=CAP-1;
+    var comp=0;
+    if(g)g.textContent=comp;
+    var stepEl=document.getElementById('da3wa-step'),capMax=document.getElementById('da3wa-capmax'),capT=null;
+    function capState(){ if(stepEl) stepEl.classList.toggle('at-cap', comp>=COMP_MAX); }
+    function capPing(){
+      if(capMax){ capMax.classList.add('on'); window.clearTimeout(capT); capT=window.setTimeout(function(){capMax.classList.remove('on');},2600); }
+      if(stepEl){ stepEl.classList.remove('shake'); void stepEl.offsetWidth; stepEl.classList.add('shake'); }
+    }
+    if(minus)minus.addEventListener('click',function(){if(comp>0){comp--;g.textContent=comp;}capState();});
+    if(plus)plus.addEventListener('click',function(){
+      if(comp<COMP_MAX){comp++;g.textContent=comp;capState();}
+      else capPing();
+    });
+    capState();
+
+    function addWish(name,msg){
+      var list=document.getElementById('da3wa-wish-list'); if(!list||!msg) return;
+      var empty=document.getElementById('da3wa-wishes-empty'); if(empty) empty.remove();
+      var n=(list.children.length)%AV.length;
+      var card=document.createElement('div'); card.className='wish';
+      var av=document.createElement('div'); av.className='wish-av'; av.style.background=AV[n]; av.textContent=(name.trim().charAt(0)||'♥');
+      var body=document.createElement('div'); body.className='wish-body';
+      var nm=document.createElement('div'); nm.className='wish-name'; nm.textContent=name;
+      var mg=document.createElement('div'); mg.className='wish-msg'; mg.textContent=msg;
+      body.appendChild(nm); body.appendChild(mg); card.appendChild(av); card.appendChild(body);
+      list.insertBefore(card, list.firstChild);
+    }
+
+    /* «تعديل ردّي»: يكشف الاستمارة المعبّأة بالردّ السابق (الاسم مثبّت من الرابط) */
+    var editBtn=document.getElementById('da3wa-edit');
+    if(editBtn) editBtn.addEventListener('click',function(){
+      var done=document.getElementById('da3wa-done'); if(done) done.style.display='none';
+      var wrap=document.getElementById('da3wa-form-wrap'); if(wrap) wrap.style.display='';
+    });
+    /* بطاقة الدخول المرسومة بالخادم للعائد — زر الحفظ يحتاج ربطاً كحالة ما بعد الإرسال */
+    if(document.querySelector('#da3wa-done .ticket-save')) wireTicketSave();
+
+    var f=document.getElementById('da3wa-rsvp-form'),err=document.getElementById('da3wa-err');
+    f.addEventListener('submit',function(e){e.preventDefault();err.textContent='';
+      var btn=f.querySelector('.send');btn.disabled=true;
+      var name=f.guest_name.value.trim();
+      var msg=f.message?f.message.value.trim():'';
+      if(WO && !msg){err.textContent="اكتب تهنئتك أولاً 💌";btn.disabled=false;return;}
+      var data={invitation_id:inv,guest_name:name,attending:att,guests:WO?0:comp+1,message:msg};
+      if(LINKC) data.link_code=LINKC;
+      fetch('/api/rsvp',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(data)})
+        .then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};});})
+        .then(function(res){
+          if(res.ok){
+            /* PREV: تهنئته مرسومة بالجدار أصلاً — التعديل لا يضيف بطاقة ثانية */
+            if(msg && !DEMOW && !PREV) addWish(name,msg);
+            /* النصوص مغلّفة بـjs() فتصير نصوص JS آمنة — الفواصل العليا في الإنجليزية (you'll)
+               كانت تُغلق النص المفرد وتكسر السكربت كله (أزرار نعم/لا والعدّاد تموت) */
+            var okHtml='<div class="ok"><div class="emoji">🎉</div><h3>'+"شكراً لتأكيدك!"+'</h3><p class="sub">'+"بانتظارك بكل شوق"+'</p>';
+            /* بطاقة الدخول (VIP): رمز QR كامل مباشرة + زر حفظ صورة البطاقة */
+            if(res.j.ticket){
+              var tk=encodeURIComponent(res.j.ticket);
+              okHtml+='<div class="ticket"><p class="ticket-title">'+"🎟️ بطاقة الدخول"+'</p>'
+                +'<img class="ticket-qr" src="/ci/'+tk+'/qr" alt="QR"/>'
+                +'<p class="ticket-hint">'+"📌 مهم: احفظ البطاقة بصورك الآن — تُطلب منك على باب القاعة"+'</p>'
+                +'<button type="button" class="ticket-save" data-t="'+tk+'" data-name="'+encodeURIComponent(name)+'" data-comp="'+(att==='yes'?comp:0)+'">'+"⬇️ احفظ البطاقة"+'</button>'
+                +'<a class="ticket-open" href="/ci/'+tk+'">'+"🎟️ بطاقة الدخول — احفظها"+'</a></div>';
+            }
+            /* قمع الضيوف: ضيف العرس عند ذروة الانطباع — أعلى لحظة نية بالموقع كله.
+               الرابط يمرّ عبر /go/create كي يُعدّ ويُنسب للدعوة المصدر (كوكي إحالة
+               ٣٠ يوماً) — التوجّه مباشرة لـ/order كان يكسر عدّ القناة الفيروسية. */
+            okHtml+='<div class="gcta"><p class="gcta-t">'+"تم تأكيد حضورك 🤍"+'</p>'
+              +'<p class="gcta-s">'+"عندك مناسبة قريبة؟ سوّي دعوتك بنفس الشكل خلال دقيقة"+'</p>'
+              +'<a class="gcta-b" href="'+"/go/create?src=guest\u0026ref=demo-ring"+'" target="_blank" rel="noopener">'+"جهّز دعوتي"+'</a></div>';
+            okHtml+='</div>';
+            document.getElementById('da3wa-rsvp-card').innerHTML=okHtml;
+            if(res.j.ticket) wireTicketSave();
+            /* باركود الدخول مفعّل → هو نجم الشاشة (سكرين شوت/حفظ) والستوري خلف زر؛
+               بلا باركود → الستوري يظهر تلقائياً كما كان */
+            if(STORY && att==='yes' && name){
+              if(res.j.ticket){ offerStoryBtn(name); } else { offerStory(name); }
+            }
+          } else {err.textContent=res.j.error||"تعذّر الإرسال، حاول مجدداً";btn.disabled=false;}
+        }).catch(function(){err.textContent="تعذّر الإرسال، تحقّق من الاتصال";btn.disabled=false;});
+    });
+
+    /* ============ ستوري الحضور: توليد صورة مشاركة باسم الضيف ============ */
+    function hexA(hex,a){
+      var h=hex.replace('#','');
+      if(h.length===3) h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+      var n=parseInt(h,16);
+      return 'rgba('+((n>>16)&255)+','+((n>>8)&255)+','+(n&255)+','+a+')';
+    }
+    function rr(x,px,py,w,h,r){
+      x.beginPath();
+      x.moveTo(px+r,py); x.arcTo(px+w,py,px+w,py+h,r); x.arcTo(px+w,py+h,px,py+h,r);
+      x.arcTo(px,py+h,px,py,r); x.arcTo(px,py,px+w,py,r); x.closePath();
+    }
+    function fitFont(x,text,family,start,maxW){
+      var s=start;
+      while(s>44){ x.font='700 '+s+'px '+family; if(x.measureText(text).width<=maxW) break; s-=6; }
+      return s;
+    }
+    function makeStory(name,cb){
+      var W=1080,H=1920;
+      var c=document.createElement('canvas'); c.width=W; c.height=H;
+      var x=c.getContext('2d');
+      var AC=ST.accent, F=ST.font+',serif';
+      document.fonts.ready.then(function(){
+        /* الخلفية الكريمية + مسحات لونية ناعمة */
+        x.fillStyle='#fffdf9'; x.fillRect(0,0,W,H);
+        var g1=x.createRadialGradient(W/2,0,60,W/2,0,900);
+        g1.addColorStop(0,hexA(AC,.16)); g1.addColorStop(1,'rgba(255,255,255,0)');
+        x.fillStyle=g1; x.fillRect(0,0,W,1000);
+        var g2=x.createRadialGradient(W/2,H,60,W/2,H,800);
+        g2.addColorStop(0,'rgba(255,77,125,.08)'); g2.addColorStop(1,'rgba(255,255,255,0)');
+        x.fillStyle=g2; x.fillRect(0,H-900,W,900);
+        /* الإطار الذهبي المزدوج */
+        rr(x,52,52,W-104,H-104,44); x.lineWidth=6; x.strokeStyle=AC; x.stroke();
+        rr(x,70,70,W-140,H-140,30); x.lineWidth=2.5; x.strokeStyle=hexA(AC,.5); x.stroke();
+        /* كونفيتي */
+        var dots=[[150,150,'#ffb02e',12],[W-160,235,'#14c2b0',9],[170,H-300,'#8a5cf0',10],[W-150,H-230,'#ff4d7d',12]];
+        for(var i=0;i<dots.length;i++){ x.beginPath(); x.arc(dots[i][0],dots[i][1],dots[i][3],0,7); x.fillStyle=dots[i][2]; x.globalAlpha=.6; x.fill(); x.globalAlpha=1; }
+        /* النصوص */
+        x.textAlign='center'; x.textBaseline='middle';
+        x.font='140px serif'; x.fillText(ST.orn, W/2, 340);
+        x.fillStyle='#8a7a68'; x.font='500 42px '+ST.body; x.fillText(ST.honored, W/2, 495);
+        var nm=fitFont(x,name,F,112,W-280);
+        x.fillStyle=AC; x.font='700 '+nm+'px '+F; x.fillText(name, W/2, 620, W-240);
+        x.fillStyle='#8a7a68'; x.font='500 40px '+ST.body; x.fillText(ST.attend, W/2, 760);
+        x.fillStyle='#2a2140'; x.font='700 64px '+F; x.fillText(STORY.kicker, W/2, 880, W-240);
+        var pm=fitFont(x,STORY.primary,F,80,W-260);
+        x.font='700 '+pm+'px '+F; x.fillText(STORY.primary, W/2, 1005, W-230);
+        if(STORY.dateText){ x.fillStyle='#6e6780'; x.font='700 42px '+ST.body; x.fillText(STORY.dateText, W/2, 1130, W-240); }
+        /* فاصل */
+        x.fillStyle=hexA(AC,.85);
+        x.fillRect(W/2-230,1218,185,3); x.fillRect(W/2+45,1218,185,3);
+        x.font='34px serif'; x.fillStyle=AC; x.fillText('✦', W/2, 1220);
+        x.fillStyle='#0d8578'; x.font='800 54px '+ST.body; x.fillText(ST.promise, W/2, 1340);
+        /* التوقيع */
+        x.fillStyle='#9a92a8'; x.font='500 33px '+ST.body; x.fillText(ST.brand, W/2, 1758);
+        x.fillStyle='#ff4d7d'; x.font='800 37px '+ST.body; x.fillText('da3wa.co', W/2, 1815);
+        cb(c);
+      });
+    }
+    /* زر يفتح الستوري عند الطلب — كي لا تزاحم صورته الكبيرة باركود الدخول */
+    function offerStoryBtn(name){
+      var host=document.getElementById('da3wa-rsvp-card');
+      if(!host) return;
+      var b=document.createElement('button');
+      b.type='button'; b.className='so-open'; b.textContent="📸 عرض ستوري الحضور";
+      b.addEventListener('click',function(){ b.remove(); offerStory(name); });
+      host.appendChild(b);
+    }
+    function offerStory(name){
+      var host=document.getElementById('da3wa-rsvp-card');
+      if(!host) return;
+      var box=document.createElement('div'); box.className='story-offer';
+      var t1=document.createElement('p'); t1.className='so-t'; t1.textContent="📸 شارك خبر حضورك";
+      var t2=document.createElement('p'); t2.className='so-s'; t2.textContent="جهّزنالك صورة حلوة تنزلها ستوري بحالتك";
+      var im=document.createElement('img'); im.className='so-img'; im.alt="📸 شارك خبر حضورك";
+      var row=document.createElement('div'); row.className='so-row';
+      var dl=document.createElement('button'); dl.type='button'; dl.className='so-btn so-dl'; dl.textContent="⬇️ تحميل الصورة";
+      var sh=document.createElement('button'); sh.type='button'; sh.className='so-btn so-sh'; sh.textContent="📤 مشاركة";
+      box.appendChild(t1); box.appendChild(t2); box.appendChild(im); row.appendChild(dl); row.appendChild(sh); box.appendChild(row);
+      host.appendChild(box);
+      makeStory(name,function(canvas){
+        canvas.toBlob(function(blob){
+          if(!blob) return;
+          var url=URL.createObjectURL(blob);
+          im.src=url;
+          function download(){
+            var a=document.createElement('a'); a.href=url; a.download='hadhirun-da3wa.png';
+            document.body.appendChild(a); a.click(); a.remove();
+          }
+          dl.addEventListener('click',download);
+          sh.addEventListener('click',function(){
+            var f=new File([blob],'hadhirun-da3wa.png',{type:'image/png'});
+            if(navigator.canShare && navigator.canShare({files:[f]})){
+              navigator.share({files:[f]}).catch(function(){});
+            } else download();
+          });
+        },'image/png');
+      });
+    }
+
+    /* ============ بطاقة الدخول: تركيبها كصورة أنيقة وحفظها ============ */
+    function makeTicket(name,comp,qrImg,cb){
+      var W=1000,H=1500, c=document.createElement('canvas'); c.width=W; c.height=H;
+      var x=c.getContext('2d'); var AC=ST.accent, F=ST.font+',serif';
+      document.fonts.ready.then(function(){
+        x.fillStyle='#fffdf9'; x.fillRect(0,0,W,H);
+        var g=x.createRadialGradient(W/2,0,60,W/2,0,760); g.addColorStop(0,hexA(AC,.14)); g.addColorStop(1,'rgba(255,255,255,0)');
+        x.fillStyle=g; x.fillRect(0,0,W,820);
+        rr(x,44,44,W-88,H-88,40); x.lineWidth=5; x.strokeStyle=AC; x.stroke();
+        rr(x,60,60,W-120,H-120,28); x.lineWidth=2; x.strokeStyle=hexA(AC,.45); x.stroke();
+        x.textAlign='center'; x.textBaseline='middle';
+        x.fillStyle=AC; x.font='700 40px '+ST.body; x.fillText("🎟️ بطاقة الدخول", W/2, 150);
+        x.fillStyle='#8a7a68'; x.font='500 34px '+ST.body; x.fillText(ST.brand, W/2, 205);
+        var nm=fitFont(x,name,F,90,W-240); x.fillStyle='#2a2140'; x.font='700 '+nm+'px '+F; x.fillText(name, W/2, 300, W-200);
+        var sub=comp>=1 ? ('+ '+comp+' '+"مرافقين") : "شخص واحد";
+        x.fillStyle='#8a7a68'; x.font='500 38px '+ST.body; x.fillText(sub, W/2, 372);
+        /* رمز QR بإطار أبيض بالوسط */
+        var q=520, qx=(W-q)/2, qy=440;
+        rr(x,qx-22,qy-22,q+44,q+44,26); x.fillStyle='#fff'; x.fill();
+        rr(x,qx-22,qy-22,q+44,q+44,26); x.lineWidth=2; x.strokeStyle=hexA(AC,.3); x.stroke();
+        try{ x.drawImage(qrImg,qx,qy,q,q); }catch(e){}
+        var pm=fitFont(x,STORY?STORY.primary:'',F,58,W-240);
+        if(STORY&&STORY.primary){ x.fillStyle=AC; x.font='700 '+pm+'px '+F; x.fillText(STORY.primary, W/2, 1120, W-200); }
+        x.fillStyle='#8a7a68'; x.font='500 30px '+ST.body; x.fillText("📌 مهم: احفظ البطاقة بصورك الآن — تُطلب منك على باب القاعة", W/2, 1210, W-160);
+        x.fillStyle='#9a92a8'; x.font='500 28px '+ST.body; x.fillText(ST.brand, W/2, 1380);
+        x.fillStyle='#ff4d7d'; x.font='800 32px '+ST.body; x.fillText('da3wa.co', W/2, 1428);
+        cb(c);
+      });
+    }
+    function wireTicketSave(){
+      var btn=document.querySelector('#da3wa-rsvp-card .ticket-save'); if(!btn) return;
+      btn.addEventListener('click',function(){
+        var nm=decodeURIComponent(btn.getAttribute('data-name')||'');
+        var cmp=parseInt(btn.getAttribute('data-comp')||'0',10)||0;
+        var tk=btn.getAttribute('data-t');
+        var orig=btn.textContent; btn.disabled=true; btn.textContent="جارٍ التجهيز…";
+        var qr=new Image(); qr.crossOrigin='anonymous';
+        qr.onload=function(){
+          makeTicket(nm,cmp,qr,function(canvas){
+            canvas.toBlob(function(blob){
+              btn.disabled=false; btn.textContent="✓ انحفظت بصورك";
+              if(!blob){ btn.textContent=orig; return; }
+              var f=new File([blob],'entry-pass-da3wa.png',{type:'image/png'});
+              if(navigator.canShare && navigator.canShare({files:[f]})){ navigator.share({files:[f]}).catch(function(){}); }
+              else { var u=URL.createObjectURL(blob); var a=document.createElement('a'); a.href=u; a.download='entry-pass-da3wa.png'; document.body.appendChild(a); a.click(); a.remove(); }
+            },'image/png');
+          });
+        };
+        qr.onerror=function(){ btn.disabled=false; btn.textContent=orig; window.location.href='/ci/'+tk; };
+        qr.src='/ci/'+tk+'/qr';
+      });
+    }
+
+    // قلوب تطفو من الجوانب عند ظهور قسم التهاني — عددها = عدد المهنّئين
+    function burstHearts(n){
+      n=Math.max(0,Math.min(40,n||0)); if(!n) return;
+      var host=document.getElementById('da3wa-rsvp'); if(!host) return;
+      for(var i=0;i<n;i++){(function(k){setTimeout(function(){
+        var h=document.createElement('span'); h.className='heart'; h.textContent='♥';
+        var off=1+Math.random()*14;
+        if(k%2) h.style.left=off+'%'; else h.style.right=off+'%';
+        h.style.fontSize=(16+Math.random()*16)+'px';
+        h.style.setProperty('--rot',(Math.random()*24-12)+'deg');
+        h.style.animationDuration=(2.6+Math.random()*2)+'s';
+        host.appendChild(h); setTimeout(function(){h.remove();},5200);
+      }, k*110);})(i);}
+    }
+    var wEl=document.getElementById('da3wa-wishes');
+    if(wEl){
+      var fired=false;
+      var fire=function(){ if(fired) return; fired=true; burstHearts(document.querySelectorAll('#da3wa-wish-list .wish').length); };
+      if('IntersectionObserver' in window){
+        var io=new IntersectionObserver(function(es){es.forEach(function(e){ if(e.isIntersecting) fire(); });},{threshold:.25});
+        io.observe(wEl);
+      } else { fire(); }
+    }
+    /* «مشاهدة باقي التهاني»: البطاقات كلها بالصفحة، والزر يكشف دفعة بكل ضغطة */
+    var moreBtn=document.getElementById('da3wa-wishes-more');
+    if(moreBtn){
+      var MSTEP=30;
+      var ARD=true;
+      moreBtn.addEventListener('click',function(){
+        var hid=document.querySelectorAll('#da3wa-wish-list .wish-hid');
+        var n=Math.min(MSTEP,hid.length);
+        for(var i=0;i<n;i++) hid[i].classList.remove('wish-hid');
+        var left=hid.length-n;
+        if(left>0){
+          var nEl=document.getElementById('da3wa-wishes-more-n');
+          if(nEl) nEl.textContent=ARD?String(left).replace(/[0-9]/g,function(d){return '٠١٢٣٤٥٦٧٨٩'[+d];}):String(left);
+        } else moreBtn.remove();
+      });
+    }
+  })();</script>
+</section>
+
+<footer id="da3wa-credit" dir="rtl">
+  <style>
+    #da3wa-credit{position:relative;z-index:5;text-align:center;padding:18px 18px 38px;font-family:"Tajawal",system-ui,sans-serif}
+    #da3wa-credit .credit-card{display:inline-block;background:#fffdfa;border:1px solid #efe2d4;border-radius:16px;padding:13px 24px;box-shadow:0 12px 30px rgba(120,90,70,.14)}
+    #da3wa-credit .credit-made{color:#6e6780;font-size:13.5px;letter-spacing:normal}
+    #da3wa-credit .credit-made a{color:#ff4d7d;font-weight:800;text-decoration:none;font-family:"Lalezar",cursive;font-size:18px;letter-spacing:normal}
+    #da3wa-credit .credit-made a:hover{text-decoration:underline}
+    #da3wa-credit .credit-ig{display:inline-flex;align-items:center;gap:5px;margin-top:6px;color:#ff4d7d;font-size:12px;font-weight:700;text-decoration:none;letter-spacing:normal;transition:transform .18s ease}
+    #da3wa-credit .credit-ig svg{flex:none}
+    #da3wa-credit .credit-ig:active{transform:scale(.96)}
+    #da3wa-credit .credit-cta{display:inline-block;margin-top:10px;padding:9px 22px;border-radius:999px;background:linear-gradient(135deg,#ff4d7d,#ff7d5c);color:#fff;font-weight:800;font-size:14px;text-decoration:none;letter-spacing:normal;box-shadow:0 10px 22px -8px rgba(255,77,125,.75);transition:transform .18s ease}
+    #da3wa-credit .credit-cta:active{transform:scale(.96)}
+    #da3wa-credit .credit-tag{color:#9a92a8;font-size:11.5px;margin-top:8px;letter-spacing:normal}
+  </style>
+  <div class="credit-card">
+    <div class="credit-made">صُنع من خلال <a href="https://da3wa.co" target="_blank" rel="noopener">دعوة</a></div>
+    <a class="credit-cta" href="https://da3wa.co/go/create?ref=demo-ring" target="_blank" rel="noopener">✨ اصنع دعوتك</a>
+    <div class="credit-tag">أعراس · خطوبة · أعياد ميلاد · مواليد</div>
+    <div><a class="credit-ig" href="https://instagram.com/da3wa.iq" target="_blank" rel="noopener" aria-label="تابعونا على انستغرام"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg><bdi dir="ltr">@da3wa.iq</bdi></a></div>
+  </div>
+</footer>
+</main>
+
+  <script>window.__INVITE__={"config":{"date":"2026-12-04T19:00:00","dateText":"يوم الجمعة، ٤ كانون الأول ٢٠٢٦","timeText":"الساعة السابعة مساءً","heroSub":"يتشرّفان بدعوتكم لمشاركتهما فرحة الخطوبة","invitationText":"بقلوبٍ مفعمةٍ بالفرح، نتشرّف بدعوتكم لحضور حفل خطوبتنا ومشاركتنا بداية حكايتنا.","venueName":"قاعة اللؤلؤة","venueAddr":"بغداد — المنصور","mapUrl":"https://www.google.com/maps/search/?api=1\u0026query=Baghdad","program":[{"time":"٧:٠٠ مساءً","title":"استقبال الضيوف"},{"time":"٨:٠٠ مساءً","title":"لبس المحابس"},{"time":"٩:٠٠ مساءً","title":"العشاء"}],"notes":["يُرجى الحضور قبل الموعد بنصف ساعة","نتشرّف بحضوركم"],"closingNote":"حضوركم يزيّن فرحتنا","hashtag":"#خطوبة_مصطفى_ومريم","contactLabel":"للاستفسار والتأكيد","contactName":"للتواصل","contactPhone":"+9647700000000","dateKicker":"","showDateKicker":true,"images":{},"occasion":"engagement","teddyColor":"natural","brideFirst":false,"heroVerseFirst":false,"showFamilies":true,"groomParentsLabel":"","brideParentsLabel":"","coupleInviteLine":"","groomRelationLabel":"","brideRelationLabel":"","groomRelationName":"مصطفى","brideRelationName":"مريم","groom":"مصطفى","bride":"مريم","verse":"على بركة الله، وبأطيب الأمنيات، تمّت الخطوبة","groomParents":"نجل السيّد أبو مصطفى","brideParents":"كريمة السيّد أبو مريم","closingFamilies":"عائلة الربيعي  \u0026  عائلة الموسوي"}};</script>
+  <script src="templates/ring/script.js" defer></script>
+<style>.da3wa-relline{text-align:center;margin:clamp(14px,4vw,26px) auto clamp(4px,1.6vw,10px);max-width:34ch}</style>
+<script>document.addEventListener("DOMContentLoaded",function(){
+  var cfg=(window.__INVITE__&&window.__INVITE__.config)||{};
+  function txt(v){return String(v==null?"":v).trim()}
+  var line=txt(cfg.coupleInviteLine),gl=txt(cfg.groomRelationLabel),bl=txt(cfg.brideRelationLabel);
+  if(!line&&!gl&&!bl)return;                        /* الحالة الافتراضية لكل الدعوات */
+  if(cfg.showFamilies===false)return;               /* فقرة الأهل مخفيّة ⇒ لا صفّ تحتها */
+  var anchor=document.getElementById("groomParents")||document.getElementById("brideParents");
+  if(!anchor)return;                                /* قالب بلا فقرة أهل */
+  var sec=anchor.closest(".families");if(!sec)return;
+  var gn=txt(cfg.groomRelationName),bn=txt(cfg.brideRelationName);
+  if(!gn&&!bn)return;
+
+  var row=sec.cloneNode(true);
+  row.className=row.className.replace(/\b(creveal|sreveal|reveal|is-visible|is-in)\b/g," ").replace(/\s+/g," ").trim();
+  row.removeAttribute("style");
+
+  /* كل عمود يُملأ عبر معرّفه الأصلي — مستقلّ عن ترتيب القالب (هديل يقلبه بـbrideFirst) */
+  function col(id,label,name){
+    var el=row.querySelector('[id="'+id+'"]');if(!el)return;
+    var box=el.closest(".family")||el.parentNode;
+    box.removeAttribute("style");
+    if(!name){box.style.display="none";return}
+    el.textContent=name;                            /* نصّ خام: لا يُفسَّر HTML أبداً */
+    var lab=box.querySelector(".family__label,.family-label");
+    if(lab){if(label)lab.textContent=label;else lab.style.display="none"}
+  }
+  col("groomParents",gl,gn);
+  col("brideParents",bl,bn);
+  if(!gn||!bn){var h=row.querySelector(".families__heart,.families-jewel");if(h)h.style.display="none"}
+  var ided=row.querySelectorAll("[id]");
+  for(var i=0;i<ided.length;i++)ided[i].removeAttribute("id");
+  row.removeAttribute("id");
+
+  var at=sec;
+  if(line){
+    var p=document.createElement("p");
+    var src=document.getElementById("invitationText");  /* يرث خطّ نصّ الدعوة بهذا القالب */
+    p.className=((src&&src.className)||"")+" da3wa-relline";
+    p.textContent=line;
+    sec.parentNode.insertBefore(p,at.nextSibling);at=p;
+  }
+  sec.parentNode.insertBefore(row,at.nextSibling);
+});</script>
+<script>document.addEventListener("DOMContentLoaded",function(){
+  var anchor=document.getElementById("groomParents")||document.getElementById("brideParents");
+  if(!anchor)return; /* قالب بلا فقرة أهل */
+  /* نقرأ من بيانات الدعوة المحقونة لا من النص المعروض — القوالب تملأ نصوصها لاحقاً (بعد أنميشن الفتح) */
+  var cfg=(window.__INVITE__&&window.__INVITE__.config)||{};
+  var sec=anchor.closest(".families");
+  function rowOf(id){var el=document.getElementById(id);return el?el.closest(".family"):null}
+
+  /* ١) مفتاح الإخفاء الصريح من المحرر — يسبق كل شيء.
+     يشمل توقيع العائلتين بالختام: المحرر يخفي حقله مع الفقرة، فبقاؤه بالدعوة
+     تناقض («عائلة … & عائلة …» تحت دعوة اختار صاحبها ألّا يذكر الأهل). */
+  if(cfg.showFamilies===false){
+    if(sec)sec.style.display="none";
+    var cf=document.getElementById("closingFamilies");if(cf)cf.style.display="none";
+    return;
+  }
+
+  /* ٢) التسمية المخصّصة (فارغة = تسمية القالب) */
+  function setLabel(id,txt){
+    var t=String(txt==null?"":txt).trim();if(!t)return;
+    var row=rowOf(id);if(!row)return;
+    var el=row.querySelector(".family__label,.family-label");if(el)el.textContent=t;
+  }
+  setLabel("groomParents",cfg.groomParentsLabel);
+  setLabel("brideParents",cfg.brideParentsLabel);
+
+  /* ٣) الإخفاء الضمني عند غياب الأسماء */
+  var PLACEHOLDERS=["نجل السيّد ...","كريمة السيّد ...","کوڕی بەڕێز ...","کچی بەڕێز ..."];
+  function isEmpty(v){var t=String(v==null?"":v).trim();return t===""||PLACEHOLDERS.indexOf(t)>=0}
+  var g=isEmpty(cfg.groomParents),b=isEmpty(cfg.brideParents);
+  if(!g&&!b)return;
+  if(g&&b){if(sec)sec.style.display="none";return}
+  function hideRow(id){var row=rowOf(id);if(row)row.style.display="none"}
+  if(g)hideRow("groomParents");
+  if(b)hideRow("brideParents");
+  if(sec){var h=sec.querySelector(".families__heart,.families-jewel");if(h)h.style.display="none"}
+});</script>
+<script>(function(){
+  var cfg=(window.__INVITE__&&window.__INVITE__.config)||{};
+  var occ=String(cfg.occasion||"");
+  if(occ==="birthday"||occ==="party"||occ==="newborn")return; /* مناسبات باسم واحد */
+  var BLANK=["","—","–","-","...","…"];
+  function val(v){var s=String(v==null?"":v).replace(/\s+/g," ").trim();return BLANK.indexOf(s)>=0?"":s}
+  var g=val(cfg.groom),b=val(cfg.bride),only=g||b;
+  if(g&&b)return; /* الاسمان مكتوبان — لا شيء نفعله */
+
+  var GROOM=["heroGroom","groomName","txtNameGroom","groomAr","groomEn"];
+  var BRIDE=["heroBride","brideName","txtNameBride","brideAr","brideEn"];
+  /* خانات الاسم القياسية التي يملؤها كل قالب من الإعدادات — بعض القوالب (aurum)
+     ترجع لاسمها الوهمي حين ينقص أحد الاسمين، فنعيد كتابة الاسم الباقي صراحةً.
+     خانات زنبق (Ar/En) خارج القائمة: القالب يملأ واحدة فقط حسب لغة الاسم */
+  var SOLE={groom:["heroGroom","groomName","txtNameGroom"],bride:["heroBride","brideName","txtNameBride"]};
+  var PAIR=["coverNames","preloaderNames","closingNames","thanksNames","txtFooterNames","gateNames","namesEl"];
+  var MONO=["coverMono","coverMonogram","sealMono"];
+  var SEP=".hero__amp,.couple__amp,.pair__amp,.names__amp,.names-amp,.honor__amp,.amp";
+  /* نصوص تأتي من حقول أخرى (عائلتا فلان…) — لا يلمسها الحارس */
+  var KEEP=[val(cfg.closingFamilies),val(cfg.groomParents),val(cfg.brideParents)];
+
+  function els(ids){var o=[],i,e;for(i=0;i<ids.length;i++){e=document.getElementById(ids[i]);if(e)o.push(e)}return o}
+  function hide(e){if(e&&e.style.display!=="none")e.style.display="none"}
+  function tidy(s){return s.replace(/^\s*(?:&|و|and)\s+/i,"").replace(/\s+(?:&|و|and)\s*$/i,"").replace(/\s+/g," ").trim()}
+
+  /* الفاصل يختفي مع الاسم الناقص — نبحث بأقرب حاوية تضمّه فقط كي لا نمسّ
+     فاصل فقرة الأهل بقوالب تستعمل الصنف نفسه للاثنين */
+  function hideSep(e){
+    for(var p=e.parentElement,lvl=0;p&&lvl<2;p=p.parentElement,lvl++){
+      var l=p.querySelectorAll(SEP);
+      if(l.length){for(var i=0;i<l.length;i++)hide(l[i]);return}
+    }
+  }
+
+  /* خانة الاسمين المدموجين: تبقى بالاسم الموجود وحده، وتختفي إن غاب الاسمان */
+  function fixPair(e,isMono){
+    var s=(e.textContent||"").replace(/\s+/g," ").trim();
+    if(!only){hide(e);return}
+    if(KEEP.indexOf(s)>=0)return;
+    var n=(!isMono&&s.indexOf(only)<0)?only:tidy(s);
+    if(!n){hide(e);return}
+    if(n!==s)e.textContent=n;
+  }
+
+  function run(){
+    var gs=els(GROOM),bs=els(BRIDE),all,i;
+    if(!g)for(i=0;i<gs.length;i++)hide(gs[i]);
+    if(!b)for(i=0;i<bs.length;i++)hide(bs[i]);
+    /* الاسم الباقي: يُكتب صراحةً كي لا يبقى اسم القالب الوهمي مكانه */
+    var sole=els(g?SOLE.groom:SOLE.bride);
+    for(i=0;i<sole.length;i++){
+      var s=(sole[i].textContent||"").replace(/\s+/g," ").trim();
+      if(only&&s!==only)sole[i].textContent=only;
+    }
+    all=gs.concat(bs);
+    for(i=0;i<all.length;i++)hideSep(all[i]);
+    var p=els(PAIR);for(i=0;i<p.length;i++)fixPair(p[i],false);
+    var m=els(MONO);for(i=0;i<m.length;i++)fixPair(m[i],true);
+    /* سكربت القالب يكتب عنوان الصفحة بصيغة "الاسم & الاسم" — نعيد عنوان الخادم */
+    var srv="دعوة خطوبة مصطفى & مريم";if(srv&&document.title!==srv)document.title=srv;
+  }
+
+  run();
+  document.addEventListener("DOMContentLoaded",run);
+  window.addEventListener("load",run);
+  var n=0,iv=setInterval(function(){run();if(++n>60)clearInterval(iv)},200);
+})();</script>
+
+<div id="da3wa-yt" style="position:fixed;left:-9999px;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none" aria-hidden="true"></div>
+<button id="da3wa-music" type="button" aria-label="الموسيقى" dir="rtl"
+  style="position:fixed;inset-inline-start:16px;bottom:16px;z-index:60;width:50px;height:50px;border-radius:50%;border:none;cursor:pointer;background:rgba(255,255,255,.92);box-shadow:0 8px 22px rgba(0,0,0,.22);font-size:22px;display:grid;place-items:center;line-height:1">🎵</button>
+<script>(function(){
+  var btn=document.getElementById('da3wa-music'); if(!btn) return;
+  var player, ready=false, gestured=false, audible=false, primed=false, suspended=false, tries=0;
+  var primeRequested=false, goRequested=false, seekBeforeLoud=false;
+  /* ⚠️ يُقرأ عند الاستعمال لا عند الإقلاع — انظر شرح المسار الآخر أعلاه */
+  function isManual(){ return window.__da3waMusicManualStart===true; }
+  function paint(){ btn.textContent = audible ? '🔊' : '🔇'; }
+  // يفكّ الكتم ويشغّل — يُستدعى ضمن لمسة المستخدم فيُحسب تفاعلاً مباشراً
+  function loud(){
+    if(!ready||suspended) return false;
+    try{
+      if(seekBeforeLoud){player.seekTo(0,true);seekBeforeLoud=false;}
+      else if(0>0&&player.getCurrentTime()>=0-1)player.seekTo(0,true);
+      player.unMute(); player.setVolume(70); player.playVideo();
+    }catch(e){ return false; }
+    var m=true; try{ m=player.isMuted(); }catch(e){}
+    if(!m){ audible=true; paint(); confirmAudible(); return true; }
+    return false;
+  }
+  /* ⚠️ بعد ٣٫٦ث كان يستسلم بصمت بلا طريق رجوع: القوالب اليدوية (باب الفرح)
+     تناديه بمؤقّت بعد الباب، وiOS يرفض بلا لمسة حيّة — فتموت الأغنية للأبد
+     لأن مستمع البدء التلقائي معطّل بالوضع اليدوي. الآن نسلّم الأمر للمسة القادمة. */
+  function pump(){ if(suspended||audible||!gestured) return; if(loud()) return;
+    if(tries++<30) setTimeout(pump,120); else rearmOnGesture(); }
+  window.__da3waMusicPause=function(){ suspended=true; gestured=false; audible=false; primed=false; tries=0;
+    if(ready){ try{ player.mute(); player.pauseVideo(); }catch(e){} } paint(); };
+  /* ⚠️ التهيئة تكون بالكتم لا بمستوى صوت صفر: iOS يتجاهل setVolume تماماً
+     (مستوى الصوت بالآيفون بيد المستخدم لا بيد الجافاسكربت)، فتهيئة تفكّ الكتم
+     ثم تُنزل الصوت للصفر كانت تُسمع الأغنية بكامل الصوت من أول لمسة.
+     الكتم يمرّ على كل الأنظمة، والتشغيل ضمن اللمسة هو ما يشتري لنا الإذن. */
+  function primeSilently(){
+    if(!ready||suspended)return;
+    try{ player.mute(); player.seekTo(0,true); player.playVideo(); }catch(e){ return; }
+    primed=true;
+  }
+  /* ⚠️ فحص متأخّر: iOS يوقف الوسائط بعد فكّ كتم بلا لمسة، لكنه يوقفها **بعد**
+     لحظة — ففحص الـ300ms يرى «تعزف وغير مكتومة» ويرفع 🔊 بينما لا صوت أصلاً،
+     فتصير أول ضغطة من الضيف إيقافاً (يضطر يطفي ويشغّل). نعيد الفحص متأخراً
+     وإن كانت ماتت نُنزل الشارة ونسلّم الأمر للمسة القادمة. */
+  function confirmAudible(){
+    setTimeout(function(){
+      if(!audible||suspended) return;
+      var st=-1, m=true;
+      try{ st=player.getPlayerState(); m=player.isMuted(); }catch(e){}
+      if(st!==1 || m){ audible=false; primed=false; paint(); rearmOnGesture(); }
+    },1600);
+  }
+  /* شبكة أمان: إذا رفض المتصفح فكّ الكتم بلا لمسة جديدة، أول لمسة قادمة
+     أياً كانت تُشغّل الصوت — بدل أن ينتظر الضيف ويبحث عن زرّ الموسيقى */
+  var rearmed=false;
+  function rearmOnGesture(){
+    if(rearmed||audible||suspended) return; rearmed=true;
+    var h=function(){ document.removeEventListener('click',h); document.removeEventListener('touchstart',h);
+      /* نعيد الراية كي يُنصَب المستمع ثانيةً إن لم تنجح هذه المحاولة أيضاً */
+      rearmed=false; gestured=true; tries=0; pump(); };
+    document.addEventListener('click',h); document.addEventListener('touchstart',h,{passive:true});
+  }
+  /* تهيئة صامتة ضمن لمسة المستخدم (قوالب لها مقدمة بصوتها): التشغيل مكتوماً —
+     فيصبح فكّ الكتم لاحقاً (عند نهاية المقدمة) مسموحاً بلا لمسة جديدة */
+  window.__da3waMusicPrime=function(){ suspended=false; gestured=true; primeRequested=true; primeSilently(); };
+  // أول لمسة (فتح الظرف) تُشغّل الصوت؛ نداء عام يستطيع القالب استدعاءه مباشرةً من زرّ الفتح — الأوثق على iOS
+  window.__da3waMusicGo=function(){ suspended=false; gestured=true; goRequested=true; seekBeforeLoud=isManual();
+    if(primed && !audible){
+      /* الترجيع قبل فكّ الكتم: التهيئة تركت الأغنية متقدّمة بمقدار المقدمة،
+         ففكّ الكتم أولاً يسرّب لحظة من منتصفها قبل أن يقع الترجيع */
+      try{ player.seekTo(0,true); player.unMute(); player.setVolume(70); player.playVideo(); }catch(e){}
+      /* تحقّق فعلي بعد لحظة: إن لم يعزف فعلاً (iOS أوقفه أثناء المقدمة) نعود لمسار pump */
+      setTimeout(function(){
+        var st=-1, m=true;
+        try{ st=player.getPlayerState(); m=player.isMuted(); }catch(e){}
+        if(st===1 && !m){ audible=true; paint(); confirmAudible(); }
+        else { primed=false; pump(); rearmOnGesture(); }
+      },300);
+      return;
+    }
+    pump();
+    /* ⚠️ ونسلّح مستمع اللمس **فوراً** لا بعد أن تستنفد pump محاولاتها:
+       كانت ٣٫٦ ثانية تمرّ بلا مستمع، فلمسة الضيف الأولى بعد الباب — وهي
+       أكثر ما يقع، إذ يمرّر ليقرأ — تضيع سدىً، فيظنّ أن الأغنية تحتاج
+       ضغط زرّها. التسليح المبكر يجعل أوّل لمسة هي التي تُشغّلها. */
+    rearmOnGesture(); };
+  window.onYouTubeIframeAPIReady=function(){
+    player=new YT.Player('da3wa-yt',{videoId:"boRd_GXsYWA",
+      // يُجهَّز صامتاً؛ القالب يستطيع إبقاءه متوقفاً حتى تنتهي مقدمة الفيديو
+      playerVars:{autoplay:0,mute:1,controls:0,disablekb:1,fs:0,loop:1,playlist:"boRd_GXsYWA",playsinline:1,modestbranding:1,rel:0,start:0},
+      events:{onReady:function(){ ready=true; window.__da3waMusicReady=true;
+        try{ player.mute(); if(suspended||isManual())player.pauseVideo(); else player.playVideo(); }catch(e){}
+        if(isManual()){ if(primeRequested&&!goRequested)primeSilently(); if(goRequested){seekBeforeLoud=true;pump();} }
+        else if(!suspended)pump(); },
+        // بداية مخصّصة (musicStart): تُفرَض عند كل تشغيل — تغطي أول تشغيل وإعادة اللف من الصفر
+        onStateChange:function(e){
+          if(0>0 && e.data===1){ try{ if(player.getCurrentTime()<0-1) player.seekTo(0,true); }catch(err){} }
+          if(e.data===0){ audible=false;primed=false;paint(); }
+        }}});
+    if(0>0){ setInterval(function(){
+      if(!ready||(!audible&&!primed))return;
+      var now=0;try{now=player.getCurrentTime();}catch(e){}
+      if(now>=0-.12){try{player.pauseVideo();player.seekTo(0,true);}catch(e){} audible=false;primed=false;paint();}
+    },200); }
+  };
+  (function(){var s=document.createElement('script');s.src='https://www.youtube.com/iframe_api';document.head.appendChild(s);})();
+  /* الفحص لحظة الإطلاق لا لحظة الربط — انظر الشرح بمسار الملف */
+  function autoGo(){ if(isManual()) return; window.__da3waMusicGo(); }
+  document.addEventListener('click',autoGo); document.addEventListener('touchstart',autoGo,{passive:true});
+  btn.addEventListener('click',function(e){ e.stopPropagation(); gestured=true;
+    if(audible){ try{ player.pauseVideo(); }catch(e){} audible=false; paint(); }
+    else { suspended=false;goRequested=true;seekBeforeLoud=0>0;pump(); }
+  });
+})();</script>
+
+<div id="da3wa-democta" dir="rtl">
+  <style>
+    #da3wa-democta{position:fixed;bottom:0;left:0;right:0;z-index:80;display:flex;align-items:center;gap:8px;
+      background:rgba(255,255,255,.95);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+      border-top:1px solid #f0e6da;padding:9px 12px calc(9px + env(safe-area-inset-bottom,0px));
+      font-family:"Tajawal",system-ui,sans-serif;letter-spacing:normal;
+      transform:translateY(110%);animation:dcIn .5s ease 2.2s forwards}
+    @keyframes dcIn{to{transform:translateY(0)}}
+    #da3wa-democta .dc-txt{flex:1;min-width:0;font-size:.82rem;font-weight:700;color:#2a2140;line-height:1.4}
+    #da3wa-democta .dc-txt small{display:block;color:#6e6780;font-weight:400;font-size:.72rem}
+    #da3wa-democta .dc-note{display:block;color:#0d8578;font-weight:700;font-size:.68rem;margin-top:1px}
+    #da3wa-democta .dc-order{flex-shrink:0;background:#ff4d7d;color:#fff;text-decoration:none;font-weight:800;font-size:.88rem;
+      padding:10px 16px;border-radius:999px;box-shadow:0 8px 18px -8px rgba(255,77,125,.9);white-space:nowrap}
+    #da3wa-democta .dc-wa{flex-shrink:0;width:42px;height:42px;border-radius:50%;background:#25d366;color:#fff;display:grid;place-items:center;text-decoration:none}
+    #da3wa-democta .dc-x{flex-shrink:0;width:34px;height:34px;border:none;background:none;color:#9a92a8;font-size:20px;cursor:pointer;border-radius:50%;line-height:1}
+    @media (prefers-reduced-motion:reduce){#da3wa-democta{animation:none;transform:none}}
+  </style>
+  <div class="dc-txt">أعجبك قالب «الخاتم»؟<small>اطلبه الآن ويصير لمناسبتك خلال ساعات</small><small class="dc-note">هذا الشريط للعرض هنا فقط — دعوتكم توصلكم نظيفة بدونه</small></div>
+  <a class="dc-order" href="https://da3wa.co/order?tpl=ring&occ=engagement">اطلبه 🎉</a>
+  <a class="dc-wa" href="https://wa.me/9647811231116?text=%D9%85%D8%B1%D8%AD%D8%A8%D8%A7%D9%8B%20%F0%9F%91%8B%20%D8%B9%D8%AC%D8%A8%D9%86%D9%8A%20%D9%82%D8%A7%D9%84%D8%A8%20%C2%AB%D8%A7%D9%84%D8%AE%D8%A7%D8%AA%D9%85%C2%BB%20%D9%88%D8%A3%D8%B1%D9%8A%D8%AF%20%D8%A3%D8%B7%D9%84%D8%A8%20%D8%AF%D8%B9%D9%88%D8%A9%20%D8%A8%D9%8A%D9%87" target="_blank" rel="noopener" aria-label="اطلب عبر واتساب">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.7-1.2A9 9 0 1 0 12 3Z" stroke="currentColor" stroke-width="1.8"/><path d="M9 8.5c.4 2.8 3.7 6 6.4 6.4l.9-1.5-2-1.2-1 .7c-.9-.4-1.9-1.4-2.3-2.3l.7-1-1.2-2-1.5.9Z" fill="currentColor"/></svg>
+  </a>
+  <button class="dc-x" type="button" aria-label="إغلاق" onclick="this.parentNode.remove()">×</button>
+</div>
+</body>
+</html>
