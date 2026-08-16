@@ -3,6 +3,7 @@
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import GuestExperiencePreview from "./GuestExperiencePreview";
+import PreviewFrame from "./PreviewFrame";
 import Icon from "../icons/Icon";
 
 /* ═══════════════════════════════════════════════════════════════
@@ -107,21 +108,32 @@ export default function MobilePreview({
               className="absolute inset-0 z-10"
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}
             >
-              <GuestExperiencePreview
-                event={event}
-                // Stage 1: nothing has been entered yet, so the sections fill
-                // with sample content — otherwise the organizer is choosing
-                // between templates by looking at three empty pages.
-                showSampleContent
-                // "envelope" is the guest arriving; "opened" is the page they
-                // land on. One component, one flag — the two are the same
-                // experience at two moments, not two renderings.
-                playOpening={step === "envelope"}
-                invitationPattern={invitationPattern}
-                invitationTheme={invitationTheme}
-                invitationData={invitationData}
-                guestName={guestName}
-              />
+              {/* Its own viewport, so the page inside genuinely believes it is
+                  on a 320px phone. Without this the simulator rendered the
+                  DESKTOP layout scaled down: `7.2vw` names at their 66px
+                  ceiling, a 322px invitation card in a 320px screen, and a
+                  `100dvh` hero taller than the whole handset. See
+                  PreviewFrame.js. */}
+              <PreviewFrame
+                title="Guest invitation preview"
+                style={{ width: "100%", height: "100%" }}
+              >
+                <GuestExperiencePreview
+                  event={event}
+                  // Stage 1: nothing has been entered yet, so the sections fill
+                  // with sample content — otherwise the organizer is choosing
+                  // between templates by looking at three empty pages.
+                  showSampleContent
+                  // "envelope" is the guest arriving; "opened" is the page they
+                  // land on. One component, one flag — the two are the same
+                  // experience at two moments, not two renderings.
+                  playOpening={step === "envelope"}
+                  invitationPattern={invitationPattern}
+                  invitationTheme={invitationTheme}
+                  invitationData={invitationData}
+                  guestName={guestName}
+                />
+              </PreviewFrame>
             </motion.div>
           )}
         </AnimatePresence>

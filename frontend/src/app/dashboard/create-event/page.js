@@ -7,7 +7,7 @@ import dynamic from 'next/dynamic';
 import { supabase } from '../../utils/supabaseClient';
 import { startSmsCreditPurchase } from '../../utils/smsPurchase';
 import { toTagArray } from '../components/TagListEditor';
-import { TEMPLATES, TEMPLATE_PREVIEW_PATTERN } from '../../utils/curatedTemplates';
+import { TEMPLATES, TEMPLATE_PREVIEW_PATTERN, RETIRED_TEMPLATE_SUCCESSOR } from '../../utils/curatedTemplates';
 import { buildPreviewEvent } from './components/previewEvent';
 
 /* ═══════════════════════════════════════════════════════
@@ -83,14 +83,17 @@ function getDateOrderError(eventDate, eventEndDate, rsvpDeadline) {
 /* ═══════════════════════════════════════════════════════
    CURATED TEMPLATE DEFINITIONS — see utils/curatedTemplates.js
    ═══════════════════════════════════════════════════════ */
-/* Exactly three templates in the picker: Wedding, Engagement, Custom. The
-   retired categories (corporate, birthday, gala, and the wedding-style
-   variants — tuscany, marrakesh, kyoto, nordic, havana, estate, roseAtelier,
-   orchid, clay, alpine, coastal, heritageArch) are intentionally absent from
-   the picker — their render patterns still live in the guest renderer so
-   existing events keep working. `TEMPLATES` itself now lives in
-   utils/curatedTemplates.js, shared with the public /templates gallery, so
-   the two can never again show a different set of "real" templates. */
+/* Three templates in the picker: Velvet Ring, Door of Joy, Custom Canvas.
+   Every other key this file still knows about is retired FROM THE PICKER and
+   from nowhere else — Royale Wedding ('wedding') and Eternal Love
+   ('engagement'), the categories corporate/birthday/gala, and the
+   wedding-style variants (tuscany, marrakesh, kyoto, nordic, havana, estate,
+   roseAtelier, orchid, clay, alpine, coastal, heritageArch). Their field sets
+   below and their render patterns in the guest renderer are intact, so an
+   existing event on any of them keeps working exactly as before. `TEMPLATES`
+   itself lives in utils/curatedTemplates.js, shared with EventSettings' Visual
+   Template picker, so the two can never show a different set of "real"
+   templates. */
 
 /* Each template type owns a distinct slice of templateData — used by
    handleTemplateSelect to drop a previous type's fields (e.g. wedding's
@@ -262,10 +265,18 @@ export default function CreateEventWizard() {
   const [currentTierMaxGuests, setCurrentTierMaxGuests] = useState(null);
 
   /* ─── Template & Preset State ─── */
-  const [templateType, setTemplateType] = useState('engagement');
-  const [selectedPresets, setSelectedPresets] = useState({
-    engagement: 0, wedding: 0, custom: 0,
-  });
+  /* The first template in the picker, not a hardcoded key. This defaulted to
+     'engagement' — one of the two retired templates — so removing them from
+     TEMPLATES would have left the wizard opening on a template that is no
+     longer in its own list: no card selected, no presets, and the specs strip
+     falling back to whatever TEMPLATES[0] happened to be. */
+  const [templateType, setTemplateType] = useState(TEMPLATES[0].key);
+  /* Likewise derived. The old literal named 'engagement'/'wedding'/'custom',
+     so every template added since (ring, bab) has been missing an entry and
+     silently reading `undefined || 0`. */
+  const [selectedPresets, setSelectedPresets] = useState(
+    () => Object.fromEntries(TEMPLATES.map((t) => [t.key, 0])),
+  );
 
   /* ─── Guided Custom builder config (Template #3) ─── */
   const [customConfig, setCustomConfig] = useState(DEFAULT_CUSTOM_CONFIG);
@@ -387,7 +398,15 @@ export default function CreateEventWizard() {
         if (!ev) return;
         const dt = (v) => (v ? String(v).slice(0, 16) : ''); // ISO → datetime-local
         setEventId(ev.id);
-        if (ev.template_type) setTemplateType(ev.template_type);
+        /* A draft saved before Royale Wedding / Eternal Love were retired
+           still carries one of their keys. Selecting it here would leave the
+           picker with NO card highlighted — the key is not in TEMPLATES any
+           more — and the specs strip showing a different template's features
+           than the one Stage 2 is configuring. The successor takes the same
+           field set, so nothing the organizer already typed is dropped. */
+        if (ev.template_type) {
+          setTemplateType(RETIRED_TEMPLATE_SUCCESSOR[ev.template_type] || ev.template_type);
+        }
         setTitle(ev.title || '');
         if (ev.slug) { slugManuallyEditedRef.current = true; setSlug(ev.slug); }
         setDescription(ev.description || '');

@@ -169,9 +169,16 @@ export default function KnockDoorOpening({
     // reads as a UI response; one from the touch reads as contact.
     const layer = tapsRef.current;
     if (layer && !reduceMotion) {
-      const x = typeof event?.clientX === 'number' ? event.clientX : window.innerWidth / 2;
-      const y = typeof event?.clientY === 'number' ? event.clientY : window.innerHeight / 2;
-      const ripple = document.createElement('span');
+      /* The layer's own document and window. In the organizer's preview this
+         page lives inside an iframe (PreviewFrame.js) while `window` and
+         `document` still point at the dashboard — so the centred fallback
+         ripple landed off-frame, and the element was created in the wrong
+         document and only survived because appendChild silently adopts it. */
+      const doc = layer.ownerDocument || document;
+      const view = doc.defaultView || window;
+      const x = typeof event?.clientX === 'number' ? event.clientX : view.innerWidth / 2;
+      const y = typeof event?.clientY === 'number' ? event.clientY : view.innerHeight / 2;
+      const ripple = doc.createElement('span');
       ripple.className = 'cine-door__ripple';
       ripple.style.left = `${x}px`;
       ripple.style.top = `${y}px`;

@@ -1,7 +1,7 @@
 'use client';
 import { toast } from '../../utils/toast';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import PlacesAutocomplete from '../../components/PlacesAutocomplete';
 import FontPicker from './FontPicker';
 import { supabase } from '../../utils/supabaseClient';
@@ -12,13 +12,19 @@ import Icon from '../../components/icons/Icon';
 import EventCategoryIcon from '../../components/icons/EventCategoryIcon';
 import TagListEditor, { toTagArray } from './TagListEditor';
 import InvitationReveal, { REVEAL_TONES } from '../../components/guest/InvitationReveal';
+import VelvetBoxOpening from '../../components/guest/openings/VelvetBoxOpening';
+import KnockDoorOpening from '../../components/guest/openings/KnockDoorOpening';
 import { preloadRevealAssets } from '../../components/guest/revealAssets';
 import ImageUploadField from './ImageUploadField';
 import DaysEditor from '../create-event/components/DaysEditor';
 import CustomBuilder from '../create-event/components/CustomBuilder';
 import SectionsOrderEditor from '../create-event/components/SectionsOrderEditor';
 import { getHaDays } from '../../utils/haDays';
-import { TEMPLATES } from '../../utils/curatedTemplates';
+import { TEMPLATES, palettesFor, matchPaletteIndex } from '../../utils/curatedTemplates';
+import { getTemplateOpening } from '../../utils/templateOpening';
+import { buildPalette } from '../../components/templates/heritageArch/theme';
+import TemplateCard from '../create-event/components/TemplateCard';
+import PreviewFrame from '../../components/templates/PreviewFrame';
 import { CUSTOM_CATEGORIES, CUSTOM_CATEGORY_BY_KEY } from '../../utils/customEventCategories';
 
 const COLORS = {
@@ -615,7 +621,28 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         custom_parents: event.template_data?.custom_parents || '',
         custom_baby_name: event.template_data?.custom_baby_name || '',
         custom_baby_due: event.template_data?.custom_baby_due || '',
-        customDesign: { ...DEFAULT_CUSTOM_DESIGN, ...(event.template_data?.customDesign || {}) },
+        /* Seeded from the event's OWN colours, not from the gold defaults.
+
+           `customDesign` is written by the create-event wizard, so an event
+           built there always has one. An event created through the API, one
+           switched TO Custom Canvas on this screen, or one predating that key
+           has none — and merging bare DEFAULT_CUSTOM_DESIGN showed the builder
+           gold while the page was rendering the event's real `custom_colors`.
+
+           That was cosmetic while this panel only fed the small invitation
+           card. It is not any more: its onChange now writes the page palette
+           too (see customDesignConfig), so the first font tweak on such an
+           event would have quietly repainted the whole invitation gold. */
+        customDesign: {
+          ...DEFAULT_CUSTOM_DESIGN,
+          ...(event.custom_colors?.primary ? {
+            primary: event.custom_colors.primary,
+            secondary: event.custom_colors.secondary || DEFAULT_CUSTOM_DESIGN.secondary,
+            accent: event.custom_colors.accent || event.custom_colors.primary,
+            background: event.custom_colors.background || DEFAULT_CUSTOM_DESIGN.background,
+          } : {}),
+          ...(event.template_data?.customDesign || {}),
+        },
         enabledSections: event.template_data?.enabledSections || {},
         sectionOrder: Array.isArray(event.template_data?.sectionOrder) ? event.template_data.sectionOrder : [],
         // Heritage Arch template — full-page multi-day site content. ha_days is
@@ -1064,6 +1091,46 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     // `effectiveTemplateType` above is '' and only `event_type` says engagement.
     || (!form.template_type && form.event_type === 'engagement');
   const isCustomTemplate = effectiveTemplateType === 'custom';
+
+  /* ─── Colour palette ───
+     The four `<input type="color">` boxes this replaces let an organizer set
+     any hex for heading, accent and paper independently — including the
+     combinations where two of them are the same colour — while offering none
+     of the three palettes their template actually ships, and no route back to
+     the one they picked in the wizard. Curated palettes only now: the whole
+     page (headings, labels, dividers, buttons, body copy, paper) is derived
+     from these three values together in buildPalette(), so they are only ever
+     meaningful as a set. */
+  const activePalettes = palettesFor(effectiveTemplateType);
+  const activePaletteIndex = matchPaletteIndex(activePalettes, {
+    primary: form.primary_color,
+    secondary: form.secondary_color,
+    background: form.background_color,
+  });
+  /* Writes the flat `*_color` form fields, which handleSave packs back into
+     the `custom_colors` jsonb. Accepts a preset OR a Custom Canvas design
+     object — they carry the same four keys, which is what lets the Custom
+     builder feed the page palette here the way it already does in the wizard. */
+  const applyPalette = (p) => {
+    if (!p) return;
+    setForm(prev => ({
+      ...prev,
+      primary_color: p.primary,
+      secondary_color: p.secondary,
+      accent_color: p.accent || p.primary,
+      background_color: p.background,
+    }));
+    setSuccess(false);
+  };
+
+  /* The Custom builder's config. Seeded at load from the event's own colours
+     (see the customDesign note in the load effect); the fallback here only
+     covers the render before that effect has run. */
+  const customDesignConfig = templateData.customDesign || DEFAULT_CUSTOM_DESIGN;
+
+  /** The arrival this event's guests actually get — a box, a door or an envelope. */
+  const opening = getTemplateOpening(effectiveTemplateType);
+
   /**
    * Who may switch the adults-only notice on: anything the full-page engine
    * renders, which is exactly where HeritageArchPage can show the section.
@@ -1427,12 +1494,18 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
 
       {activeTab === 'design' && (
       <>
-      {/* ═══ VISUAL TEMPLATE ═══ */}
+      {/* ═══ VISUAL TEMPLATE ═══
+          The SAME cards the creation wizard shows, not a second, plainer
+          picker. This screen used to draw its own: a text button with one
+          colour dot, no artwork at all — so the place where you change a LIVE
+          event's look was the worse of the two views of the same decision.
+          TemplateCard renders each template's real hero still, and its swatch
+          row doubles as the palette control below. */}
       <div style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
           <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
             <span style={iconBadgeStyle}><Icon name="palette" size={15} color={COLORS.gold} strokeWidth={1.7} /></span>
-            Visual Template
+            Template
           </span>
         </h3>
         {event?.template_type && !TEMPLATES.some(t => t.key === event.template_type) && (
@@ -1440,26 +1513,19 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             Currently using <strong style={{ color: COLORS.charcoal }}>{event.template_type}</strong> — an earlier template style. Pick one below to switch to a currently-offered template.
           </p>
         )}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
-          {TEMPLATES.map((t) => {
-            const active = form.template_type === t.key;
-            const preset = t.presets?.[0];
-            return (
-              <button key={t.key} type="button" onClick={() => { setForm(prev => ({ ...prev, template_type: t.key })); setSuccess(false); }}
-                style={{
-                  textAlign: 'left', padding: 14, borderRadius: 12, cursor: 'pointer',
-                  border: `1.5px solid ${active ? COLORS.gold : COLORS.border}`,
-                  background: active ? 'rgba(184,148,79,0.06)' : COLORS.white,
-                  boxShadow: active ? '0 4px 16px rgba(184,148,79,0.15)' : 'none', transition: 'all 0.2s',
-                }}>
-                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                  {preset && <span style={{ width: 16, height: 16, borderRadius: '50%', background: preset.primary, border: '1.5px solid #fff', boxShadow: '0 0 0 1px ' + COLORS.border }} />}
-                  <span style={{ fontFamily: 'var(--font-serif)', fontSize: 14, fontWeight: 600, color: COLORS.charcoal }}>{t.label}</span>
-                </div>
-                <p style={{ fontSize: 11, color: COLORS.stone, margin: 0, fontFamily: 'var(--font-sans)' }}>{t.tagline}</p>
-              </button>
-            );
-          })}
+        <div className="fx-grid fx-grid--5 fx-grid--gap-sm">
+          {TEMPLATES.map((t, i) => (
+            <TemplateCard
+              key={t.key}
+              template={t}
+              index={i}
+              isSelected={form.template_type === t.key}
+              onSelect={(key) => { setForm(prev => ({ ...prev, template_type: key })); setSuccess(false); }}
+              activePresetIndex={t.key === form.template_type ? Math.max(activePaletteIndex, 0) : 0}
+              onPresetSelect={(key, pi) => applyPalette(t.presets[pi])}
+              customConfig={customDesignConfig}
+            />
+          ))}
         </div>
         {form.template_type && form.template_type !== (event?.template_type || '') && (
           <InlineWarning>
@@ -1468,12 +1534,134 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         )}
       </div>
 
-      {/* ═══ APPEARANCE ═══ */}
+      {/* ═══ COLOUR PALETTE ═══ */}
       <div style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
           <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
             <span style={iconBadgeStyle}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg></span>
-            Appearance
+            Colour palette
+          </span>
+        </h3>
+
+        {isCustomTemplate ? (
+          /* Custom Canvas owns its own colour control, and it is the only one
+             on this screen. There used to be TWO: these four hex fields wrote
+             `custom_colors` (which is what buildPalette actually reads) while
+             the panel below wrote `template_data.customDesign` (which only
+             reaches the small invitation card). The wizard syncs the two; this
+             screen never did, so an organizer could rebuild their palette here
+             and watch the page ignore it. `applyPalette` inside onChange is
+             that missing sync. */
+          <>
+            <p style={{ fontSize: '12.5px', color: COLORS.stone, lineHeight: 1.6, margin: '0 0 12px', fontFamily: 'var(--font-sans)' }}>
+              Custom Canvas is yours to colour — these are the settings your guests&apos; page is built from.
+            </p>
+            <CustomBuilder
+              config={customDesignConfig}
+              onChange={(patch) => {
+                const next = { ...customDesignConfig, ...patch };
+                setTemplateData(prev => ({ ...prev, customDesign: next }));
+                applyPalette(next);
+                setSuccess(false);
+              }}
+            />
+          </>
+        ) : (
+          <>
+            <p style={{ fontSize: '12.5px', color: COLORS.stone, lineHeight: 1.6, margin: '0 0 12px', fontFamily: 'var(--font-sans)' }}>
+              Each palette is tuned for this template — the headings, labels, dividers, buttons and paper are derived from it together, so the page stays legible whichever you pick.
+            </p>
+            <div role="radiogroup" aria-label="Colour palette" className="fx-grid fx-grid--5 fx-grid--gap-sm">
+              {activePalettes.map((p, i) => {
+                const active = i === activePaletteIndex;
+                /* The DERIVED palette, not the four raw values. buildPalette is
+                   what the page actually renders from: it lifts a dark primary
+                   on a dark ground, darkens a pale one on a pale ground, and
+                   picks the body-copy tone from both. Swatching the raw hexes
+                   would show three colours the guest never sees — and on a
+                   template whose palettes are all deep velvets, three
+                   near-identical dark rectangles. */
+                const pal = buildPalette(p, effectiveTemplateType);
+                return (
+                  <button
+                    key={p.name} type="button" role="radio" aria-checked={active}
+                    onClick={() => applyPalette(p)}
+                    style={{
+                      display: 'flex', flexDirection: 'column', gap: 8, textAlign: 'left',
+                      padding: 10, borderRadius: 12, cursor: 'pointer',
+                      border: `1.5px solid ${active ? COLORS.gold : COLORS.border}`,
+                      background: active ? 'rgba(184,148,79,0.06)' : COLORS.white,
+                      boxShadow: active ? '0 4px 16px rgba(184,148,79,0.15)' : 'none',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    {/* A miniature of the page, not a row of dots: the paper,
+                        a heading on it, the eyebrow label above, a divider and
+                        a line of body copy. What is being chosen here is the
+                        RELATIONSHIP between the colours — whether the heading
+                        reads on the paper — and only stacking them shows it. */}
+                    <span aria-hidden style={{
+                      display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 5,
+                      height: 84, borderRadius: 8, padding: '0 12px',
+                      background: pal.background, border: `1px solid ${COLORS.border}`,
+                    }}>
+                      {/* The eyebrow is a BAR, not the words "Save the date"
+                          at 7px. Real type that small is unreadable, and
+                          test/mobileFit.test.js's reading floor is right to
+                          reject it on a settings screen — the bar carries the
+                          same colour with nothing to squint at. */}
+                      <span style={{ display: 'block', width: 34, height: 3, borderRadius: 2, background: pal.gold }} />
+                      <span style={{ fontFamily: 'var(--font-serif)', fontSize: 17, lineHeight: 1.1, color: pal.maroon }}>
+                        Aria &amp; Julian
+                      </span>
+                      <span style={{ display: 'block', width: 26, height: 1, background: pal.gold, opacity: 0.8 }} />
+                      <span style={{ display: 'block', height: 3, borderRadius: 2, background: pal.ink, opacity: 0.35 }} />
+                    </span>
+                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, fontWeight: 700, color: COLORS.charcoal }}>{p.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* An event whose saved colours match no palette — set before these
+                existed, or through the API. Shown rather than silently
+                replaced: this screen must not throw away a choice just because
+                it can no longer name it. */}
+            {activePaletteIndex === -1 && (
+              <div style={{
+                display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginTop: 12,
+                padding: '10px 12px', borderRadius: 10,
+                background: COLORS.softBg, border: `1px solid ${COLORS.border}`,
+              }}>
+                <span aria-hidden style={{ display: 'flex', flexWrap: 'wrap', gap: 4, flex: 'none' }}>
+                  {[form.primary_color, form.secondary_color, form.background_color].map((c, i) => (
+                    <span key={i} style={{ width: 16, height: 16, borderRadius: '50%', background: c, border: `1px solid ${COLORS.border}` }} />
+                  ))}
+                </span>
+                <span className="fx-min0" style={{ flex: '1 1 200px', minWidth: 0, fontSize: 12, color: COLORS.stone, lineHeight: 1.5, fontFamily: 'var(--font-sans)' }}>
+                  Your event is on its own colours. They stay exactly as they are until you pick a palette above.
+                </span>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* ═══ IMAGES ═══
+          Was one "Appearance" section holding the cover image, the gallery,
+          the colours, both font pickers, the Custom builder AND the background
+          music — six unrelated decisions under one heading, with an audio
+          uploader filed under how the page looks. Split into what each part
+          actually is. */}
+      <div style={sectionStyle}>
+        <h3 style={sectionTitleStyle}>
+          <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
+            <span style={iconBadgeStyle}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>
+              </svg>
+            </span>
+            Images
           </span>
         </h3>
 
@@ -1577,55 +1765,58 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           )}
         </div>
 
-        <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Colors</label>
-          <div className="es-swatch-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-            {[
-              { key: 'primary_color', label: 'Primary' },
-              { key: 'secondary_color', label: 'Secondary' },
-              { key: 'accent_color', label: 'Accent' },
-              { key: 'background_color', label: 'Background' },
-            ].map(({ key, label }) => (
-              <div key={key}>
-                <span style={{ ...labelStyle, marginBottom: 4 }}>{label}</span>
-                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: '5px 7px', background: COLORS.white }}>
-                  <input type="color" value={form[key]} onChange={handleChange(key)}
-                    style={{ width: 24, height: 24, border: 'none', background: 'none', padding: 0, cursor: 'pointer', borderRadius: 5 }} />
-                  <span style={{ fontFamily: 'monospace', fontSize: 'var(--fx-micro)', color: COLORS.stone, textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis' }}>{form[key]}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+      </div>
 
-        <div style={{ display: 'flex', gap: '16px', marginTop: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
-          <FontPicker
-            label="Heading Font"
-            value={form.font_heading}
-            onChange={(val) => { setForm(prev => ({ ...prev, font_heading: val })); setSuccess(false); }}
-          />
+      {/* ═══ TYPOGRAPHY ═══ */}
+      <div style={sectionStyle}>
+        <h3 style={sectionTitleStyle}>
+          <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
+            <span style={iconBadgeStyle}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 7V5h16v2M9 5v14M15 5v14M7 19h4M13 19h4"/>
+              </svg>
+            </span>
+            Typography
+          </span>
+        </h3>
+        <p style={{ fontSize: '12.5px', color: COLORS.stone, lineHeight: 1.6, margin: '0 0 12px', fontFamily: 'var(--font-sans)' }}>
+          {isCustomTemplate
+            ? 'Headings follow the face you picked in the palette panel above. This sets the body copy underneath them.'
+            : 'Applied to every heading and every line of body copy on the invitation page.'}
+        </p>
+        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+          {/* Custom Canvas already chooses its heading face in CustomBuilder,
+              and that pick is the more specific one (HeritageArchPage lets it
+              win). Showing both would be two controls for one decision. */}
+          {!isCustomTemplate && (
+            <FontPicker
+              label="Heading Font"
+              value={form.font_heading}
+              onChange={(val) => { setForm(prev => ({ ...prev, font_heading: val })); setSuccess(false); }}
+            />
+          )}
           <FontPicker
             label="Body Font"
             value={form.font_body}
             onChange={(val) => { setForm(prev => ({ ...prev, font_body: val })); setSuccess(false); }}
           />
         </div>
+      </div>
 
-        {isCustomTemplate && (
-          <div style={{ marginTop: 16, marginBottom: 16 }}>
-            <label style={{ ...labelStyle, marginBottom: 10 }}>Custom Page Design</label>
-            <CustomBuilder
-              config={templateData.customDesign || DEFAULT_CUSTOM_DESIGN}
-              onChange={(patch) => {
-                setTemplateData(prev => ({ ...prev, customDesign: { ...(prev.customDesign || DEFAULT_CUSTOM_DESIGN), ...patch } }));
-                setSuccess(false);
-              }}
-            />
-          </div>
-        )}
+      {/* ═══ BACKGROUND MUSIC ═══ */}
+      <div style={sectionStyle}>
+        <h3 style={sectionTitleStyle}>
+          <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
+            <span style={iconBadgeStyle}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+              </svg>
+            </span>
+            Background Music
+          </span>
+        </h3>
 
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Background Music</label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px' }}>
               <input
@@ -1724,55 +1915,72 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         </div>
       </div>
 
-      {/* ═══ INVITATION SEAL & STATIONERY ═══ */}
+      {/* ═══ THE OPENING ═══
+          Was headed "Invitation Seal & Stationery" and described a wax
+          envelope for every template. Two of the three do not have one:
+          Velvet Ring opens on a velvet box, Door of Joy on a door you knock
+          three times (see EventPageClient's opening branch). `seal_text` and
+          `reveal_tone` are read only by InvitationReveal, so on those two the
+          fields below them were dead controls — and "Preview the envelope"
+          showed an envelope their guests will never see.
+
+          `opening` resolves what this event actually opens with, and every
+          label, the seal fields and the preview follow from it. */}
       <div style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
           <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
             <span style={iconBadgeStyle}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/></svg></span>
-            Invitation Seal &amp; Stationery
+            {opening.title}
           </span>
         </h3>
         <p style={{ fontSize: '12.5px', color: COLORS.stone, lineHeight: 1.6, margin: '0 0 14px', fontFamily: 'var(--font-sans)' }}>
-          This is engraved on the gold wax seal guests unseal when they open the link. Leave blank and we&apos;ll use your event name automatically.
+          {opening.intro}
         </p>
 
-        <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Seal Name / Monogram</label>
-          <input value={templateData.seal_text} onChange={(e) => setTemplateData(prev => ({ ...prev, seal_text: e.target.value }))}
-            placeholder="Auto from event name" maxLength={24} style={inputStyle}
-            onFocus={(e) => { e.target.style.borderColor = COLORS.gold; e.target.style.boxShadow = '0 0 0 3px rgba(184,148,79,0.1)'; }}
-            onBlur={(e) => { e.target.style.borderColor = COLORS.border; e.target.style.boxShadow = 'none'; }}
-          />
-        </div>
+        {opening.hasSeal && (
+          <>
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>Seal Name / Monogram</label>
+              <input value={templateData.seal_text} onChange={(e) => setTemplateData(prev => ({ ...prev, seal_text: e.target.value }))}
+                placeholder="Auto from event name" maxLength={24} style={inputStyle}
+                onFocus={(e) => { e.target.style.borderColor = COLORS.gold; e.target.style.boxShadow = '0 0 0 3px rgba(184,148,79,0.1)'; }}
+                onBlur={(e) => { e.target.style.borderColor = COLORS.border; e.target.style.boxShadow = 'none'; }}
+              />
+              <span style={{ fontSize: '11px', color: COLORS.stone, display: 'block', marginTop: '6px' }}>
+                Engraved on the gold wax seal. Leave blank and we&apos;ll use your event name.
+              </span>
+            </div>
 
-        {/* Wax & paper tone. Curated presets rather than a colour picker —
-            the envelope is photography, and an arbitrary hex applied to it
-            stops looking like paper. See REVEAL_TONES. */}
-        <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Wax &amp; paper tone</label>
-          <div role="radiogroup" aria-label="Wax and paper tone" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-            {Object.entries(REVEAL_TONES).map(([key, t]) => {
-              const active = (templateData.reveal_tone || 'classic') === key;
-              return (
-                <button
-                  key={key} type="button" role="radio" aria-checked={active}
-                  onClick={() => { setTemplateData(prev => ({ ...prev, reveal_tone: key })); setSuccess(false); }}
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: '8px',
-                    padding: '8px 14px', minHeight: 'var(--fx-touch)', cursor: 'pointer',
-                    borderRadius: '10px', fontFamily: 'var(--font-sans)', fontSize: '12.5px', fontWeight: 600,
-                    border: `1px solid ${active ? COLORS.gold : COLORS.border}`,
-                    background: active ? 'rgba(184,148,79,0.08)' : COLORS.white,
-                    color: COLORS.charcoal,
-                  }}
-                >
-                  <span aria-hidden style={{ width: 14, height: 14, borderRadius: '50%', background: t.swatch, border: '1px solid rgba(0,0,0,.12)', flex: 'none' }} />
-                  {t.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+            {/* Wax & paper tone. Curated presets rather than a colour picker —
+                the envelope is photography, and an arbitrary hex applied to it
+                stops looking like paper. See REVEAL_TONES. */}
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>Wax &amp; paper tone</label>
+              <div role="radiogroup" aria-label="Wax and paper tone" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {Object.entries(REVEAL_TONES).map(([key, t]) => {
+                  const active = (templateData.reveal_tone || 'classic') === key;
+                  return (
+                    <button
+                      key={key} type="button" role="radio" aria-checked={active}
+                      onClick={() => { setTemplateData(prev => ({ ...prev, reveal_tone: key })); setSuccess(false); }}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '8px',
+                        padding: '8px 14px', minHeight: 'var(--fx-touch)', cursor: 'pointer',
+                        borderRadius: '10px', fontFamily: 'var(--font-sans)', fontSize: '12.5px', fontWeight: 600,
+                        border: `1px solid ${active ? COLORS.gold : COLORS.border}`,
+                        background: active ? 'rgba(184,148,79,0.08)' : COLORS.white,
+                        color: COLORS.charcoal,
+                      }}
+                    >
+                      <span aria-hidden style={{ width: 14, height: 14, borderRadius: '50%', background: t.swatch, border: '1px solid rgba(0,0,0,.12)', flex: 'none' }} />
+                      {t.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
           <label style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: '10px', fontSize: '13px', color: '#191B1E', cursor: 'pointer', userSelect: 'none' }}>
@@ -1783,9 +1991,9 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               style={{ width: '16px', height: '16px', marginTop: '2px', accentColor: COLORS.gold, cursor: 'pointer' }}
             />
             <span>
-              Open with the sealed envelope
+              {opening.toggleLabel}
               <span style={{ display: 'block', color: '#77736A', fontSize: '12px', marginTop: '3px', fontWeight: 400, lineHeight: 1.5 }}>
-                On by default. Turn this off and guests land straight on the invitation with no envelope to unseal.
+                {opening.toggleHint}
               </span>
             </span>
           </label>
@@ -1799,9 +2007,9 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               style={{ width: '16px', height: '16px', marginTop: '2px', accentColor: COLORS.gold, cursor: form.reveal_enabled ? 'pointer' : 'default' }}
             />
             <span>
-              Show it again on every visit
+              {opening.replayLabel}
               <span style={{ display: 'block', color: '#77736A', fontSize: '12px', marginTop: '3px', fontWeight: 400, lineHeight: 1.5 }}>
-                On by default. Turn it off and a returning guest sees the envelope only once per browser session. (The RSVP form&apos;s envelope is always once per session — it would be tiresome to replay it mid-form.)
+                On by default. Turn it off and a returning guest sees it only once per browser session. (The RSVP form&apos;s envelope is always once per session — it would be tiresome to replay it mid-form.)
               </span>
             </span>
           </label>
@@ -1821,13 +2029,15 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           }}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-          Preview the envelope
+          {opening.previewLabel}
         </button>
       </div>
 
       {revealPreviewOpen && (
         <RevealPreviewModal
           onClose={() => setRevealPreviewOpen(false)}
+          opening={opening}
+          lang={templateData.title_ar ? 'ar' : 'en'}
           event={{
             // Built from the CURRENT form, not from the saved event, so the
             // organizer previews the edit they are making rather than the one
@@ -1836,6 +2046,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             title: form.title,
             title_ar: templateData.title_ar,
             event_date: form.event_date,
+            template_type: effectiveTemplateType,
             custom_colors: { primary: form.primary_color, secondary: form.secondary_color, accent: form.accent_color },
             template_data: { ...event?.template_data, ...templateData },
           }}
@@ -2751,7 +2962,9 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
            for the same 2-column-row pattern. */
         @media (max-width: 639.98px) {
           .es-row { grid-template-columns: 1fr !important; }
-          .es-swatch-row { grid-template-columns: 1fr 1fr !important; }
+          /* .es-swatch-row is gone with the four raw colour inputs it stepped
+             down. The palette picker that replaced them is an .fx-grid, which
+             drops columns on its own with no breakpoint to keep in sync. */
           .es-privacy-grid { grid-template-columns: 1fr !important; }
           .es-tabs { overflow-x: auto; flex-wrap: nowrap !important; }
         }
@@ -2786,39 +2999,74 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
 const PREVIEW_ADDRESSEE = 'Sarah Al-Mansouri';
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   RevealPreviewModal — the organizer's own envelope, at phone size.
+   RevealPreviewModal — the organizer's own opening, at phone size.
 
-   This renders THE REAL InvitationReveal, not a mock-up of it: same artwork,
+   This renders THE REAL opening component, not a mock-up of it: same artwork,
    same choreography, same monogram, driven off the unsaved form values. The
-   whole point of the exercise is that there is exactly one envelope in this
-   product, so a preview that reimplemented it would recreate the problem it
-   exists to solve.
+   whole point of the exercise is that there is exactly one of each opening in
+   this product, so a preview that reimplemented one would recreate the problem
+   it exists to solve.
 
-   `embedded` swaps the reveal from fixed to absolute and hands its
-   breakpoints to the container instead of the window, so a 320px box gets the
-   mobile composition — the one the great majority of guests will actually
-   see — rather than the desktop grid squeezed into a phone.
+   THE REAL one, though — which until now meant InvitationReveal and nothing
+   else. Velvet Ring opens on a velvet box and Door of Joy on a carved door
+   (EventPageClient mounts those in place of the envelope), so on two of the
+   three templates this modal was showing an envelope that does not exist for
+   that event, under a button labelled "Preview the envelope", beside a wax
+   seal field that reached nothing. It now mounts whichever opening the
+   template actually has.
 
-   `key` on the reveal is what makes "Play again" work: the reveal is a
-   one-shot by design (it calls onComplete exactly once), so replaying it
-   means mounting a fresh one, not resetting the old one.
+   The three do NOT share a positioning contract. InvitationReveal takes an
+   `embedded` prop that swaps it from fixed to absolute; the two cinematic
+   openings are unconditionally `position: fixed` and size themselves in `dvh`
+   and `vw`. PreviewFrame gives all three a real 320px viewport to be fixed
+   inside, which is both simpler than a per-component escape hatch and the same
+   mechanism the wizard's preview uses.
+
+   `key` is what makes "Play again" work: every opening is a one-shot by design
+   (each calls onComplete exactly once), so replaying means mounting a fresh
+   one, not resetting the old one.
    ═══════════════════════════════════════════════════════════════════════════ */
-function RevealPreviewModal({ event, onClose }) {
+function RevealPreviewModal({ event, opening, lang = 'en', onClose }) {
   const [run, setRun] = useState(0);
   const [done, setDone] = useState(false);
 
+  /* Escape, from either document.
+
+     The opening now runs inside a PreviewFrame, and a key pressed while focus
+     is inside that frame fires on the FRAME's document — it never reaches this
+     window. Every opening here is started by a tap or a click on itself, so
+     focus is inside the frame within a second of the modal appearing: binding
+     only to `window` meant Escape stopped closing this dialog almost
+     immediately. PreviewFrame takes `onDocumentKeyDown` for exactly this, and
+     the wizard's PreviewModal already passes it. Both bindings are kept — the
+     host one still covers the toolbar and the inline fallback path. */
+  const onKey = useCallback((e) => { if (e.key === 'Escape') onClose(); }, [onClose]);
+
   useEffect(() => {
-    preloadRevealAssets();
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    // Envelope artwork only — the cinematic openings preload their own poster
+    // frames, and fetching a wax seal for a velvet box wastes the bandwidth
+    // the video needs.
+    if (opening?.hasSeal !== false) preloadRevealAssets();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onKey, opening]);
+
+  /* The names carved on a cinematic cover. Same resolution order the guest
+     page uses (Arabic title override, then the couple, then the event title)
+     so the preview and the real arrival never name it differently. */
+  const openingNames = (() => {
+    const td = event.template_data || {};
+    if (lang === 'ar' && event.title_ar) return event.title_ar;
+    const a = td.groom_name || td.partner1Name || td.partner1;
+    const b = td.bride_name || td.partner2Name || td.partner2;
+    return a && b ? `${a} & ${b}` : (event.title || '');
+  })();
 
   const replay = () => { setDone(false); setRun((n) => n + 1); };
 
   return (
     <div
-      role="dialog" aria-modal="true" aria-label="Envelope preview"
+      role="dialog" aria-modal="true" aria-label="Invitation opening preview"
       onClick={onClose}
       style={{
         position: 'fixed', inset: 0, zIndex: 1200, display: 'flex',
@@ -2827,8 +3075,8 @@ function RevealPreviewModal({ event, onClose }) {
         padding: '24px',
       }}
     >
-      {/* The phone. Its own stacking + overflow context, so the reveal's
-          full-bleed envelope is cropped by the screen exactly the way a real
+      {/* The phone. Its own stacking + overflow context, so the opening's
+          full-bleed artwork is cropped by the screen exactly the way a real
           handset crops it. */}
       <div
         onClick={(e) => e.stopPropagation()}
@@ -2845,29 +3093,65 @@ function RevealPreviewModal({ event, onClose }) {
         }}
       >
         {!done ? (
-          <InvitationReveal
-            key={run}
-            embedded
-            event={event}
-            /**
-             * A sample addressee, so the organizer previews the envelope a NAMED
-             * guest opens rather than the anonymous one.
-             *
-             * The envelope prints the recipient's name on its face whenever the
-             * link carries a party — which is every SMS and email invitation the
-             * dashboard sends. Leaving this out meant the one screen built for
-             * designing the envelope was the only place that never showed the
-             * line, and the component's own docblock is explicit that what the
-             * organizer designs against and what the guest opens must not be two
-             * different envelopes.
-             *
-             * Deliberately a plain sample rather than a real guest: this preview
-             * renders before any list exists, and it has to look the same on an
-             * event with no guests as on one with three hundred.
-             */
-            guestName={PREVIEW_ADDRESSEE}
-            onComplete={() => setDone(true)}
-          />
+          <PreviewFrame
+            title="Invitation opening preview"
+            // The frame document's own direction. Without it an Arabic
+            // invitation previewed its opening in an LTR document — Arabic
+            // type laid out left-to-right, which is not what any guest sees.
+            dir={lang === 'ar' ? 'rtl' : 'ltr'}
+            onDocumentKeyDown={onKey}
+            style={{ width: '100%', height: '100%' }}
+          >
+            {opening?.cinematic ? (
+              opening.cinematic.opening === 'velvetBox' ? (
+                <VelvetBoxOpening
+                  key={run}
+                  template={opening.cinematic}
+                  names={openingNames}
+                  lang={lang}
+                  // null, never a key: the organizer is previewing on purpose
+                  // and must not be let straight through because a guest
+                  // session once saw it.
+                  sessionKey={null}
+                  onComplete={() => setDone(true)}
+                />
+              ) : (
+                <KnockDoorOpening
+                  key={run}
+                  template={opening.cinematic}
+                  names={openingNames}
+                  lang={lang}
+                  sessionKey={null}
+                  onComplete={() => setDone(true)}
+                />
+              )
+            ) : (
+              <InvitationReveal
+                key={run}
+                embedded
+                event={event}
+                lang={lang}
+                /**
+                 * A sample addressee, so the organizer previews the envelope a NAMED
+                 * guest opens rather than the anonymous one.
+                 *
+                 * The envelope prints the recipient's name on its face whenever the
+                 * link carries a party — which is every SMS and email invitation the
+                 * dashboard sends. Leaving this out meant the one screen built for
+                 * designing the envelope was the only place that never showed the
+                 * line, and the component's own docblock is explicit that what the
+                 * organizer designs against and what the guest opens must not be two
+                 * different envelopes.
+                 *
+                 * Deliberately a plain sample rather than a real guest: this preview
+                 * renders before any list exists, and it has to look the same on an
+                 * event with no guests as on one with three hundred.
+                 */
+                guestName={PREVIEW_ADDRESSEE}
+                onComplete={() => setDone(true)}
+              />
+            )}
+          </PreviewFrame>
         ) : (
           <div style={{
             position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
@@ -2875,7 +3159,9 @@ function RevealPreviewModal({ event, onClose }) {
             background: '#F8F4EC', fontFamily: 'var(--font-sans)',
           }}>
             <p style={{ margin: 0, fontSize: 13, color: '#77736A', lineHeight: 1.6 }}>
-              The envelope has opened — this is the moment your invitation takes over.
+              {opening?.hasSeal === false
+                ? 'The opening has finished — this is the moment your invitation takes over.'
+                : 'The envelope has opened — this is the moment your invitation takes over.'}
             </p>
             <button type="button" onClick={replay} style={{
               padding: '10px 20px', minHeight: 42, borderRadius: 30, border: 'none', cursor: 'pointer',

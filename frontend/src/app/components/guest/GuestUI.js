@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect, useCallback, useId } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ConfettiExplosion } from './GuestAnimations';
 import { lighten, darken } from '../../utils/color';
+import { viewOf } from '../../utils/frameDocument';
 import { useModalA11y } from '../../hooks/useModalA11y';
 import { CelebrateIcon, ClockIcon, EnvelopeIcon, CalendarIcon, CheckIcon, LinkIcon } from './RsvpIcons';
 
@@ -423,19 +424,26 @@ export function GalleryLightbox({ images, initialIndex = 0, onClose }) {
   const next = useCallback(() => setCurrent(i => (i + 1) % images.length), [images.length]);
   const prev = useCallback(() => setCurrent(i => (i - 1 + images.length) % images.length), [images.length]);
 
+  const dialogRef = useModalA11y(true, { onClose });
+
   // Escape-to-close, focus trap, initial focus, and scroll lock are handled
   // by the shared useModalA11y hook — this effect only owns the
   // arrow-key gallery navigation, which isn't part of that hook's contract.
   useEffect(() => {
+    /* Bound to the dialog's OWN window. In the organizer's preview this page
+       is portalled into an iframe (components/templates/PreviewFrame.js) and
+       the key events fire on the frame's document, which never reaches the
+       dashboard's `window`. Identical to `window` for a real guest.
+       See utils/frameDocument.js. */
+    const view = viewOf(dialogRef.current);
+    if (!view) return undefined;
     const handleKey = (e) => {
       if (e.key === 'ArrowRight') next();
       if (e.key === 'ArrowLeft') prev();
     };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [next, prev]);
-
-  const dialogRef = useModalA11y(true, { onClose });
+    view.addEventListener('keydown', handleKey);
+    return () => view.removeEventListener('keydown', handleKey);
+  }, [next, prev, dialogRef]);
 
   const handleTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
   const handleTouchEnd = (e) => {

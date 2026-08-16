@@ -100,10 +100,15 @@ export default function VelvetBoxOpening({
   /* The box sits at the optical centre of the frame, a little below the
      geometric one — bursts have to originate there, not at 50/50, or the
      light appears to come from above the lid. */
-  const boxCentre = useCallback(() => ({
-    x: window.innerWidth * 0.5,
-    y: window.innerHeight * 0.55,
-  }), []);
+  const boxCentre = useCallback(() => {
+    /* Measured against the FX layer's own window, not the top-level one. The
+       organizer's preview portals this page into an iframe (PreviewFrame.js),
+       where `window` is still the dashboard's — so the burst originated
+       hundreds of pixels outside a 390px frame and the reveal appeared to
+       have no light source at all. The two are the same window for a guest. */
+    const view = fxRef.current?.ownerDocument?.defaultView || window;
+    return { x: view.innerWidth * 0.5, y: view.innerHeight * 0.55 };
+  }, []);
 
   /* Latched. watchOpeningVideo already promises exactly one of onReveal /
      onFallback, so today only one path reaches here — but the reduced-motion

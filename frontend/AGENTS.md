@@ -131,30 +131,62 @@ text collapses, the element must carry `.fx-break`.
 
 ## Static checks
 
-No dev server and no `node_modules` required. All four must be clean.
+No dev server and no `node_modules` required.
+
+### Inert classes and fixed-column grids
+
+```bash
+cd frontend
+node scripts/responsiveCheck.js     # exits non-zero on any finding
+```
+
+Enforced by `test/responsiveCheck.test.js`, which also asserts the checker
+still detects a known-bad fixture — a checker that reports "clean" because it
+is broken is the failure mode this replaced.
+
+**This used to be three `grep -A3` pipelines and a `repeat(N, 1fr)` grep. Do
+not go back to them.** Audited 2026-08-16: on an unchanged tree they reported
+9 inert classes and 21 fixed grids, and **all 30 were false positives** —
+
+- `grep -A3` reports a `padding` three lines down that belongs to a **child**,
+  and misses a long tag whose `style` starts on line 5. The class and the
+  inline key have to be on the *same JSX tag*, which needs brace-aware parsing.
+- Five "fixed grids" were the text `repeat(3, 1fr)` inside a **comment saying
+  the grid had been removed**. Comments must be stripped first.
+- A `repeat(N, 1fr)` whose class a narrow-width `@media` re-declares is
+  correct, and so is a bounded decorative mosaic (`width: 72px`). Neither the
+  grep nor a reader skimming 21 lines can tell those from a real one.
+- Worst: **`src --include=*.js` silently skips every `[slug]` route.** Both
+  bash and PowerShell read `[slug]` as a character class, so the guest page,
+  the RSVP wizard and the ticket routes had never once been scanned.
+
+A check with a 100% false-positive rate and a blind spot over the guest page is
+worse than no check: it teaches you the output is noise, and that is where a
+real finding goes to die.
+
+### The rest
 
 ```bash
 cd frontend
 
-# 1. Breakpoint allowlist — every media condition must be on the scale.
+# Breakpoint allowlist — every media condition must be on the scale.
 grep -rnoE '\((max|min)-width: *[0-9.]+px\)' src --include=*.js --include=*.css \
   | grep -vE ': *(639\.98|640|767\.98|768|1023\.98|1024|1279\.98|1280|44)px'
 
-# 2. Inert classes — an fx- class with the inline key it was meant to replace
-#    still present. This is the single most likely defect in responsive work.
-grep -rn 'className="[^"]*fx-section'   src --include=*.js -A3 | grep -n "padding"
-grep -rn 'className="[^"]*fx-container' src --include=*.js -A3 | grep -nE "maxWidth|margin: *['\"]0 auto"
-grep -rn 'className="[^"]*fx-grid'      src --include=*.js -A3 | grep -nE "gridTemplateColumns|repeat\("
-
-# 3. The overflow guard must not come back on body. (Component-level
-#    overflow-x: hidden is fine — this looks only for the body/html rule.)
+# The overflow guard must not come back on body. (Component-level
+# overflow-x: hidden is fine — this looks only for the body/html rule.)
 grep -rnE '^\s*(html|body)[^{]*\{' -A6 src/app/globals.css | grep "overflow-x"
 
-# 3b. Backticks inside a CSS comment in a <style jsx> block. The block is a
-#     template literal, so a backtick there ends it — a parse error, not a
-#     style bug. This has bitten repeatedly; use " instead.
-grep -rn '^\s*/\*.*`\|^\s*[a-z].*`.*\*/' src --include=*.js
-
-# 4. Remaining fixed-column grids (each must become .fx-grid, see above).
-grep -rnE "repeat\( *[0-9]+ *, *1fr *\)" src --include=*.js
 ```
+
+**A backtick inside a CSS comment in a `<style jsx>` block** ends the template
+literal — a parse error, not a style bug. It has bitten repeatedly; use `"`
+instead. There used to be a grep for it here, and it was removed on
+2026-08-16: it cannot tell a CSS comment from an ordinary JS one, so it fired
+on five perfectly good `/* … `fn` … */` JSDoc comments and nothing else.
+`npx next build` catches the real thing outright, because it *is* a syntax
+error. Run the build; don't grep for this.
+
+These three carry the same `[slug]` blind spot. On Windows, `Get-ChildItem
+-Include` has it too — use `-LiteralPath`, or `Get-ChildItem -Recurse -File |
+Where-Object { $_.Extension -eq '.js' }`, which never builds a glob.

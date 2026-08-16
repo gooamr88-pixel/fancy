@@ -27,7 +27,9 @@ function GraciousBadge({ color, isRTL, reduce }) {
         </svg>
       </span>
       <span style={{
-        fontFamily: 'var(--font-sans)', fontSize: '10px', fontWeight: 700,
+        // See the note in CountdownSection: --fx-label grows on phones, where
+        // a 10px tracked-out uppercase label is barely legible.
+        fontFamily: 'var(--font-sans)', fontSize: 'var(--fx-label)', fontWeight: 700,
         letterSpacing: isRTL ? 'normal' : '0.14em', textTransform: isRTL ? 'none' : 'uppercase', color, opacity: 0.85,
       }}>
         {isRTL ? 'بكل محبة' : 'With Love'}
@@ -54,7 +56,9 @@ function NoKidsBadge({ color, isRTL }) {
         <line x1="5" y1="23" x2="23" y2="5" stroke={color} strokeWidth="1.6" strokeLinecap="round" />
       </svg>
       <span style={{
-        fontFamily: 'var(--font-sans)', fontSize: '10.5px', fontWeight: 700,
+        // The one line on this section that carries the actual rule — it has
+        // no business being the smallest text on the screen.
+        fontFamily: 'var(--font-sans)', fontSize: 'var(--fx-label)', fontWeight: 700,
         letterSpacing: isRTL ? 'normal' : '0.16em', textTransform: isRTL ? 'none' : 'uppercase', color,
       }}>
         {isRTL ? 'ممنوع اصطحاب الأطفال' : 'No Kids Allowed'}

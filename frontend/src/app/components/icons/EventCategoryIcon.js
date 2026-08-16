@@ -179,8 +179,18 @@ const PATHS = {
   ),
 };
 
+/* Callers pass a TEMPLATE key as often as a category name, and the two are not
+   the same vocabulary. The cinematic pair have no icon of their own — they are
+   an engagement and a wedding told differently — and an unmapped name renders
+   NOTHING at all, with no error. That is how the wizard's "See the full
+   experience" button lost its icon on both of them the day they were added. */
+const KEY_ALIASES = {
+  ring: 'engagement',  // Velvet Ring
+  bab: 'wedding',      // Door of Joy
+};
+
 export default function EventCategoryIcon({ name, size = 17, color = 'currentColor', strokeWidth = 1.5 }) {
-  const path = PATHS[name];
+  const path = PATHS[name] || PATHS[KEY_ALIASES[name]];
   if (!path) return null;
   return (
     <svg

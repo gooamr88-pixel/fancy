@@ -687,9 +687,14 @@
   z-index: 0;
   top: 0;
   bottom: 0;
-  left: 50%;
-  width: 100vw;
-  transform: translateX(-50%);
+  /* `inset-inline: 0` rather than the old `left: 50%; width: 100vw;
+     translateX(-50%)`. 100vw counts the scrollbar gutter but the scroll
+     container's content box does not, so the photograph sat half a
+     scrollbar-width past each edge on every desktop — real horizontal
+     overflow, invisible only because SnapShell clips it. The hero is already
+     the full width of that container (nothing here imposes a max-width), so
+     0/0 is both full-bleed and exact. */
+  inset-inline: 0;
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;

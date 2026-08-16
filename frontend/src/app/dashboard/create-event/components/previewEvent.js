@@ -17,6 +17,38 @@ import { toTagArray } from '../../components/TagListEditor';
    forgotten here fails loudly.
    ═══════════════════════════════════════════════════════════════ */
 
+/* ═══════════════════════════════════════════════════════════════
+   A `<input type="datetime-local">` value, as the SERVER will read it back.
+
+   The wizard's date fields produce "2027-05-15T02:00" — a date-time with no
+   timezone designator. Two different things then read that string:
+
+     Postgres  `event_date` is TIMESTAMPTZ and the connection runs in UTC, so a
+               naive literal is stored as 02:00 UTC and returned to the guest
+               page as "2027-05-15T02:00:00+00:00".
+     new Date() ECMAScript parses the SAME naive string as LOCAL time.
+
+   So the preview was shifted by the organizer's own UTC offset against the
+   page it claims to be showing. Every guest-facing display formats with
+   `timeZone: 'UTC'` (the "floating wall-clock" convention — the digits shown
+   are the digits typed), which turned that shift into visible nonsense: on
+   UTC+3, a ceremony typed as 18:30 previewed as 15:30, and an event running to
+   02:00 on the 15th previewed as ending on the 14th — printing "MAY 14 - MAY
+   14" as its date range.
+
+   Appending Z makes the browser parse it exactly as Postgres will store it,
+   which is the whole contract this file exists to keep. Values that already
+   carry an offset (an event loaded back from the API into the wizard) are left
+   alone — re-stamping those would move them for real. */
+export function toStoredIso(value) {
+  if (!value || typeof value !== 'string') return value || null;
+  // Already has a zone designator, or isn't a bare date-time at all.
+  if (/[zZ]$|[+-]\d{2}:?\d{2}$/.test(value)) return value;
+  const m = value.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(:\d{2})?$/);
+  if (!m) return value;
+  return `${m[1]}T${m[2]}${m[3] || ':00'}Z`;
+}
+
 export function buildPreviewEvent(state = {}) {
   const {
     templateType, title, description, eventDate, eventEndDate,
@@ -48,14 +80,16 @@ export function buildPreviewEvent(state = {}) {
     // A blank date is the common case early in Stage 2. Left null so the
     // countdown and date sections hide themselves exactly as they would for a
     // guest, rather than rendering "Invalid Date".
-    event_date: eventDate || null,
-    event_end_date: eventEndDate || null,
+    event_date: toStoredIso(eventDate),
+    event_end_date: toStoredIso(eventEndDate),
     location_name: locationName || null,
     location_address: locationAddress || null,
     location_lat: locationLat ?? null,
     location_lng: locationLng ?? null,
     dress_code: dressCode || null,
-    rsvp_deadline: rsvpDeadline || null,
+    // Same normalisation: RsvpSection prints this with timeZone: 'UTC' too,
+    // and an "RSVP by" date one day out is worse than a wrong hero time.
+    rsvp_deadline: toStoredIso(rsvpDeadline),
     cover_image_url: coverImageUrl || null,
     gallery_urls: Array.isArray(galleryUrls) ? galleryUrls : [],
     custom_colors: customColors || {},

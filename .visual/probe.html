@@ -1,0 +1,63 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+  body { margin:0; padding:20px; background:#12100e; font-family:'Segoe UI',sans-serif; display:flex; gap:20px }
+  .col { width:390px }
+  .cap { color:#e8e2d6; font-size:13px; font-weight:700; margin:0 0 8px }
+  .cap small { display:block; font-weight:400; color:#a8a099; font-size:11px; margin-top:2px }
+  .box { width:390px; height:300px; background:#fff; border:6px solid #171614; border-radius:22px; overflow:hidden }
+  iframe { width:100%; height:100%; border:0; display:block }
+</style>
+</head><body>
+
+<div class="col">
+  <p class="cap">BEFORE — page in a plain 390px div
+    <small>vw and @media resolve against the 1000px window</small></p>
+  <div class="box"><div class="hero" id="inline"></div></div>
+</div>
+
+<div class="col">
+  <p class="cap">AFTER — same page in a 390px PreviewFrame
+    <small>vw and @media resolve against the frame</small></p>
+  <div class="box"><iframe id="f"></iframe></div>
+</div>
+
+<script>
+// The exact rules HeroSection.js uses for the couple's names, plus the mobile
+// media query every section in globals.css is written against.
+const HERO = `
+  <style>
+    html,body{margin:0;height:100%}
+    .hero{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;
+          background:linear-gradient(176deg,#fffdf7,#f8f2e6);font-family:Georgia,serif;text-align:center;padding:0 20px}
+    .tag{font:700 12px 'Segoe UI';letter-spacing:.32em;text-transform:uppercase;color:#b8944f;margin-bottom:12px}
+    h1{font-size:clamp(38px,7.2vw,66px);line-height:1.1;color:#7d2438;margin:0}
+    .card{margin-top:14px;width:min(84vw,322px);height:64px;border:1px solid #b8944f66;border-radius:10px;
+          background:#faf8f5;font:11px 'Segoe UI';color:#99958d;display:flex;align-items:center;justify-content:center}
+    .probe{margin-top:10px;font:11px 'Segoe UI';color:#77736a}
+    @media (max-width:767.98px){ .probe::after{content:' - mobile rules ACTIVE'} }
+  </style>
+  <div class="hero">
+    <div class="tag">We are getting married</div>
+    <h1>Mohammed &amp; Leila</h1>
+    <div class="card">invitation card - min(84vw, 322px)</div>
+    <div class="probe" id="p"></div>
+  </div>`;
+
+function report(doc) {
+  const h1 = doc.querySelector('h1');
+  const card = doc.querySelector('.card');
+  const p = doc.getElementById('p');
+  p.textContent = 'name ' + getComputedStyle(h1).fontSize
+    + ' | card ' + getComputedStyle(card).width;
+}
+
+document.getElementById('inline').outerHTML = HERO;
+report(document);
+
+const f = document.getElementById('f');
+const d = f.contentDocument;
+d.open(); d.write(HERO); d.close();
+report(d);
+</script>
+</body></html>

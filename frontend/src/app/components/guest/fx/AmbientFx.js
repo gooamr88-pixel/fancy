@@ -50,6 +50,13 @@ export default function AmbientFx({ recipe, cssVars }) {
 
     const pool = createFxPool(layer);
     const glyphs = glyphKey ? Array.from(glyphKey) : null;
+    /* The layer's OWN window, not the top-level one. In the organizer's
+       preview this page is portalled into an iframe (see PreviewFrame.js), and
+       `window` there is still the dashboard's — so petals were being spawned
+       across a 1440x900 area inside a 390px frame and almost all of them fell
+       outside it. Identical on the real guest page, where the two are the
+       same window. */
+    const view = layer.ownerDocument?.defaultView || window;
     let drift = null;
     let onMove = null;
 
@@ -57,8 +64,8 @@ export default function AmbientFx({ recipe, cssVars }) {
       drift = setInterval(() => {
         // A background tab still runs timers; spawning into one banks a
         // burst that all animates at once on return.
-        if (document.hidden) return;
-        pool.driftPetal(window.innerWidth, window.innerHeight, glyphs);
+        if (view.document.hidden) return;
+        pool.driftPetal(view.innerWidth, view.innerHeight, glyphs);
       }, petalEveryMs);
     }
 
@@ -83,15 +90,17 @@ export default function AmbientFx({ recipe, cssVars }) {
         lastY = point.clientY;
         pool.trailSparkle(point.clientX, point.clientY);
       };
-      window.addEventListener('pointermove', onMove, { passive: true });
-      window.addEventListener('touchmove', onMove, { passive: true });
+      // Same reason as `view` above: the pointer events that matter happen in
+      // the document this layer lives in.
+      view.addEventListener('pointermove', onMove, { passive: true });
+      view.addEventListener('touchmove', onMove, { passive: true });
     }
 
     return () => {
       if (drift) clearInterval(drift);
       if (onMove) {
-        window.removeEventListener('pointermove', onMove);
-        window.removeEventListener('touchmove', onMove);
+        view.removeEventListener('pointermove', onMove);
+        view.removeEventListener('touchmove', onMove);
       }
       pool.destroy();
     };

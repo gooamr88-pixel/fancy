@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import InvitationCard from '../InvitationCard';
 import Icon from '../../icons/Icon';
 
@@ -29,12 +29,18 @@ export default function HeroCardDownload({
   pattern, theme, guestName, data, title, isRTL, className = '',
 }) {
   const [downloading, setDownloading] = useState(false);
+  /* A ref rather than the id lookup. The id stays on the node — it is exported
+     and other code looks for it — but in the organizer's preview this page is
+     portalled into an iframe while the global `document` is still the
+     dashboard's, so getElementById found nothing and every click threw.
+     See utils/frameDocument.js. */
+  const captureRef = useRef(null);
 
   const download = useCallback(async () => {
     setDownloading(true);
     try {
       const { toPng } = await import('html-to-image');
-      const node = document.getElementById(HERO_CAPTURE_ID);
+      const node = captureRef.current;
       if (!node) throw new Error('Card element not found');
 
       // Webfonts can be applied but not yet laid out at the moment of the
@@ -56,6 +62,7 @@ export default function HeroCardDownload({
   return (
     <>
       <div
+        ref={captureRef}
         id={HERO_CAPTURE_ID}
         aria-hidden="true"
         style={{

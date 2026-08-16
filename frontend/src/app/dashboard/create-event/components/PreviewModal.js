@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import GuestExperiencePreview from '../../../components/templates/GuestExperiencePreview';
+import PreviewFrame from '../../../components/templates/PreviewFrame';
 import Icon from '../../../components/icons/Icon';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -123,6 +124,19 @@ export default function PreviewModal({
 
   const isPhone = device === 'phone';
 
+  /* Escape, for the frame's own document.
+
+     The listener above is on the host `window`, and the preview is an iframe:
+     once the organizer clicks into it — the first thing anyone does — focus is
+     in a different document and Escape never reaches this component. The ×
+     button still worked, but a dialog that stops answering Escape as soon as
+     you interact with it is a dialog that feels stuck. Tab is deliberately NOT
+     forwarded: inside the frame the browser's own focus order is already
+     correct and cycling it from out here would fight it. */
+  const onFrameKeyDown = useCallback((e) => {
+    if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+  }, [onClose]);
+
   return (
     <div
       ref={dialogRef}
@@ -201,13 +215,21 @@ export default function PreviewModal({
       </div>
 
       {/* ── The frame ──
-          `transform: translateZ(0)` is load-bearing, not a paint hint. The
-          guest page's chrome — language pill, music toggle, calendar button,
-          scroll-progress bar, the scroll-to-RSVP cue — and both cinematic
-          openings are all `position: fixed`. Without a transformed ancestor
-          they resolve against the VIEWPORT and escape the frame, scattering
-          across the modal. A transform makes this element their containing
-          block, so the frame crops them the way a real handset would. */}
+          PreviewFrame gives the page inside its OWN viewport, which is what
+          makes "Phone" mean anything: at 390px the guest page's media queries,
+          `vw` type scale and `100dvh` sections resolve against the frame, so
+          this is the mobile layout rather than the desktop one shrunk. It is
+          also what makes the DEVICE toggle honest — switching to Desktop
+          genuinely re-lays-out at 980px instead of just widening a box. See
+          PreviewFrame.js for why nothing short of a real viewport does this.
+
+          `transform: translateZ(0)` stays for PreviewFrame's inline fallback
+          path. If the frame document is ever unreachable the page renders
+          directly in this box, and its chrome — language pill, music toggle,
+          calendar button, scroll-progress bar, scroll-to-RSVP cue — plus both
+          cinematic openings are all `position: fixed`. Without a transformed
+          ancestor they would resolve against the window and scatter across the
+          modal. A transform makes this element their containing block. */}
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
@@ -220,17 +242,24 @@ export default function PreviewModal({
           transform: 'translateZ(0)',
         }}
       >
-        <GuestExperiencePreview
-          event={event}
-          lang={lang}
-          onLangChange={setLang}
-          replayKey={replayKey}
-          playOpening
-          showSampleContent={showSampleContent}
-          invitationPattern={invitationPattern}
-          invitationTheme={invitationTheme}
-          invitationData={invitationData}
-        />
+        <PreviewFrame
+          title="Guest invitation preview"
+          dir={lang === 'ar' ? 'rtl' : 'ltr'}
+          onDocumentKeyDown={onFrameKeyDown}
+          style={{ width: '100%', height: '100%' }}
+        >
+          <GuestExperiencePreview
+            event={event}
+            lang={lang}
+            onLangChange={setLang}
+            replayKey={replayKey}
+            playOpening
+            showSampleContent={showSampleContent}
+            invitationPattern={invitationPattern}
+            invitationTheme={invitationTheme}
+            invitationData={invitationData}
+          />
+        </PreviewFrame>
       </div>
 
       <p

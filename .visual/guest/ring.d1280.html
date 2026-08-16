@@ -1,0 +1,70 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+  html,body{margin:0;background:#333;}
+  iframe{display:block;width:1280px;height:860px;border:0;}
+</style></head><body>
+<iframe src="ring.page.html" scrolling="no"></iframe>
+<script>
+  var f = document.querySelector('iframe');
+  var hash = location.hash || '#0';
+  f.addEventListener('load', function () {
+    var doc = f.contentDocument, win = f.contentWindow;
+    var c = doc.querySelector('#stage div[dir]');
+    // ?probe replaces the shell with a geometry report measured INSIDE the
+    // iframe, where innerWidth is the real 1280px — Windows Chrome will not
+    // open a window narrower than ~500px, so measuring the top document lies.
+    if (hash === '#probe') { report(doc, win, c); return; }
+    if (c) c.scrollTop = parseInt(hash.slice(1), 10) || 0;
+  });
+
+  function report(doc, win, stage) {
+    var VW = win.innerWidth, VH = win.innerHeight, L = [];
+    L.push('viewport ' + VW + 'x' + VH + '   scrollHeight ' + (stage ? stage.scrollHeight : '?'));
+    L.push('--- sections ---');
+    doc.querySelectorAll('[data-ha-section]').forEach(function (s) {
+      var h = Math.round(s.getBoundingClientRect().height);
+      L.push((s.id || '?').padEnd(18) + 'h=' + String(h).padStart(5) + (h > VH ? '  OVER THE FOLD by ' + (h - VH) : ''));
+    });
+    L.push('--- horizontal overflow ---');
+    var out = [];
+    doc.querySelectorAll('#stage *').forEach(function (el) {
+      var r = el.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      // Parked off-canvas on purpose (the download-capture card at -10000px).
+      if (r.right < -200 || r.left > VW + 200) return;
+      var oR = r.right - VW, oL = -r.left;
+      if (oR <= 1 && oL <= 1) return;
+      // The ancestor chain up to the section, with each box's width — an
+      // overflowing child is almost never the cause, and naming only the child
+      // sends you editing the wrong file.
+      var chain = [], p = el;
+      while (p && p.id !== 'stage') {
+        var pr = p.getBoundingClientRect();
+        chain.unshift(p.tagName.toLowerCase()
+          + (p.id ? '#' + p.id : '')
+          + (typeof p.className === 'string' && p.className.trim() ? '.' + p.className.trim().split(/\s+/)[0] : '')
+          + '(' + Math.round(pr.width) + ')');
+        if (p.hasAttribute && p.hasAttribute('data-ha-section')) break;
+        p = p.parentElement;
+      }
+      out.push((oL > 1 ? 'L-' + Math.round(oL) : '') + (oR > 1 ? ' R+' + Math.round(oR) : '')
+        + '  "' + (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 30) + '"\n    '
+        + chain.join(' > '));
+    });
+    L.push(out.length ? out.join('\n') : 'none');
+    L.push('--- page text under 11px ---');
+    var tiny = [];
+    doc.querySelectorAll('#stage *').forEach(function (el) {
+      if (el.children.length || !(el.textContent || '').trim()) return;
+      // The invitation card is a deliberate stationery miniature; its type is
+      // meant to be small. Only PAGE text is held to the reading floor.
+      if (el.closest('#cine-invitation-card-capture, [data-invitation-card]')) return;
+      var fs = parseFloat(win.getComputedStyle(el).fontSize);
+      if (fs && fs < 11) tiny.push(fs + 'px  "' + (el.textContent || '').trim().slice(0, 40) + '"');
+    });
+    L.push(tiny.length ? tiny.slice(0, 20).join('\n') : 'none');
+    document.body.innerHTML = '';
+    var pre = document.createElement('pre');
+    pre.textContent = L.join('\n');
+    document.body.appendChild(pre);
+  }
+</script></body></html>

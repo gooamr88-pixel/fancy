@@ -48,7 +48,12 @@ describe('buildPreviewEvent', () => {
     expect(e.location_name).toBe('Beit Al Qamar');
     expect(e.location_address).toBe('12 Corniche Road, Alexandria');
     expect(e.dress_code).toBe('Garden formal');
-    expect(e.event_date).toBe('2027-05-14T18:30:00');
+    // Stamped UTC, not passed through: the wizard's datetime-local value has no
+    // zone designator, Postgres reads it as UTC and `new Date()` reads it as
+    // LOCAL, so an unstamped value previewed the event at the organizer's own
+    // offset from the time their guests will actually see. See toStoredIso and
+    // test/guestPageAudit.test.jsx.
+    expect(e.event_date).toBe('2027-05-14T18:30:00Z');
     expect(e.template_type).toBe('wedding');
     expect(e.custom_colors.primary).toBe('#7d5694');
     expect(e.no_kids_allowed).toBe(true);

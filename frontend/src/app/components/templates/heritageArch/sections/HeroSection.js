@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useFullPageTheme } from '../theme';
 import { DiamondDivider, ScrollToRsvpHint } from '../shared';
@@ -29,6 +29,12 @@ export default function HeroSection({
   const C = useFullPageTheme();
   const reduce = useReducedMotion();
   const [downloading, setDownloading] = useState(false);
+  /* A ref, not getElementById. The id is still on the node (the legacy capture
+     path and the tests both look for it), but in the organizer's preview this
+     page is portalled into an iframe and the global `document` is the
+     dashboard's — so the lookup returned null and "Save the invitation" threw
+     "Card element not found" every time. See utils/frameDocument.js. */
+  const cardRef = useRef(null);
 
   // Lets a guest save the invitation card itself as a real PNG — same
   // html-to-image capture EventPageClient's legacy continuous-scroll path
@@ -38,7 +44,7 @@ export default function HeroSection({
     setDownloading(true);
     try {
       const { toPng } = await import('html-to-image');
-      const node = document.getElementById('ha-invitation-card-capture');
+      const node = cardRef.current;
       if (!node) throw new Error('Card element not found');
 
       // Wait a tiny moment to ensure fonts are fully layout-rendered
@@ -153,6 +159,7 @@ export default function HeroSection({
           style={{ perspective: '1400px', marginTop: '10px' }}
         >
           <motion.div
+            ref={cardRef}
             id="ha-invitation-card-capture"
             animate={reduce ? undefined : { y: [0, -9, 0] }}
             transition={reduce ? undefined : { duration: 6.5, repeat: Infinity, ease: 'easeInOut' }}

@@ -3,6 +3,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { alpha, isDark } from '../../../utils/color';
+import { byIdNear } from '../../../utils/frameDocument';
 import { useFullPageTheme } from './theme';
 
 /* Shared visual language for every full-page section: the palette comes from
@@ -120,9 +121,12 @@ export function ScrollToRsvpHint({ isRTL, label, color, fixed = false }) {
   // so guests see a single "scroll to RSVP" indicator that follows them down
   // instead of one repeated on every screen.
   if (!fixed) return null;
-  const scroll = () => {
-    const el = document.getElementById('ha-rsvp');
-    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  /* Resolved from the button itself, not the global `document` — in the
+     organizer's preview the page is inside an iframe and #ha-rsvp is not in
+     the dashboard's document, so this cue was a button that did nothing.
+     See utils/frameDocument.js. */
+  const scroll = (e) => {
+    byIdNear(e.currentTarget, 'ha-rsvp')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
   return (
     <button

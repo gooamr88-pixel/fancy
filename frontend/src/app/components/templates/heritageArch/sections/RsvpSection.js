@@ -397,6 +397,10 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showConfirmation, isYesResponse, seatingRevealed, seatingPartyId]);
 
+  // The glass panel wrapping the whole form. validate() searches inside it for
+  // the first invalid control rather than searching the document.
+  const formPanelRef = useRef(null);
+
   // Bring the revealed detail block into view when the guest picks an answer, so
   // it's obvious something new appeared below the (now-answered) choice.
   const detailsRef = useRef(null);
@@ -604,7 +608,13 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
     setErrors(e);
     if (Object.keys(e).length > 0) {
       requestAnimationFrame(() => {
-        const el = document.querySelector('[aria-invalid="true"]');
+        /* Scoped to this form's own panel, not the global document. Two
+           reasons, and the second is the one that bit: a page can hold more
+           than one aria-invalid control, and in the organizer's preview the
+           form is portalled into an iframe — so the dashboard's `document`
+           does not contain it and nothing was ever scrolled to. See
+           utils/frameDocument.js. */
+        const el = formPanelRef.current?.querySelector('[aria-invalid="true"]');
         el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       });
     }
@@ -823,7 +833,7 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
           matching the reference; the cardOuter/cardInner sub-blocks inside stay
           opaque cream (their own existing style) so nested glass-on-glass never
           hurts legibility of the fields themselves. */}
-      <div style={{
+      <div ref={formPanelRef} style={{
         width: '100%', maxWidth: '540px', display: 'flex', flexDirection: 'column', alignItems: 'center',
         padding: 'clamp(20px, 5vw, 36px) clamp(16px, 4vw, 28px)', borderRadius: '28px',
         background: pageIsDark ? 'rgba(0,0,0,0.26)' : 'rgba(255,255,255,0.32)',

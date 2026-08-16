@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence, useInView, useScroll, useTransform, useReducedMotion } from 'framer-motion';
 import { lighten, darken } from '../../utils/color';
+import { viewOf } from '../../utils/frameDocument';
 
 /* ═══════════════════════════════════════════════════════════════
    FANCY RSVP — Premium Guest Animation Library
@@ -203,7 +204,23 @@ export function FloatingParticles({ count = 30, color = '#B8944F', shape = 'circ
     if (reduceMotion) return; // honor prefers-reduced-motion — no ambient drift
     const canvas = canvasRef.current;
     if (!canvas) return;
+    /* getContext CAN return null, and the consequence here is not a missing
+       effect — it is a blank invitation.
+
+       `animate()` below is called synchronously at the end of this effect, so
+       `ctx.clearRect` throwing happens INSIDE the effect, React re-throws it,
+       and with no error boundary over the guest page the whole tree unmounts.
+       The guest is left with a white screen because an ambient decoration
+       could not start.
+
+       It is null whenever the browser will not give out a 2D context: iOS
+       Safari past its per-tab canvas memory budget (this page already mounts
+       several), Firefox with resistFingerprinting, and various privacy
+       extensions. Ambient drift is the most expendable thing on the page —
+       skipping it is the correct answer, and it must never be able to take
+       the invitation with it. */
     const ctx = canvas.getContext('2d');
+    if (!ctx) return;
     let w = canvas.width = canvas.offsetWidth;
     let h = canvas.height = canvas.offsetHeight;
 
@@ -219,7 +236,8 @@ export function FloatingParticles({ count = 30, color = '#B8944F', shape = 'circ
     // a real battery/jank cost for a purely ambient effect. Scale it down hard
     // on small screens (and cap it everywhere) so the drift stays tasteful
     // without pegging a mobile CPU.
-    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+    const view = viewOf(canvas);
+    const isMobile = !!view && view.innerWidth < 768;
     const effectiveCount = Math.min(count, isMobile ? 12 : 30);
 
     // Create particles
@@ -265,11 +283,13 @@ export function FloatingParticles({ count = 30, color = '#B8944F', shape = 'circ
       w = canvas.width = canvas.offsetWidth;
       h = canvas.height = canvas.offsetHeight;
     };
-    window.addEventListener('resize', handleResize);
+    // The canvas's own window, per `view` above — the frame the preview lives
+    // in resizes independently of the dashboard around it.
+    view?.addEventListener('resize', handleResize);
 
     return () => {
       cancelAnimationFrame(animFrameRef.current);
-      window.removeEventListener('resize', handleResize);
+      view?.removeEventListener('resize', handleResize);
     };
   }, [count, color, shape, reduceMotion]);
 
@@ -370,9 +390,21 @@ export function ConfettiExplosion({ active = false, duration = 4000, particleCou
     if (!show || reduceMotion) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
+    /* Same guard, and it matters more here than for the ambient drift: this
+       fires the moment a guest confirms they are coming. A thrown effect at
+       that point replaces their confirmation with a blank screen — after the
+       RSVP has already been recorded, so they cannot tell whether it worked.
+       See the note in FloatingParticles for when getContext returns null. */
     const ctx = canvas.getContext('2d');
-    const w = canvas.width = window.innerWidth;
-    const h = canvas.height = window.innerHeight;
+    if (!ctx) return;
+    /* The canvas's own window. It is position:fixed and full-bleed, and in the
+       organizer's preview this page is portalled into an iframe (see
+       components/templates/PreviewFrame.js) where the global `window` is the
+       dashboard's — so the confetti was sized to a 1440px desktop inside a
+       390px frame and most of it burst off-screen. */
+    const view = viewOf(canvas);
+    const w = canvas.width = view.innerWidth;
+    const h = canvas.height = view.innerHeight;
 
     const pieces = Array.from({ length: particleCount }, () => ({
       x: w / 2 + (Math.random() - 0.5) * 200 * spread,

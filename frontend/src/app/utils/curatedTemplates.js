@@ -1,62 +1,62 @@
 /**
- * The three real, currently-selectable event templates — the single source
- * of truth shared by the create-event wizard (Stage1_TemplatesSimulator) and
- * the public /templates marketing gallery. Previously the two lived
- * independently: the wizard's real picker (this array) and the public
- * gallery's own hand-authored list of 16 "templates" (Timeless Elegance,
- * Marrakesh Nights, Kyoto Blossom, etc.) that don't correspond to anything a
- * visitor can actually select at signup — those 13 extra invitation-card
- * *patterns* still render for existing events, but were retired from the
- * picker (see below), so showcasing them as choosable products was
- * misleading. Importing from one place means the two can never drift apart
- * again.
+ * The real, currently-selectable event templates — the single source of truth
+ * shared by the create-event wizard (Stage1_TemplatesSimulator) and the
+ * organizer's Visual Template picker in EventSettings.
  *
- * All three templates share the same full-page guest experience (see
+ * Three templates: the two cinematic ones and the build-your-own canvas.
+ *
+ * RETIRED — 'wedding' (Royale Wedding) and 'engagement' (Eternal Love).
+ * They were the same stationery-envelope page as each other with different
+ * copy, and the cinematic pair supersedes them on both occasions: Door of Joy
+ * is the wedding, Velvet Ring is the engagement. Their render paths are
+ * deliberately still intact everywhere else — INVITATION_PATTERN_BY_TEMPLATE
+ * and FULL_PAGE_TEMPLATES in EventPageClient.js, the field-key maps in
+ * create-event/page.js, WEDDING_VARIANT_TEMPLATES in templateFamilies.js — so
+ * a row still carrying either key renders exactly as it always did. The
+ * migration that moves those rows over (supabase/migrations/
+ * 20260824000000_retire_wedding_engagement_templates.sql) is a separate,
+ * deliberate step; nothing here depends on it having run.
+ *
+ * Every template shares the same full-page guest experience (see
  * FULL_PAGE_TEMPLATES in EventPageClient.js) with every optional section
  * (story, schedule, venues, accommodation, menu, gift list, FAQ, gallery,
- * dress code, things-to-do, getting-there, invited-to-city)
- * available and independently toggleable — see the "Sections" panel in
- * Stage 2 and enabledSections in HeritageArchPage. Wedding & Engagement
- * additionally expose full custom color pickers (not just the curated
- * presets below) so every template gets equal design, color, and content
- * control.
+ * dress code, things-to-do, getting-there, invited-to-city) available and
+ * independently toggleable — see the "Sections" panel in Stage 2 and
+ * enabledSections in HeritageArchPage — plus full custom colour pickers, so
+ * every template gets equal design, colour, and content control.
  */
+
+/* ── `preview`: what the picker card SHOWS ────────────────────────────────
+   Every card used to render <InvitationCard template={{ pattern: tpl.pattern }}>
+   — and no entry in this file has ever had a `pattern` key (the mapping lives
+   in TEMPLATE_PREVIEW_PATTERN below, keyed separately). So `pattern` was
+   undefined on every card, InvitationCard fell through to its `default:` arm,
+   and all five templates drew the SAME generic "Aria & Julian · The Grand
+   Ballroom, New York" card, differing only in accent tint. Nothing errored.
+
+   The fix is not to thread the right pattern through — all of them map to
+   'serif', so the cards would still be identical. It is to show what the
+   guest actually opens on:
+
+     kind: 'poster'  the template's own hero still, full-bleed. This is the
+                     first frame of the opening the guest sees, so the card
+                     cannot drift from the product.
+     kind: 'card'    Custom Canvas has no photography — it IS the organizer's
+                     colours and type — so it renders the live builder-driven
+                     `custom` InvitationCard instead, and changes as they
+                     change it.
+
+   test/templatePicker.test.jsx asserts every entry resolves to something real,
+   so a template added without a preview fails loudly rather than silently
+   re-introducing the generic card. */
+
 export const TEMPLATES = [
-  {
-    key: 'wedding', label: 'Royale Wedding', tier: 'Wedding',
-    tagline: 'Cinematic · Gold',
-    desc: 'A high-end, cinematic wedding invitation with glassmorphism, elegant gold accents and a dynamic reveal — comparable to premium invitation platforms.',
-    presets: [
-      { name: 'Royale Gold', primary: '#B8944F', secondary: '#D7BE80', accent: '#B8944F', background: '#FFFDF7' },
-      { name: 'Emerald Ivy', primary: '#1B6B3A', secondary: '#A3D5A5', accent: '#1B6B3A', background: '#F5FAF7' },
-      { name: 'Burgundy Velvet', primary: '#800020', secondary: '#F2C9D0', accent: '#800020', background: '#FFF8F9' },
-    ],
-    specs: ['Cinematic Envelope Reveal', 'Modern Glassmorphism', 'Gold Accents', 'RSVP + Meal Selection', 'Every Section Toggleable'],
-    fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
-  },
-  {
-    // A duplicate of the Wedding theme — same cinematic envelope reveal and
-    // "serif" invitation card artwork/layout (see TEMPLATE_PREVIEW_PATTERN
-    // below and INVITATION_PATTERN_BY_TEMPLATE in EventPageClient.js) — with
-    // copy adapted for an engagement instead of a wedding day.
-    key: 'engagement', label: 'Eternal Love', tier: 'Engagement',
-    tagline: 'Cinematic · Gold',
-    desc: 'The same high-end, cinematic invitation as Royale Wedding — glassmorphism, elegant gold accents, and a dynamic reveal — with every detail worded for your engagement instead of your wedding day.',
-    presets: [
-      { name: 'Blush Gold', primary: '#D4A574', secondary: '#F5E6D3', accent: '#D4A574', background: '#FFFCF8' },
-      { name: 'Champagne Sparkle', primary: '#C5A059', secondary: '#FDF0CD', accent: '#C5A059', background: '#FFFDF5' },
-      { name: 'Sage Garden', primary: '#6B8E6B', secondary: '#D5E8D5', accent: '#6B8E6B', background: '#F8FAF8' },
-    ],
-    specs: ['Cinematic Envelope Reveal', 'Modern Glassmorphism', 'Gold Accents', 'Interactive RSVP', 'Every Section Toggleable'],
-    fields: ['Partner Names', 'Proposal Story', 'Gift Registry'],
-  },
   /* ── The cinematic pair ──────────────────────────────────────────────
-     These two differ from the three above in exactly one place: the
-     opening and the hero. A guest taps a velvet box or knocks on a door
-     instead of breaking a wax seal, and the fold is photographic rather
-     than stationery. Everything below the fold is the same full-page
-     engine, the same organizer-configured sections, and the same RSVP —
-     recoloured to each one's palette. See components/templates/cinematic/.
+     Both run the same full-page engine, the same organizer-configured
+     sections and the same RSVP as everything else; what makes them their own
+     templates is the opening and the hero. A guest taps a velvet box or knocks
+     on a door, and the fold is photographic rather than stationery. See
+     components/templates/cinematic/.
 
      Their presets lead with the template's native palette, because that is
      the colour story the photography was shot in; the alternates are there
@@ -66,6 +66,8 @@ export const TEMPLATES = [
     key: 'ring', label: 'Velvet Ring', tier: 'Engagement',
     tagline: 'Cinematic · Velvet & Gold',
     desc: 'A velvet ring box on a darkened stage. Your guests touch it, the lid opens on film, and the invitation dissolves out of the light — then the whole page carries gold dust and drifting petals as they scroll.',
+    // The video's own poster frame — the exact image a guest lands on.
+    preview: { kind: 'poster', src: '/templates/ring/video-poster.jpg', position: '50% 45%', tone: 'dark' },
     presets: [
       { name: 'Velvet Rose', primary: '#8f3c52', secondary: '#d4af6a', accent: '#d4af6a', background: '#2a100b' },
       { name: 'Midnight Gold', primary: '#6b3b5a', secondary: '#e0c07d', accent: '#e0c07d', background: '#1d0f18' },
@@ -78,6 +80,7 @@ export const TEMPLATES = [
     key: 'bab', label: 'Door of Joy', tier: 'Wedding',
     tagline: 'Cinematic · Wood & Lilac',
     desc: 'A carved door your guests knock on three times — it answers, swings open on the light beyond, and doves lift from the garden gate behind your names. Blossom drifts down the page as they read.',
+    preview: { kind: 'poster', src: '/templates/bab/door-poster.jpg', position: '50% 40%', tone: 'dark' },
     presets: [
       { name: 'Lilac Bloom', primary: '#7d5694', secondary: '#c9a45c', accent: '#a97fc0', background: '#f6f1e4' },
       { name: 'Olive Courtyard', primary: '#5c6b4a', secondary: '#c9a45c', accent: '#7d8f66', background: '#f4f1e2' },
@@ -90,6 +93,7 @@ export const TEMPLATES = [
     key: 'custom', label: 'Custom Canvas', tier: 'Build your own',
     tagline: 'Fully editable',
     desc: 'A clean slate for any occasion — wedding, engagement, birthday, baby shower, or something entirely your own. Choose your colors, typography and cover image, then build the page section by section from the same full feature set every curated template shares.',
+    preview: { kind: 'card', tone: 'light' },
     presets: [
       { name: 'Clean Linen', primary: '#8B7355', secondary: '#D4C5A9', accent: '#8B7355', background: '#FAF8F5' },
       { name: 'Warm Cream', primary: '#A0845C', secondary: '#E8D5B7', accent: '#A0845C', background: '#FFFCF5' },
@@ -100,15 +104,87 @@ export const TEMPLATES = [
   },
 ];
 
-/** Curated InvitationCard preview pattern + fallback accent per real template key. */
+/**
+ * Curated InvitationCard preview pattern per template key.
+ *
+ * The two retired keys stay listed: this map is also read by the wizard's
+ * PreviewModal and by the guest hero, and an event still carrying 'wedding' or
+ * 'engagement' must keep printing the stationery card it was created with.
+ */
 export const TEMPLATE_PREVIEW_PATTERN = {
+  // Retired from the picker, still rendered for existing events.
   wedding: 'serif',
   engagement: 'serif',
-  // The cinematic pair keep their own hero photography rather than showing a
-  // stationery card at the fold, but the card still exists — it is what the
+  // The cinematic pair open on their own hero photography rather than showing
+  // a stationery card at the fold, but the card still exists — it is what the
   // "Save the invitation" button captures (see cinematic/HeroCardDownload.js)
   // — so it needs a pattern like every other template.
   ring: 'serif',
   bab: 'serif',
   custom: 'custom',
+};
+
+/** Template keys retired from the picker but still renderable. @see TEMPLATES */
+export const RETIRED_TEMPLATE_KEYS = ['wedding', 'engagement'];
+
+/* ── Palettes ─────────────────────────────────────────────────────────────
+   The organizer's Design tab used to offer four bare `<input type="color">`
+   boxes and nothing else: no presets, no names, no way back. The wizard shows
+   the curated palettes at creation time, so somebody who picked "Velvet Rose"
+   on Monday came back on Tuesday to four hex fields and no "Velvet Rose" in
+   sight — and every combination in between, including the ones where the
+   heading and the paper are the same colour. buildPalette() clamps the worst
+   contrast failures but it cannot invent a colour story.
+
+   These two helpers are what let the settings screen offer the same named
+   palettes the wizard does, for whatever template the event is actually on. */
+
+/** The curated palettes an event on `templateType` may choose from. */
+export function palettesFor(templateType) {
+  const own = TEMPLATES.find((t) => t.key === templateType);
+  if (own) return own.presets;
+
+  /* A retired template's event keeps its own key until the migration runs, and
+     the successor is the same design at a different fold, so its palettes are
+     the right ones to offer. */
+  const successor = TEMPLATES.find((t) => t.key === RETIRED_TEMPLATE_SUCCESSOR[templateType]);
+  if (successor) return successor.presets;
+
+  /* An older style entirely (tuscany, orchid, heritageArch…). There is no
+     "its own" set to fall back to, and showing nothing would leave the one
+     colour control on the screen empty — so offer every curated palette
+     rather than sending them back to raw hex. */
+  const seen = new Set();
+  return TEMPLATES.flatMap((t) => t.presets).filter((p) => {
+    if (seen.has(p.name)) return false;
+    seen.add(p.name);
+    return true;
+  });
+}
+
+/**
+ * Index of the palette matching `colors`, or -1.
+ *
+ * Compared case-insensitively on the three values that actually reach
+ * buildPalette. `accent` is left out on purpose: it is derived from `primary`
+ * in every preset here and in the wizard's colour sync, so including it would
+ * make a saved event that predates one of those defaults look "custom" when it
+ * is sitting on an exact palette.
+ */
+export function matchPaletteIndex(presets, colors) {
+  if (!colors) return -1;
+  const eq = (a, b) => (a || '').toLowerCase() === (b || '').toLowerCase();
+  return presets.findIndex((p) => eq(p.primary, colors.primary)
+    && eq(p.secondary, colors.secondary)
+    && eq(p.background, colors.background));
+}
+
+/**
+ * Where a retired template's events are migrated to. Read by the SQL
+ * migration's comment and by the drift test, so the two can never disagree
+ * about which replacement inherits which occasion.
+ */
+export const RETIRED_TEMPLATE_SUCCESSOR = {
+  wedding: 'bab',      // Door of Joy — the cinematic wedding, same field set
+  engagement: 'ring',  // Velvet Ring — the cinematic engagement, same field set
 };

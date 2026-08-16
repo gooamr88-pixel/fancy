@@ -181,47 +181,69 @@ export default function PhoneSimulator({ template, theme, guestName, onGuestName
     );
   }
 
-  /* ═══ DESKTOP: sticky panel ═══ */
+  /* ═══ DESKTOP: sticky panel ═══
+     One panel under the phone, not three stacked blocks. The label, the step
+     control and the guest-name field are a single instrument — "who is this
+     addressed to, and where in their journey am I looking" — and splitting
+     them across three floating cards of three different widths read as
+     leftovers rather than as a control surface. */
   return (
     <div className="ce-phone-container">
       <div ref={wrapRef} style={{ width: '100%', maxWidth: BASE_W, display: 'flex', flexWrap: 'wrap', justifyContent: 'center' }}>
         {frame}
       </div>
 
-      {/* Label */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
-          <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#3B9B6D', animation: 'ps-blink 2s ease-in-out infinite' }} />
-          <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 600, color: '#191B1E', letterSpacing: '0.03em' }}>Live Guest Journey</span>
-        </div>
-        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: '#77736A' }}>Step through what your guests will experience</span>
-      </div>
-
-      {/* RSVP flow stepper */}
-      <FlowStepper step={step} onSelect={handleSelect} />
-
-      {/* Guest name control */}
       <div style={{
-        width: '100%', maxWidth: BASE_W, background: 'rgba(255,255,255,0.8)',
-        border: '1px solid rgba(184,148,79,0.15)', borderRadius: 16, padding: '12px 16px',
-        boxShadow: '0 4px 20px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: 6, boxSizing: 'border-box',
+        width: '100%', maxWidth: BASE_W, boxSizing: 'border-box',
+        background: 'rgba(255,255,255,0.82)', border: '1px solid rgba(184,148,79,0.16)',
+        borderRadius: 18, padding: 14, boxShadow: '0 6px 24px rgba(0,0,0,0.04)',
+        backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+        display: 'flex', flexDirection: 'column', gap: 12,
       }}>
-        <label style={{ fontSize: 9, fontWeight: 700, color: '#77736A', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-sans)' }}>Customize Guest Name (Simulator Only)</label>
-        <input
-          type="text"
-          value={guestName || ''}
-          onChange={e => onGuestNameChange(e.target.value)}
-          // One guest, not a couple: this fills the RECIPIENT slot — the card's
-          // "Reserved for …" line and the addressee on the envelope.
-          placeholder="e.g. Sarah Al-Mansouri"
-          style={{
-            width: '100%', boxSizing: 'border-box', background: '#FFFFFF', border: '1px solid #E8E2D6',
-            borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#191B1E', outline: 'none', fontFamily: 'var(--font-sans)',
-            transition: 'border-color 0.25s, box-shadow 0.25s',
-          }}
-          onFocus={e => { e.target.style.borderColor = '#B8944F'; e.target.style.boxShadow = '0 0 0 3px rgba(184,148,79,0.08)'; }}
-          onBlur={e => { e.target.style.borderColor = '#E8E2D6'; e.target.style.boxShadow = 'none'; }}
-        />
+        {/* Header */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 7 }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: '#3B9B6D', animation: 'ps-blink 2s ease-in-out infinite' }} />
+          <span className="fx-min0" style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 700, color: '#191B1E', letterSpacing: '0.02em' }}>
+              Live guest journey
+            </span>
+            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10.5, color: '#77736A', lineHeight: 1.35 }}>
+              The real invitation, at the size a guest holds it
+            </span>
+          </span>
+        </div>
+
+        {/* Where in the journey */}
+        <FlowStepper step={step} onSelect={handleSelect} compact />
+
+        {/* Who it is addressed to */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          <label htmlFor="ps-guest-name" style={{ fontSize: 'var(--fx-micro)', fontWeight: 700, color: '#77736A', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: 'var(--font-sans)' }}>
+            Addressed to
+          </label>
+          <input
+            id="ps-guest-name"
+            type="text"
+            value={guestName || ''}
+            onChange={e => onGuestNameChange(e.target.value)}
+            // One guest, not a couple: this fills the RECIPIENT slot — the card's
+            // "Reserved for …" line and the addressee on the envelope.
+            placeholder="e.g. Sarah Al-Mansouri"
+            style={{
+              width: '100%', boxSizing: 'border-box', background: '#FFFFFF', border: '1px solid #E8E2D6',
+              // 12.5px is the designed desktop size; globals.css lifts every
+              // form control to 16px below 768px on its own, so this must not
+              // be bumped here (see the iOS focus-zoom block there).
+              borderRadius: 9, padding: '9px 12px', fontSize: 12.5, color: '#191B1E', outline: 'none',
+              fontFamily: 'var(--font-sans)', transition: 'border-color 0.25s, box-shadow 0.25s',
+            }}
+            onFocus={e => { e.target.style.borderColor = '#B8944F'; e.target.style.boxShadow = '0 0 0 3px rgba(184,148,79,0.08)'; }}
+            onBlur={e => { e.target.style.borderColor = '#E8E2D6'; e.target.style.boxShadow = 'none'; }}
+          />
+          <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, color: '#99958D', lineHeight: 1.35 }}>
+            Preview only — your guests' real names come from your guest list.
+          </span>
+        </div>
       </div>
 
       <style jsx>{`

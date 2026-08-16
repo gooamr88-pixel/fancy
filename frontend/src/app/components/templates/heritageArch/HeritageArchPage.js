@@ -31,6 +31,59 @@ import ThingsToDoSection from './sections/ThingsToDoSection';
 import GettingThereSection from './sections/GettingThereSection';
 import RsvpSection from './sections/RsvpSection';
 
+/* Custom Canvas's "Heading Typography" options (CustomBuilder.js's FONTS),
+   mapped to the custom properties globals.css declares for them.
+
+   'serif' is deliberately absent: it is the default, and writing
+   `--font-serif: var(--font-serif)` on the element that declares it is a
+   circular reference — CSS resolves those to the guaranteed-invalid value, so
+   the page would silently lose its heading face instead of keeping it. */
+const CUSTOM_HEADING_FONTS = {
+  sans: 'var(--font-sans)',
+  script: 'var(--font-script)',
+  display: 'var(--font-display)',
+  minimal: 'var(--font-minimal)',
+  whimsical: 'var(--font-whimsical)',
+};
+
+/* Same allowlist EventPageClient applies before putting a family name in a
+   stylesheet — these values come from an organizer-editable column and end up
+   inside a CSS declaration. Duplicated rather than imported for the reason
+   given in GuestExperiencePreview: importing one export from EventPageClient
+   evaluates the whole guest route. */
+function sanitizeFontName(name) {
+  if (!name) return null;
+  const clean = String(name).replace(/[^a-zA-Z0-9 -]/g, '').trim();
+  return clean || null;
+}
+
+/**
+ * The organizer's Heading Font / Body Font, as page-wide custom properties.
+ *
+ * These two pickers have been in the Design tab for a long time and have never
+ * once applied here. The CSS that honours them lives in EventPageClient's
+ * LEGACY continuous-scroll branch — after the `FULL_PAGE_TEMPLATES` early
+ * return — and every currently-offered template is full-page, so every event
+ * created since then loaded an organizer-chosen webfont from a third-party
+ * host and then rendered in the brand faces regardless.
+ *
+ * Routed through --font-serif / --font-sans because that is what the sections
+ * already ask for, so one pair of declarations reaches all of them. The
+ * families are appended to the existing stacks rather than replacing them: if
+ * the webfont never arrives (fonts.googleapis.com is unreachable in several
+ * countries and behind many corporate proxies) the page falls back to the
+ * brand face instead of to the browser default.
+ */
+function buildFontVars(customFonts) {
+  if (!customFonts) return null;
+  const heading = sanitizeFontName(customFonts.heading);
+  const body = sanitizeFontName(customFonts.body);
+  const vars = {};
+  if (heading) vars['--font-serif'] = `'${heading}', var(--font-heading), Georgia, serif`;
+  if (body) vars['--font-sans'] = `'${body}', var(--font-body), system-ui, sans-serif`;
+  return Object.keys(vars).length ? vars : null;
+}
+
 function formatDateLine(startISO, endISO, isRTL) {
   if (!startISO) return null;
   const locale = isRTL ? 'ar-EG' : 'en-US';
@@ -118,6 +171,32 @@ export default function HeritageArchPage({
   // the event's own title when the organizer hasn't named a celebrant/parents
   // yet, exactly like every other template does.
   const customCategory = event.template_type === 'custom' ? (td.custom_category || '') : '';
+  /* Custom Canvas's "Heading Typography" pick, applied to the PAGE.
+
+     It used to reach exactly one element: the small invitation card inside the
+     hero (InvitationCard's `custom` arm reads cfg.headingFont). Every heading
+     on the page below it stayed on the brand serif, so an organizer could
+     choose "Whimsical", watch nothing change, and reasonably conclude the
+     control did nothing.
+
+     Overriding --font-serif on the page container routes it through all of
+     them at once, because every section already asks for its headings by that
+     name. 'serif' is absent from the map on purpose: `--font-serif:
+     var(--font-serif)` on the same element is a circular reference, which
+     resolves to the guaranteed-invalid value and would drop the page to a
+     default face rather than leaving it alone. */
+  const pageHeadingFont = event.template_type === 'custom'
+    ? CUSTOM_HEADING_FONTS[td.customDesign?.headingFont]
+    : null;
+  /* Custom Canvas's own heading pick wins over the generic Heading Font: it is
+     the more specific control, it sits right next to the palette it belongs
+     with, and the settings screen hides the generic one for that template so
+     the two can never be set to different things on purpose. */
+  const pageStyleVars = (() => {
+    const vars = { ...(buildFontVars(event.custom_fonts) || {}) };
+    if (pageHeadingFont) vars['--font-serif'] = pageHeadingFont;
+    return Object.keys(vars).length ? vars : undefined;
+  })();
   const customCategoryMeta = customCategory ? CUSTOM_CATEGORY_BY_KEY[customCategory] : null;
   const isHonoreeCategory = customCategoryMeta?.kind === 'honoree';
   const isBabyShowerCategory = customCategoryMeta?.kind === 'babyShower';
@@ -374,6 +453,14 @@ export default function HeritageArchPage({
     {
       id: 'ha-hero',
       label: SECTION_LABELS['ha-hero'],
+      /* The cinematic heroes end on their own "Scroll down" cue, part of the
+         composition rather than page chrome. SnapShell also pins a fixed
+         "SCROLL TO RSVP" hint to the bottom of every screen, so the first
+         screen carried two scroll prompts — and on Velvet Ring, whose hero
+         runs past the fold, they landed on top of each other and neither was
+         readable. One cue per screen: the hero's own on this one, SnapShell's
+         from the next section down. */
+      ownScrollCue: !!CinematicHero,
       content: CinematicHero ? (
         <CinematicHero
           template={cinematic}
@@ -466,6 +553,7 @@ export default function HeritageArchPage({
         toggleMusic={toggleMusic}
         hasBackgroundMusic={hasBackgroundMusic}
         embedded={embedded}
+        styleVars={pageStyleVars}
       />
     </FullPageThemeProvider>
   );

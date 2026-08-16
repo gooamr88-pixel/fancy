@@ -32,7 +32,12 @@ function EventTimeCard({ startTime, endTime, isRTL }) {
       </div>
       <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
         <div style={{
-          fontFamily: 'var(--font-sans)', fontSize: '10.5px', fontWeight: 700,
+          // --fx-label, not a literal: it resolves LARGER as the viewport
+          // narrows (11.3px at 390, 10px on a desktop). A 10.5px uppercase
+          // label under 0.14em tracking is the size the dashboard's own
+          // reading-floor audit rejected — and this one is read by guests, on
+          // a phone, often by the oldest people invited.
+          fontFamily: 'var(--font-sans)', fontSize: 'var(--fx-label)', fontWeight: 700,
           letterSpacing: isRTL ? 'normal' : '0.14em', textTransform: isRTL ? 'none' : 'uppercase', color: C.gold,
         }}>
           {isRTL ? 'وقت الفعالية' : 'Event Time'}

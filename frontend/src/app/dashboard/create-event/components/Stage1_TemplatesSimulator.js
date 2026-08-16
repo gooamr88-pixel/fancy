@@ -88,14 +88,12 @@ function FloatingParticles() {
 
 /* ═══ Mobile Template Chip (horizontal carousel item) ═══ */
 function MobileTemplateChip({ template, isSelected, onSelect, preset }) {
-  /* Mini visual preview that hints at the template's unique look */
-  const chipVisual = {
-    // Same light cream chip as Wedding — Engagement is now a copy-only
-    // reskin of the same "serif" card, not the old dark luxury look.
-    engagement: { bg: 'linear-gradient(135deg, #FCFAF6 0%, #F5EDE0 100%)', accent: preset.primary, isDark: false },
-    wedding:    { bg: 'linear-gradient(135deg, #FCFAF6 0%, #F5EDE0 100%)', accent: preset.primary, isDark: false },
-    custom:     { bg: 'linear-gradient(135deg, #F8F4EB 0%, #F0EADA 100%)', accent: preset.primary, isDark: false },
-  }[template.key] || { bg: preset.background || '#FAF8F5', accent: preset.primary, isDark: false };
+  /* The template's own hero still, thumbnailed — the same artwork the desktop
+     card shows and the same frame the guest opens on. This used to be a
+     hand-drawn "mini card silhouette" over a per-key gradient, and the key map
+     it read still named 'wedding' and 'engagement', so every template added
+     since (both cinematic ones) fell through to the same untinted default. */
+  const poster = template.preview?.kind === 'poster' ? template.preview.src : null;
 
   return (
     <button
@@ -119,24 +117,33 @@ function MobileTemplateChip({ template, isSelected, onSelect, preset }) {
       {/* Visual preview strip */}
       <div style={{
         width: 56, flexShrink: 0,
-        background: chipVisual.bg,
+        background: poster ? '#15100d' : (preset.background || '#FAF8F5'),
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        gap: 3, padding: '8px 6px',
+        gap: 3, padding: poster ? 0 : '8px 6px',
         position: 'relative', overflow: 'hidden',
       }}>
-        {/* Mini card silhouette */}
-        <div style={{
-          width: 32, height: 42, borderRadius: 4,
-          border: `1px solid ${chipVisual.accent}${chipVisual.isDark ? '50' : '40'}`,
-          background: chipVisual.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.85)',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          gap: 2, padding: 3,
-        }}>
-          <div style={{ width: 14, height: 1, borderRadius: 1, background: chipVisual.accent, opacity: 0.5 }} />
-          <EventCategoryIcon name={template.key} size={9} color={chipVisual.accent} strokeWidth={1.6} />
-          <div style={{ width: 18, height: 1, borderRadius: 1, background: chipVisual.accent, opacity: 0.3 }} />
-          <div style={{ width: 10, height: 1, borderRadius: 1, background: chipVisual.accent, opacity: 0.2 }} />
-        </div>
+        {poster ? (
+          <img
+            src={poster} alt="" aria-hidden="true" loading="lazy"
+            style={{
+              position: 'absolute', inset: 0, width: '100%', height: '100%',
+              objectFit: 'cover', objectPosition: template.preview.position || '50% 50%',
+            }}
+          />
+        ) : (
+          /* Custom Canvas has no photography — its identity is the palette the
+             organizer picks, so the chip shows exactly that. */
+          <div style={{
+            width: 34, height: 44, borderRadius: 4,
+            border: `1px solid ${preset.primary}40`,
+            background: '#FFFFFF',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+          }}>
+            <span style={{ width: 20, height: 3, borderRadius: 2, background: preset.primary }} />
+            <span style={{ width: 20, height: 3, borderRadius: 2, background: preset.secondary }} />
+            <span style={{ width: 20, height: 3, borderRadius: 2, background: preset.background, border: `1px solid ${preset.primary}22` }} />
+          </div>
+        )}
       </div>
 
       {/* Text content */}
@@ -272,7 +279,18 @@ export default function Stage1_TemplatesSimulator({
   const simulatorEvent = useMemo(() => buildPreviewEvent({
     templateType,
     customColors: isCustom
-      ? { primary: customConfig?.primary, secondary: customConfig?.secondary, accent: customConfig?.accent }
+      /* `background` was missing here, and buildPalette() derives the page's
+         background, paper, cream and ink from it. So Custom Canvas's
+         Background swatch changed nothing in the phone beside it, then
+         changed the whole page once saved — the save path
+         (create-event/page.js's colour sync) has always sent it. The
+         organizer was tuning a control with no visible effect. */
+      ? {
+          primary: customConfig?.primary,
+          secondary: customConfig?.secondary,
+          accent: customConfig?.accent,
+          background: customConfig?.background,
+        }
       : activePresetColors,
     customConfig,
     templateData: {},
@@ -477,6 +495,9 @@ export default function Stage1_TemplatesSimulator({
                   index={i}
                   activePresetIndex={selectedPresets[tpl.key] || 0}
                   onPresetSelect={onPresetSelect}
+                  // Only Custom Canvas reads it: its card previews the live
+                  // builder config rather than a fixed piece of artwork.
+                  customConfig={customConfig}
                 />
               ))}
             </div>

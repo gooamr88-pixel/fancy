@@ -10,7 +10,14 @@ import { buildCalendarLinks } from '../../guest/GuestUI';
    a side dot-nav tracking which section is in view, a top-corner language
    pill, a bottom-corner music toggle (when the event has music), a floating
    "add to calendar" button, and a top scroll-progress bar. */
-export default function SnapShell({ sections, lang, setLang, isRTL, musicPlaying, toggleMusic, hasBackgroundMusic, event, embedded = false }) {
+export default function SnapShell({
+  sections, lang, setLang, isRTL, musicPlaying, toggleMusic, hasBackgroundMusic, event, embedded = false,
+  /* CSS custom properties for the whole page — today, Custom Canvas's chosen
+     heading face overriding --font-serif. Set on the scroll container rather
+     than on :root so it cannot leak out of the invitation into the dashboard
+     chrome around it in the organizer's preview. */
+  styleVars,
+}) {
   const C = useFullPageTheme();
   const reduceMotion = useReducedMotion();
   const containerRef = useRef(null);
@@ -102,6 +109,7 @@ export default function SnapShell({ sections, lang, setLang, isRTL, musicPlaying
         scrollBehavior: 'smooth',
         position: 'relative', background: C.background,
         fontFamily: 'var(--font-sans)',
+        ...styleVars,
       }}
     >
       {sections.map((s, i) => {
@@ -127,8 +135,14 @@ export default function SnapShell({ sections, lang, setLang, isRTL, musicPlaying
       })}
 
       {/* A single "scroll to RSVP" cue for the whole page — follows the guest
-          down and hides once they reach the RSVP section (the last one). */}
-      {activeIndex < sections.length - 1 && <ScrollToRsvpHint fixed isRTL={isRTL} />}
+          down, hides once they reach the RSVP section (the last one), and
+          stands down on any section that draws its own cue (the cinematic
+          heroes do; see `ownScrollCue` in HeritageArchPage). Without that
+          second condition the first screen showed two scroll prompts stacked
+          on the same spot. */}
+      {activeIndex < sections.length - 1 && !sections[activeIndex]?.ownScrollCue && (
+        <ScrollToRsvpHint fixed isRTL={isRTL} />
+      )}
 
       <LangPill lang={lang} setLang={setLang} isRTL={isRTL} />
       {hasBackgroundMusic && <MusicToggle playing={musicPlaying} onToggle={toggleMusic} isRTL={isRTL} />}
