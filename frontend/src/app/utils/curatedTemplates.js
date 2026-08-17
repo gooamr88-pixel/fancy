@@ -51,19 +51,25 @@
    re-introducing the generic card. */
 
 export const TEMPLATES = [
-  /* ── The cinematic pair ──────────────────────────────────────────────
-     Both run the same full-page engine, the same organizer-configured
+  /* ── The cinematic templates ─────────────────────────────────────────
+     All run the same full-page engine, the same organizer-configured
      sections and the same RSVP as everything else; what makes them their own
-     templates is the opening and the hero. A guest taps a velvet box or knocks
-     on a door, and the fold is photographic rather than stationery. See
-     components/templates/cinematic/.
+     templates is the opening and the hero. A guest taps a velvet box, knocks
+     on a door, or breaks a wax seal, and the fold is photographic rather than
+     stationery. See components/templates/cinematic/.
+
+     `tier` reads "Any occasion" on all of them, and that is the product
+     promise, not a slogan: a template is artwork now, and the organizer picks
+     wedding / engagement / birthday / anything else in Step 2. Each still has
+     a `defaultOccasion` in cinematicThemes.js for events created before the
+     picker existed.
 
      Their presets lead with the template's native palette, because that is
      the colour story the photography was shot in; the alternates are there
      for organizers who want to shift it, not because the first is a
      placeholder. */
   {
-    key: 'ring', label: 'Velvet Ring', tier: 'Engagement',
+    key: 'ring', label: 'Velvet Ring', tier: 'Any occasion',
     tagline: 'Cinematic · Velvet & Gold',
     desc: 'A velvet ring box on a darkened stage. Your guests touch it, the lid opens on film, and the invitation dissolves out of the light — then the whole page carries gold dust and drifting petals as they scroll.',
     // The video's own poster frame — the exact image a guest lands on.
@@ -73,11 +79,11 @@ export const TEMPLATES = [
       { name: 'Midnight Gold', primary: '#6b3b5a', secondary: '#e0c07d', accent: '#e0c07d', background: '#1d0f18' },
       { name: 'Deep Garnet', primary: '#7d2438', secondary: '#c9973f', accent: '#c9973f', background: '#25090c' },
     ],
-    specs: ['Cinematic Box Opening', 'Gold Dust & Petals Throughout', 'Arabic Display Typography', 'Interactive RSVP', 'Every Section Toggleable'],
-    fields: ['Partner Names', 'Proposal Story', 'Gift Registry'],
+    specs: ['Cinematic Box Opening', 'Gold Dust & Petals Throughout', 'Any Occasion You Choose', 'Arabic Display Typography', 'Every Section Toggleable'],
+    fields: ['Your Occasion', 'Names', 'Your Story', 'Gift Registry'],
   },
   {
-    key: 'bab', label: 'Door of Joy', tier: 'Wedding',
+    key: 'bab', label: 'Door of Joy', tier: 'Any occasion',
     tagline: 'Cinematic · Wood & Lilac',
     desc: 'A carved door your guests knock on three times — it answers, swings open on the light beyond, and doves lift from the garden gate behind your names. Blossom drifts down the page as they read.',
     preview: { kind: 'poster', src: '/templates/bab/door-poster.jpg', position: '50% 40%', tone: 'dark' },
@@ -86,8 +92,8 @@ export const TEMPLATES = [
       { name: 'Olive Courtyard', primary: '#5c6b4a', secondary: '#c9a45c', accent: '#7d8f66', background: '#f4f1e2' },
       { name: 'Rose Stone', primary: '#9c5a63', secondary: '#c9a45c', accent: '#c98a93', background: '#f8f2ea' },
     ],
-    specs: ['Knock-to-Enter Opening', 'Sound & Haptics', 'Living Hero Video', 'Arabic Display Typography', 'Every Section Toggleable'],
-    fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
+    specs: ['Knock-to-Enter Opening', 'Sound & Haptics', 'Living Hero Video', 'Any Occasion You Choose', 'Every Section Toggleable'],
+    fields: ['Your Occasion', 'Names', 'Your Story', 'Ceremony & Reception', 'Gift Registry'],
   },
   /* ── Swan Lake — the first template offered for two occasions ─────────
      An olive envelope with an ivory swan seal, opened on film; the embossed
@@ -96,7 +102,7 @@ export const TEMPLATES = [
      the kicker, tagline, invitation card and Groom's/Bride's Side labels all
      follow that one answer. See cinematic/cinematicThemes.js. */
   {
-    key: 'swans', label: 'Swan Lake', tier: 'Wedding & Engagement',
+    key: 'swans', label: 'Swan Lake', tier: 'Any occasion',
     tagline: 'Cinematic · Olive & Ivory',
     desc: 'An olive envelope engraved with foliage and sealed with ivory wax. Your guests break the seal, the flaps fall open, and an embossed card rises out — then the engraving fills with colour and becomes a painted lake with two swans.',
     preview: { kind: 'poster', src: '/templates/swans/envelope-poster.jpg', position: '50% 45%', tone: 'dark' },
@@ -105,8 +111,8 @@ export const TEMPLATES = [
       { name: 'Burgundy Calla', primary: '#5c2331', secondary: '#8b9070', accent: '#5c2331', background: '#f6f0e6' },
       { name: 'Still Water', primary: '#2f4550', secondary: '#7d8f7a', accent: '#2f4550', background: '#f4f2ea' },
     ],
-    specs: ['Wax-Seal Film Opening', 'Engraving Blooms Into Colour', 'Wedding or Engagement', 'Arabic Display Typography', 'Every Section Toggleable'],
-    fields: ['Partner Names', 'Your Story', 'Ceremony & Reception', 'Gift Registry'],
+    specs: ['Wax-Seal Film Opening', 'Engraving Blooms Into Colour', 'Any Occasion You Choose', 'Arabic Display Typography', 'Every Section Toggleable'],
+    fields: ['Your Occasion', 'Names', 'Your Story', 'Ceremony & Reception', 'Gift Registry'],
   },
   {
     key: 'custom', label: 'Custom Canvas', tier: 'Build your own',

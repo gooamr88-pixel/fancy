@@ -1,5 +1,6 @@
 import { WEDDING_VARIANT_TEMPLATES } from './templateFamilies';
 import { getCinematicTemplate, getCinematicOccasion } from '../components/templates/cinematic/cinematicThemes';
+import { CUSTOM_CATEGORY_BY_KEY } from './customEventCategories';
 
 /* ═══════════════════════════════════════════════════════════════
    InvitationCard data, derived from a saved event.
@@ -85,17 +86,27 @@ export function buildInvitationCardData(event, isRTL) {
     return { names, monogram, dateLine, venueLine, venueName, venueAddress, ceremonyLine, receptionLine, coverImageUrl };
   }
 
-  /* A template that serves both occasions needs one of the two card copies
-     that already exist below, not a third arm of its own — "at the marriage
-     of" and "at the engagement of" are written down twice already, and a
-     third copy is a third place for them to drift.
+  /* Which card copy this event gets is decided by its OCCASION, not by which
+     artwork was picked — a birthday on Velvet Ring must not print "at the
+     engagement of".
 
-     Only `occasion: 'both'` templates are remapped. Everything else, cinematic
-     or not, keeps its own key: Velvet Ring is an engagement whatever an event
-     row happens to carry in custom_category. */
+     Only the 'couple' occasions are remapped, and that restriction is
+     load-bearing. A `case 'birthday'` arm already exists below and reads
+     `td.celebrant` / `td.age`, whereas the occasion catalogue's 'birthday'
+     writes `custom_honoree` / `custom_milestone` — routing the occasion to
+     that arm by name would render a card with every field blank. Everything
+     that is not a couple falls to the `default:` arm, which builds from
+     `event.title`; that is what Custom Canvas has always done and it works
+     for all of them. */
   const cinematic = getCinematicTemplate(event?.template_type);
-  const cardKey = cinematic?.occasion === 'both'
-    ? getCinematicOccasion(cinematic, td)
+  const occasion = getCinematicOccasion(cinematic, td);
+  /* Scoped to the cinematic templates, which are the ones that gained an
+     occasion. Every other key keeps resolving exactly as it did — Custom
+     Canvas included, so its card is not quietly re-pointed by this change.
+     `null` rather than the string 'default': no `case` matches it, which is
+     how it reaches the default arm. */
+  const cardKey = cinematic
+    ? (CUSTOM_CATEGORY_BY_KEY[occasion]?.kind === 'couple' ? occasion : null)
     : event?.template_type;
 
   switch (cardKey) {

@@ -9,13 +9,12 @@ import { extractYouTubeId, checkYouTubeEmbeddable } from '../../utils/youtube';
 import RepeatableListEditor from './RepeatableListEditor';
 import ConfirmGuestNotifyModal from './ConfirmGuestNotifyModal';
 import Icon from '../../components/icons/Icon';
-import EventCategoryIcon from '../../components/icons/EventCategoryIcon';
 import TagListEditor, { toTagArray } from './TagListEditor';
 import InvitationReveal, { REVEAL_TONES } from '../../components/guest/InvitationReveal';
 import VelvetBoxOpening from '../../components/guest/openings/VelvetBoxOpening';
 import KnockDoorOpening from '../../components/guest/openings/KnockDoorOpening';
 import WaxEnvelopeOpening from '../../components/guest/openings/WaxEnvelopeOpening';
-import { getCinematicTemplate, getCinematicOccasion } from '../../components/templates/cinematic/cinematicThemes';
+import { getCinematicOccasion } from '../../components/templates/cinematic/cinematicThemes';
 import { preloadRevealAssets } from '../../components/guest/revealAssets';
 import ImageUploadField from './ImageUploadField';
 import DaysEditor from '../create-event/components/DaysEditor';
@@ -27,7 +26,9 @@ import { getTemplateOpening } from '../../utils/templateOpening';
 import { buildPalette } from '../../components/templates/heritageArch/theme';
 import TemplateCard from '../create-event/components/TemplateCard';
 import PreviewFrame from '../../components/templates/PreviewFrame';
-import { CUSTOM_CATEGORIES, CUSTOM_CATEGORY_BY_KEY } from '../../utils/customEventCategories';
+import { CUSTOM_CATEGORY_BY_KEY } from '../../utils/customEventCategories';
+import { resolveOccasion } from '../../utils/eventOccasion';
+import OccasionPicker from '../../components/OccasionPicker';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -43,12 +44,6 @@ const CINEMATIC_OPENINGS = {
   waxEnvelope: WaxEnvelopeOpening,
 };
 
-/* The two choices a dual-occasion template offers. Filtered from the shared
-   catalogue so the keys written to `custom_category` here are the same ones
-   the wizard writes — see DUAL_OCCASION_CATEGORIES in
-   create-event/components/Stage2_FormConfiguration.js. */
-const DUAL_OCCASION_CATEGORIES = CUSTOM_CATEGORIES
-  .filter((c) => c.key === 'wedding' || c.key === 'engagement');
 
 // Templates rendered as the full-page snap-scroll guest experience — the
 // wedding-style templates, engagement and custom (corporate/birthday/gala
@@ -67,15 +62,10 @@ const FULL_PAGE_TEMPLATE_KEYS = [
 ];
 const isFullPage = (t) => FULL_PAGE_TEMPLATE_KEYS.includes(t);
 
-// Curated templates that use the couple/partner fields — matches
-// WEDDING_STYLE_TEMPLATE_KEYS in Stage2_FormConfiguration.js.
-const WEDDING_STYLE_TEMPLATE_KEYS = [
-  'wedding', 'tuscany', 'marrakesh', 'kyoto', 'nordic', 'havana',
-  'estate', 'roseAtelier', 'orchid', 'clay', 'alpine', 'coastal', 'heritageArch',
-  // Door of Joy. Velvet Ring ('ring') is an engagement and gets its couple
-  // fields through the same path 'engagement' does.
-  'bab',
-];
+/* No WEDDING_STYLE_TEMPLATE_KEYS here any more. It existed to answer "does
+   this template use the couple fields?", which is now the occasion's `kind`,
+   and the per-template wedding fallback it also served moved into the one
+   shared resolver — see utils/eventOccasion.js. */
 
 const DRESS_CODES = ['', 'Black Tie', 'Cocktail Attire', 'Semi-Formal', 'Business Casual', 'Smart Casual', 'Casual', 'Festive', 'Traditional'];
 
@@ -1093,30 +1083,36 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
   const statusActionable = ['active', 'paused', 'completed'].includes(currentStatus);
   const statusColor = statusColors[currentStatus] || statusColors.active;
 
-  // Same gating the wizard uses (WEDDING_STYLE_TEMPLATE_KEYS, or Custom with a
-  // couple-kind category) — governs Partner Names/Love Story/Ceremony &
-  // Reception in the Content tab. Falls back to the coarser event_type when no
-  // template_type is set yet (older events saved before this field existed).
+  // Falls back to the coarser event_type when no template_type is set yet
+  // (older events saved before that field existed).
   const effectiveTemplateType = form.template_type || (form.event_type === 'wedding' ? 'wedding' : '');
-  const customCategoryMeta = CUSTOM_CATEGORY_BY_KEY[templateData.custom_category] || null;
-  /* Swan Lake serves both occasions and asks which in the wizard's Step 2.
-     The same question has to be answerable here, or an organizer who picked
-     the wrong one at creation can never change it — and the answer drives the
-     invitation wording and the Groom's/Bride's Side labels, not just a
-     heading. Defaults to wedding, matching Stage2 and getCinematicOccasion. */
-  const isDualOccasion = getCinematicTemplate(effectiveTemplateType)?.occasion === 'both';
-  const occasionChoice = isDualOccasion ? (templateData.custom_category || 'wedding') : '';
-  const showCoupleFields = WEDDING_STYLE_TEMPLATE_KEYS.includes(effectiveTemplateType)
-    || (effectiveTemplateType === 'custom' && customCategoryMeta?.kind === 'couple')
-    // 'ring' is Velvet Ring, the cinematic engagement — same Partner 1/2
-    // fields as the base Engagement template, so it has to be asked for here
-    // too or the couple's names have no edit surface after creation.
-    || effectiveTemplateType === 'engagement' || effectiveTemplateType === 'ring'
-    // Swan Lake collects the couple on both occasions.
-    || isDualOccasion
-    // Legacy fallback: events saved before `template_type` existed, where
-    // `effectiveTemplateType` above is '' and only `event_type` says engagement.
-    || (!form.template_type && form.event_type === 'engagement');
+  /* The occasion, for ANY template — the same question the wizard's Step 2
+     asks. It has to be answerable here too, or an organizer who picked the
+     wrong one at creation could never change it, and the answer drives the
+     invitation's wording and the Groom's/Bride's Side labels, not just a
+     heading. Unanswered falls to the template's own default, so an event
+     created before the picker existed resolves exactly as it always did. */
+  const occasionChoice = resolveOccasion(effectiveTemplateType, templateData)
+    /* Events saved before `template_type` existed, where `effectiveTemplateType`
+       is '' and only the coarse event_type names the occasion. */
+    || (!form.template_type && CUSTOM_CATEGORY_BY_KEY[form.event_type] ? form.event_type : '');
+  const occasionMeta = CUSTOM_CATEGORY_BY_KEY[occasionChoice] || null;
+  // Which fields show is decided by the occasion's `kind`, for every template.
+  const showCoupleFields = occasionMeta?.kind === 'couple';
+
+  /* The retired continuous-scroll TEMPLATES (Corporate, Birthday, Gala) have
+     their own content blocks below — celebrant/age, company/agenda, honoree/
+     program. Those were gated on `event_type`, which was safe only while
+     event_type could not disagree with the artwork.
+
+     It can now: an organizer who picks Birthday as the OCCASION on Velvet Ring
+     gets `event_type: 'birthday'`, and the old gate would have rendered the
+     legacy celebrant/age fields alongside the occasion's own honoree fields —
+     two inputs for one name, writing to different keys, on the same screen.
+     Gating on the template key confines them to events actually created as
+     one of those templates. */
+  const isLegacyCategoryTemplate = (key) => form.template_type === key
+    || (!form.template_type && form.event_type === key);
   const isCustomTemplate = effectiveTemplateType === 'custom';
 
   /* ─── Colour palette ───
@@ -1368,15 +1364,16 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           </div>
         </div>
 
-        {/* Hidden for a dual-occasion template, which asks the same question
-            more specifically in Content ("wedding or engagement?") and writes
-            this field from that answer. Two controls for one decision is how
-            you end up with an invitation that says "engagement" while the
-            guest list says "Groom's Side" — the same reasoning that hides the
-            generic Heading Font for Custom Canvas. */}
-        {!isDualOccasion && (
+        {/* The coarse Event Type select is gone from every template that has
+            an occasion picker in Content — which is now all of them. It asked
+            the same question with six blunt answers, and two controls for one
+            decision is how you end up with an invitation that says
+            "engagement" while the guest list says "Groom's Side". The picker
+            writes `event_type` itself. Kept only for a legacy row that has no
+            template_type at all, where nothing else can set it. */}
+        {!form.template_type && (
           <div style={fieldGroupStyle}>
-            <label style={labelStyle}>Event Type / Template</label>
+            <label style={labelStyle}>Event Type</label>
             <select value={form.event_type} onChange={handleChange('event_type')} style={{ ...inputStyle, cursor: 'pointer' }}>
               <option value="wedding">Wedding</option>
               <option value="corporate">Corporate Event</option>
@@ -2102,98 +2099,43 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           </span>
         </h3>
 
-        {isCustomTemplate && (
-          <div style={{ marginBottom: 18 }}>
-            <label style={labelStyle}>What kind of event is this?</label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 10 }}>
-              {CUSTOM_CATEGORIES.map(({ key, label }) => {
-                const active = templateData.custom_category === key;
-                return (
-                  <button key={key} type="button"
-                    onClick={() => { setTemplateData(prev => ({ ...prev, custom_category: key })); setSuccess(false); }}
-                    style={{
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
-                      padding: '10px 6px', borderRadius: 10, cursor: 'pointer',
-                      border: `1.5px solid ${active ? COLORS.gold : COLORS.border}`,
-                      background: active ? 'rgba(184,148,79,0.08)' : COLORS.white,
-                    }}>
-                    <EventCategoryIcon name={key} size={17} color={active ? COLORS.gold : COLORS.stone} />
-                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: active ? COLORS.gold : COLORS.stone, textAlign: 'center' }}>{label}</span>
-                  </button>
-                );
-              })}
-            </div>
-            <p style={{ fontSize: 'var(--fx-micro)', color: '#A09A91', margin: '8px 0 0', fontFamily: 'var(--font-sans)', lineHeight: 1.55 }}>
-              Shapes the fields below and the name/tagline on your guest page — change it any time.
-            </p>
-          </div>
-        )}
+        {/* Every template, and the same control the wizard shows. Settable
+            only at creation would freeze a decision that drives the
+            invitation's wording and the guest-side labels, not a heading. */}
+        <OccasionPicker
+          value={occasionChoice}
+          onChange={(key) => {
+            setTemplateData(prev => ({ ...prev, custom_category: key }));
+            /* event_type moves WITH the choice. It is what the side labels,
+               meal selection, the RSVP wizard and the CSV export all read —
+               none of which knows a template key — so leaving it behind would
+               show "Groom's Side" on a birthday. Mirrors deriveEventType()
+               in create-event/page.js. */
+            setForm(prev => ({ ...prev, event_type: key }));
+            setSuccess(false);
+          }}
+          labelStyle={labelStyle}
+          hintStyle={hintStyle}
+        />
 
-        {/* The same question Stage 2 asks for a dual-occasion template (Swan
-            Lake), asked again here. Without it the choice would be settable
-            once during creation and then permanently frozen — and it decides
-            the invitation's own wording and whether guest sides read Groom's/
-            Bride's, so it is not a cosmetic heading. Writes the SAME
-            `custom_category` key the block above does. */}
-        {isDualOccasion && (
-          <div style={{ marginBottom: 18 }}>
-            <label style={labelStyle}>Is this a wedding or an engagement?</label>
-            <div className="es-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              {DUAL_OCCASION_CATEGORIES.map(({ key, label }) => {
-                const active = occasionChoice === key;
-                return (
-                  <button key={key} type="button"
-                    onClick={() => {
-                      setTemplateData(prev => ({ ...prev, custom_category: key }));
-                      /* event_type moves WITH the choice. It is what the side
-                         labels, meal selection, the RSVP wizard and the CSV
-                         export all read — none of which know a template key —
-                         so leaving it behind would show "Groom's Side" on an
-                         event whose invitation says engagement. Mirrors
-                         deriveEventType() in create-event/page.js. */
-                      setForm(prev => ({ ...prev, event_type: key }));
-                      setSuccess(false);
-                    }}
-                    style={{
-                      // flexWrap is load-bearing: two tiles in a 1fr 1fr grid
-                      // on a 320px screen leave ~140px a cell, and an icon +
-                      // "Engagement" on one unbreakable line is what pushes
-                      // the whole settings page sideways. See mobileFit.test.js.
-                      display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 8,
-                      padding: '13px 10px', borderRadius: 10, cursor: 'pointer',
-                      border: `1.5px solid ${active ? COLORS.gold : COLORS.border}`,
-                      background: active ? 'rgba(184,148,79,0.08)' : COLORS.white,
-                    }}>
-                    <EventCategoryIcon name={key} size={17} color={active ? COLORS.gold : COLORS.stone} />
-                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 600, color: active ? COLORS.gold : COLORS.stone }}>{label}</span>
-                  </button>
-                );
-              })}
-            </div>
-            <p style={{ fontSize: 'var(--fx-micro)', color: '#A09A91', margin: '8px 0 0', fontFamily: 'var(--font-sans)', lineHeight: 1.55 }}>
-              Sets the wording on your invitation and how guest sides are labelled. The artwork is the same either way.
-            </p>
-          </div>
-        )}
-
-        {isCustomTemplate && customCategoryMeta?.kind === 'honoree' && (
+        {occasionMeta?.kind === 'honoree' && (
           <div className="es-row" style={rowStyle}>
             <div style={fieldGroupStyle}>
-              <label style={labelStyle}>{customCategoryMeta.honoreeLabel}</label>
+              <label style={labelStyle}>{occasionMeta.honoreeLabel}</label>
               <input value={templateData.custom_honoree} onChange={(e) => setTemplateData(prev => ({ ...prev, custom_honoree: e.target.value }))}
-                placeholder={customCategoryMeta.honoreePlaceholder} style={inputStyle} />
-              {customCategoryMeta.honoreeHint && <span style={hintStyle}>{customCategoryMeta.honoreeHint}</span>}
+                placeholder={occasionMeta.honoreePlaceholder} style={inputStyle} />
+              {occasionMeta.honoreeHint && <span style={hintStyle}>{occasionMeta.honoreeHint}</span>}
             </div>
             <div style={fieldGroupStyle}>
-              <label style={labelStyle}>{customCategoryMeta.milestoneLabel}</label>
+              <label style={labelStyle}>{occasionMeta.milestoneLabel}</label>
               <input value={templateData.custom_milestone} onChange={(e) => setTemplateData(prev => ({ ...prev, custom_milestone: e.target.value }))}
-                placeholder={customCategoryMeta.milestonePlaceholder} style={inputStyle} />
-              {customCategoryMeta.milestoneHint && <span style={hintStyle}>{customCategoryMeta.milestoneHint}</span>}
+                placeholder={occasionMeta.milestonePlaceholder} style={inputStyle} />
+              {occasionMeta.milestoneHint && <span style={hintStyle}>{occasionMeta.milestoneHint}</span>}
             </div>
           </div>
         )}
 
-        {isCustomTemplate && templateData.custom_category === 'babyShower' && (
+        {occasionMeta?.kind === 'babyShower' && (
           <>
             <div style={fieldGroupStyle}>
               <label style={labelStyle}>Parent(s)-to-be</label>
@@ -2454,7 +2396,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           </div>
         )}
 
-        {form.event_type === 'corporate' && (
+        {isLegacyCategoryTemplate('corporate') && (
           <div style={{ marginTop: '16px', padding: '16px', background: COLORS.softBg, borderRadius: '8px', border: `1px solid ${COLORS.border}` }}>
             <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: 600, color: COLORS.charcoal }}>Corporate Template Details</h4>
             <div style={fieldGroupStyle}>
@@ -2527,7 +2469,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           </div>
         )}
 
-        {form.event_type === 'birthday' && (
+        {isLegacyCategoryTemplate('birthday') && (
           <div style={{ marginTop: '16px', padding: '16px', background: COLORS.softBg, borderRadius: '8px', border: `1px solid ${COLORS.border}` }}>
             <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: 600, color: COLORS.charcoal }}>Birthday Template Details</h4>
             <div className="es-row" style={rowStyle}>
@@ -2551,7 +2493,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           </div>
         )}
 
-        {form.event_type === 'gala' && (
+        {isLegacyCategoryTemplate('gala') && (
           <div style={{ marginTop: '16px', padding: '16px', background: COLORS.softBg, borderRadius: '8px', border: `1px solid ${COLORS.border}` }}>
             <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: 600, color: COLORS.charcoal }}>Gala Template Details</h4>
             <div style={fieldGroupStyle}>

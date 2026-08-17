@@ -29,9 +29,34 @@ const slugify = (text) => {
  * Derive a base slug from event details, preferring the most identifying names
  * per template type (e.g. couple names for weddings) and falling back to title.
  */
+/* The occasion an organizer picked, mapped to the field that best names the
+   event. A template is artwork now, not an occasion, so a birthday on Velvet
+   Ring must slug from the celebrant rather than from a couple who do not
+   exist. Mirrors `kind` in frontend utils/customEventCategories.js — kept as a
+   small local map rather than an import because the backend has no build step
+   that could share that module. */
+const OCCASION_SLUG_SOURCE = {
+  couple: (td) => [td.partner1, td.partner2].filter(Boolean).join('-'),
+  honoree: (td) => td.custom_honoree,
+  babyShower: (td) => td.custom_baby_name || td.custom_parents,
+};
+const COUPLE_OCCASIONS = new Set(['wedding', 'engagement', 'vowRenewal']);
+const BABY_OCCASIONS = new Set(['babyShower']);
+
 const deriveBaseSlug = ({ title, templateType, templateData = {} } = {}) => {
   const td = templateData || {};
   let source;
+
+  /* The organizer's own answer wins over whatever the template implies. Only
+     when they have not answered does the per-template guess below apply. */
+  const occasion = td.custom_category;
+  if (occasion) {
+    const kind = COUPLE_OCCASIONS.has(occasion) ? 'couple'
+      : BABY_OCCASIONS.has(occasion) ? 'babyShower'
+      : 'honoree';
+    const named = OCCASION_SLUG_SOURCE[kind](td);
+    if (named) return slugify(named) || slugify(title) || `event-${Date.now().toString(36)}`;
+  }
 
   switch (templateType) {
     case 'wedding':

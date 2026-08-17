@@ -1,0 +1,1444 @@
+<!doctype html><html lang="en" dir="ltr"><head><meta charset="utf-8">
+<base href="file:///C:/Users/yousef amr/Desktop/fancy/fancy/frontend/public/"><style>
+  *,*::before,*::after { box-sizing: border-box; }
+  :root {
+    --font-aref: 'Traditional Arabic','Amiri',serif; --font-amiri: 'Traditional Arabic','Amiri',serif;
+    --font-messiri: 'Segoe UI'; --font-reem: 'Segoe UI'; --font-tajawal: 'Segoe UI';
+    --font-cormorant: Georgia; --font-sans: 'Segoe UI'; --font-serif: Georgia;
+    --fx-micro: 11px; --fx-gap: 10px; --fx-gap-sm: 8px;
+  }
+  html,body { margin:0; padding:0; height:100%; background:#f8f4e9; }
+  /* The two fx- primitives OccasionPicker composes with, copied from
+     globals.css so the dump lays out as the product does. */
+  .fx-grid { display:grid; gap:var(--fx-gap,10px);
+    grid-template-columns:repeat(auto-fit,minmax(min(var(--fx-col,280px),100%),1fr)); min-width:0; }
+  .fx-grid--fill { grid-template-columns:repeat(auto-fill,minmax(min(var(--fx-col,280px),100%),1fr)); }
+  .fx-grid--gap-sm { --fx-gap: var(--fx-gap-sm); }
+  .fx-break { overflow-wrap:anywhere; word-break:break-word; }
+</style><style>/* ═══════════════════════════════════════════════════════════════════════════
+   CINEMATIC TEMPLATES — openings, heroes, and the page-wide motion layer
+   for Velvet Ring (engagement), Door of Joy (wedding) and Swan Lake
+   (either — the organizer chooses in Step 2).
+
+   ── Why this is a stylesheet and not <style jsx> ─────────────────────────
+   All three of styled-jsx's silent failure modes documented in
+   frontend/AGENTS.md apply to this code: several of these classes sit on
+   framer-motion elements (styled-jsx only stamps its hash onto lowercase
+   intrinsics), the openings render their pieces from nested helper
+   components (a scoped rule never crosses a render function), and the
+   particle spans are created imperatively by the FX pool and so never carry
+   a jsx- hash at all. Every one of those fails by producing NO styling
+   rather than an error.
+
+   ── Why the cine- prefix ─────────────────────────────────────────────────
+   The source templates named their particle layer `.fx-layer` and its
+   children `.fx`, `.fx-petal`, `.fx-spark`. In this codebase `fx-` is
+   already taken: globals.css owns it for the responsive primitives
+   (.fx-section, .fx-grid, .fx-container …). Importing those names verbatim
+   would have collided silently in both directions. Everything here is
+   `cine-`, which is unused anywhere else in the tree.
+
+   ── Theming ──────────────────────────────────────────────────────────────
+   No colour is hard-coded per template. Each root sets the custom
+   properties below inline (see cinematicThemes.js), so one set of rules
+   serves both templates and any future one:
+
+     --cine-deep --cine-mid --cine-hi     ground, three depths
+     --cine-gold --cine-gold-hi --cine-gold-dp   metal, three tones
+     --cine-accent --cine-text            secondary accent, text on ground
+     --cine-display --cine-serif --cine-label --cine-body --cine-latin  type
+
+   Sizes stay in this file because they are the composition, not the theme.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════
+   1. PARTICLE POOL — one fixed layer, transform/opacity only
+   ═══════════════════════════════════════════════════════ */
+
+.cine-fx {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* Positioned from --x/--y and animated toward --tx/--ty, both written by the
+   pool as inline custom properties. Animating a translate() of custom
+   properties (rather than top/left) keeps every particle on the compositor. */
+.cine-p {
+  position: absolute;
+  top: 0;
+  left: 0;
+  will-change: transform, opacity;
+}
+
+.cine-p--twinkle {
+  width: 10px;
+  height: 10px;
+  background:
+    linear-gradient(var(--cine-gold-hi), var(--cine-gold-hi)) center / 2px 100% no-repeat,
+    linear-gradient(var(--cine-gold-hi), var(--cine-gold-hi)) center / 100% 2px no-repeat;
+  filter: drop-shadow(0 0 5px rgba(var(--cine-gold-hi-rgb), 0.9));
+  animation: cine-twinkle 0.7s ease-out forwards;
+}
+
+@keyframes cine-twinkle {
+  0%   { opacity: 0; transform: translate(var(--x), var(--y)) scale(0.2) rotate(0deg); }
+  25%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--x), var(--y)) scale(1) rotate(90deg); }
+}
+
+.cine-p--spark {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, var(--cine-gold-hi), var(--cine-gold) 60%, transparent 75%);
+  animation: cine-spark 1.15s cubic-bezier(0.16, 0.6, 0.4, 1) forwards;
+}
+
+@keyframes cine-spark {
+  0%   { opacity: 1; transform: translate(var(--x), var(--y)) scale(1); }
+  100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(0.15); }
+}
+
+.cine-p--petal {
+  width: 14px;
+  height: 12px;
+  background: radial-gradient(ellipse 70% 100% at 50% 0%, var(--cine-blush, #f8ccd6), var(--cine-accent) 70%);
+  border-radius: 80% 4px 80% 80%;
+  animation: cine-petal linear forwards;
+}
+
+@keyframes cine-petal {
+  0%   { opacity: 0; transform: translate(var(--x), var(--y)) rotate(0deg); }
+  10%  { opacity: 0.95; }
+  100% { opacity: 0; transform: translate(var(--tx), var(--ty)) rotate(280deg); }
+}
+
+/* Glyph petals (Door of Joy) — a typographic flower rather than a drawn one,
+   coloured per-particle by the pool so a single drift reads as mixed blooms. */
+.cine-p--bloom {
+  line-height: 1;
+  animation: cine-petal linear forwards;
+}
+
+.cine-p--heart {
+  width: 13px;
+  height: 12px;
+  background: var(--cine-accent);
+  clip-path: path("M6.5 12 L1.2 6.4 A3.4 3.4 0 0 1 6.5 2.2 A3.4 3.4 0 0 1 11.8 6.4 Z");
+  animation: cine-heart 1.2s cubic-bezier(0.16, 0.6, 0.4, 1) forwards;
+}
+
+@keyframes cine-heart {
+  0%   { opacity: 1; transform: translate(var(--x), var(--y)) scale(0.4); }
+  30%  { transform: translate(calc(var(--x) + (var(--tx) - var(--x)) * 0.4), calc(var(--y) + (var(--ty) - var(--y)) * 0.4)) scale(1.1); }
+  100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(0.6) rotate(-14deg); }
+}
+
+/* ── Ambient dust: declarative, not pooled ──
+   These eight never expire, so routing them through the pool would burn
+   eight of its forty live slots permanently and leave the interactive
+   bursts starved. They are plain looping spans instead. */
+.cine-dust {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.cine-dust span {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--cine-gold-hi) 0%, transparent 70%);
+  opacity: 0;
+  animation: cine-mote 11s linear infinite;
+}
+
+.cine-dust span:nth-child(1) { left: 12%; top: 22%; animation-delay: 0s; }
+.cine-dust span:nth-child(2) { left: 82%; top: 30%; animation-delay: 1.8s; }
+.cine-dust span:nth-child(3) { left: 28%; top: 62%; animation-delay: 3.4s; width: 3px; height: 3px; }
+.cine-dust span:nth-child(4) { left: 66%; top: 74%; animation-delay: 5s; }
+.cine-dust span:nth-child(5) { left: 46%; top: 40%; animation-delay: 6.4s; width: 3px; height: 3px; }
+.cine-dust span:nth-child(6) { left: 90%; top: 58%; animation-delay: 7.8s; }
+.cine-dust span:nth-child(7) { left: 6%;  top: 78%; animation-delay: 9s; width: 5px; height: 5px; }
+.cine-dust span:nth-child(8) { left: 58%; top: 14%; animation-delay: 4.2s; width: 3px; height: 3px; }
+
+@keyframes cine-mote {
+  0%   { transform: translate3d(0, 14px, 0); opacity: 0; }
+  12%  { opacity: 0.9; }
+  55%  { opacity: 0.55; }
+  100% { transform: translate3d(10px, -46px, 0); opacity: 0; }
+}
+
+/* ═══════════════════════════════════════════════════════
+   2. OPENING SHELL — shared by both openings
+   ═══════════════════════════════════════════════════════ */
+
+.cine-open {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  overflow: hidden;
+  background: var(--cine-deep);
+  /* Swallows scroll gestures while the opening holds the screen, so the page
+     underneath cannot be scrolled out from behind it. Cheaper and far less
+     invasive than reaching into SnapShell's scroll container to lock it. */
+  touch-action: none;
+  overscroll-behavior: contain;
+  transition: opacity 1s ease 0.1s, visibility 0s linear 1.2s;
+}
+
+.cine-open.is-done {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* The whole screen is the target. A cover you have to aim at is a cover
+   people fail to open. */
+.cine-open__tap {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.cine-open.is-playing .cine-open__tap {
+  cursor: default;
+  pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════════════
+   3. VELVET RING OPENING — a box that opens onto a ring
+   ═══════════════════════════════════════════════════════ */
+
+.cine-ring__scene {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+.cine-ring.is-arming .cine-ring__scene {
+  transform: scale(1.07) translateY(1.4%);
+  transition: transform 0.8s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.cine-ring__plate {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cine-ring__closed {
+  animation: cine-kenburns 16s ease-in-out infinite alternate;
+}
+
+@keyframes cine-kenburns {
+  from { transform: scale(1); }
+  to   { transform: scale(1.075) translateY(-1.2%); }
+}
+
+.cine-ring__open { opacity: 0; }
+
+/* Transparent until it actually plays: the container's own poster background
+   keeps the scene visible the entire time, so a video that never loads is a
+   still frame rather than a black rectangle. */
+.cine-ring__video {
+  opacity: 0;
+  background: transparent;
+}
+
+.cine-ring.is-playing .cine-ring__video { opacity: 1; transition: opacity 0.35s ease; }
+.cine-ring.is-playing .cine-ring__closed { animation: none; }
+.cine-ring.is-revealed .cine-ring__closed { opacity: 0; transition: opacity 0.5s ease; animation: none; }
+
+.cine-ring.is-revealed .cine-ring__open {
+  opacity: 1;
+  transition: opacity 0.45s ease;
+  animation: cine-breathe 9s ease-in-out infinite alternate;
+}
+
+@keyframes cine-breathe {
+  from { transform: scale(1.02); }
+  to   { transform: scale(1.09) translateY(-1%); }
+}
+
+/* Crossed highlights firing off the stone once it is revealed. */
+.cine-ring__glints {
+  position: absolute;
+  z-index: 3;
+  left: 49%;
+  top: 52%;
+  width: 100px;
+  height: 100px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.cine-ring__glint {
+  position: absolute;
+  display: block;
+  width: 15px;
+  height: 15px;
+  background:
+    linear-gradient(#fff, #fff) center / 2px 100% no-repeat,
+    linear-gradient(#fff, #fff) center / 100% 2px no-repeat;
+  filter: drop-shadow(0 0 5px var(--cine-gold-hi));
+  opacity: 0;
+  transform: scale(0.2) rotate(0deg);
+}
+
+.cine-ring__glint:nth-child(1) { top: 12px; left: 30px; }
+.cine-ring__glint:nth-child(2) { top: 40px; right: 12px; width: 11px; height: 11px; }
+.cine-ring__glint:nth-child(3) { top: 58px; left: 16px; width: 10px; height: 10px; }
+
+.cine-ring.is-revealed .cine-ring__glint:nth-child(1) { animation: cine-glint 2.4s ease-in-out 0.8s infinite; }
+.cine-ring.is-revealed .cine-ring__glint:nth-child(2) { animation: cine-glint 2.4s ease-in-out 1.6s infinite; }
+.cine-ring.is-revealed .cine-ring__glint:nth-child(3) { animation: cine-glint 2.4s ease-in-out 2.2s infinite; }
+
+@keyframes cine-glint {
+  0%, 60%, 100% { opacity: 0; transform: scale(0.2) rotate(0deg); }
+  8%            { opacity: 1; transform: scale(1) rotate(45deg); }
+  16%           { opacity: 0; transform: scale(0.3) rotate(90deg); }
+}
+
+/* Motes drifting inside the beam of light over the box. */
+.cine-ring__beam {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.cine-ring__beam span {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--cine-gold-hi) 0%, transparent 70%);
+  opacity: 0;
+  animation: cine-mote 9s linear infinite;
+}
+
+.cine-ring__beam span:nth-child(1)  { left: 46%; top: 18%; animation-delay: 0s;   animation-duration: 8s; }
+.cine-ring__beam span:nth-child(2)  { left: 53%; top: 30%; animation-delay: 1.2s; animation-duration: 10s; }
+.cine-ring__beam span:nth-child(3)  { left: 42%; top: 42%; animation-delay: 2.4s; animation-duration: 9s; }
+.cine-ring__beam span:nth-child(4)  { left: 60%; top: 26%; animation-delay: 3.1s; animation-duration: 11s; }
+.cine-ring__beam span:nth-child(5)  { left: 38%; top: 58%; animation-delay: 4s;   animation-duration: 8.5s; }
+.cine-ring__beam span:nth-child(6)  { left: 65%; top: 52%; animation-delay: 5.2s; animation-duration: 10.5s; width: 3px; height: 3px; }
+.cine-ring__beam span:nth-child(7)  { left: 49%; top: 66%; animation-delay: 6s;   animation-duration: 9.5s; width: 5px; height: 5px; }
+.cine-ring__beam span:nth-child(8)  { left: 56%; top: 12%; animation-delay: 2s;   animation-duration: 12s; width: 3px; height: 3px; }
+.cine-ring__beam span:nth-child(9)  { left: 34%; top: 34%; animation-delay: 7s;   animation-duration: 9s; }
+.cine-ring__beam span:nth-child(10) { left: 68%; top: 40%; animation-delay: 0.6s; animation-duration: 10s; width: 3px; height: 3px; }
+
+/* Warm bloom acknowledging the tap, before anything else has had time to
+   happen — the touch has to feel answered even on a slow connection. */
+.cine-ring__tapglow {
+  position: absolute;
+  z-index: 6;
+  left: 50%;
+  top: 56%;
+  width: 320px;
+  height: 260px;
+  transform: translate(-50%, -50%) scale(0.6);
+  background: radial-gradient(ellipse at center, rgba(255, 225, 160, 0.6), rgba(255, 225, 160, 0.16) 55%, transparent 75%);
+  opacity: 0;
+  filter: blur(6px);
+  pointer-events: none;
+}
+
+.cine-ring.is-arming .cine-ring__tapglow {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+  transition: opacity 0.5s ease, transform 0.65s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.cine-ring.is-revealed .cine-ring__tapglow { opacity: 0; transition: opacity 0.4s ease; }
+
+/* Bridges the two stills when the video path is unavailable: a gold blowout
+   covers the swap, so the fallback reads as a camera flash rather than a cut. */
+.cine-ring__flash {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  background: radial-gradient(ellipse 85% 65% at 50% 55%,
+    #fff8e8, var(--cine-gold-hi) 45%, rgba(255, 214, 150, 0.9) 68%, rgba(255, 190, 120, 0.55) 100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cine-ring.is-flash .cine-ring__flash { opacity: 1; transition: opacity 0.32s ease-in; }
+.cine-ring.is-revealed .cine-ring__flash { opacity: 0; transition: opacity 0.75s ease-out; }
+
+/* Copy sits in the dark upper third of the photograph, where the beam is not. */
+.cine-ring__ui {
+  position: absolute;
+  z-index: 20;
+  top: max(44px, calc(env(safe-area-inset-top, 0px) + 28px));
+  left: 0;
+  right: 0;
+  text-align: center;
+  padding: 0 22px;
+  pointer-events: none;
+}
+
+/* Without this the names drown in the light beam on brighter displays. */
+.cine-ring__ui::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: -34px;
+  left: 50%;
+  width: min(96vw, 460px);
+  height: calc(100% + 70px);
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse 50% 52% at 50% 46%, rgba(38, 12, 6, 0.62), rgba(38, 12, 6, 0.34) 62%, transparent 78%);
+  filter: blur(14px);
+}
+
+.cine-ring__latin {
+  margin: 0 0 4px;
+  font-family: var(--cine-latin);
+  font-style: italic;
+  font-size: 17px;
+  /* Latin-only by construction — this slot never holds Arabic, so the wide
+     tracking that would shatter Arabic letterforms is safe here. */
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: rgba(255, 233, 176, 0.8);
+  text-shadow: 0 1px 8px rgba(20, 4, 2, 0.75);
+}
+
+.cine-ring__kicker {
+  margin: 0 0 2px;
+  font-family: var(--cine-label);
+  font-size: 18px;
+  color: var(--cine-gold-hi);
+  text-shadow: 0 1px 4px rgba(20, 4, 2, 0.9), 0 2px 14px rgba(20, 4, 2, 0.7);
+}
+
+.cine-ring__names {
+  margin: 0;
+  font-family: var(--cine-display);
+  font-size: clamp(27px, 7.6vw, 46px);
+  line-height: 1.5;
+  background: linear-gradient(180deg, #fff3d6, #ecc27c 55%, #c89a4e);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 2px 5px rgba(20, 4, 2, 0.8)) drop-shadow(0 4px 18px rgba(20, 4, 2, 0.55));
+}
+
+.cine-ring__hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin: 14px 0 0;
+  font-family: var(--cine-body);
+  font-size: 14.5px;
+  color: #fff3d6;
+  text-shadow: 0 1px 4px rgba(20, 4, 2, 0.9), 0 2px 12px rgba(20, 4, 2, 0.7);
+  animation: cine-hint 2.4s ease-in-out infinite;
+}
+
+.cine-ring__hintring {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--cine-gold);
+  box-shadow: 0 0 8px rgba(var(--cine-gold-rgb), 0.7);
+}
+
+@keyframes cine-hint {
+  0%, 100% { opacity: 0.75; transform: translateY(0); }
+  50%      { opacity: 1; transform: translateY(-3px); }
+}
+
+/* The hint survives the loading state (where it becomes "preparing the
+   scene…") and leaves only once something visibly happens. */
+.cine-ring.is-playing .cine-ring__hint,
+.cine-ring.is-flash .cine-ring__hint,
+.cine-ring.is-revealed .cine-ring__hint {
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+/* ═══════════════════════════════════════════════════════
+   4. DOOR OF JOY OPENING — knock three times
+   ═══════════════════════════════════════════════════════ */
+
+.cine-door { cursor: pointer; }
+
+.cine-door__vid {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.16s ease;
+}
+
+/* The door takes the knock. 1.2% is small enough to read as impact rather
+   than as a zoom. */
+.cine-door.is-knocked .cine-door__vid { transform: scale(1.012); }
+
+.cine-door__veil {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(76, 58, 40, 0.08) 0%, transparent 30%, rgba(76, 58, 40, 0.4) 100%);
+}
+
+.cine-door__taps {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+
+/* Expands from wherever the finger actually landed, not from a fixed point —
+   which is what makes the knock feel located on the door. */
+.cine-door__ripple {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  border-radius: 50%;
+  border: 2px solid rgba(240, 224, 180, 0.95);
+  box-shadow: 0 0 18px rgba(240, 224, 180, 0.65);
+  animation: cine-ripple 0.7s ease-out forwards;
+}
+
+@keyframes cine-ripple {
+  0%   { opacity: 1; transform: scale(0.6); }
+  100% { opacity: 0; transform: scale(3.4); }
+}
+
+.cine-door__ui {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 6.5vh;
+  z-index: 5;
+  text-align: center;
+  padding: 0 24px;
+  pointer-events: none;
+  transition: opacity 0.5s ease, transform 0.6s ease;
+}
+
+.cine-door.is-playing .cine-door__ui { opacity: 0; transform: translateY(18px); }
+
+.cine-door__names {
+  font-family: var(--cine-display);
+  font-weight: 700;
+  font-size: clamp(2rem, 9vw, 3.2rem);
+  color: #fff;
+  text-shadow: 0 3px 18px rgba(76, 58, 40, 0.75);
+  margin: 0 0 14px;
+  opacity: 0;
+  animation: cine-fadeup 1.1s 0.4s forwards;
+}
+
+.cine-door__hint {
+  font-family: var(--cine-serif);
+  font-weight: 700;
+  font-size: clamp(1.02rem, 3.8vw, 1.25rem);
+  color: #fdf7e7;
+  text-shadow: 0 2px 12px rgba(76, 58, 40, 0.8);
+  margin: 0;
+  opacity: 0;
+  animation: cine-fadeup 1s 0.7s forwards;
+}
+
+.cine-door__knocks {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 14px;
+  opacity: 0;
+  animation: cine-fadeup 1s 0.9s forwards;
+}
+
+.cine-door__dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 1.6px solid rgba(253, 247, 231, 0.85);
+  background: transparent;
+  box-shadow: 0 1px 8px rgba(76, 58, 40, 0.5);
+  transition: background 0.25s ease, transform 0.25s ease;
+}
+
+.cine-door__dot.is-hit {
+  background: var(--cine-gold-hi);
+  border-color: var(--cine-gold-hi);
+  transform: scale(1.25);
+  box-shadow: 0 0 14px rgba(240, 224, 180, 0.9);
+}
+
+@keyframes cine-fadeup {
+  to { opacity: 1; transform: none; }
+}
+
+/* ═══════════════════════════════════════════════════════
+   5. HEROES
+   ═══════════════════════════════════════════════════════ */
+
+.cine-hero {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100lvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.cine-hero__inner {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.cine-hero__name { display: block; padding: 0.16em 0.1em; }
+
+/* Deliberately quiet: a hairline outline in the template's own metal, sized
+   well below the date and the names. It is a utility offered at the end of
+   the hero, not a call to action competing with it. */
+.cine-hero__save {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: clamp(14px, 2.6vw, 20px);
+  padding: 11px 24px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(var(--cine-gold-rgb), 0.55);
+  background: rgba(var(--cine-gold-rgb), 0.12);
+  color: var(--cine-gold-hi);
+  font-family: var(--cine-body);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.cine-hero__save:hover { transform: translateY(-1px); background: rgba(var(--cine-gold-rgb), 0.2); }
+.cine-hero__save:active { transform: translateY(0) scale(0.98); }
+.cine-hero__save:disabled { cursor: default; opacity: 0.75; }
+
+/* The Door of Joy hero is light at its foot, so gold-on-glass loses contrast
+   there; its own darker wood tone carries the label instead. */
+.cine-dhero .cine-hero__save { color: var(--cine-deep); background: rgba(255, 255, 255, 0.62); }
+
+.cine-hero__save-spin {
+  width: 15px;
+  height: 15px;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-radius: 50%;
+  display: inline-block;
+  animation: cine-spin 0.8s linear infinite;
+}
+
+@keyframes cine-spin {
+  to { transform: rotate(360deg); }
+}
+
+.cine-hero__cue {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-top: 24px;
+  font-family: var(--cine-label);
+  color: var(--cine-gold-hi);
+  text-shadow: 0 1px 8px rgba(20, 4, 2, 0.6);
+}
+
+.cine-hero__cue-label {
+  font-size: clamp(13px, 3.4vw, 14px);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.cine-hero__cue-arrow {
+  font-size: 20px;
+  line-height: 1;
+  animation: cine-bob 1.8s ease-in-out infinite;
+}
+
+@keyframes cine-bob {
+  0%, 100% { transform: translateY(0); opacity: 0.85; }
+  50%      { transform: translateY(7px); opacity: 1; }
+}
+
+/* ── Velvet Ring hero ── */
+
+.cine-vhero {
+  justify-content: flex-start;
+  padding: clamp(84px, 13vh, 132px) 8px 46px;
+}
+
+/* Full-bleed regardless of the page's own max-width, dissolving into the
+   velvet ground at its foot so the photograph has no visible bottom edge. */
+.cine-vhero__scene {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  bottom: 0;
+  /* `inset-inline: 0` rather than the old `left: 50%; width: 100vw;
+     translateX(-50%)`. 100vw counts the scrollbar gutter but the scroll
+     container's content box does not, so the photograph sat half a
+     scrollbar-width past each edge on every desktop — real horizontal
+     overflow, invisible only because SnapShell clips it. The hero is already
+     the full width of that container (nothing here imposes a max-width), so
+     0/0 is both full-bleed and exact. */
+  inset-inline: 0;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+/* The scrim carries more than atmosphere here. This photograph's subject — the
+   open box, lit from above — sits dead centre, which is exactly where the
+   tagline, the date and the save button land. Left as a gentle bottom fade
+   they read as text accidentally dropped on top of the box.
+   Deepening the middle band turns that half of the frame into a ground the
+   type sits ON rather than a subject it covers, and it still resolves into
+   the velvet at the foot so the section below joins seamlessly. */
+.cine-vhero__scene::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg,
+    rgba(var(--cine-deep-rgb), 0.34) 0%,
+    rgba(var(--cine-deep-rgb), 0.14) 30%,
+    rgba(var(--cine-deep-rgb), 0.58) 58%,
+    rgba(var(--cine-deep-rgb), 0.88) 84%,
+    var(--cine-deep) 99%);
+}
+
+.cine-vhero::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 16%;
+  left: 50%;
+  width: min(92vw, 540px);
+  height: 320px;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at 50% 40%, rgba(255, 225, 170, 0.2), rgba(80, 30, 18, 0.1) 55%, transparent 75%);
+  filter: blur(10px);
+  pointer-events: none;
+}
+
+.cine-vhero__latin {
+  margin: 0 0 2px;
+  font-family: var(--cine-latin);
+  font-style: italic;
+  font-size: 17px;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: rgba(255, 233, 176, 0.8);
+}
+
+.cine-vhero__kicker {
+  margin: 0 0 10px;
+  font-family: var(--cine-label);
+  font-size: clamp(16px, 4.4vw, 20px);
+  color: #fff3d6;
+  text-shadow: 0 1px 4px rgba(20, 4, 2, 0.9), 0 2px 14px rgba(20, 4, 2, 0.7);
+}
+
+.cine-vhero__names {
+  margin: 4px 0 10px;
+  font-family: var(--cine-display);
+  font-weight: 700;
+  font-size: clamp(40px, 12vw, 72px);
+  line-height: 1.45;
+  background: linear-gradient(175deg, var(--cine-gold-hi) 15%, var(--cine-gold) 45%, var(--cine-gold-dp) 62%, var(--cine-gold-hi) 88%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 26px rgba(255, 210, 150, 0.4)) drop-shadow(0 3px 6px rgba(20, 4, 10, 0.6));
+}
+
+.cine-vhero__amp {
+  display: block;
+  font-size: 0.42em;
+  color: var(--cine-blush);
+  -webkit-text-fill-color: var(--cine-blush);
+  margin: 2px 0;
+}
+
+.cine-vhero__sub {
+  margin: 0;
+  font-family: var(--cine-body);
+  font-size: clamp(15px, 4.2vw, 18px);
+  color: var(--cine-text);
+  opacity: 0.95;
+  text-shadow: 0 1px 8px rgba(20, 4, 2, 0.6);
+}
+
+.cine-vhero__date {
+  margin: 14px 0 0;
+  font-family: var(--cine-label);
+  font-size: clamp(16px, 4.6vw, 21px);
+  color: var(--cine-gold-hi);
+  text-shadow: 0 1px 8px rgba(20, 4, 2, 0.6);
+}
+
+/* Tap it for a burst of hearts. Deliberately undiscoverable — a small reward
+   for the guests who poke at things, costing nothing to the ones who don't. */
+.cine-vhero__emblem {
+  position: absolute;
+  z-index: 4;
+  top: clamp(64px, 12vh, 110px);
+  inset-inline-start: 14px;
+  width: 52px;
+  height: 58px;
+  padding: 6px;
+  background: radial-gradient(circle at 50% 40%, rgba(255, 233, 176, 0.16), rgba(255, 233, 176, 0.03) 70%);
+  border: 1px solid rgba(var(--cine-gold-rgb), 0.5);
+  border-radius: 50%;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  animation: cine-float 4.2s ease-in-out infinite;
+  transition: transform 0.25s ease;
+}
+
+.cine-vhero__emblem:active { transform: scale(0.9); }
+.cine-vhero__emblem svg { width: 100%; height: 100%; }
+
+@keyframes cine-float {
+  0%, 100% { transform: translateY(0) rotate(-4deg); }
+  50%      { transform: translateY(-8px) rotate(4deg); }
+}
+
+.cine-vhero__photo {
+  width: clamp(122px, 34vw, 178px);
+  aspect-ratio: 1 / 1;
+  margin: 8px auto 16px;
+  border-radius: 50%;
+  padding: 5px;
+  background: conic-gradient(from 20deg, var(--cine-gold-hi), var(--cine-gold), var(--cine-gold-dp), var(--cine-gold), var(--cine-gold-hi));
+  box-shadow: 0 0 0 1px rgba(255, 233, 176, 0.4), 0 16px 36px rgba(10, 2, 6, 0.55);
+  animation: cine-photoin 0.9s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.cine-vhero__photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 3px solid var(--cine-deep);
+  display: block;
+}
+
+@keyframes cine-photoin {
+  from { opacity: 0; transform: scale(0.86); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* ── Door of Joy hero ── */
+
+.cine-dhero {
+  justify-content: center;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+.cine-dhero__vid {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+  opacity: 0;
+  transition: opacity 1s ease;
+}
+
+/* Held back until the first real frame has decoded, so the poster is never
+   replaced by a black rectangle mid-scroll. */
+.cine-dhero__vid.is-ready { opacity: 1; }
+
+/* Two stops added to the source's four. Its own footage is dusk-lit; ours is
+   a courtyard at midday, the brightest frame in either template, and a veil
+   that goes fully transparent across the middle 36% leaves the kicker, the
+   date and the scroll cue with nothing behind them. These bands sit under
+   exactly those three and are weak enough that the doves and the archway
+   still read as full-strength photography. */
+.cine-dhero__veil {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(180deg,
+    rgba(40, 30, 20, 0.42) 0%,
+    rgba(40, 30, 20, 0.26) 18%,
+    rgba(40, 30, 20, 0.08) 34%,
+    rgba(40, 30, 20, 0.10) 58%,
+    rgba(40, 30, 20, 0.34) 80%,
+    rgba(40, 30, 20, 0.52) 100%);
+}
+
+.cine-dhero__inner { padding: 9vh 24px; margin-top: -4vh; }
+
+/* Two shadows, not one. The doorway behind this is a sunlit courtyard — the
+   brightest photograph either template uses — and a single soft glow (which
+   is all the darker Velvet Ring stage needs) leaves pale gold text sitting on
+   pale stone with almost no separation. The tight, near-opaque shadow does
+   the legibility work; the wide one keeps it from looking stamped on. */
+.cine-dhero__kicker {
+  font-family: var(--cine-label);
+  font-size: 0.88rem;
+  color: var(--cine-gold-hi);
+  margin: 0 0 14px;
+  text-shadow: 0 1px 3px rgba(30, 22, 14, 0.95), 0 2px 16px rgba(30, 22, 14, 0.8);
+}
+
+.cine-dhero__orn {
+  display: block;
+  color: var(--cine-accent);
+  font-size: 22px;
+  margin-bottom: 12px;
+  text-shadow: 0 1px 10px rgba(40, 30, 20, 0.7);
+}
+
+.cine-dhero__names {
+  font-family: var(--cine-display);
+  font-weight: 700;
+  line-height: 1.06;
+  color: #fdf6e3;
+  font-size: clamp(2.8rem, 13vw, 5.6rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0;
+  text-shadow: 0 3px 20px rgba(40, 30, 20, 0.85), 0 0 40px rgba(240, 224, 180, 0.45);
+}
+
+.cine-dhero__amp {
+  font-family: var(--cine-serif);
+  font-style: italic;
+  color: var(--cine-gold);
+  font-size: 0.42em;
+  margin: 4px 0;
+  text-shadow: 0 2px 12px rgba(40, 30, 20, 0.8);
+}
+
+.cine-dhero__date {
+  font-family: var(--cine-label);
+  font-weight: 600;
+  font-size: clamp(1rem, 3.4vw, 1.2rem);
+  color: var(--cine-gold-hi);
+  margin: 18px 0 0;
+  text-shadow: 0 2px 12px rgba(40, 30, 20, 0.9);
+}
+
+.cine-dhero__sub {
+  font-family: var(--cine-serif);
+  font-style: italic;
+  font-weight: 700;
+  font-size: clamp(1.05rem, 3.2vw, 1.35rem);
+  color: #f6ecd8;
+  margin: 8px 0 0;
+  text-shadow: 0 1px 3px rgba(30, 22, 14, 0.95), 0 2px 14px rgba(30, 22, 14, 0.8);
+}
+
+/* A pill of shadow rather than a solid chip — legible over the moving video
+   without stamping a hard rectangle onto the photography. */
+.cine-dhero .cine-hero__cue {
+  font-family: var(--cine-serif);
+  font-weight: 700;
+  color: #fdf3da;
+  margin-top: 34px;
+  padding: 8px 26px;
+  border-radius: 24px;
+  /* Denser and reaching further than the source's, for the same reason as the
+     kicker above: this cue lands on sunlit paving, the lightest part of the
+     frame. Still a soft pool rather than a chip, so it reads as shade on the
+     photograph instead of a UI panel dropped onto it. */
+  background: radial-gradient(72% 140% at 50% 45%, rgba(30, 22, 14, 0.62), transparent 78%);
+  text-shadow: 0 1px 3px rgba(30, 22, 14, 0.95), 0 2px 14px rgba(30, 22, 14, 0.85);
+}
+
+.cine-dhero .cine-hero__cue-arrow { color: var(--cine-gold-hi); }
+
+/* ═══════════════════════════════════════════════════════
+   5b. SWAN LAKE OPENING — a wax seal broken on film
+   ═══════════════════════════════════════════════════════ */
+
+.cine-swan__scene {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+/* Gentler than Velvet Ring's 1.07. The envelope fills the frame edge to edge
+   and its engraved border runs close to it, so a harder push crops the
+   foliage the cover is made of. */
+.cine-swan.is-arming .cine-swan__scene {
+  transform: scale(1.045);
+  transition: transform 0.9s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.cine-swan__plate {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Very slow, and very slight. This is paper under a raking light, not a
+   landscape — the drift only has to prove the cover is alive. */
+.cine-swan__sealed { animation: cine-swan-breathe 20s ease-in-out infinite alternate; }
+
+@keyframes cine-swan-breathe {
+  from { transform: scale(1); }
+  to   { transform: scale(1.04) translateY(-0.6%); }
+}
+
+.cine-swan__card { opacity: 0; }
+
+/* Transparent until it actually plays: the sealed plate behind keeps the
+   scene visible the whole time, so a video that never loads is a still
+   photograph rather than a black rectangle. */
+.cine-swan__video {
+  opacity: 0;
+  background: transparent;
+}
+
+.cine-swan.is-playing .cine-swan__video { opacity: 1; transition: opacity 0.4s ease; }
+.cine-swan.is-playing .cine-swan__sealed { animation: none; }
+.cine-swan.is-revealed .cine-swan__sealed { opacity: 0; transition: opacity 0.5s ease; animation: none; }
+
+.cine-swan.is-revealed .cine-swan__card {
+  opacity: 1;
+  transition: opacity 0.5s ease;
+}
+
+/* Bridges the two stills when the video path is unavailable. Ivory, not the
+   gold blowout Velvet Ring uses: on an olive-and-cream cover a gold flash
+   reads as a different template's light. This reads as paper catching a
+   lamp. */
+.cine-swan__bloom {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  background: radial-gradient(ellipse 90% 70% at 50% 45%,
+    #fffdf6, var(--cine-gold-hi) 48%, rgba(232, 220, 192, 0.82) 72%, rgba(206, 196, 165, 0.5) 100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cine-swan.is-bloom .cine-swan__bloom { opacity: 1; transition: opacity 0.36s ease-in; }
+.cine-swan.is-revealed .cine-swan__bloom { opacity: 0; transition: opacity 0.8s ease-out; }
+
+/* Rolls the corners off so the envelope sits in a space rather than being
+   pasted over the viewport. Deliberately weak — the engraving is shallow and
+   a heavy vignette flattens it. */
+.cine-swan__vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background: radial-gradient(ellipse 78% 66% at 50% 45%, transparent 52%, rgba(30, 30, 18, 0.34) 100%);
+}
+
+/* ── The copy sits at the FOOT of the cover, never across it ──────────────
+   The whole face of this envelope is the artwork: an embossed seal at the
+   optical centre with engraved foliage running to all four edges. Every
+   other cinematic opening has a dark upper third to write into; this one has
+   none, and type laid over the middle covers the one thing worth looking at.
+   So the names live in a scrim along the bottom, and the top two-thirds of
+   the photograph are left completely alone. */
+.cine-swan__ui {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 84px 22px max(28px, calc(env(safe-area-inset-bottom, 0px) + 22px));
+  text-align: center;
+  pointer-events: none;
+  background: linear-gradient(180deg,
+    rgba(38, 40, 22, 0) 0%,
+    rgba(38, 40, 22, 0.48) 58%,
+    rgba(32, 34, 18, 0.74) 100%);
+}
+
+.cine-swan__kicker {
+  margin: 0 0 6px;
+  font-family: var(--cine-label);
+  font-size: clamp(13px, 3.6vw, 16px);
+  letter-spacing: 0.04em;
+  color: var(--cine-gold-hi);
+  text-shadow: 0 1px 4px rgba(24, 26, 12, 0.9);
+}
+
+.cine-swan__names {
+  margin: 0;
+  font-family: var(--cine-display);
+  font-size: clamp(25px, 7vw, 40px);
+  line-height: 1.5;
+  color: var(--cine-text);
+  text-shadow: 0 1px 4px rgba(24, 26, 12, 0.85), 0 2px 16px rgba(24, 26, 12, 0.6);
+}
+
+.cine-swan__hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  margin: 12px 0 0;
+  font-family: var(--cine-body);
+  font-size: clamp(13px, 3.6vw, 14.5px);
+  color: #f4f0e0;
+  text-shadow: 0 1px 4px rgba(24, 26, 12, 0.9);
+  animation: cine-hint 2.4s ease-in-out infinite;
+}
+
+/* Two hairlines rather than Velvet Ring's ring glyph — an engraved envelope's
+   own vocabulary is the rule and the border, not jewellery. */
+.cine-swan__hintrule {
+  width: clamp(24px, 8vw, 42px);
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(var(--cine-gold-hi-rgb), 0.75));
+}
+
+.cine-swan__hintrule:last-child { transform: scaleX(-1); }
+
+/* Survives the loading state (where it reads "preparing the scene…") and
+   leaves only once something visibly happens. */
+.cine-swan.is-playing .cine-swan__hint,
+.cine-swan.is-bloom .cine-swan__hint,
+.cine-swan.is-revealed .cine-swan__hint {
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+/* The scrim itself lifts on reveal, so the last thing on screen before the
+   cross-fade is the embossed card alone. */
+.cine-swan.is-revealed .cine-swan__ui {
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+
+/* ═══════════════════════════════════════════════════════
+   5c. SWAN LAKE HERO — the engraving fills with colour
+   ═══════════════════════════════════════════════════════ */
+
+.cine-shero {
+  justify-content: flex-start;
+  /* What shows under the masked foot of the photograph. Matches the
+     template's own paper so the join is invisible; the sections below derive
+     the same value through buildPalette. */
+  background: #f8f4e9;
+}
+
+.cine-shero__scene {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  bottom: 0;
+  /* `inset-inline: 0`, exactly as .cine-vhero__scene above — and for both of
+     its reasons plus one this template found the hard way.
+
+     1. 100vw counts the scrollbar gutter but the scroll container's content
+        box does not, so a `left: 50%; width: 100vw; translateX(-50%)` photo
+        sits half a scrollbar-width past each edge on every desktop.
+     2. That form ALSO has to be written as `inset: 0` + `left: 50%`, which
+        leaves `right: 0` in force — an over-constrained absolute box. The
+        spec resolves that by ignoring one of the two, and which one depends
+        on `direction`: LTR drops `right`, RTL drops `left`. So the Arabic
+        hero put the photograph at [-195, 195] of a 390px screen — half the
+        frame bare, the names pushed off the edge — while English was fine.
+        Caught by the screenshot pass; nothing in jsdom can see it.
+
+     The hero is already the full width of its container (nothing here imposes
+     a max-width), so 0/0 is both full-bleed and exact. */
+  inset-inline: 0;
+  background-position: center 42%;
+  background-size: cover;
+  background-repeat: no-repeat;
+  /* Dissolves into the page ground at its foot, so the photograph has no
+     visible bottom edge and the first section feels like the same place. */
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 86%, rgba(0, 0, 0, 0.7) 92%, rgba(0, 0, 0, 0.28) 97%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 86%, rgba(0, 0, 0, 0.7) 92%, rgba(0, 0, 0, 0.28) 97%, transparent 100%);
+  /* The bloom. Filter is delayed slightly behind the scale so the picture
+     starts growing and THEN takes colour, which reads as the engraving
+     coming to life rather than as a crossfade. */
+  transition:
+    transform 2.2s cubic-bezier(0.22, 0.68, 0.3, 1),
+    filter 2.4s ease 0.25s;
+}
+
+/* The arrival state: the embossed ivory card the opening dissolved from, at
+   the size it was when it left the envelope.
+
+   `transition: none` is load-bearing. Without it the element animates INTO
+   the embossed state on mount — the guest would watch a coloured photograph
+   drain of colour behind the cover, and the bloom would then have nothing
+   left to do. The transition above applies only on the way out.
+
+   The un-embossed state is the DEFAULT, not a class, so a browser that
+   freezes transitions or a render that never reaches the effect shows the
+   correct finished hero rather than a grey one. */
+.cine-shero.is-embossed .cine-shero__scene {
+  transform: scale(0.92);
+  filter: saturate(0.05) sepia(0.42) brightness(1.08) contrast(0.94);
+  transition: none;
+}
+
+/* Olive paper around the shrunken card, exactly as the envelope's own ground
+   surrounds it in the final frame of the film. */
+.cine-shero.is-embossed { background: var(--cine-hi); }
+
+.cine-shero__inner {
+  flex: 1;
+  justify-content: flex-start;
+  padding: clamp(28px, 7vh, 60px) 22px max(26px, calc(env(safe-area-inset-bottom, 0px) + 20px));
+}
+
+/* Everything from the date down is pushed to the foot of the frame, leaving
+   the lake, the gazebo and the swans in the middle of the composition
+   uncovered. */
+.cine-shero__date { margin-top: auto; }
+
+/* The upper third of this photograph is sky — pale blue and white cloud — so
+   the type there is INK, not light. No scrim, no halo: dark letterforms on a
+   bright sky are the most legible thing on the page and any glow behind them
+   would only muddy the painting. */
+.cine-shero__kicker {
+  margin: 0 0 10px;
+  font-family: var(--cine-label);
+  font-size: clamp(13px, 3.8vw, 16px);
+  letter-spacing: 0.05em;
+  /* Darker than it looks like it needs to be. At clamp()'s low end this is
+     13px of Arabic or small caps over a pale sky, and the mid-green it used
+     to be read as a watermark rather than as a line of type. */
+  color: #24361f;
+  text-shadow: 0 1px 8px rgba(248, 244, 233, 0.85);
+}
+
+.cine-shero__names {
+  margin: 0;
+  font-family: var(--cine-display);
+  font-weight: 700;
+  font-size: clamp(34px, 12vw, 62px);
+  line-height: 1.45;
+  color: #1c2b17;
+}
+
+.cine-shero__amp {
+  display: block;
+  font-family: var(--cine-display);
+  font-weight: 400;
+  font-size: clamp(20px, 7vw, 34px);
+  line-height: 1.2;
+  margin: 2px 0 4px;
+  color: #5f6b45;
+}
+
+/* ── The one line that has to survive a moving background ─────────────────
+   The names sit on open sky and need nothing. This line sits roughly where
+   the sky meets the treeline — and WHERE exactly depends on the viewport's
+   aspect ratio, so there is no fixed colour that works: over cloud it wants
+   ink, over cypress it wants light. In the screenshot pass its first half
+   vanished into the trees on both languages.
+
+   So it carries its own ground: a soft pool of the template's own paper,
+   widest where the text is and gone by the edges. It brightens whatever is
+   behind the words without ever reading as a panel dropped on the painting —
+   the same device as Door of Joy's scroll cue, inverted for a light hero. */
+.cine-shero__sub {
+  margin: 10px 0 0;
+  padding: 6px 26px;
+  font-family: var(--cine-serif);
+  font-size: clamp(14px, 4vw, 18px);
+  line-height: 1.9;
+  color: #24361f;
+  background: radial-gradient(68% 130% at 50% 50%, rgba(248, 244, 233, 0.82), rgba(248, 244, 233, 0) 76%);
+  text-shadow: 0 1px 6px rgba(248, 244, 233, 0.95);
+}
+
+.cine-shero__photo {
+  width: clamp(96px, 30vw, 132px);
+  height: clamp(96px, 30vw, 132px);
+  margin: 16px 0 4px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid rgba(255, 253, 246, 0.86);
+  box-shadow: 0 10px 26px rgba(40, 46, 24, 0.32);
+}
+
+.cine-shero__photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* ── The foot of the frame ────────────────────────────────────────────────
+   Below the sky the photograph is water, foliage and white orchids — light,
+   dark and light again within a few hundred pixels, which no single text
+   colour survives. These sit on a soft pool of shade instead, ending well
+   above the masked edge so the two never fight. */
+.cine-shero::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 46%;
+  pointer-events: none;
+  background: linear-gradient(180deg,
+    rgba(30, 38, 20, 0) 0%,
+    rgba(30, 38, 20, 0.3) 46%,
+    rgba(26, 33, 16, 0.6) 84%,
+    rgba(26, 33, 16, 0.52) 100%);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 82%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 82%, transparent 100%);
+}
+
+.cine-shero__date {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 2px;
+  font-family: var(--cine-serif);
+  font-size: clamp(14px, 4vw, 18px);
+  line-height: 1.9;
+  color: #fbf8ec;
+  text-shadow: 0 1px 3px rgba(20, 24, 10, 0.85), 0 2px 14px rgba(20, 24, 10, 0.7);
+}
+
+.cine-shero__rule {
+  flex: 0 0 auto;
+  width: clamp(22px, 7vw, 46px);
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(251, 248, 236, 0.6));
+}
+
+.cine-shero__rule:last-child { transform: scaleX(-1); }
+
+/* Ivory glass rather than gold, for the same reason Door of Joy overrides
+   this: the foot of the frame is light and gold-on-glass loses contrast. */
+.cine-shero .cine-hero__save {
+  color: #24361f;
+  background: rgba(255, 253, 246, 0.72);
+  border-color: rgba(255, 253, 246, 0.85);
+}
+
+.cine-shero .cine-hero__save:hover { background: rgba(255, 253, 246, 0.86); }
+
+.cine-shero .cine-hero__cue {
+  font-family: var(--cine-serif);
+  color: #eae5cd;
+  margin-top: clamp(14px, 3vw, 26px);
+  text-shadow: 0 1px 3px rgba(20, 24, 10, 0.9);
+}
+
+.cine-shero .cine-hero__cue-arrow { color: var(--cine-gold-hi); }
+
+/* No .cine-shero__emblem. Velvet Ring's corner mark works because its stage
+   is a dark empty room; this photograph has callas hanging into both top
+   corners and a treeline down both edges, and the same mark was invisible
+   against them. See the note in SwanLakeHero.js. */
+
+/* ═══════════════════════════════════════════════════════
+   6. RESPONSIVE
+   Note the 768px literal: the source used 760px, which is off this
+   codebase's four-value breakpoint scale and would fail the allowlist
+   grep in frontend/AGENTS.md. The composition is unaffected.
+   ═══════════════════════════════════════════════════════ */
+
+@media (min-width: 768px) {
+  .cine-ring__names { font-size: 48px; }
+  .cine-ring__glints { left: 49.5%; top: 54%; }
+  .cine-vhero__emblem { inset-inline-start: -70px; top: 34vh; }
+  /* The envelope is a 9:16 plate. Past the phone it is being cropped hard on
+     the long axis, so the copy scrim can afford to sit lower and narrower and
+     leave more of the engraving showing. */
+  .cine-swan__ui { padding-bottom: 40px; }
+  .cine-shero__names { font-size: 62px; }
+  .cine-shero::after { height: 38%; }
+  /* `cover` on a wider box crops more off the vertical, which pushed the two
+     swans — the subject — down behind the bottom scrim. Shifting the window
+     down lifts them back into open water above it, and there is enough sky at
+     this width to give up the few percent at the top. */
+  .cine-shero__scene { background-position: center 52%; }
+}
+
+/* ═══════════════════════════════════════════════════════
+   7. REDUCED MOTION
+   The opening still opens and the hero still reads — only the perpetual
+   motion stops. A guest who asks for less motion should not be handed a
+   page that fails to reveal itself.
+   ═══════════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  .cine-ring__closed,
+  .cine-ring.is-revealed .cine-ring__open,
+  .cine-ring__hint,
+  .cine-hero__cue-arrow,
+  .cine-vhero__emblem,
+  .cine-vhero__photo,
+  .cine-door__names,
+  .cine-door__hint,
+  .cine-door__knocks,
+  .cine-swan__sealed,
+  .cine-swan__hint {
+    animation: none !important;
+  }
+
+  /* The bloom is the one piece of motion here that is not decoration — it is
+     how the hero arrives. SwanLakeHero already renders the finished picture
+     outright under this preference (it never sets is-embossed), so there is
+     nothing to animate; killing the transition as well means a stray
+     re-render cannot reintroduce a 2.2s scale on a photograph that fills the
+     screen. */
+  .cine-shero__scene { transition: none !important; }
+
+  .cine-ring__beam,
+  .cine-dust,
+  .cine-fx {
+    display: none;
+  }
+
+  .cine-door__names,
+  .cine-door__hint,
+  .cine-door__knocks {
+    opacity: 1;
+  }
+
+  .cine-open { transition: opacity 0.4s ease, visibility 0s linear 0.5s; }
+  .cine-ring.is-arming .cine-ring__scene { transform: none; transition: none; }
+  .cine-ring.is-revealed .cine-ring__closed,
+  .cine-ring.is-revealed .cine-ring__open { transition: opacity 0.3s ease; }
+  .cine-ring.is-revealed .cine-ring__glint { animation: none !important; }
+  .cine-ring__tapglow,
+  .cine-ring__flash { display: none; }
+  .cine-door__ripple { animation-duration: 0.3s; }
+}
+</style>
+</head><body><div class="cine-hero cine-shero " style="--cine-deep: #3a3826; --cine-mid: #504e37; --cine-hi: #67654a; --cine-gold: #a98a5c; --cine-gold-hi: #e8dcc0; --cine-gold-dp: #7d6540; --cine-deep-rgb: 58, 56, 38; --cine-gold-rgb: 169, 138, 92; --cine-gold-hi-rgb: 232, 220, 192; --cine-accent: #5c2331; --cine-blush: #8b9070; --cine-text: #f4f0e0; --cine-display: var(--font-aref), &quot;Aref Ruqaa&quot;, serif; --cine-serif: var(--font-amiri), &quot;Amiri&quot;, serif; --cine-label: var(--font-messiri), &quot;El Messiri&quot;, sans-serif; --cine-body: var(--font-tajawal), &quot;Tajawal&quot;, system-ui, sans-serif; --cine-latin: var(--font-cormorant), &quot;Cormorant Garamond&quot;, serif;" data-cine-stage="true" data-testid="cine-hero-swans"><div class="cine-shero__scene" aria-hidden="true" style="background-image: url(&quot;templates/swans/lake.jpg&quot;);"></div><div class="cine-hero__inner cine-shero__inner"><p class="cine-shero__kicker">Birthday Invitation</p><h1 class="cine-shero__names"><span class="cine-hero__name">Sarah</span></h1><p class="cine-shero__sub">Turning 30</p><p class="cine-shero__date"><span class="cine-shero__rule" aria-hidden="true"></span><span>Friday, 7 May 2027 — 6:00 PM</span><span class="cine-shero__rule" aria-hidden="true"></span></p><div id="cine-invitation-card-capture" aria-hidden="true" style="position: absolute; inset-inline-start: -10000px; top: 0px; width: 322px; aspect-ratio: 210 / 290; border-radius: 16px; overflow: hidden; background: rgb(250, 248, 245); pointer-events: none;"><div class="w-full h-full flex flex-col items-center justify-between rounded select-none relative overflow-hidden font-serif" style="background: rgb(252, 250, 246); color: rgb(184, 148, 79); box-shadow: inset 0 0 30px #B8944F08; padding: 14px 16px;"><div class="absolute inset-0 pointer-events-none" style="opacity: 0.035;"><svg width="100%" height="100%"><defs><pattern id="ic-damask" x="0" y="0" width="44" height="44" patternUnits="userSpaceOnUse"><path d="M22 0 Q28 11 22 22 Q16 11 22 0Z" fill="#B8944F"></path><path d="M0 22 Q11 28 22 22 Q11 16 0 22Z" fill="#B8944F"></path><path d="M44 22 Q33 28 22 22 Q33 16 44 22Z" fill="#B8944F"></path><path d="M22 44 Q28 33 22 22 Q16 33 22 44Z" fill="#B8944F"></path><circle cx="22" cy="22" r="2" fill="#B8944F" opacity="0.5"></circle><circle cx="0" cy="0" r="1.5" fill="#B8944F" opacity="0.3"></circle><circle cx="44" cy="0" r="1.5" fill="#B8944F" opacity="0.3"></circle><circle cx="0" cy="44" r="1.5" fill="#B8944F" opacity="0.3"></circle><circle cx="44" cy="44" r="1.5" fill="#B8944F" opacity="0.3"></circle></pattern></defs><rect width="100%" height="100%" fill="url(#ic-damask)"></rect></svg></div><div class="absolute pointer-events-none" style="inset: 4px; border: 2px solid rgba(184, 148, 79, 0.333);"></div><div class="absolute pointer-events-none" style="inset: 8px; border: 0.7px solid rgba(184, 148, 79, 0.157);"></div><svg width="36" height="36" viewBox="0 0 40 40" class="absolute pointer-events-none" style="top: 4px; left: 4px; rotate: 0deg; transform: rotate(0deg); opacity: 0.55;"><path d="M3 3 Q3 12 8 18 Q14 24 22 26" fill="none" stroke="#B8944F" stroke-width="0.7"></path><path d="M3 3 Q12 3 18 8 Q24 14 26 22" fill="none" stroke="#B8944F" stroke-width="0.7"></path><path d="M5 5 Q5 10 9 14 Q13 18 18 20" fill="none" stroke="#B8944F" stroke-width="0.45" opacity="0.6"></path><path d="M5 5 Q10 5 14 9 Q18 13 20 18" fill="none" stroke="#B8944F" stroke-width="0.45" opacity="0.6"></path><path d="M8 14 Q5 12 6 9" fill="none" stroke="#B8944F" stroke-width="0.4" opacity="0.5"></path><path d="M14 8 Q12 5 9 6" fill="none" stroke="#B8944F" stroke-width="0.4" opacity="0.5"></path><path d="M14 20 Q11 18 12 14" fill="none" stroke="#B8944F" stroke-width="0.35" opacity="0.4"></path><path d="M20 14 Q18 11 14 12" fill="none" stroke="#B8944F" stroke-width="0.35" opacity="0.4"></path><circle cx="3" cy="3" r="1.5" fill="#B8944F" opacity="0.45"></circle><circle cx="10" cy="16" r="0.7" fill="#B8944F" opacity="0.3"></circle><circle cx="16" cy="10" r="0.7" fill="#B8944F" opacity="0.3"></circle></svg><svg width="36" height="36" viewBox="0 0 40 40" class="absolute pointer-events-none" style="top: 4px; right: 4px; rotate: 90deg; transform: rotate(90deg); opacity: 0.55;"><path d="M3 3 Q3 12 8 18 Q14 24 22 26" fill="none" stroke="#B8944F" stroke-width="0.7"></path><path d="M3 3 Q12 3 18 8 Q24 14 26 22" fill="none" stroke="#B8944F" stroke-width="0.7"></path><path d="M5 5 Q5 10 9 14 Q13 18 18 20" fill="none" stroke="#B8944F" stroke-width="0.45" opacity="0.6"></path><path d="M5 5 Q10 5 14 9 Q18 13 20 18" fill="none" stroke="#B8944F" stroke-width="0.45" opacity="0.6"></path><path d="M8 14 Q5 12 6 9" fill="none" stroke="#B8944F" stroke-width="0.4" opacity="0.5"></path><path d="M14 8 Q12 5 9 6" fill="none" stroke="#B8944F" stroke-width="0.4" opacity="0.5"></path><path d="M14 20 Q11 18 12 14" fill="none" stroke="#B8944F" stroke-width="0.35" opacity="0.4"></path><path d="M20 14 Q18 11 14 12" fill="none" stroke="#B8944F" stroke-width="0.35" opacity="0.4"></path><circle cx="3" cy="3" r="1.5" fill="#B8944F" opacity="0.45"></circle><circle cx="10" cy="16" r="0.7" fill="#B8944F" opacity="0.3"></circle><circle cx="16" cy="10" r="0.7" fill="#B8944F" opacity="0.3"></circle></svg><svg width="36" height="36" viewBox="0 0 40 40" class="absolute pointer-events-none" style="bottom: 4px; right: 4px; rotate: 180deg; transform: rotate(180deg); opacity: 0.55;"><path d="M3 3 Q3 12 8 18 Q14 24 22 26" fill="none" stroke="#B8944F" stroke-width="0.7"></path><path d="M3 3 Q12 3 18 8 Q24 14 26 22" fill="none" stroke="#B8944F" stroke-width="0.7"></path><path d="M5 5 Q5 10 9 14 Q13 18 18 20" fill="none" stroke="#B8944F" stroke-width="0.45" opacity="0.6"></path><path d="M5 5 Q10 5 14 9 Q18 13 20 18" fill="none" stroke="#B8944F" stroke-width="0.45" opacity="0.6"></path><path d="M8 14 Q5 12 6 9" fill="none" stroke="#B8944F" stroke-width="0.4" opacity="0.5"></path><path d="M14 8 Q12 5 9 6" fill="none" stroke="#B8944F" stroke-width="0.4" opacity="0.5"></path><path d="M14 20 Q11 18 12 14" fill="none" stroke="#B8944F" stroke-width="0.35" opacity="0.4"></path><path d="M20 14 Q18 11 14 12" fill="none" stroke="#B8944F" stroke-width="0.35" opacity="0.4"></path><circle cx="3" cy="3" r="1.5" fill="#B8944F" opacity="0.45"></circle><circle cx="10" cy="16" r="0.7" fill="#B8944F" opacity="0.3"></circle><circle cx="16" cy="10" r="0.7" fill="#B8944F" opacity="0.3"></circle></svg><svg width="36" height="36" viewBox="0 0 40 40" class="absolute pointer-events-none" style="bottom: 4px; left: 4px; rotate: 270deg; transform: rotate(270deg); opacity: 0.55;"><path d="M3 3 Q3 12 8 18 Q14 24 22 26" fill="none" stroke="#B8944F" stroke-width="0.7"></path><path d="M3 3 Q12 3 18 8 Q24 14 26 22" fill="none" stroke="#B8944F" stroke-width="0.7"></path><path d="M5 5 Q5 10 9 14 Q13 18 18 20" fill="none" stroke="#B8944F" stroke-width="0.45" opacity="0.6"></path><path d="M5 5 Q10 5 14 9 Q18 13 20 18" fill="none" stroke="#B8944F" stroke-width="0.45" opacity="0.6"></path><path d="M8 14 Q5 12 6 9" fill="none" stroke="#B8944F" stroke-width="0.4" opacity="0.5"></path><path d="M14 8 Q12 5 9 6" fill="none" stroke="#B8944F" stroke-width="0.4" opacity="0.5"></path><path d="M14 20 Q11 18 12 14" fill="none" stroke="#B8944F" stroke-width="0.35" opacity="0.4"></path><path d="M20 14 Q18 11 14 12" fill="none" stroke="#B8944F" stroke-width="0.35" opacity="0.4"></path><circle cx="3" cy="3" r="1.5" fill="#B8944F" opacity="0.45"></circle><circle cx="10" cy="16" r="0.7" fill="#B8944F" opacity="0.3"></circle><circle cx="16" cy="10" r="0.7" fill="#B8944F" opacity="0.3"></circle></svg><div class="relative z-10 flex flex-col items-center gap-1 mt-1"><div class="w-[32px] h-[32px] rounded-full flex items-center justify-center font-sans text-[9px] font-bold tracking-wider" style="border: 1.5px solid rgb(184, 148, 79); color: rgb(184, 148, 79); background: rgba(184, 148, 79, 0.03);">A&amp;J</div><span class="text-[7px] uppercase tracking-[4px] font-semibold" style="color: rgba(184, 148, 79, 0.565);">The Marriage Celebration</span></div><div class="flex flex-col items-center text-center mt-1 mb-auto relative z-10 gap-0.5 px-2"><span class="text-[7.5px] tracking-[2.5px] font-sans font-light uppercase text-stone-400">Request the honor of your presence</span><span class="text-[7.5px] tracking-[2.5px] font-sans font-light uppercase text-stone-400">at the marriage of</span><span class="font-script text-[33px] leading-tight px-1" style="color: rgb(184, 148, 79);">Aria &amp; Julian</span><svg width="120" height="12" viewBox="0 0 120 16" style="opacity: 0.6;"><path d="M8 8 Q14 3 22 5 Q30 7 38 5 Q44 3 50 6 L60 8" fill="none" stroke="#B8944F" stroke-width="0.7"></path><path d="M112 8 Q106 3 98 5 Q90 7 82 5 Q76 3 70 6 L60 8" fill="none" stroke="#B8944F" stroke-width="0.7"></path><path d="M18 8 Q26 12 36 10 Q44 8 50 10 L60 8" fill="none" stroke="#B8944F" stroke-width="0.4" opacity="0.35"></path><path d="M102 8 Q94 12 84 10 Q76 8 70 10 L60 8" fill="none" stroke="#B8944F" stroke-width="0.4" opacity="0.35"></path><path d="M60 4 L64 8 L60 12 L56 8 Z" fill="#B8944F25" stroke="#B8944F" stroke-width="0.5"></path><circle cx="60" cy="8" r="1.2" fill="#B8944F" opacity="0.7"></circle><circle cx="8" cy="8" r="1" fill="#B8944F" opacity="0.4"></circle><circle cx="112" cy="8" r="1" fill="#B8944F" opacity="0.4"></circle></svg><span class="text-[10px] font-bold tracking-[2px]" style="color: rgb(215, 190, 128);">SATURDAY, OCTOBER 24, 2026</span><span class="text-[8px] tracking-wide leading-relaxed font-sans text-stone-500 max-w-[92%] flex flex-row items-baseline justify-center gap-1 flex-wrap">At four o'clock in the afternoon<br><strong class="text-stone-700 font-semibold">The Grand Ballroom</strong> · Plaza Hotel, New York</span></div><div class="relative z-10 flex flex-col items-center gap-0.5 mb-1"><span class="text-[6.5px] uppercase tracking-[2.5px] font-sans font-semibold" style="color: rgba(184, 148, 79, 0.44);">Invite Issued To:</span><span class="font-script text-2xl leading-none" style="color: rgb(184, 148, 79);">G</span></div><div class="w-16 h-[1.5px] relative z-10" style="background: linear-gradient(90deg, transparent, rgba(184, 148, 79, 0.376), transparent);"></div></div></div><button type="button" class="cine-hero__save " data-testid="cine-hero-download"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12.5 M7.5 11 12 15.5 16.5 11"></path><path d="M4.5 18.5h15"></path></svg><span>Save the invitation</span></button><span class="cine-hero__cue" aria-hidden="true"><span class="cine-hero__cue-label">Scroll down</span><span class="cine-hero__cue-arrow">↓</span></span></div></div></body></html>

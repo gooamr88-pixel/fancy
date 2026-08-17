@@ -8,7 +8,8 @@ import { supabase } from '../../utils/supabaseClient';
 import { startSmsCreditPurchase } from '../../utils/smsPurchase';
 import { toTagArray } from '../components/TagListEditor';
 import { TEMPLATES, TEMPLATE_PREVIEW_PATTERN, RETIRED_TEMPLATE_SUCCESSOR } from '../../utils/curatedTemplates';
-import { getCinematicTemplate, getCinematicOccasion } from '../../components/templates/cinematic/cinematicThemes';
+import { CINEMATIC_KEYS } from '../../components/templates/cinematic/cinematicThemes';
+import { resolveOccasion } from '../../utils/eventOccasion';
 import { buildPreviewEvent } from './components/previewEvent';
 
 /* ═══════════════════════════════════════════════════════
@@ -47,36 +48,39 @@ const C = {
    selection, the Stage2 partner/ceremony fields, etc. all key off event_type
    === 'wedding'). Kept as a single list so template_type and event_type can
    diverge cleanly without scattering the same OR-chain across the app. */
+/* The retired visual variants, whose DEFAULT occasion is a wedding.
+
+   This used to be the list that made a template mean an occasion — Door of
+   Joy was in it, so it collected Groom's/Bride's Side labels and the wedding
+   field set no matter what the organizer was actually celebrating. The
+   cinematic templates now carry their own `defaultOccasion` and are gone from
+   here; what is left is the keys that have no entry of their own to say so. */
 const WEDDING_STYLE_TEMPLATE_KEYS = [
   'tuscany', 'marrakesh', 'kyoto', 'nordic', 'havana',
   'estate', 'roseAtelier', 'orchid', 'clay', 'alpine', 'coastal', 'heritageArch',
-  // Door of Joy — cinematic, but a wedding in every way that matters here:
-  // Groom's/Bride's Side labels, meal selection, the partner and
-  // ceremony/reception fields. Velvet Ring is an engagement and so keeps
-  // engagement's own field set below, exactly like the Engagement template.
-  'bab',
 ];
 
 /**
- * The `event_type` a chosen template implies.
+ * The `event_type` this event should carry.
  *
  * `event_type` is the coarse category the REST of the product keys off —
  * Groom's/Bride's Side labels (utils/sideLabel.js), meal selection
  * (RsvpSection), the RSVP wizard, EditGuestModal, SendInvitationModal and the
- * CSV export all read it and none of them know a template key. So a template
- * that serves two occasions has to resolve to the right one HERE; adding it to
- * yet another list in each of those files is how the "Groom's Side" label ends
- * up on an engagement.
- *
- * Templates fixed to one occasion are unchanged: the wedding-style variants
- * collapse to 'wedding', and everything else (including Velvet Ring, which
- * stores 'ring') keeps its own key exactly as before.
+ * CSV export all read it and none of them knows a template key. Resolving the
+ * occasion HERE is what makes all of them correct with no further edits;
+ * adding a template to a list inside each of those files is how the "Groom's
+ * Side" label ends up on a birthday.
  */
 function deriveEventType(templateType, templateData) {
-  if (WEDDING_STYLE_TEMPLATE_KEYS.includes(templateType)) return 'wedding';
-  const cinematic = getCinematicTemplate(templateType);
-  if (cinematic?.occasion === 'both') return getCinematicOccasion(cinematic, templateData);
-  return templateType;
+  /* The organizer's own answer, whatever artwork they picked — the line that
+     makes a birthday on Velvet Ring behave like a birthday everywhere
+     downstream. Through the SAME resolver the guest page and both editors
+     use, so the event_type written here can never disagree with the occasion
+     those screens render. */
+  return resolveOccasion(templateType, templateData)
+    /* No occasion at all: the retired continuous-scroll categories, which are
+       their own event_type and have no occasion to resolve. */
+    || templateType;
 }
 
 /**
@@ -144,54 +148,39 @@ const WEDDING_FIELD_KEYS = [
   'giftRegistry', 'accommodations',
   ...HA_SECTION_FIELD_KEYS,
 ];
-// Custom's own "what kind of event is this?" picker (Stage 2) — wedding,
-// engagement, celebration, or baby shower — drives which of these fields
-// show and how the guest page's hero name/tagline reads. Wedding/engagement
-// reuse the same partner-name fields the dedicated Wedding/Engagement
-// templates use; celebration and baby shower get their own since neither
-// has a "couple".
+// The occasion picker's own fields (Stage 2). `custom_category` holds the
+// answer; the rest are the three content shapes it selects between — a couple,
+// a single honoree, or a baby shower — see utils/customEventCategories.js.
 const CUSTOM_CATEGORY_FIELD_KEYS = [
   'custom_category',
   'partner1', 'partner2', 'partner1_email', 'partner2_email', 'loveStory', 'proposalStory',
   'custom_honoree', 'custom_milestone',
   'custom_parents', 'custom_baby_name', 'custom_baby_due',
 ];
-const TEMPLATE_TYPE_FIELD_KEYS = {
-  wedding: WEDDING_FIELD_KEYS,
-  // engagement is a full-page template, so it keeps the ha_* section fields;
-  // corporate/birthday/gala render continuous-scroll and use only their own.
-  engagement: ['partner1', 'partner2', 'partner1_email', 'partner2_email', 'proposalStory', 'giftRegistry', ...HA_SECTION_FIELD_KEYS],
-  // Velvet Ring — the cinematic engagement. Same field set as Engagement, so
-  // switching between the two never drops what the organizer already typed.
-  ring: ['partner1', 'partner2', 'partner1_email', 'partner2_email', 'proposalStory', 'giftRegistry', ...HA_SECTION_FIELD_KEYS],
-  /* Swan Lake serves BOTH occasions, so it owns the union of the two field
-     sets, plus `custom_category` where the choice between them is stored.
+/* Every full-page template now carries the SAME set: the wedding fields plus
+   the occasion picker's.
 
-     The union is about SWITCHING TEMPLATES, not about which inputs render.
-     This list is what handleTemplateSelect prunes by, and `proposalStory` is
-     editable on Velvet Ring — so without it here, moving a Velvet Ring event
-     to Swan Lake would silently delete the story they wrote. (Like every
-     full-page template, Swan Lake edits its narrative through the shared
-     `ha_our_story` field rather than loveStory/proposalStory directly; both
-     are carried, not offered.) */
-  swans: [
-    ...WEDDING_FIELD_KEYS,
-    'proposalStory',
-    'custom_category',
-  ],
-  // Custom is also a full-page template — it gets the same ha_* section fields
-  // (schedule, venues, accommodation, FAQ, menu, gift list, etc.) as wedding
-  // and engagement, so the organizer can freely fill in and toggle any
-  // feature from any event type without losing data when switching templates.
-  custom: ['giftRegistry', ...HA_SECTION_FIELD_KEYS, ...CUSTOM_CATEGORY_FIELD_KEYS],
+   This list is what handleTemplateSelect PRUNES by. It governs switching
+   TEMPLATES, not which inputs render (the occasion's `kind` decides that).
+   Now that any template can be any occasion, a per-template set would mean
+   moving a birthday from Velvet Ring to Door of Joy silently deletes the
+   honoree's name — the two screens offer identical fields, but the pruner
+   would not know it. One universal set makes that impossible. */
+const FULL_PAGE_FIELD_KEYS = [
+  ...new Set([...WEDDING_FIELD_KEYS, ...CUSTOM_CATEGORY_FIELD_KEYS]),
+];
+
+const TEMPLATE_TYPE_FIELD_KEYS = {
+  // The continuous-scroll categories keep their own fields: they are retired
+  // from the picker, they have no ha_* sections, and nothing new points here.
   corporate: ['company', 'agenda', 'speakers', 'sponsors', 'networkingNotes'],
   birthday: ['celebrant', 'age', 'partyTheme', 'giftRegistry'],
   gala: ['honoree', 'program', 'sponsorPackages'],
 };
-// Every wedding-variant template (a different InvitationCard pattern on the
-// same content shape) shares wedding's field set — switching between them,
-// or from "wedding" itself, must not wipe already-entered partner/ceremony data.
-WEDDING_STYLE_TEMPLATE_KEYS.forEach(key => { TEMPLATE_TYPE_FIELD_KEYS[key] = WEDDING_FIELD_KEYS; });
+// Every full-page template — the cinematic ones, custom, wedding, engagement,
+// and the retired visual variants — shares the universal set above.
+[...WEDDING_STYLE_TEMPLATE_KEYS, 'wedding', 'engagement', 'custom', ...CINEMATIC_KEYS]
+  .forEach((key) => { TEMPLATE_TYPE_FIELD_KEYS[key] = FULL_PAGE_FIELD_KEYS; });
 
 /* Defaults for the guided Custom builder (Template #3) — design only. The
    event's title, cover image, and content (including what kind of event

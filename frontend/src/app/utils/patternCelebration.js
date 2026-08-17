@@ -28,6 +28,15 @@ const FAMILIES = {
   // Editorial / geometric — crisp confetti, minimal ambient
   geo:     { colors: ['#3B82F6', '#1F2937', '#FFFFFF', '#9CA3AF'], shapes: ['rect'], ambient: 'circle', ambientColor: '#3B82F6' },
   minimal: { colors: ['#1A1A1A', '#D5CFC5', '#FFFFFF'], shapes: ['rect'], ambient: 'circle', ambientColor: '#D5CFC5' },
+
+  /* The cinematic templates. They had no entry, so all three fell to the
+     generic gold-ribbon default — the one moment of the journey that is
+     supposed to feel like THIS invitation, in the same colours the guest has
+     been looking at for the last two minutes. Keyed to each template's own
+     `colors` in cinematic/cinematicThemes.js. */
+  ring:  { colors: ['#d4af6a', '#ffe9b0', '#8f3c52', '#FFFFFF'], shapes: ['star', 'petal'], ambient: 'petal', ambientColor: '#d4af6a' },
+  bab:   { colors: ['#a97fc0', '#c9a45c', '#7d5694', '#FFFFFF'], shapes: ['petal'], ambient: 'petal', ambientColor: '#a97fc0' },
+  swans: { colors: ['#6d6f4e', '#5c2331', '#a98a5c', '#f8f4e9'], shapes: ['petal', 'circle'], ambient: 'petal', ambientColor: '#e8dcc0' },
 };
 
 const DEFAULT_FAMILY = { colors: undefined, shapes: ['ribbon', 'circle'], ambient: 'circle', ambientColor: '#D7BE80' };

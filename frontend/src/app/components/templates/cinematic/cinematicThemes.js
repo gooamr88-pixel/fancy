@@ -3,16 +3,31 @@
 // below) and client ones, and `preload` is a named export in every react-dom
 // build while reaching it through the default export is not.
 import { preload } from 'react-dom';
+import {
+  CUSTOM_CATEGORY_BY_KEY, occasionKicker, occasionLatin, occasionTagline,
+} from '../../../utils/customEventCategories';
 
 /* ═══════════════════════════════════════════════════════════════
-   The two cinematic templates, as data.
+   The cinematic templates, as data.
 
-   Everything that differs between Velvet Ring and Door of Joy lives here:
-   the asset paths, the CSS custom properties their shared stylesheet reads,
-   the type pairing, the ambient-FX recipe, and the bilingual copy their
-   openings and heroes need. cinematic.css holds the composition; this holds
-   the identity. Adding a third cinematic template should mean adding an
-   entry here plus one opening component — not a new branch in five files.
+   Everything that differs between Velvet Ring, Door of Joy and Swan Lake
+   lives here: the asset paths, the CSS custom properties their shared
+   stylesheet reads, the type pairing, the ambient-FX recipe, and the copy
+   their openings and heroes need. cinematic.css holds the composition; this
+   holds the identity. Adding a fourth should mean adding an entry here plus
+   one opening component — not a new branch in five files.
+
+   ── A template is a LOOK, not an occasion ─────────────────────────────────
+   Each entry once carried `occasion: 'engagement' | 'wedding'`, and that key
+   was load-bearing: it decided the cover's kicker, the hero's tagline, the
+   invitation card's wording and the guest list's side labels. An organizer
+   who wanted the knocking-door film for a birthday could not have it.
+
+   Now each carries `defaultOccasion` instead, which is consulted only when
+   the organizer has not chosen one. All 25 occasions in
+   utils/customEventCategories.js work on all of these, and the per-occasion
+   wording comes from that catalogue rather than from here — otherwise every
+   new template would owe 50 more strings.
 
    The palette keys mirror what src/app/styles/cinematic.css reads. Keep the
    two in step: an unset property there falls back to nothing, which reads as
@@ -20,13 +35,17 @@ import { preload } from 'react-dom';
    ═══════════════════════════════════════════════════════════════ */
 
 export const CINEMATIC_TEMPLATES = {
-  /* ── Velvet Ring — engagement ─────────────────────────────────────────
+  /* ── Velvet Ring ──────────────────────────────────────────────────────
      A photographic velvet box on a dark stage. Tap it and it opens onto the
      ring. Warm reds and gold; every surface below the hero inherits the same
      deep velvet ground, which buildPalette resolves as a dark theme. */
   ring: {
     key: 'ring',
-    occasion: 'engagement',
+    /* What this renders as when the organizer has not chosen an occasion —
+       which is every event created before the occasion picker existed. It is
+       NOT a restriction: any of the catalogue's occasions can be picked on
+       any template. See utils/customEventCategories.js. */
+    defaultOccasion: 'engagement',
     opening: 'velvetBox',
     hero: 'velvetRing',
 
@@ -82,9 +101,13 @@ export const CINEMATIC_TEMPLATES = {
        pool itself — see AmbientFx. */
     fx: { dust: true, petals: true, trail: true, petalEveryMs: 3800 },
 
+    /* Only the occasion-INDEPENDENT lines live here now. `kicker` and `latin`
+       come from the chosen occasion (occasionKicker / occasionLatin); what is
+       left describes the physical act of opening this particular cover, which
+       is the same whatever the celebration is. */
     copy: {
-      en: { kicker: 'Engagement Invitation', latin: 'Engagement', hint: 'Touch the box', loading: 'Loading…', preparing: 'Preparing the scene…', scroll: 'Scroll down', sub: 'invite you to share the joy of their engagement' },
-      ar: { kicker: 'دعوة خطوبة', latin: 'Engagement', hint: 'المس الصندوق', loading: 'جارٍ التحميل…', preparing: 'يجهَّز المشهد…', scroll: 'مرّر للأسفل', sub: 'يتشرّفان بدعوتكم لمشاركتهما فرحة الخطوبة' },
+      en: { hint: 'Touch the box', loading: 'Loading…', preparing: 'Preparing the scene…', scroll: 'Scroll down' },
+      ar: { hint: 'المس الصندوق', loading: 'جارٍ التحميل…', preparing: 'يجهَّز المشهد…', scroll: 'مرّر للأسفل' },
     },
   },
 
@@ -93,7 +116,8 @@ export const CINEMATIC_TEMPLATES = {
      the light. Warm wood, cream stone and lilac; a light theme below. */
   bab: {
     key: 'bab',
-    occasion: 'wedding',
+    // See the note on Velvet Ring's: a default, not a restriction.
+    defaultOccasion: 'wedding',
     opening: 'knockDoor',
     hero: 'doorOfJoy',
 
@@ -147,9 +171,16 @@ export const CINEMATIC_TEMPLATES = {
     // sparkle reads as dirt on a cream ground rather than as light.
     fx: { dust: false, petals: true, trail: false, petalEveryMs: 3200, petalGlyphs: ['❀', '✿', '❁', '✽'] },
 
+    /* `sub` is this template's OWN voice, not occasion copy — it is about the
+       door, which is the same door whatever is being celebrated. It is used
+       only when the chosen occasion is this template's defaultOccasion; any
+       other occasion takes the catalogue's own tagline, so a birthday behind
+       this door is not told it has opened the door to its joy. Velvet Ring
+       and Swan Lake carry no `sub`: theirs said exactly what the catalogue
+       already says, and two copies of one sentence is one too many. */
     copy: {
-      en: { kicker: 'Wedding Invitation', hint: 'Knock three times to open', scroll: 'Scroll down', sub: 'We have opened the door to our joy — and it calls to you' },
-      ar: { kicker: 'دعوة زفاف', hint: 'دُقّوا على الباب ثلاث دقّاتٍ ليُفتح', scroll: 'مرّر للأسفل', sub: 'فتحنا باب فرحتنا… وطارت البشائر تدعوكم' },
+      en: { hint: 'Knock three times to open', scroll: 'Scroll down', sub: 'We have opened the door to our joy — and it calls to you' },
+      ar: { hint: 'دُقّوا على الباب ثلاث دقّاتٍ ليُفتح', scroll: 'مرّر للأسفل', sub: 'فتحنا باب فرحتنا… وطارت البشائر تدعوكم' },
     },
   },
 
@@ -168,9 +199,8 @@ export const CINEMATIC_TEMPLATES = {
      the answer through getCinematicOccasion() below. */
   swans: {
     key: 'swans',
-    /* 'both' — the sentinel getCinematicOccasion() looks for. Any other value
-       is a fixed occasion and the organizer is never asked. */
-    occasion: 'both',
+    // See the note on Velvet Ring's: a default, not a restriction.
+    defaultOccasion: 'wedding',
     opening: 'waxEnvelope',
     hero: 'swanLake',
 
@@ -248,24 +278,11 @@ export const CINEMATIC_TEMPLATES = {
        one that does not, and this drifts across a guest's whole page. */
     fx: { dust: false, petals: true, trail: false, petalEveryMs: 3600, petalGlyphs: ['❀', '✿', '❁'] },
 
+    /* `sub` is this template's own line for its own occasion — see the note on
+       Door of Joy's. Any other occasion takes the catalogue's wording. */
     copy: {
-      en: { hint: 'Touch to break the seal', loading: 'Loading…', preparing: 'Preparing the scene…', scroll: 'Scroll down' },
-      ar: { hint: 'المس الختم لفتح الدعوة', loading: 'جارٍ التحميل…', preparing: 'يجهَّز المشهد…', scroll: 'مرّر للأسفل' },
-    },
-
-    /* Merged over `copy` by getCinematicCopy(). Only the lines that actually
-       change with the occasion live here — an engagement invitation that
-       called itself a wedding, or told a couple they are getting married,
-       is the failure this exists to prevent. */
-    occasionCopy: {
-      wedding: {
-        en: { kicker: 'Wedding Invitation', latin: 'Wedding', sub: 'invite you to share the joy of their wedding' },
-        ar: { kicker: 'دعوة زفاف', latin: 'Wedding', sub: 'يتشرّفان بدعوتكم لمشاركتهما فرحة الزفاف' },
-      },
-      engagement: {
-        en: { kicker: 'Engagement Invitation', latin: 'Engagement', sub: 'invite you to share the joy of their engagement' },
-        ar: { kicker: 'دعوة خطوبة', latin: 'Engagement', sub: 'يتشرّفان بدعوتكم لمشاركتهما فرحة الخطوبة' },
-      },
+      en: { hint: 'Touch to break the seal', loading: 'Loading…', preparing: 'Preparing the scene…', scroll: 'Scroll down', sub: 'invite you to share the joy of their wedding' },
+      ar: { hint: 'المس الختم لفتح الدعوة', loading: 'جارٍ التحميل…', preparing: 'يجهَّز المشهد…', scroll: 'مرّر للأسفل', sub: 'يتشرّفان بدعوتكم لمشاركتهما فرحة الزفاف' },
     },
   },
 };
@@ -281,15 +298,14 @@ export function getCinematicTemplate(templateType) {
 /**
  * Which occasion this event is actually for.
  *
- * Templates fixed to one occasion answer from their own definition and never
- * consult the event — Velvet Ring is an engagement whatever else is stored on
- * the row. Only `occasion: 'both'` (Swan Lake) asks, and it asks the field the
- * organizer already fills in for Custom Canvas (`template_data.custom_category`)
- * rather than a second one that means the same thing.
+ * The organizer's own answer wins; the template only supplies the default.
+ * That ordering is the whole point of the change that introduced it — a
+ * template used to BE an occasion, so the artwork and the celebration were
+ * one decision and a birthday could not use the velvet box.
  *
- * Defaults to 'wedding' when unanswered: it is the commoner case, and its
- * field set is the superset, so nothing the organizer has typed is hidden by
- * the default.
+ * The default is what makes this safe to deploy: every event created before
+ * the picker existed has no `custom_category`, and falls through to exactly
+ * the occasion its template always meant.
  *
  * @param {object|null} template  a CINEMATIC_TEMPLATES entry
  * @param {object} [templateData] the event's template_data
@@ -297,31 +313,64 @@ export function getCinematicTemplate(templateType) {
  */
 export function getCinematicOccasion(template, templateData) {
   if (!template) return null;
-  if (template.occasion !== 'both') return template.occasion;
-  return templateData?.custom_category === 'engagement' ? 'engagement' : 'wedding';
+  /* Guarded against a key the catalogue does not know, exactly as
+     utils/eventOccasion.js's resolveOccasion() is. The two resolve the same
+     event and are called from different places — this one where the template
+     object is already in hand — so a difference between them is a page whose
+     cover and whose sections disagree about what is being celebrated. */
+  const chosen = templateData?.custom_category;
+  if (chosen && CUSTOM_CATEGORY_BY_KEY[chosen]) return chosen;
+  return template.defaultOccasion || null;
 }
 
 /**
- * The copy an opening or hero should render.
+ * The copy an opening or hero should render, for a given occasion.
  *
- * One accessor for all of them, so a template that varies a line by occasion
- * and one that does not are read the same way. Templates with no
- * `occasionCopy` return their base copy untouched — which is every template
- * except Swan Lake, so this is a pure superset of `template.copy[lang]`.
+ * `kicker` and `latin` come from the OCCASION catalogue rather than from the
+ * template, so all 25 occasions work on all 3 templates without anybody
+ * writing 150 strings. What the template still owns is the wording about its
+ * own cover (the tap hint, the loading line) and one optional `sub`.
+ *
+ * `sub` is used ONLY on the template's own default occasion. Door of Joy's
+ * "We have opened the door to our joy" is right for the wedding it was
+ * written for and wrong for a baby shower behind the same door; every other
+ * occasion takes the catalogue's tagline instead.
  */
 export function getCinematicCopy(template, { isRTL = false, occasion = null } = {}) {
   const lang = isRTL ? 'ar' : 'en';
   const base = template?.copy?.[lang] || {};
-  const byOccasion = template?.occasionCopy;
-  if (!byOccasion) return base;
+  /* An occasion the catalogue does not know produces no kicker at all, and a
+     cover with a blank line above the names looks broken rather than plain.
+     A stale key is exactly what a half-applied migration or a hand-edited row
+     leaves behind, so fall back to what the template has always meant. */
+  const asked = occasion && CUSTOM_CATEGORY_BY_KEY[occasion] ? occasion : null;
+  const resolved = asked || template?.defaultOccasion;
 
-  /* A dual-occasion template keeps its kicker and tagline ONLY in the overlay,
-     so a caller that forgets to pass `occasion` — or passes the 'both'
-     sentinel through — would render an empty kicker with no error anywhere.
-     Falling back to the first occasion defined is always a real, complete
-     line; a blank one never is. */
-  const overlay = byOccasion[occasion] || byOccasion[Object.keys(byOccasion)[0]];
-  return { ...base, ...(overlay?.[lang] || {}) };
+  const kicker = occasionKicker(resolved, isRTL);
+  const latin = occasionLatin(resolved);
+  /* The template's own line is used ONLY on its own occasion. The trailing
+     fallback you might expect here — `|| base.sub` — is deliberately absent:
+     with it, a baby shower behind Door of Joy would be told "We have opened
+     the door to our joy", which is the exact class of mistake this whole
+     change exists to remove. Empty is correct; the caller then falls back to
+     the occasion's own wording. */
+  const isOwnOccasion = resolved === template?.defaultOccasion;
+  const sub = (isOwnOccasion && base.sub) || occasionTagline(resolved, isRTL) || '';
+
+  /* `sub` is set UNCONDITIONALLY, even to ''. Spreading it only when truthy
+     looks tidier and is wrong: an occasion with no tagline of its own (every
+     'honoree' kind) computed '' and so left `base.sub` standing — which is
+     how a baby shower behind Door of Joy was still told "We have opened the
+     door to our joy". Empty is a real answer here; the caller falls back to
+     the milestone the organizer typed.
+
+     `kicker` and `latin` stay conditional: they have no base value to shadow. */
+  return {
+    ...base,
+    ...(kicker ? { kicker } : {}),
+    ...(latin ? { latin } : {}),
+    sub,
+  };
 }
 
 /**

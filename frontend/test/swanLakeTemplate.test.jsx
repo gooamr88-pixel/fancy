@@ -165,149 +165,34 @@ describe('wax envelope opening — the guest always gets through', () => {
 });
 
 /* ════════════════════════════════════════════════════════════════════
-   2. One template, two occasions
+   2. The cover says whatever the organizer's occasion is
+   (Occasion behaviour across ALL templates lives in
+   test/templateOccasions.test.jsx; this covers the wax envelope itself.)
    ════════════════════════════════════════════════════════════════════ */
-describe('Swan Lake serves both wedding and engagement', () => {
-  it('resolves the organizer\'s answer, defaulting to wedding', () => {
-    expect(getCinematicOccasion(SWANS, { custom_category: 'wedding' })).toBe('wedding');
-    expect(getCinematicOccasion(SWANS, { custom_category: 'engagement' })).toBe('engagement');
-    // Unanswered — the commoner case, and the one whose field set is the
-    // superset, so the default hides nothing the organizer typed.
-    expect(getCinematicOccasion(SWANS, {})).toBe('wedding');
-    expect(getCinematicOccasion(SWANS, undefined)).toBe('wedding');
-  });
-
-  it('a fixed-occasion template never consults the event', () => {
-    // Velvet Ring is an engagement whatever a row happens to carry.
-    expect(getCinematicOccasion(CINEMATIC_TEMPLATES.ring, { custom_category: 'wedding' })).toBe('engagement');
-    expect(getCinematicOccasion(CINEMATIC_TEMPLATES.bab, { custom_category: 'engagement' })).toBe('wedding');
-  });
-
-  it('says the right thing on each occasion, in both languages', () => {
-    const cases = [
-      ['wedding', false, 'Wedding Invitation'],
-      ['engagement', false, 'Engagement Invitation'],
-      ['wedding', true, 'دعوة زفاف'],
-      ['engagement', true, 'دعوة خطوبة'],
-    ];
-    cases.forEach(([occasion, isRTL, kicker]) => {
-      expect(getCinematicCopy(SWANS, { isRTL, occasion }).kicker).toBe(kicker);
-    });
-  });
-
-  it('never renders a blank kicker when the occasion is not passed', () => {
-    /* A dual-occasion template keeps kicker and tagline ONLY in the overlay,
-       so a caller that forgets `occasion` — or lets the 'both' sentinel
-       through — used to get `undefined` and render an empty line with no
-       error anywhere. Falling back to the first occasion is always a real
-       line; a blank one never is. */
-    [undefined, null, 'both', 'nonsense'].forEach((occasion) => {
-      const copy = getCinematicCopy(SWANS, { occasion });
-      expect(copy.kicker, `occasion=${occasion} produced no kicker`).toBeTruthy();
-      expect(copy.sub).toBeTruthy();
-      expect(copy.hint).toBe(SWANS.copy.en.hint);
-    });
-  });
-
-  it('the hero prefers the template\'s own line over the generic fallback', () => {
-    /* HeritageArchPage's `heroTagline` is a hardcoded 'We Are Getting
-       Engaged', not organizer input. Letting it win made Swan Lake speak
-       warmly as a wedding and tersely as an engagement — the same template in
-       two voices, with its own engagement line dead in the file. */
-    const page = read('src/app/components/templates/heritageArch/HeritageArchPage.js');
-    expect(page).toMatch(/cinematic\.occasion === 'both' \? '' : heroTagline/);
-    // And both lines it chooses between actually exist.
-    expect(getCinematicCopy(SWANS, { occasion: 'wedding' }).sub)
-      .not.toBe(getCinematicCopy(SWANS, { occasion: 'engagement' }).sub);
-  });
-
-  it('keeps the shared lines while overlaying only what changes', () => {
-    const wedding = getCinematicCopy(SWANS, { occasion: 'wedding' });
-    const engagement = getCinematicCopy(SWANS, { occasion: 'engagement' });
-    // The hint is the same act on both occasions and is not duplicated.
-    expect(wedding.hint).toBe(SWANS.copy.en.hint);
-    expect(engagement.hint).toBe(SWANS.copy.en.hint);
-    expect(wedding.sub).not.toBe(engagement.sub);
-  });
-
-  it('templates with no occasionCopy are returned untouched', () => {
-    // The accessor is a pure superset of template.copy[lang]; a template that
-    // does not vary by occasion must be unaffected by its introduction.
-    CINEMATIC_KEYS.filter((k) => !CINEMATIC_TEMPLATES[k].occasionCopy).forEach((key) => {
-      const tpl = CINEMATIC_TEMPLATES[key];
-      expect(getCinematicCopy(tpl, { isRTL: false })).toEqual(tpl.copy.en);
-      expect(getCinematicCopy(tpl, { isRTL: true })).toEqual(tpl.copy.ar);
-    });
-  });
-
-  it('the opening prints the occasion it was given', () => {
+describe('the wax envelope names the occasion it was given', () => {
+  it('prints the occasion, not the template', () => {
     const { unmount } = render(
       <WaxEnvelopeOpening template={SWANS} names="Adam & Mira" occasion="engagement" onComplete={() => {}} />,
     );
     expect(screen.getByText('Engagement Invitation')).toBeTruthy();
     unmount();
 
+    const second = render(
+      <WaxEnvelopeOpening template={SWANS} names="Adam & Mira" occasion="birthday" onComplete={() => {}} />,
+    );
+    expect(screen.getByText('Birthday Invitation')).toBeTruthy();
+    second.unmount();
+
     render(<WaxEnvelopeOpening template={SWANS} names="Adam & Mira" occasion="wedding" onComplete={() => {}} />);
     expect(screen.getByText('Wedding Invitation')).toBeTruthy();
   });
 
-  it('the invitation card reuses the existing wedding/engagement copy, not a third arm', () => {
-    /* "at the marriage of" and "at the engagement of" are written down once
-       each. A dual-occasion template must resolve to one of those, or the
-       phrase gets a third home to drift in. */
-    const base = { template_type: 'swans', title: 'A & B', event_date: '2027-05-07T18:00:00Z' };
-    const engagement = buildInvitationCardData(
-      { ...base, template_data: { partner1: 'Adam', partner2: 'Mira', custom_category: 'engagement' } }, false,
-    );
-    expect(engagement.celebrationLabel).toBe('The Engagement Celebration');
-    expect(engagement.honorLine2).toBe('at the engagement of');
-
-    const wedding = buildInvitationCardData(
-      { ...base, template_data: { partner1: 'Adam', partner2: 'Mira', custom_category: 'wedding' } }, false,
-    );
-    // The wedding arm carries no engagement wording at all.
-    expect(wedding.celebrationLabel).toBeUndefined();
-    expect(wedding.names).toBe('Adam & Mira');
-  });
-
-  it('event_type follows the occasion, because the side labels read it', () => {
-    /* utils/sideLabel.js, RsvpSection, the RSVP wizard, EditGuestModal and the
-       CSV export all key off event_type and none of them knows a template key.
-       A wedding that stored event_type 'swans' would label its guest sides
-       "Partner 1's Side". */
-    const wizard = read('src/app/dashboard/create-event/page.js');
-    expect(wizard).toMatch(/function deriveEventType\(/);
-    expect(wizard).toMatch(/getCinematicOccasion\(cinematic, templateData\)/);
-    // Both the POST and the PATCH path, or a draft resumed later disagrees
-    // with the event it created.
-    expect([...wizard.matchAll(/deriveEventType\(templateType, buildTemplateData\(\)\)/g)].length).toBe(2);
-
-    // And Settings keeps them in step after creation.
-    const settings = read('src/app/dashboard/components/EventSettings.js');
-    expect(settings).toMatch(/setForm\(prev => \(\{ \.\.\.prev, event_type: key \}\)\)/);
-  });
-
-  it('the organizer can still change the occasion after creation', () => {
-    // Settable once and then frozen is the failure mode: it decides the
-    // invitation's wording, not just a heading.
-    const settings = read('src/app/dashboard/components/EventSettings.js');
-    expect(settings).toMatch(/isDualOccasion &&/);
-    expect(settings).toContain('DUAL_OCCASION_CATEGORIES');
-    // ...and the coarse Event Type select is hidden, so the two controls can
-    // never be set to different things.
-    expect(settings).toMatch(/\{!isDualOccasion && \(/);
-  });
-
-  it('carries BOTH field sets so toggling the occasion prunes nothing', () => {
-    /* TEMPLATE_TYPE_FIELD_KEYS is what handleTemplateSelect prunes by. With
-       only the wedding half listed, an organizer who typed a proposal story
-       and then switched occasion would silently lose it. */
-    const wizard = read('src/app/dashboard/create-event/page.js');
-    // No `\n` anchor: this tree is CRLF, so `],\n` never matches.
-    const entry = wizard.match(/swans: \[([\s\S]*?)\],/)?.[1] || '';
-    expect(entry).toContain('WEDDING_FIELD_KEYS');
-    expect(entry).toContain("'proposalStory'");
-    expect(entry).toContain("'custom_category'");
+  it('keeps its own hint whatever the occasion', () => {
+    // The tap hint describes breaking THIS seal; it is not occasion copy and
+    // must not be swapped out with the kicker.
+    ['wedding', 'engagement', 'babyShower', 'memorial'].forEach((occasion) => {
+      expect(getCinematicCopy(SWANS, { occasion }).hint).toBe(SWANS.copy.en.hint);
+    });
   });
 });
 

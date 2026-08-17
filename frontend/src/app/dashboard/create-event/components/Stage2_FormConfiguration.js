@@ -9,7 +9,9 @@ import RepeatableListEditor from '../../components/RepeatableListEditor';
 import DaysEditor from './DaysEditor';
 import SectionsOrderEditor from './SectionsOrderEditor';
 import { getHaDays } from '../../../utils/haDays';
-import { CUSTOM_CATEGORIES, CUSTOM_CATEGORY_BY_KEY } from '../../../utils/customEventCategories';
+import { CUSTOM_CATEGORY_BY_KEY } from '../../../utils/customEventCategories';
+import { resolveOccasion } from '../../../utils/eventOccasion';
+import OccasionPicker from '../../../components/OccasionPicker';
 import { getCinematicTemplate } from '../../../components/templates/cinematic/cinematicThemes';
 import EventCategoryIcon from '../../../components/icons/EventCategoryIcon';
 import Icon from '../../../components/icons/Icon';
@@ -24,15 +26,14 @@ const C = {
 
 const DRESS_CODES = ['', 'Black Tie', 'Cocktail Attire', 'Semi-Formal', 'Business Casual', 'Smart Casual', 'Casual', 'Festive', 'Traditional'];
 
-// Curated templates that are visual variants of a wedding (same partner/
-// ceremony/reception fields as the base "wedding" template) — keep in sync
-// with WEDDING_STYLE_TEMPLATE_KEYS in create-event/page.js.
+/* Curated templates whose DEFAULT occasion is a wedding, for events that have
+   not answered the occasion picker. It no longer decides which fields render
+   — the occasion's `kind` does that now, for every template — so this is only
+   a fallback for the retired visual variants, which have no cinematic entry
+   to carry a `defaultOccasion`. Keep in sync with create-event/page.js. */
 const WEDDING_STYLE_TEMPLATE_KEYS = [
   'wedding', 'tuscany', 'marrakesh', 'kyoto', 'nordic', 'havana',
   'estate', 'roseAtelier', 'orchid', 'clay', 'alpine', 'coastal', 'heritageArch',
-  // Door of Joy — cinematic wedding. Velvet Ring is cinematic ENGAGEMENT and
-  // so belongs with 'engagement' below, not here.
-  'bab',
 ];
 
 // Templates rendered as the full-page snap-scroll guest experience — the
@@ -40,30 +41,18 @@ const WEDDING_STYLE_TEMPLATE_KEYS = [
 // same ha_* section fields (corporate/birthday/gala keep the continuous-
 // scroll layout and their own content fields).
 // Keep in sync with FULL_PAGE_TEMPLATES in [slug]/EventPageClient.js.
-const FULL_PAGE_TEMPLATE_KEYS = [...WEDDING_STYLE_TEMPLATE_KEYS, 'engagement', 'custom', 'ring', 'swans'];
+const FULL_PAGE_TEMPLATE_KEYS = [...WEDDING_STYLE_TEMPLATE_KEYS, 'engagement', 'custom', 'ring', 'bab', 'swans'];
 const isFullPage = (t) => FULL_PAGE_TEMPLATE_KEYS.includes(t);
 
-// Engagement-schema templates: the base Engagement and Velvet Ring, the
-// cinematic one. Both collect Partner 1/2 names and emails plus a proposal
-// story, rather than the wedding pair's ceremony/reception venues — so every
-// place that used to test `templateType === 'engagement'` has to ask this
-// instead, or Velvet Ring silently renders with no name fields at all.
-// Swan Lake is deliberately NOT here: it carries BOTH schemas at once (see
-// TEMPLATE_TYPE_FIELD_KEYS.swans) so toggling its occasion never prunes the
-// other half of what the organizer already typed.
-const ENGAGEMENT_TEMPLATE_KEYS = ['engagement', 'ring'];
-const isEngagementStyle = (t) => ENGAGEMENT_TEMPLATE_KEYS.includes(t);
+/* `ENGAGEMENT_TEMPLATE_KEYS` / `isEngagementStyle` are gone. They named the
+   two templates that were engagements, and the block they gated re-rendered
+   the partner name and email fields on top of the couple block above — which
+   was invisible while only those two matched, and a double-render bound to
+   the same keys the moment any template could be an engagement. The one field
+   that was genuinely theirs (the proposal story) is now shown by occasion. */
 
-/* The two choices a dual-occasion template offers, pulled from the shared
-   catalogue rather than written out here, so the keys stored in
-   `custom_category` are the same ones Custom Canvas stores and every reader
-   of that field already understands. */
-const DUAL_OCCASION_CATEGORIES = CUSTOM_CATEGORIES
-  .filter((c) => c.key === 'wedding' || c.key === 'engagement');
-
-// Custom's "what kind of event is this?" picker — imported from a shared file
-// (also used by the guest-facing HeritageArchPage) so the organizer's picker
-// and the guest page's hero name/tagline logic can never drift out of sync.
+// The occasion catalogue — shared with the guest-facing HeritageArchPage so
+// the organizer's picker and the hero's name/tagline can never drift apart.
 // See customEventCategories.js for the full list and per-category field copy.
 
 const PRIVACY_MODES = [
@@ -222,23 +211,17 @@ export default function Stage2_FormConfiguration({
     return () => { cancelled = true; clearTimeout(timer); };
   }, [backgroundMusicUrl]);
 
-  // Custom's event-category choice — one of the CUSTOM_CATEGORIES keys, or ''
-  // (not chosen yet). `kind` decides which fields render below (see
-  // customEventCategories.js): 'couple' reuses the same partner-name fields
-  // the dedicated Wedding/Engagement templates use, 'honoree' shows the
-  // generic name+occasion fields, 'babyShower' shows its own fields.
-  const customCategory = templateData.custom_category || '';
-  const customCategoryMeta = CUSTOM_CATEGORY_BY_KEY[customCategory] || null;
-  /* Swan Lake: one template, two occasions. It writes its answer to the SAME
-     `custom_category` field Custom Canvas uses rather than a parallel one, so
-     the guest hero, the invitation card and the side labels all keep reading
-     one place. Unanswered defaults to wedding — the commoner case, and the
-     one whose field set is the superset, so the default hides nothing. */
-  const isDualOccasion = getCinematicTemplate(templateType)?.occasion === 'both';
-  const occasionChoice = isDualOccasion ? (customCategory || 'wedding') : customCategory;
-  const showCoupleFields = WEDDING_STYLE_TEMPLATE_KEYS.includes(templateType)
-    || isDualOccasion
-    || (templateType === 'custom' && customCategoryMeta?.kind === 'couple');
+  /* The occasion the organizer picked, for ANY template — falling back to the
+     template's own default for a draft started before the picker existed.
+     One shared resolver: see the note in utils/eventOccasion.js for what the
+     three hand-written copies of this chain got wrong. */
+  const occasionChoice = resolveOccasion(templateType, templateData);
+  const customCategoryMeta = CUSTOM_CATEGORY_BY_KEY[occasionChoice] || null;
+  /* Which fields show is now decided ENTIRELY by the occasion's `kind`, not
+     by which artwork was picked. That is the whole change: a birthday on
+     Velvet Ring must show the honoree fields, and asking a template what
+     shape its content is cannot answer that. */
+  const showCoupleFields = customCategoryMeta?.kind === 'couple';
 
   // Ceremony/reception venue pickers behave like the main Venue field: a plain-
   // address prediction (as opposed to a named venue) has no distinct `place.name`
@@ -389,7 +372,7 @@ export default function Stage2_FormConfiguration({
                 Asked of the registry rather than by naming keys — the literal
                 `templateType === 'bab'` here is exactly the shape that left
                 each newly-added template silently without a colour picker. */}
-            {(templateType === 'wedding' || isEngagementStyle(templateType) || !!getCinematicTemplate(templateType)) && customColors && setCustomColors && (
+            {(templateType === 'wedding' || templateType === 'engagement' || !!getCinematicTemplate(templateType)) && customColors && setCustomColors && (
               <div style={{
                 marginBottom: 18, padding: 14, borderRadius: 12,
                 background: C.softBg, border: `1px solid ${C.border}`,
@@ -417,63 +400,21 @@ export default function Stage2_FormConfiguration({
                 </div>
               </div>
             )}
-            {templateType === 'custom' && (
-              <div style={{ marginBottom: 18 }}>
-                <label style={lblStyle}>What kind of event is this?</label>
-                <div className="s2-row s2-category-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }}>
-                  {CUSTOM_CATEGORIES.map(({ key, label }) => {
-                    const active = customCategory === key;
-                    return (
-                      <button key={key} type="button" onClick={() => setTd('custom_category')(key)}
-                        style={{
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
-                          padding: '10px 6px', borderRadius: 10, cursor: 'pointer',
-                          border: `1.5px solid ${active ? C.gold : C.border}`,
-                          background: active ? 'rgba(184,148,79,0.08)' : C.white,
-                        }}>
-                        <EventCategoryIcon name={key} size={17} color={active ? C.gold : C.stone} />
-                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: active ? C.gold : C.stone }}>{label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                <p style={{ fontSize: 'var(--fx-micro)', color: '#A09A91', margin: '8px 0 0', fontFamily: 'var(--font-sans)' }}>
-                  Shapes the fields below and the name/tagline on your guest page — change it any time.
-                </p>
-              </div>
-            )}
-            {/* Swan Lake is offered for two occasions, so it asks the same
-                question Custom Canvas does with the list narrowed to those
-                two. Two tiles, not the 25-tile grid: an organizer who chose a
-                swan-lake wedding invitation is not choosing between it and a
-                corporate gala, and offering that would imply the artwork
-                changes to suit. */}
-            {isDualOccasion && (
-              <div style={{ marginBottom: 18 }}>
-                <label style={lblStyle}>Is this a wedding or an engagement?</label>
-                <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  {DUAL_OCCASION_CATEGORIES.map(({ key, label }) => {
-                    const active = occasionChoice === key;
-                    return (
-                      <button key={key} type="button" onClick={() => setTd('custom_category')(key)}
-                        style={{
-                          // Wraps for the same reason its twin in
-                          // EventSettings does — see mobileFit.test.js.
-                          display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 8,
-                          padding: '13px 10px', borderRadius: 10, cursor: 'pointer',
-                          border: `1.5px solid ${active ? C.gold : C.border}`,
-                          background: active ? 'rgba(184,148,79,0.08)' : C.white,
-                        }}>
-                        <EventCategoryIcon name={key} size={17} color={active ? C.gold : C.stone} />
-                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 600, color: active ? C.gold : C.stone }}>{label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                <p style={{ fontSize: 'var(--fx-micro)', color: '#A09A91', margin: '8px 0 0', fontFamily: 'var(--font-sans)' }}>
-                  Sets the wording on your invitation and how guest sides are labelled. The artwork is the same either way — change it any time.
-                </p>
-              </div>
+            {/* Every template that can render an occasion, not just Custom
+                Canvas: the template decides how the invitation looks, this
+                decides what the event is.
+
+                Gated on isFullPage because the retired continuous-scroll
+                categories (Corporate, Birthday, Gala) have no hero, no badge
+                and no honoree fields to drive — offering the choice there
+                would let a resumed draft set an occasion that nothing on the
+                page can show, while quietly rewriting its event_type. */}
+            {isFullPage(templateType) && (
+              <OccasionPicker
+                value={occasionChoice}
+                onChange={setTd('custom_category')}
+                labelStyle={lblStyle}
+              />
             )}
             {showCoupleFields && (
               <>
@@ -547,6 +488,20 @@ export default function Stage2_FormConfiguration({
                     </div>
                   </>
                 )}
+                {/* The engagement counterpart to "Our Love Story" above.
+                    It used to live in a separate `isEngagementStyle` block
+                    that ALSO re-rendered the partner name and email fields —
+                    harmless while only the engagement templates matched it,
+                    and a double-render bound to the same keys the moment any
+                    template could be an engagement. The story is the only
+                    thing that was ever unique to it. */}
+                {occasionChoice === 'engagement' && (
+                  <Field label="The Proposal Story">
+                    <textarea value={td('proposalStory')} onChange={e => setTd('proposalStory')(e.target.value)}
+                      rows={3} placeholder="How did the magic happen…"
+                      style={{ ...iStyle, resize: 'vertical' }} onFocus={onFocus} onBlur={onBlur} />
+                  </Field>
+                )}
                 <Field label="Gift Registry URL">
                   <input type="url" value={td('giftRegistry')} onChange={e => setTd('giftRegistry')(e.target.value)}
                     placeholder="https://registry.example.com" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
@@ -559,7 +514,7 @@ export default function Stage2_FormConfiguration({
               </>
             )}
 
-            {templateType === 'custom' && customCategoryMeta?.kind === 'honoree' && (
+            {customCategoryMeta?.kind === 'honoree' && (
               <>
                 <Field label={customCategoryMeta.honoreeLabel} hint={customCategoryMeta.honoreeHint}>
                   <input type="text" value={td('custom_honoree')} onChange={e => setTd('custom_honoree')(e.target.value)}
@@ -572,7 +527,7 @@ export default function Stage2_FormConfiguration({
               </>
             )}
 
-            {templateType === 'custom' && customCategory === 'babyShower' && (
+            {customCategoryMeta?.kind === 'babyShower' && (
               <>
                 <Field label="Parent(s)-to-be" hint="Shown as the name on your guest page">
                   <input type="text" value={td('custom_parents')} onChange={e => setTd('custom_parents')(e.target.value)}
@@ -600,7 +555,7 @@ export default function Stage2_FormConfiguration({
                 `showCoupleFields`, which is false for it) since it renders its
                 own dedicated Partner 1/2 Email block below — without this,
                 both blocks rendered at once, bound to the same two keys. */}
-            {isFullPage(templateType) && !showCoupleFields && !isEngagementStyle(templateType) && (
+            {isFullPage(templateType) && !showCoupleFields && (
               <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                 <Field label="Notify by Email" hint="This person also gets an email every time a guest RSVPs">
                   <input type="email" value={td('partner1_email')} onChange={e => setTd('partner1_email')(e.target.value)}
@@ -746,40 +701,6 @@ export default function Stage2_FormConfiguration({
                       placeholder="BE89 5655 5224 55" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
                   </Field>
                 </div>
-              </>
-            )}
-
-            {isEngagementStyle(templateType) && (
-              <>
-                <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                  <Field label="Partner 1 Name">
-                    <input type="text" value={td('partner1')} onChange={e => setTd('partner1')(e.target.value)}
-                      style={iStyle} onFocus={onFocus} onBlur={onBlur} />
-                  </Field>
-                  <Field label="Partner 2 Name">
-                    <input type="text" value={td('partner2')} onChange={e => setTd('partner2')(e.target.value)}
-                      style={iStyle} onFocus={onFocus} onBlur={onBlur} />
-                  </Field>
-                </div>
-                <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                  <Field label="Partner 1 Email" hint="If set, this person also gets an email every time a guest RSVPs">
-                    <input type="email" value={td('partner1_email')} onChange={e => setTd('partner1_email')(e.target.value)}
-                      style={iStyle} onFocus={onFocus} onBlur={onBlur} />
-                  </Field>
-                  <Field label="Partner 2 Email" hint="If set, this person also gets an email every time a guest RSVPs">
-                    <input type="email" value={td('partner2_email')} onChange={e => setTd('partner2_email')(e.target.value)}
-                      style={iStyle} onFocus={onFocus} onBlur={onBlur} />
-                  </Field>
-                </div>
-                <Field label="The Proposal Story">
-                  <textarea value={td('proposalStory')} onChange={e => setTd('proposalStory')(e.target.value)}
-                    rows={3} placeholder="How did the magic happen…"
-                    style={{ ...iStyle, resize: 'vertical' }} onFocus={onFocus} onBlur={onBlur} />
-                </Field>
-                <Field label="Gift Registry URL">
-                  <input type="url" value={td('giftRegistry')} onChange={e => setTd('giftRegistry')(e.target.value)}
-                    placeholder="https://registry.example.com" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
-                </Field>
               </>
             )}
 
@@ -1032,7 +953,13 @@ export default function Stage2_FormConfiguration({
                 onChange={e => setTrackGuestSide(e.target.checked)}
                 style={{ width: 16, height: 16, marginTop: 2, accentColor: C.gold, cursor: 'pointer' }} />
               <span>
-                {WEDDING_STYLE_TEMPLATE_KEYS.includes(templateType) ? "Tag guests as Groom's Side / Bride's Side" : "Tag guests as Partner 1's Side / Partner 2's Side"}
+                {/* The OCCASION, not the artwork — this label has to match
+                    what utils/sideLabel.js will actually print, and that reads
+                    event_type, which the occasion now drives. Keyed on the
+                    template it promised "Groom's Side" for a wedding on a
+                    retired variant and "Partner 1's Side" for a wedding on
+                    Velvet Ring. */}
+                {occasionChoice === 'wedding' ? "Tag guests as Groom's Side / Bride's Side" : "Tag guests as Partner 1's Side / Partner 2's Side"}
                 <span style={{ display: 'block', color: C.stone, fontSize: 12, marginTop: 3, fontWeight: 400, lineHeight: 1.5 }}>
                   Lets you and your guests mark which side of the party they belong to. Off by default — no extra field appears anywhere until you turn this on.
                 </span>
@@ -1432,7 +1359,6 @@ export default function Stage2_FormConfiguration({
         @media (max-width: 767.98px) {
           .s2-row { grid-template-columns: 1fr !important; }
           .s2-privacy { grid-template-columns: 1fr !important; }
-          .s2-category-grid { grid-template-columns: repeat(3, 1fr) !important; }
           .s2-swatch-row { grid-template-columns: repeat(2, 1fr) !important; }
         }
         /* The 3-button footer (Back / Save as Draft / Continue) has no wrap

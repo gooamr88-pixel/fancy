@@ -5,7 +5,8 @@ import SnapShell from './SnapShell';
 import { FullPageThemeProvider, buildPalette } from './theme';
 import { HERITAGE_ARCH_DEFAULTS as D } from './defaultContent';
 import { getHaDays } from '../../../utils/haDays';
-import { CUSTOM_CATEGORY_BY_KEY } from '../../../utils/customEventCategories';
+import { CUSTOM_CATEGORY_BY_KEY, occasionTagline } from '../../../utils/customEventCategories';
+import { resolveOccasion } from '../../../utils/eventOccasion';
 import { getCinematicTemplate, getCinematicOccasion, getCinematicCopy } from '../cinematic/cinematicThemes';
 import VelvetRingHero from '../cinematic/VelvetRingHero';
 import DoorOfJoyHero from '../cinematic/DoorOfJoyHero';
@@ -185,16 +186,15 @@ export default function HeritageArchPage({
   // categories already work via partner1/partner2 above. All fall back to
   // the event's own title when the organizer hasn't named a celebrant/parents
   // yet, exactly like every other template does.
-  /* `custom_category` is Custom Canvas's "what kind of event is this?" answer
-     — and now also Swan Lake's, which is the first template offered for two
-     occasions and asks the same question with the list narrowed to two.
-     Sharing the field rather than adding a parallel one means the hero copy,
-     the invitation card and the Groom's/Bride's Side labels all keep reading
-     the single place the answer lives. Every other template's occasion is
-     fixed by the template itself, so they must not consult it. */
-  const readsCustomCategory = event.template_type === 'custom'
-    || getCinematicTemplate(event.template_type)?.occasion === 'both';
-  const customCategory = readsCustomCategory ? (td.custom_category || '') : '';
+  /* "What kind of event is this?" — asked of EVERY template now, and stored
+     in one place for all of them.
+
+     This used to be read only for Custom Canvas, because every other template
+     WAS an occasion: Velvet Ring was an engagement and Door of Joy a wedding,
+     so the artwork and the celebration were a single decision. Now the
+     template supplies only a default (see getCinematicOccasion), which is
+     what keeps every event created before the picker rendering as it did. */
+  const customCategory = resolveOccasion(event.template_type, td);
   /* Custom Canvas's "Heading Typography" pick, applied to the PAGE.
 
      It used to reach exactly one element: the small invitation card inside the
@@ -224,18 +224,16 @@ export default function HeritageArchPage({
   const customCategoryMeta = customCategory ? CUSTOM_CATEGORY_BY_KEY[customCategory] : null;
   const isHonoreeCategory = customCategoryMeta?.kind === 'honoree';
   const isBabyShowerCategory = customCategoryMeta?.kind === 'babyShower';
-  // True for both the dedicated Engagement template AND Custom Canvas set to
-  // the "Engagement" category — both share HeroSection's generic couple
-  // fallback tagline (see below), which defaults to "We are getting married".
-  // That's wrong for an engagement (nobody's married yet) — this event hasn't
-  // happened — so both paths need their own explicit override instead of
-  // silently inheriting the wedding copy.
-  // 'ring' is Velvet Ring, the cinematic engagement — without it the hero
-  // would fall through to HeroSection's couple default and tell an engaged
-  // couple they are getting married.
-  // Swan Lake needs no entry here: it serves both occasions, so its answer
-  // arrives through `customCategory` above like Custom Canvas's does.
-  const isEngagementEvent = event.template_type === 'engagement' || event.template_type === 'ring' || customCategory === 'engagement';
+  /* HeroSection's generic couple fallback tagline is "We are getting married",
+     which is wrong for an engagement — nobody is married yet — so an
+     engagement needs an explicit override instead of inheriting wedding copy.
+
+     No template keys left in this test. It used to name 'ring' explicitly,
+     because Velvet Ring WAS the engagement; now every template's occasion
+     arrives through `customCategory`, and the retired 'engagement' template
+     is the only key that still has to answer for itself (it has no cinematic
+     entry to carry a defaultOccasion). */
+  const isEngagementEvent = customCategory === 'engagement' || event.template_type === 'engagement';
   const heroTitle = isHonoreeCategory ? (td.custom_honoree || event.title)
     : isBabyShowerCategory ? (td.custom_parents || event.title)
     : event.title;
@@ -248,16 +246,16 @@ export default function HeritageArchPage({
     ? (td.custom_milestone || (isRTL ? 'يسعدنا احتفالنا معكم' : 'Join us to celebrate'))
     : isBabyShowerCategory
     ? (td.custom_baby_name ? (isRTL ? `نستقبل قدوم ${td.custom_baby_name}` : `Welcoming ${td.custom_baby_name}`) : (td.custom_baby_due || (isRTL ? 'ينتظرنا مولود جديد' : "We're expecting!")))
-    // Vow Renewal reuses the same couple fields as Wedding/Engagement (kind
-    // 'couple'), but HeroSection's own built-in fallback tagline for a couple
-    // — "We are getting married" — is wrong here (they already are). Wedding
-    // (and its curated visual variants) is the one 'couple' category that
-    // actually wants that fallback, so it alone leaves this empty.
-    : customCategory === 'vowRenewal'
-    ? (isRTL ? 'نجدد نذورنا' : 'We are renewing our vows')
-    : isEngagementEvent
-    ? (isRTL ? 'تمت خطوبتنا!' : 'We Are Getting Engaged')
-    : '';
+    /* Every other occasion's line comes from the catalogue, which is where it
+       now lives beside that occasion's label, icon and field copy. Vow Renewal
+       and Engagement both need one because HeroSection's built-in couple
+       default — "We are getting married" — is wrong for each in its own way.
+       Wedding deliberately has none, so it still falls through to the
+       template's own line or to that default; see the note in
+       customEventCategories.js. */
+    : (occasionTagline(customCategory, isRTL)
+      // The retired Engagement template has no catalogue entry of its own.
+      || (isEngagementEvent ? (isRTL ? 'تمت خطوبتنا!' : 'We Are Getting Engaged') : ''));
   // A small icon+label pill above the hero name so guests immediately see
   // what kind of event this is (e.g. a graduation cap + "Graduation") —
   // wedding/engagement skip this since the couple names + their own tagline
@@ -497,17 +495,12 @@ export default function HeritageArchPage({
           coupleNames={heroCoupleNames}
           // The template's own worded line is the fallback, not a hardcoded
           // "we are getting married" — Velvet Ring is an engagement.
-          /* `heroTagline` is a GENERIC fallback here, not organizer input —
-             nothing on the dashboard writes it for a couple event; it is the
-             literal 'We Are Getting Engaged' a few lines above. A template
-             that serves two occasions ships a line written for each of them,
-             which is strictly more specific — and letting the generic one win
-             made Swan Lake speak warmly as a wedding ("invite you to share
-             the joy of their wedding") and tersely as an engagement, i.e. the
-             same template in two voices, with its own engagement line dead.
-             Emptying the slot for those templates lets their own copy through.
-             Fixed-occasion templates keep the original precedence exactly. */
-          tagline={(isPreview ? D.tagline : (cinematic.occasion === 'both' ? '' : heroTagline)) || cinematicCopy.sub}
+          /* The occasion's own line first (it is the specific one — a
+             milestone the organizer typed, or the catalogue's wording), then
+             the template's. `cinematicCopy.sub` is already occasion-aware: it
+             is the template's own voice on its own occasion and empty on any
+             other, so a birthday can never inherit a wedding's sentence. */
+          tagline={(isPreview ? D.tagline : heroTagline) || cinematicCopy.sub}
           dateLine={[dateLine, timeLine].filter(Boolean).join(isRTL ? ' — ' : ' — ')}
           coverImageUrl={event.cover_image_url || null}
           invitationPattern={invitationPattern} invitationTheme={invitationTheme}

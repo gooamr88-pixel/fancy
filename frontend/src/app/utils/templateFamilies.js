@@ -21,9 +21,14 @@
 export const WEDDING_VARIANT_TEMPLATES = [
   'tuscany', 'marrakesh', 'kyoto', 'nordic', 'havana',
   'estate', 'roseAtelier', 'orchid', 'clay', 'alpine', 'coastal', 'heritageArch',
-  // Door of Joy — a cinematic opening over the same wedding content shape, so
-  // it wants the wedding card copy, the "wedding invitation" label, and the
-  // Groom's/Bride's Side wording. (Velvet Ring is an ENGAGEMENT and is handled
-  // alongside 'engagement' instead — see buildInvitationCardData.)
-  'bab',
+  /* Door of Joy is NOT here any more, and neither is any other cinematic
+     template. Being on this list means "this artwork IS a wedding" — the
+     wedding card copy, the "wedding invitation" label and the Groom's/Bride's
+     Side wording, regardless of what the organizer is celebrating. That is
+     precisely what stopped a birthday from using the knocking door. The
+     cinematic templates carry a `defaultOccasion` instead (see
+     cinematic/cinematicThemes.js), which the organizer's own answer overrides.
+
+     What is left here is the retired visual variants, which have no such
+     entry and no picker to answer in. */
 ];

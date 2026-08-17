@@ -38,6 +38,7 @@ import { ScrollProgressBar as LegacyScrollProgressBar, DotNav as LegacyDotNav, F
 import InvitationReveal from '../components/guest/InvitationReveal';
 import InvitationCard from '../components/templates/InvitationCard';
 import { CINEMATIC_KEYS, getCinematicTemplate, getCinematicOccasion } from '../components/templates/cinematic/cinematicThemes';
+import { occasionKicker } from '../utils/customEventCategories';
 import { rememberedId } from '../components/guest/rsvp/useRsvpResolver';
 import { WEDDING_VARIANT_TEMPLATES } from '../utils/templateFamilies';
 import { buildInvitationCardData } from '../utils/invitationCardData';
@@ -181,9 +182,11 @@ WEDDING_VARIANT_TEMPLATES.forEach(key => {
   templateLabels.en[key] = 'wedding invitation';
   templateLabels.ar[key] = 'دعوة زفاف';
 });
-// Velvet Ring is the cinematic engagement, so it takes engagement's label.
-templateLabels.en.ring = 'engagement invitation';
-templateLabels.ar.ring = 'دعوة خطوبة';
+/* The cinematic templates deliberately have no entry. This map is keyed by
+   TEMPLATE, and they no longer have a fixed occasion — "engagement
+   invitation" was right for Velvet Ring only while Velvet Ring could not be
+   anything else. The lookup below falls back to the event's own occasion
+   instead, which is the thing this label was always trying to name. */
 
 // The /demo-wedding route renders a fixed showcase event — fully
 // deterministic from the slug, so it's provided via lazy initial state
@@ -1400,8 +1403,13 @@ export default function EventPageClient({
                     background: '#D7BE80', display: 'inline-block',
                     animation: 'pulseDot 2s infinite'
                   }} />
-                  {templateLabels[lang]?.[event.template_type] ||
-                    (isRTL ? 'تفاصيل الفعالية' : `${event.template_type} invitation`)}
+                  {/* Template first (the retired keys name themselves), then
+                      the event's own occasion, then a neutral fallback. The
+                      raw template key was being printed verbatim — "swans
+                      invitation" — for anything unnamed. */}
+                  {templateLabels[lang]?.[event.template_type]
+                    || occasionKicker(cinematicOccasion, isRTL).toLowerCase()
+                    || (isRTL ? 'تفاصيل الفعالية' : 'invitation')}
                 </span>
               </FadeInUp>
 
