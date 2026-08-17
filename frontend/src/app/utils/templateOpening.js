@@ -3,11 +3,13 @@ import { getCinematicTemplate } from '../components/templates/cinematic/cinemati
 /* ═══════════════════════════════════════════════════════════════════════════
    What a guest actually opens.
 
-   Three templates, three different arrivals — and only one of them is an
-   envelope:
+   Four templates, four different arrivals — and only two of them are an
+   envelope, one of which is not the editable one:
 
      Velvet Ring   a velvet box on a dark stage; the guest touches it
      Door of Joy   a carved door; the guest knocks three times
+     Swan Lake     an olive envelope whose ivory wax seal breaks on film —
+                   photography, not the drawn seal, so still hasSeal: false
      everything    a wax-sealed envelope (InvitationReveal)
 
    The organizer's Design tab used to describe all of them as the third. It
@@ -61,6 +63,20 @@ const CINEMATIC_COPY = {
     replayLabel: 'Play the opening again on every visit',
     previewLabel: 'Preview the opening',
     intro: 'Guests arrive at a carved door and knock three times. It answers, swings open on the light beyond, and doves lift from the garden gate behind your names.',
+    hasSeal: false,
+  },
+  waxEnvelope: {
+    key: 'waxEnvelope',
+    title: 'Invitation Opening',
+    toggleLabel: 'Open with the sealed envelope',
+    toggleHint: 'On by default. Turn this off and guests land straight on the invitation, with no envelope to unseal.',
+    replayLabel: 'Play the opening again on every visit',
+    previewLabel: 'Preview the opening',
+    /* Says the seal is filmed, on purpose. This is the one opening with a wax
+       seal that is NOT the editable one — an organizer who reads "wax seal"
+       and finds no monogram field would reasonably think the control is
+       missing, when in fact the seal is part of the footage. */
+    intro: 'Guests arrive at an olive envelope closed with an ivory wax seal of two swans. They touch it, the seal breaks on film, the flaps fall open, and the card rises out — then its engraving fills with colour. The seal is part of the film, so there is nothing to letter here.',
     hasSeal: false,
   },
 };

@@ -37,7 +37,7 @@ import {
 import { ScrollProgressBar as LegacyScrollProgressBar, DotNav as LegacyDotNav, FloatingCalendarButton as LegacyFloatingCalendarButton, ScrollHint as LegacyScrollHint } from '../components/guest/LegacyChrome';
 import InvitationReveal from '../components/guest/InvitationReveal';
 import InvitationCard from '../components/templates/InvitationCard';
-import { CINEMATIC_KEYS, getCinematicTemplate } from '../components/templates/cinematic/cinematicThemes';
+import { CINEMATIC_KEYS, getCinematicTemplate, getCinematicOccasion } from '../components/templates/cinematic/cinematicThemes';
 import { rememberedId } from '../components/guest/rsvp/useRsvpResolver';
 import { WEDDING_VARIANT_TEMPLATES } from '../utils/templateFamilies';
 import { buildInvitationCardData } from '../utils/invitationCardData';
@@ -78,9 +78,20 @@ const RsvpWizard = dynamic(() => import('./rsvp/RsvpWizard'));
 /* The cinematic openings, split for the same reason as everything above: a
    guest whose event uses the envelope must not download a video choreography
    engine and a Web Audio synthesiser they will never run, and vice versa.
-   Only one of the three can ever mount for a given event. */
-const VelvetBoxOpening = dynamic(() => import('../components/guest/openings/VelvetBoxOpening'));
-const KnockDoorOpening = dynamic(() => import('../components/guest/openings/KnockDoorOpening'));
+   Only one of these can ever mount for a given event.
+
+   Keyed by `cinematic.opening`, NOT selected by a ternary. This was
+   `opening === 'velvetBox' ? <VelvetBox…> : <KnockDoor…>` in four files, which
+   meant every template added after the second one silently rendered Door of
+   Joy — a knock-on-the-door cover over somebody else's invitation, with no
+   error anywhere. A map has no "everything else" arm to fall into; an unknown
+   key renders nothing and is caught by test/swanLakeTemplate.test.jsx, which
+   asserts every CINEMATIC_KEYS entry resolves here. */
+const CINEMATIC_OPENINGS = {
+  velvetBox: dynamic(() => import('../components/guest/openings/VelvetBoxOpening')),
+  knockDoor: dynamic(() => import('../components/guest/openings/KnockDoorOpening')),
+  waxEnvelope: dynamic(() => import('../components/guest/openings/WaxEnvelopeOpening')),
+};
 
 /* ═══════════════════════════════════════════════════════════════
    Helpers
@@ -100,10 +111,11 @@ const INVITATION_PATTERN_BY_TEMPLATE = {
   birthday: 'floral',
   gala: 'minimal',
   custom: 'custom',
-  // The cinematic pair show photography at the fold instead of a card, but
-  // the card is still what "Save the invitation" captures.
+  // The cinematic templates show photography at the fold instead of a card,
+  // but the card is still what "Save the invitation" captures.
   ring: 'serif',
   bab: 'serif',
+  swans: 'serif',
   tuscany: 'tuscany',
   marrakesh: 'marrakesh',
   kyoto: 'kyoto',
@@ -1038,9 +1050,14 @@ export default function EventPageClient({
   const invitationTheme = { primary: themeColor, secondary: customColors.secondary || '#D7BE80' };
   const invitationData = buildInvitationCardData(event, isRTL);
 
-  // Velvet Ring / Door of Joy. Null for every other template, which is what
-  // keeps the envelope branch below the default.
+  // Velvet Ring / Door of Joy / Swan Lake. Null for every other template,
+  // which is what keeps the envelope branch below the default.
   const cinematicTemplate = getCinematicTemplate(event.template_type);
+  const CinematicOpening = cinematicTemplate ? CINEMATIC_OPENINGS[cinematicTemplate.opening] : null;
+  /* Fixed for the templates that are one occasion; read from the organizer's
+     Step 2 answer for Swan Lake, which serves both. Drives the opening's and
+     the hero's kicker and tagline. */
+  const cinematicOccasion = getCinematicOccasion(cinematicTemplate, td);
   // The names carved on the cover, before any section has rendered. Same
   // resolution order the hero uses — Arabic title override, then the couple,
   // then the event's own title — so the cover and the page never disagree
@@ -1118,29 +1135,23 @@ export default function EventPageClient({
             a second gate. Everything else keeps InvitationReveal. */}
         <AnimatePresence>
           {showReveal && (
-            cinematicTemplate ? (
-              cinematicTemplate.opening === 'velvetBox' ? (
-                <VelvetBoxOpening
-                  key="guest-opening"
-                  template={cinematicTemplate}
-                  names={cinematicOpeningNames}
-                  lang={lang}
-                  sessionKey={revealSessionKey}
-                  onComplete={handleRevealComplete}
-                  onGesture={resumeIfNotUserPaused}
-                />
-              ) : (
-                <KnockDoorOpening
-                  key="guest-opening"
-                  template={cinematicTemplate}
-                  names={cinematicOpeningNames}
-                  lang={lang}
-                  sessionKey={revealSessionKey}
-                  onComplete={handleRevealComplete}
-                  onGesture={resumeIfNotUserPaused}
-                  onFirstKnock={preloadCinematicHeroVideo}
-                />
-              )
+            CinematicOpening ? (
+              <CinematicOpening
+                key="guest-opening"
+                template={cinematicTemplate}
+                names={cinematicOpeningNames}
+                lang={lang}
+                occasion={cinematicOccasion}
+                sessionKey={revealSessionKey}
+                onComplete={handleRevealComplete}
+                onGesture={resumeIfNotUserPaused}
+                /* Door of Joy alone reads this — its hero is a video sitting
+                   directly behind the door, and the knocks are the only spare
+                   seconds to fetch it in. Harmless on the others: an opening
+                   that never calls it never preloads anything, and the
+                   function itself no-ops when the template has no heroVideo. */
+                onFirstKnock={preloadCinematicHeroVideo}
+              />
             ) : (
               <InvitationReveal
                 key="guest-reveal"
@@ -1192,6 +1203,11 @@ export default function EventPageClient({
           invitationGuestName={invitationGuestName}
           invitationData={invitationData}
           isPreview={isDemoSlug}
+          /* Swan Lake's hero arrives embossed in ivory and blooms into colour
+             as the cover dissolves. It mounts underneath the opening several
+             seconds before the guest can see it, so it needs to know the cover
+             is still up — otherwise the whole effect plays behind it. */
+          openingActive={showReveal}
         />
       </PageTransition>
     );

@@ -1,0 +1,43 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+  html,body{margin:0;background:#111;color:#eee;font:12px/1.45 Consolas,monospace;}
+  iframe{width:390px;height:844px;border:0;position:absolute;left:-9999px;}
+  pre{margin:0;padding:10px;white-space:pre-wrap;}
+</style></head><body>
+<iframe id="f" src="hero-bloomed-ar.html" scrolling="no"></iframe>
+<pre id="out">measuring…</pre>
+<script>
+var f = document.getElementById('f');
+f.addEventListener('load', function () {
+  var doc = f.contentDocument, win = f.contentWindow;
+  var VW = win.innerWidth, L = [];
+  L.push('iframe viewport ' + VW + 'x' + win.innerHeight);
+  L.push('documentElement scrollWidth ' + doc.documentElement.scrollWidth
+       + '   body scrollWidth ' + doc.body.scrollWidth);
+  L.push('dir=' + doc.documentElement.dir);
+  L.push('--- boxes ---');
+  ['.cine-shero', '.cine-shero__scene', '.cine-hero__inner', '.cine-shero__names',
+   '.cine-shero__kicker', '.cine-shero__date', '.cine-shero__emblem', '.cine-hero__save'].forEach(function (sel) {
+    var el = doc.querySelector(sel);
+    if (!el) { L.push(sel.padEnd(24) + 'MISSING'); return; }
+    var r = el.getBoundingClientRect();
+    L.push(sel.padEnd(24) + 'x=' + Math.round(r.left) + ' w=' + Math.round(r.width)
+      + ' right=' + Math.round(r.right) + ' y=' + Math.round(r.top) + ' h=' + Math.round(r.height));
+  });
+  L.push('--- anything crossing the viewport edges ---');
+  var bad = [];
+  doc.querySelectorAll('*').forEach(function (el) {
+    var r = el.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    var oR = r.right - VW, oL = -r.left;
+    if (oR <= 1 && oL <= 1) return;
+    var cls = (typeof el.className === 'string' ? el.className : '').trim().split(/\s+/).slice(0,2).join('.');
+    bad.push(el.tagName.toLowerCase() + (cls ? '.' + cls : '')
+      + (oL > 1 ? '  left -' + Math.round(oL) : '')
+      + (oR > 1 ? '  right +' + Math.round(oR) : '')
+      + '  w=' + Math.round(r.width));
+  });
+  L.push(bad.length ? bad.join('\n') : 'none');
+  document.getElementById('out').textContent = L.join('\n');
+});
+</script>
+</body></html>

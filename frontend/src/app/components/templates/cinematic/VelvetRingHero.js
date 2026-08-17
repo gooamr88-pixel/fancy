@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useRef } from 'react';
 import { createFxPool } from '../../guest/fx/fxPool';
+import { getCinematicCopy } from './cinematicThemes';
 import HeroCardDownload from './HeroCardDownload';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -20,9 +21,9 @@ import HeroCardDownload from './HeroCardDownload';
 export default function VelvetRingHero({
   template, names, tagline, dateLine, coupleNames, coverImageUrl,
   invitationPattern, invitationTheme, invitationGuestName, invitationData,
-  title, isRTL,
+  title, isRTL, occasion = null,
 }) {
-  const copy = template.copy[isRTL ? 'ar' : 'en'];
+  const copy = getCinematicCopy(template, { isRTL, occasion });
   const emblemRef = useRef(null);
   const fxRef = useRef(null);
   const poolRef = useRef(null);

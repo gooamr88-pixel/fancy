@@ -1,4 +1,5 @@
 import { WEDDING_VARIANT_TEMPLATES } from './templateFamilies';
+import { getCinematicTemplate, getCinematicOccasion } from '../components/templates/cinematic/cinematicThemes';
 
 /* ═══════════════════════════════════════════════════════════════
    InvitationCard data, derived from a saved event.
@@ -84,7 +85,20 @@ export function buildInvitationCardData(event, isRTL) {
     return { names, monogram, dateLine, venueLine, venueName, venueAddress, ceremonyLine, receptionLine, coverImageUrl };
   }
 
-  switch (event?.template_type) {
+  /* A template that serves both occasions needs one of the two card copies
+     that already exist below, not a third arm of its own — "at the marriage
+     of" and "at the engagement of" are written down twice already, and a
+     third copy is a third place for them to drift.
+
+     Only `occasion: 'both'` templates are remapped. Everything else, cinematic
+     or not, keeps its own key: Velvet Ring is an engagement whatever an event
+     row happens to carry in custom_category. */
+  const cinematic = getCinematicTemplate(event?.template_type);
+  const cardKey = cinematic?.occasion === 'both'
+    ? getCinematicOccasion(cinematic, td)
+    : event?.template_type;
+
+  switch (cardKey) {
     case 'wedding': {
       // The organizer's create-event wizard (Stage2_FormConfiguration) writes
       // partner1/partner2 + ceremonyLocation/receptionLocation; the post-creation

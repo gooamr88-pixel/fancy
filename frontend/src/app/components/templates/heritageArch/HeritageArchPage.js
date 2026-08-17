@@ -6,9 +6,19 @@ import { FullPageThemeProvider, buildPalette } from './theme';
 import { HERITAGE_ARCH_DEFAULTS as D } from './defaultContent';
 import { getHaDays } from '../../../utils/haDays';
 import { CUSTOM_CATEGORY_BY_KEY } from '../../../utils/customEventCategories';
-import { getCinematicTemplate } from '../cinematic/cinematicThemes';
+import { getCinematicTemplate, getCinematicOccasion, getCinematicCopy } from '../cinematic/cinematicThemes';
 import VelvetRingHero from '../cinematic/VelvetRingHero';
 import DoorOfJoyHero from '../cinematic/DoorOfJoyHero';
+import SwanLakeHero from '../cinematic/SwanLakeHero';
+
+/* Keyed by `cinematic.hero`, not chosen by a ternary — see the note on
+   CINEMATIC_OPENINGS in [slug]/EventPageClient.js. The ternary this replaces
+   would have handed Swan Lake the Door of Joy hero, silently. */
+const CINEMATIC_HEROES = {
+  velvetRing: VelvetRingHero,
+  doorOfJoy: DoorOfJoyHero,
+  swanLake: SwanLakeHero,
+};
 import AmbientFx from '../../guest/fx/AmbientFx';
 import HeroSection from './sections/HeroSection';
 import EventDateSection from './sections/EventDateSection';
@@ -132,6 +142,11 @@ export default function HeritageArchPage({
   // Rendered inside a frame (the organizer's preview) rather than as the
   // document. Only affects how the scroll container is sized — see SnapShell.
   embedded = false,
+  /* True while a cinematic opening is still covering this page. Read by Swan
+     Lake's hero only, which holds its embossed state until the cover goes and
+     then blooms into colour with it. Defaults false so any caller that does
+     not manage an opening (the marketing demo) renders the finished hero. */
+  openingActive = false,
 }) {
   const td = event.template_data || {};
   const customColors = event.custom_colors || {};
@@ -170,7 +185,16 @@ export default function HeritageArchPage({
   // categories already work via partner1/partner2 above. All fall back to
   // the event's own title when the organizer hasn't named a celebrant/parents
   // yet, exactly like every other template does.
-  const customCategory = event.template_type === 'custom' ? (td.custom_category || '') : '';
+  /* `custom_category` is Custom Canvas's "what kind of event is this?" answer
+     — and now also Swan Lake's, which is the first template offered for two
+     occasions and asks the same question with the list narrowed to two.
+     Sharing the field rather than adding a parallel one means the hero copy,
+     the invitation card and the Groom's/Bride's Side labels all keep reading
+     the single place the answer lives. Every other template's occasion is
+     fixed by the template itself, so they must not consult it. */
+  const readsCustomCategory = event.template_type === 'custom'
+    || getCinematicTemplate(event.template_type)?.occasion === 'both';
+  const customCategory = readsCustomCategory ? (td.custom_category || '') : '';
   /* Custom Canvas's "Heading Typography" pick, applied to the PAGE.
 
      It used to reach exactly one element: the small invitation card inside the
@@ -209,6 +233,8 @@ export default function HeritageArchPage({
   // 'ring' is Velvet Ring, the cinematic engagement — without it the hero
   // would fall through to HeroSection's couple default and tell an engaged
   // couple they are getting married.
+  // Swan Lake needs no entry here: it serves both occasions, so its answer
+  // arrives through `customCategory` above like Custom Canvas's does.
   const isEngagementEvent = event.template_type === 'engagement' || event.template_type === 'ring' || customCategory === 'engagement';
   const heroTitle = isHonoreeCategory ? (td.custom_honoree || event.title)
     : isBabyShowerCategory ? (td.custom_parents || event.title)
@@ -436,15 +462,18 @@ export default function HeritageArchPage({
   };
   const withLabel = (entry) => (entry ? { ...entry, label: SECTION_LABELS[entry.id] || '' } : entry);
 
-  /* The cinematic templates (Velvet Ring, Door of Joy) swap the hero — and
-     only the hero. Everything below it is this file's ordinary section list,
-     built from the organizer's dashboard exactly as it is for every other
-     template, and recoloured to the template's own palette by buildPalette
-     above. The photography stops at the fold; the content does not change. */
+  /* The cinematic templates (Velvet Ring, Door of Joy, Swan Lake) swap the
+     hero — and only the hero. Everything below it is this file's ordinary
+     section list, built from the organizer's dashboard exactly as it is for
+     every other template, and recoloured to the template's own palette by
+     buildPalette above. The photography stops at the fold; the content does
+     not change. */
   const cinematic = getCinematicTemplate(event.template_type);
-  const CinematicHero = cinematic
-    ? (cinematic.hero === 'velvetRing' ? VelvetRingHero : DoorOfJoyHero)
-    : null;
+  const CinematicHero = cinematic ? CINEMATIC_HEROES[cinematic.hero] : null;
+  // 'wedding' | 'engagement' for Swan Lake (the organizer's Step 2 answer);
+  // the template's own fixed occasion for the other two.
+  const cinematicOccasion = getCinematicOccasion(cinematic, td);
+  const cinematicCopy = cinematic ? getCinematicCopy(cinematic, { isRTL, occasion: cinematicOccasion }) : null;
   const heroDisplayName = (isRTL && titleAr) ? titleAr
     : (partner1 && partner2 ? `${partner1} & ${partner2}` : (heroTitle || partner1 || partner2 || ''));
   const heroCoupleNames = (!(isRTL && titleAr) && partner1 && partner2) ? [partner1, partner2] : null;
@@ -468,12 +497,24 @@ export default function HeritageArchPage({
           coupleNames={heroCoupleNames}
           // The template's own worded line is the fallback, not a hardcoded
           // "we are getting married" — Velvet Ring is an engagement.
-          tagline={(isPreview ? D.tagline : heroTagline) || cinematic.copy[isRTL ? 'ar' : 'en'].sub}
+          /* `heroTagline` is a GENERIC fallback here, not organizer input —
+             nothing on the dashboard writes it for a couple event; it is the
+             literal 'We Are Getting Engaged' a few lines above. A template
+             that serves two occasions ships a line written for each of them,
+             which is strictly more specific — and letting the generic one win
+             made Swan Lake speak warmly as a wedding ("invite you to share
+             the joy of their wedding") and tersely as an engagement, i.e. the
+             same template in two voices, with its own engagement line dead.
+             Emptying the slot for those templates lets their own copy through.
+             Fixed-occasion templates keep the original precedence exactly. */
+          tagline={(isPreview ? D.tagline : (cinematic.occasion === 'both' ? '' : heroTagline)) || cinematicCopy.sub}
           dateLine={[dateLine, timeLine].filter(Boolean).join(isRTL ? ' — ' : ' — ')}
           coverImageUrl={event.cover_image_url || null}
           invitationPattern={invitationPattern} invitationTheme={invitationTheme}
           invitationGuestName={invitationGuestName} invitationData={invitationData}
           title={heroTitle} isRTL={isRTL}
+          // Only Swan Lake reads these two; the other heroes ignore them.
+          occasion={cinematicOccasion} openingActive={openingActive}
         />
       ) : (
         <HeroSection

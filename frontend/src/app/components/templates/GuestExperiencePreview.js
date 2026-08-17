@@ -6,7 +6,18 @@ import HeritageArchPage from './heritageArch/HeritageArchPage';
 import InvitationReveal from '../guest/InvitationReveal';
 import VelvetBoxOpening from '../guest/openings/VelvetBoxOpening';
 import KnockDoorOpening from '../guest/openings/KnockDoorOpening';
-import { getCinematicTemplate } from './cinematic/cinematicThemes';
+import WaxEnvelopeOpening from '../guest/openings/WaxEnvelopeOpening';
+import { getCinematicTemplate, getCinematicOccasion } from './cinematic/cinematicThemes';
+
+/* Keyed, not chosen by a ternary — see CINEMATIC_OPENINGS in
+   [slug]/EventPageClient.js. Statically imported rather than dynamic(): this
+   file is already inside the organizer bundle, and a preview that has to
+   round-trip for a chunk before the cover appears defeats the point of it. */
+const CINEMATIC_OPENINGS = {
+  velvetBox: VelvetBoxOpening,
+  knockDoor: KnockDoorOpening,
+  waxEnvelope: WaxEnvelopeOpening,
+};
 import { translations } from '../../utils/translations';
 // From the shared util, NOT from [slug]/EventPageClient. Importing one named
 // export from that module still evaluates it, which pulled the whole guest
@@ -121,6 +132,8 @@ export default function GuestExperiencePreview({
   const timeLeft = useCountdown(event?.event_date);
 
   const cinematic = getCinematicTemplate(event?.template_type);
+  const CinematicOpening = cinematic ? CINEMATIC_OPENINGS[cinematic.opening] : null;
+  const occasion = getCinematicOccasion(cinematic, event?.template_data);
   const [openingDone, setOpeningDone] = useState(!playOpening);
 
   // A fresh replayKey re-arms the opening; a change to playOpening (the inline
@@ -167,6 +180,10 @@ export default function GuestExperiencePreview({
         // write. The event may not even exist on the server yet.
         readOnly
         embedded={embedded}
+        // So Swan Lake's hero blooms out of its embossed state as the cover
+        // dissolves here too, rather than the organizer only ever seeing the
+        // finished picture and never the transition they are buying.
+        openingActive={!openingDone}
       />
 
       {/* Layered over the page, exactly as the real router layers it — so the
@@ -174,26 +191,16 @@ export default function GuestExperiencePreview({
           as separate screens. */}
       <AnimatePresence>
         {!openingDone && (
-          cinematic ? (
-            cinematic.opening === 'velvetBox' ? (
-              <VelvetBoxOpening
-                key={`opening-${replayKey}`}
-                template={cinematic}
-                names={openingNames}
-                lang={lang}
-                sessionKey={null}
-                onComplete={() => setOpeningDone(true)}
-              />
-            ) : (
-              <KnockDoorOpening
-                key={`opening-${replayKey}`}
-                template={cinematic}
-                names={openingNames}
-                lang={lang}
-                sessionKey={null}
-                onComplete={() => setOpeningDone(true)}
-              />
-            )
+          CinematicOpening ? (
+            <CinematicOpening
+              key={`opening-${replayKey}`}
+              template={cinematic}
+              names={openingNames}
+              lang={lang}
+              occasion={occasion}
+              sessionKey={null}
+              onComplete={() => setOpeningDone(true)}
+            />
           ) : (
             <InvitationReveal
               key={`opening-${replayKey}`}

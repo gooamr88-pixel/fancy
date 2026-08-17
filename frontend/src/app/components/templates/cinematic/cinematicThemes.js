@@ -152,6 +152,122 @@ export const CINEMATIC_TEMPLATES = {
       ar: { kicker: 'دعوة زفاف', hint: 'دُقّوا على الباب ثلاث دقّاتٍ ليُفتح', scroll: 'مرّر للأسفل', sub: 'فتحنا باب فرحتنا… وطارت البشائر تدعوكم' },
     },
   },
+
+  /* ── Swan Lake — wedding OR engagement ────────────────────────────────
+     An olive envelope, engraved with foliage and closed with an ivory wax
+     seal of two swans. It unseals on film, the four flaps fall open, and an
+     embossed ivory card rises out of it.
+
+     What the card carries is the hero: a painted swan lake with calla lilies
+     and orchids. It arrives EMBOSSED — the same ivory relief the video ended
+     on — and then the colour floods into it. See SwanLakeHero: one photograph
+     under a filter, not two assets, so the two states can never drift apart.
+
+     The first template here that serves two occasions. Every other one is
+     fixed to a single one; this one asks the organizer in Step 2 and reads
+     the answer through getCinematicOccasion() below. */
+  swans: {
+    key: 'swans',
+    /* 'both' — the sentinel getCinematicOccasion() looks for. Any other value
+       is a fixed occasion and the organizer is never asked. */
+    occasion: 'both',
+    opening: 'waxEnvelope',
+    hero: 'swanLake',
+
+    assets: {
+      poster: '/templates/swans/envelope-poster.jpg',
+      video: '/templates/swans/envelope.mp4',
+      // The video's own last frame, so the plate the opening dissolves FROM
+      // and the state the hero arrives IN are the same picture.
+      revealed: '/templates/swans/card-embossed.jpg',
+      /* The hero photograph. Preloaded at LOW priority (see
+         preloadCinematicAssets): the whole effect is that the embossed card
+         becomes this picture, so a hero still arriving late doesn't merely pop
+         — it breaks the one illusion this template is built on. The opening
+         runs ~5s, which is the budget it has to arrive in. */
+      lake: '/templates/swans/lake.jpg',
+      /* No separate orchid cut-out. The source page used one as a section
+         divider; ours are drawn by the shared sections, and the hero's own
+         orchids are painted into `lake` — so shipping it meant 151KB in
+         public/ that nothing ever requested. */
+    },
+
+    /* Read off the footage frame by frame, not guessed. The seal lifts at
+       ~1.5s, the flaps fall open by ~3s, the card is fully risen and legible
+       at frame 135 (4.50s) and settled by 145 (4.83s). 4.9 leaves ~1.4s of
+       the 6.3s clip in hand, so the cross-fade lands mid-shot rather than on
+       a frozen last frame. */
+    revealAtSeconds: 4.9,
+
+    // Ivory ground — buildPalette resolves this as a LIGHT theme, like Door
+    // of Joy and unlike Velvet Ring.
+    colors: {
+      primary: '#33492f',    // forest — headings
+      secondary: '#6d6f4e',  // olive — eyebrow labels, dividers
+      accent: '#5c2331',     // burgundy, off the hanging calla lilies
+      background: '#f8f4e9', // the card's own ivory
+    },
+
+    cssVars: {
+      // The envelope, three depths — this is what the opening sits on.
+      '--cine-deep': '#3a3826',
+      '--cine-mid': '#504e37',
+      '--cine-hi': '#67654a',
+      /* The "metal" here is the warm stone of the gazebo and the bridge in
+         the painting, not gold — a yellow metal on an olive-and-ivory page
+         reads as a different template's palette leaking in. */
+      '--cine-gold': '#a98a5c',
+      '--cine-gold-hi': '#e8dcc0',
+      '--cine-gold-dp': '#7d6540',
+      // See the note on Velvet Ring's triplets: rgba(var(--x-rgb), a) rather
+      // than color-mix(), which invalidates the whole declaration below
+      // Safari 16.2 / Chrome 111.
+      '--cine-deep-rgb': '58, 56, 38',
+      '--cine-gold-rgb': '169, 138, 92',
+      '--cine-gold-hi-rgb': '232, 220, 192',
+      '--cine-accent': '#5c2331',
+      '--cine-blush': '#8b9070',
+      '--cine-text': '#f4f0e0',
+      /* Amiri + Aref Ruqaa, the pairing the artwork was set in. Both are
+         already self-hosted through layout.js. Never reach for a remote font
+         host here — a blackholed one hangs the whole invitation, which is why
+         the residue test in cinematicTemplates.test.jsx scans these files for
+         that hostname and why it is not spelled out in this comment. */
+      '--cine-display': 'var(--font-aref), "Aref Ruqaa", serif',
+      '--cine-serif': 'var(--font-amiri), "Amiri", serif',
+      '--cine-label': 'var(--font-messiri), "El Messiri", sans-serif',
+      '--cine-body': 'var(--font-tajawal), "Tajawal", system-ui, sans-serif',
+      '--cine-latin': 'var(--font-cormorant), "Cormorant Garamond", serif',
+    },
+
+    /* Drifting blooms only. No gold dust and no pointer trail, for the same
+       reason Door of Joy has neither: the page below is ivory, and a sparkle
+       on a pale ground reads as dirt rather than as light. */
+    /* Glyphs restricted to the same Dingbats block Door of Joy uses. '⚘'
+       (U+2698 FLOWER) reads as a flower in a font that has it and as tofu in
+       one that does not, and this drifts across a guest's whole page. */
+    fx: { dust: false, petals: true, trail: false, petalEveryMs: 3600, petalGlyphs: ['❀', '✿', '❁'] },
+
+    copy: {
+      en: { hint: 'Touch to break the seal', loading: 'Loading…', preparing: 'Preparing the scene…', scroll: 'Scroll down' },
+      ar: { hint: 'المس الختم لفتح الدعوة', loading: 'جارٍ التحميل…', preparing: 'يجهَّز المشهد…', scroll: 'مرّر للأسفل' },
+    },
+
+    /* Merged over `copy` by getCinematicCopy(). Only the lines that actually
+       change with the occasion live here — an engagement invitation that
+       called itself a wedding, or told a couple they are getting married,
+       is the failure this exists to prevent. */
+    occasionCopy: {
+      wedding: {
+        en: { kicker: 'Wedding Invitation', latin: 'Wedding', sub: 'invite you to share the joy of their wedding' },
+        ar: { kicker: 'دعوة زفاف', latin: 'Wedding', sub: 'يتشرّفان بدعوتكم لمشاركتهما فرحة الزفاف' },
+      },
+      engagement: {
+        en: { kicker: 'Engagement Invitation', latin: 'Engagement', sub: 'invite you to share the joy of their engagement' },
+        ar: { kicker: 'دعوة خطوبة', latin: 'Engagement', sub: 'يتشرّفان بدعوتكم لمشاركتهما فرحة الخطوبة' },
+      },
+    },
+  },
 };
 
 /** The template keys that render a cinematic opening instead of the envelope. */
@@ -160,6 +276,52 @@ export const CINEMATIC_KEYS = Object.keys(CINEMATIC_TEMPLATES);
 /** Definition for a template key, or null for every non-cinematic template. */
 export function getCinematicTemplate(templateType) {
   return CINEMATIC_TEMPLATES[templateType] || null;
+}
+
+/**
+ * Which occasion this event is actually for.
+ *
+ * Templates fixed to one occasion answer from their own definition and never
+ * consult the event — Velvet Ring is an engagement whatever else is stored on
+ * the row. Only `occasion: 'both'` (Swan Lake) asks, and it asks the field the
+ * organizer already fills in for Custom Canvas (`template_data.custom_category`)
+ * rather than a second one that means the same thing.
+ *
+ * Defaults to 'wedding' when unanswered: it is the commoner case, and its
+ * field set is the superset, so nothing the organizer has typed is hidden by
+ * the default.
+ *
+ * @param {object|null} template  a CINEMATIC_TEMPLATES entry
+ * @param {object} [templateData] the event's template_data
+ * @returns {string|null}
+ */
+export function getCinematicOccasion(template, templateData) {
+  if (!template) return null;
+  if (template.occasion !== 'both') return template.occasion;
+  return templateData?.custom_category === 'engagement' ? 'engagement' : 'wedding';
+}
+
+/**
+ * The copy an opening or hero should render.
+ *
+ * One accessor for all of them, so a template that varies a line by occasion
+ * and one that does not are read the same way. Templates with no
+ * `occasionCopy` return their base copy untouched — which is every template
+ * except Swan Lake, so this is a pure superset of `template.copy[lang]`.
+ */
+export function getCinematicCopy(template, { isRTL = false, occasion = null } = {}) {
+  const lang = isRTL ? 'ar' : 'en';
+  const base = template?.copy?.[lang] || {};
+  const byOccasion = template?.occasionCopy;
+  if (!byOccasion) return base;
+
+  /* A dual-occasion template keeps its kicker and tagline ONLY in the overlay,
+     so a caller that forgets to pass `occasion` — or passes the 'both'
+     sentinel through — would render an empty kicker with no error anywhere.
+     Falling back to the first occasion defined is always a real, complete
+     line; a blank one never is. */
+  const overlay = byOccasion[occasion] || byOccasion[Object.keys(byOccasion)[0]];
+  return { ...base, ...(overlay?.[lang] || {}) };
 }
 
 /**
@@ -179,7 +341,7 @@ export function getCinematicTemplate(templateType) {
 export function preloadCinematicAssets(templateType) {
   const tpl = getCinematicTemplate(templateType);
   if (!tpl) return;
-  const stills = [tpl.assets.poster, tpl.assets.revealed, tpl.assets.heroPoster].filter(Boolean);
+  const stills = [tpl.assets.poster, tpl.assets.revealed, tpl.assets.heroPoster, tpl.assets.lake].filter(Boolean);
   stills.forEach((href, i) => {
     // Only the cover's own first frame is urgent; the rest are needed a
     // beat later and must not be allowed to delay it.

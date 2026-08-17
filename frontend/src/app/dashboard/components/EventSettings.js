@@ -14,6 +14,8 @@ import TagListEditor, { toTagArray } from './TagListEditor';
 import InvitationReveal, { REVEAL_TONES } from '../../components/guest/InvitationReveal';
 import VelvetBoxOpening from '../../components/guest/openings/VelvetBoxOpening';
 import KnockDoorOpening from '../../components/guest/openings/KnockDoorOpening';
+import WaxEnvelopeOpening from '../../components/guest/openings/WaxEnvelopeOpening';
+import { getCinematicTemplate, getCinematicOccasion } from '../../components/templates/cinematic/cinematicThemes';
 import { preloadRevealAssets } from '../../components/guest/revealAssets';
 import ImageUploadField from './ImageUploadField';
 import DaysEditor from '../create-event/components/DaysEditor';
@@ -32,6 +34,22 @@ const COLORS = {
   champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF', softBg: '#FAFAF8',
 };
 
+/* The opening a cinematic template mounts, keyed by `cinematic.opening`.
+   See the note on CINEMATIC_OPENINGS in [slug]/EventPageClient.js — a ternary
+   here previewed Door of Joy for every template that was not Velvet Ring. */
+const CINEMATIC_OPENINGS = {
+  velvetBox: VelvetBoxOpening,
+  knockDoor: KnockDoorOpening,
+  waxEnvelope: WaxEnvelopeOpening,
+};
+
+/* The two choices a dual-occasion template offers. Filtered from the shared
+   catalogue so the keys written to `custom_category` here are the same ones
+   the wizard writes — see DUAL_OCCASION_CATEGORIES in
+   create-event/components/Stage2_FormConfiguration.js. */
+const DUAL_OCCASION_CATEGORIES = CUSTOM_CATEGORIES
+  .filter((c) => c.key === 'wedding' || c.key === 'engagement');
+
 // Templates rendered as the full-page snap-scroll guest experience — the
 // wedding-style templates, engagement and custom (corporate/birthday/gala
 // keep the continuous-scroll layout and their own content fields).
@@ -44,8 +62,8 @@ const FULL_PAGE_TEMPLATE_KEYS = [
   'wedding', 'tuscany', 'marrakesh', 'kyoto', 'nordic', 'havana',
   'estate', 'roseAtelier', 'orchid', 'clay', 'alpine', 'coastal', 'heritageArch',
   'engagement', 'custom',
-  // The cinematic pair — same full-page sections, different opening and hero.
-  'ring', 'bab',
+  // The cinematic templates — same full-page sections, different opening and hero.
+  'ring', 'bab', 'swans',
 ];
 const isFullPage = (t) => FULL_PAGE_TEMPLATE_KEYS.includes(t);
 
@@ -1081,12 +1099,21 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
   // template_type is set yet (older events saved before this field existed).
   const effectiveTemplateType = form.template_type || (form.event_type === 'wedding' ? 'wedding' : '');
   const customCategoryMeta = CUSTOM_CATEGORY_BY_KEY[templateData.custom_category] || null;
+  /* Swan Lake serves both occasions and asks which in the wizard's Step 2.
+     The same question has to be answerable here, or an organizer who picked
+     the wrong one at creation can never change it — and the answer drives the
+     invitation wording and the Groom's/Bride's Side labels, not just a
+     heading. Defaults to wedding, matching Stage2 and getCinematicOccasion. */
+  const isDualOccasion = getCinematicTemplate(effectiveTemplateType)?.occasion === 'both';
+  const occasionChoice = isDualOccasion ? (templateData.custom_category || 'wedding') : '';
   const showCoupleFields = WEDDING_STYLE_TEMPLATE_KEYS.includes(effectiveTemplateType)
     || (effectiveTemplateType === 'custom' && customCategoryMeta?.kind === 'couple')
     // 'ring' is Velvet Ring, the cinematic engagement — same Partner 1/2
     // fields as the base Engagement template, so it has to be asked for here
     // too or the couple's names have no edit surface after creation.
     || effectiveTemplateType === 'engagement' || effectiveTemplateType === 'ring'
+    // Swan Lake collects the couple on both occasions.
+    || isDualOccasion
     // Legacy fallback: events saved before `template_type` existed, where
     // `effectiveTemplateType` above is '' and only `event_type` says engagement.
     || (!form.template_type && form.event_type === 'engagement');
@@ -1341,17 +1368,25 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           </div>
         </div>
 
-        <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Event Type / Template</label>
-          <select value={form.event_type} onChange={handleChange('event_type')} style={{ ...inputStyle, cursor: 'pointer' }}>
-            <option value="wedding">Wedding</option>
-            <option value="corporate">Corporate Event</option>
-            <option value="birthday">Birthday Party</option>
-            <option value="engagement">Engagement Party</option>
-            <option value="gala">Gala / Dinner</option>
-            <option value="custom">Custom Event</option>
-          </select>
-        </div>
+        {/* Hidden for a dual-occasion template, which asks the same question
+            more specifically in Content ("wedding or engagement?") and writes
+            this field from that answer. Two controls for one decision is how
+            you end up with an invitation that says "engagement" while the
+            guest list says "Groom's Side" — the same reasoning that hides the
+            generic Heading Font for Custom Canvas. */}
+        {!isDualOccasion && (
+          <div style={fieldGroupStyle}>
+            <label style={labelStyle}>Event Type / Template</label>
+            <select value={form.event_type} onChange={handleChange('event_type')} style={{ ...inputStyle, cursor: 'pointer' }}>
+              <option value="wedding">Wedding</option>
+              <option value="corporate">Corporate Event</option>
+              <option value="birthday">Birthday Party</option>
+              <option value="engagement">Engagement Party</option>
+              <option value="gala">Gala / Dinner</option>
+              <option value="custom">Custom Event</option>
+            </select>
+          </div>
+        )}
       </div>
 
       {/* ═══ RSVP SETTINGS ═══ */}
@@ -2090,6 +2125,53 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             </div>
             <p style={{ fontSize: 'var(--fx-micro)', color: '#A09A91', margin: '8px 0 0', fontFamily: 'var(--font-sans)', lineHeight: 1.55 }}>
               Shapes the fields below and the name/tagline on your guest page — change it any time.
+            </p>
+          </div>
+        )}
+
+        {/* The same question Stage 2 asks for a dual-occasion template (Swan
+            Lake), asked again here. Without it the choice would be settable
+            once during creation and then permanently frozen — and it decides
+            the invitation's own wording and whether guest sides read Groom's/
+            Bride's, so it is not a cosmetic heading. Writes the SAME
+            `custom_category` key the block above does. */}
+        {isDualOccasion && (
+          <div style={{ marginBottom: 18 }}>
+            <label style={labelStyle}>Is this a wedding or an engagement?</label>
+            <div className="es-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              {DUAL_OCCASION_CATEGORIES.map(({ key, label }) => {
+                const active = occasionChoice === key;
+                return (
+                  <button key={key} type="button"
+                    onClick={() => {
+                      setTemplateData(prev => ({ ...prev, custom_category: key }));
+                      /* event_type moves WITH the choice. It is what the side
+                         labels, meal selection, the RSVP wizard and the CSV
+                         export all read — none of which know a template key —
+                         so leaving it behind would show "Groom's Side" on an
+                         event whose invitation says engagement. Mirrors
+                         deriveEventType() in create-event/page.js. */
+                      setForm(prev => ({ ...prev, event_type: key }));
+                      setSuccess(false);
+                    }}
+                    style={{
+                      // flexWrap is load-bearing: two tiles in a 1fr 1fr grid
+                      // on a 320px screen leave ~140px a cell, and an icon +
+                      // "Engagement" on one unbreakable line is what pushes
+                      // the whole settings page sideways. See mobileFit.test.js.
+                      display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      padding: '13px 10px', borderRadius: 10, cursor: 'pointer',
+                      border: `1.5px solid ${active ? COLORS.gold : COLORS.border}`,
+                      background: active ? 'rgba(184,148,79,0.08)' : COLORS.white,
+                    }}>
+                    <EventCategoryIcon name={key} size={17} color={active ? COLORS.gold : COLORS.stone} />
+                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 600, color: active ? COLORS.gold : COLORS.stone }}>{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <p style={{ fontSize: 'var(--fx-micro)', color: '#A09A91', margin: '8px 0 0', fontFamily: 'var(--font-sans)', lineHeight: 1.55 }}>
+              Sets the wording on your invitation and how guest sides are labelled. The artwork is the same either way.
             </p>
           </div>
         )}
@@ -3062,6 +3144,12 @@ function RevealPreviewModal({ event, opening, lang = 'en', onClose }) {
     return a && b ? `${a} & ${b}` : (event.title || '');
   })();
 
+  // Keyed, not chosen by a ternary — see CINEMATIC_OPENINGS in
+  // [slug]/EventPageClient.js for what the ternary here used to do wrong.
+  const CinematicOpening = opening?.cinematic
+    ? CINEMATIC_OPENINGS[opening.cinematic.opening]
+    : null;
+
   const replay = () => { setDone(false); setRun((n) => n + 1); };
 
   return (
@@ -3102,29 +3190,19 @@ function RevealPreviewModal({ event, opening, lang = 'en', onClose }) {
             onDocumentKeyDown={onKey}
             style={{ width: '100%', height: '100%' }}
           >
-            {opening?.cinematic ? (
-              opening.cinematic.opening === 'velvetBox' ? (
-                <VelvetBoxOpening
-                  key={run}
-                  template={opening.cinematic}
-                  names={openingNames}
-                  lang={lang}
-                  // null, never a key: the organizer is previewing on purpose
-                  // and must not be let straight through because a guest
-                  // session once saw it.
-                  sessionKey={null}
-                  onComplete={() => setDone(true)}
-                />
-              ) : (
-                <KnockDoorOpening
-                  key={run}
-                  template={opening.cinematic}
-                  names={openingNames}
-                  lang={lang}
-                  sessionKey={null}
-                  onComplete={() => setDone(true)}
-                />
-              )
+            {CinematicOpening ? (
+              <CinematicOpening
+                key={run}
+                template={opening.cinematic}
+                names={openingNames}
+                lang={lang}
+                occasion={getCinematicOccasion(opening.cinematic, event?.template_data)}
+                // null, never a key: the organizer is previewing on purpose
+                // and must not be let straight through because a guest
+                // session once saw it.
+                sessionKey={null}
+                onComplete={() => setDone(true)}
+              />
             ) : (
               <InvitationReveal
                 key={run}

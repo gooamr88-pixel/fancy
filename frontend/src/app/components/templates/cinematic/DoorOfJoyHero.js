@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useReducedMotion } from 'framer-motion';
+import { getCinematicCopy } from './cinematicThemes';
 import HeroCardDownload from './HeroCardDownload';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -21,9 +22,9 @@ import HeroCardDownload from './HeroCardDownload';
 export default function DoorOfJoyHero({
   template, names, tagline, dateLine, coupleNames,
   invitationPattern, invitationTheme, invitationGuestName, invitationData,
-  title, isRTL,
+  title, isRTL, occasion = null,
 }) {
-  const copy = template.copy[isRTL ? 'ar' : 'en'];
+  const copy = getCinematicCopy(template, { isRTL, occasion });
   const videoRef = useRef(null);
   const reduceMotion = useReducedMotion();
   const [ready, setReady] = useState(false);

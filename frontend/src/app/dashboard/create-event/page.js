@@ -8,6 +8,7 @@ import { supabase } from '../../utils/supabaseClient';
 import { startSmsCreditPurchase } from '../../utils/smsPurchase';
 import { toTagArray } from '../components/TagListEditor';
 import { TEMPLATES, TEMPLATE_PREVIEW_PATTERN, RETIRED_TEMPLATE_SUCCESSOR } from '../../utils/curatedTemplates';
+import { getCinematicTemplate, getCinematicOccasion } from '../../components/templates/cinematic/cinematicThemes';
 import { buildPreviewEvent } from './components/previewEvent';
 
 /* ═══════════════════════════════════════════════════════
@@ -55,6 +56,28 @@ const WEDDING_STYLE_TEMPLATE_KEYS = [
   // engagement's own field set below, exactly like the Engagement template.
   'bab',
 ];
+
+/**
+ * The `event_type` a chosen template implies.
+ *
+ * `event_type` is the coarse category the REST of the product keys off —
+ * Groom's/Bride's Side labels (utils/sideLabel.js), meal selection
+ * (RsvpSection), the RSVP wizard, EditGuestModal, SendInvitationModal and the
+ * CSV export all read it and none of them know a template key. So a template
+ * that serves two occasions has to resolve to the right one HERE; adding it to
+ * yet another list in each of those files is how the "Groom's Side" label ends
+ * up on an engagement.
+ *
+ * Templates fixed to one occasion are unchanged: the wedding-style variants
+ * collapse to 'wedding', and everything else (including Velvet Ring, which
+ * stores 'ring') keeps its own key exactly as before.
+ */
+function deriveEventType(templateType, templateData) {
+  if (WEDDING_STYLE_TEMPLATE_KEYS.includes(templateType)) return 'wedding';
+  const cinematic = getCinematicTemplate(templateType);
+  if (cinematic?.occasion === 'both') return getCinematicOccasion(cinematic, templateData);
+  return templateType;
+}
 
 /**
  * Client-side mirror of the backend's event-date ordering rules
@@ -141,6 +164,21 @@ const TEMPLATE_TYPE_FIELD_KEYS = {
   // Velvet Ring — the cinematic engagement. Same field set as Engagement, so
   // switching between the two never drops what the organizer already typed.
   ring: ['partner1', 'partner2', 'partner1_email', 'partner2_email', 'proposalStory', 'giftRegistry', ...HA_SECTION_FIELD_KEYS],
+  /* Swan Lake serves BOTH occasions, so it owns the union of the two field
+     sets, plus `custom_category` where the choice between them is stored.
+
+     The union is about SWITCHING TEMPLATES, not about which inputs render.
+     This list is what handleTemplateSelect prunes by, and `proposalStory` is
+     editable on Velvet Ring — so without it here, moving a Velvet Ring event
+     to Swan Lake would silently delete the story they wrote. (Like every
+     full-page template, Swan Lake edits its narrative through the shared
+     `ha_our_story` field rather than loveStory/proposalStory directly; both
+     are carried, not offered.) */
+  swans: [
+    ...WEDDING_FIELD_KEYS,
+    'proposalStory',
+    'custom_category',
+  ],
   // Custom is also a full-page template — it gets the same ha_* section fields
   // (schedule, venues, accommodation, FAQ, menu, gift list, etc.) as wedding
   // and engagement, so the organizer can freely fill in and toggle any
@@ -1013,10 +1051,11 @@ export default function CreateEventWizard() {
     galleryUrls: galleryUrls.length > 0 ? galleryUrls.filter(u => !u.startsWith('data:')) : undefined,
     customColors,
     templateData: buildTemplateData(),
-    // These curated templates are visual variants of a wedding, not distinct
-    // event categories — every event_type-gated behavior elsewhere (Groom's/
-    // Bride's Side labels, meal selection, guest-side tracking) treats them as one.
-    eventType: WEDDING_STYLE_TEMPLATE_KEYS.includes(templateType) ? 'wedding' : templateType,
+    // The curated wedding variants are not distinct event categories — every
+    // event_type-gated behavior elsewhere (Groom's/Bride's Side labels, meal
+    // selection, guest-side tracking) treats them as one. Swan Lake resolves
+    // to whichever occasion the organizer picked. See deriveEventType.
+    eventType: deriveEventType(templateType, buildTemplateData()),
     backgroundMusicUrl: sanitizeUrl(backgroundMusicUrl) || '',
     notificationPreferences: { email: notificationEmail, whatsapp: false },
     allowGuestEdits,
@@ -1089,7 +1128,7 @@ export default function CreateEventWizard() {
         background_music_url: backgroundMusicUrl || null,
         custom_colors: customColors,
         template_data: buildTemplateData() || {},
-        event_type: WEDDING_STYLE_TEMPLATE_KEYS.includes(templateType) ? 'wedding' : templateType,
+        event_type: deriveEventType(templateType, buildTemplateData()),
         notification_preferences: { email: notificationEmail, whatsapp: false },
         allow_guest_edits: allowGuestEdits,
         track_guest_side: trackGuestSide,

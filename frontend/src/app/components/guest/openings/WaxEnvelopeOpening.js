@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import { createFxPool } from '../fx/fxPool';
 import { getCinematicCopy } from '../../templates/cinematic/cinematicThemes';
+import useOpeningSfx from './useOpeningSfx';
 import {
   OPENING_TIMINGS,
   useMediaReadiness,
@@ -13,36 +14,38 @@ import {
 } from './openingSafety';
 
 /* ═══════════════════════════════════════════════════════════════
-   VELVET RING — the opening.
+   SWAN LAKE — the opening.
 
-   A closed velvet box on a dark stage. Touch anywhere and it opens onto the
-   ring, then dissolves into the invitation.
+   An olive envelope engraved with foliage, closed with an ivory wax seal of
+   two swans. Touch it: the seal breaks, the four flaps fall open, and the
+   embossed card rises out of it.
 
-   Three paths reach the same end, chosen by what the device can actually do:
+   Three paths reach the same end, chosen by what the device can actually do —
+   the same ladder VelvetBoxOpening runs, and for the same reason: a cinematic
+   opening is a video gate in front of the ENTIRE invitation, so every way the
+   video can fail has to end with the guest inside anyway.
 
-     VIDEO      the box opens on film, revealing at the frame where the lid
-                is back and the stone is lit.
-     STILLS     a gold blowout covers a cut between two photographs. Taken
-                whenever the video never produces a frame — the cut reads as
-                a camera flash rather than as a failure.
+     VIDEO      the envelope opens on film, revealing at the frame where the
+                card is fully risen (template.revealAtSeconds).
+     STILLS     an ivory bloom covers a cut between the sealed envelope and
+                the embossed card. Taken whenever the video never produces a
+                frame — it reads as paper catching the light, not as a
+                failure.
      IMMEDIATE  prefers-reduced-motion: the revealed state, then out.
 
    Which one ran is invisible to the guest, and that is the point.
    ═══════════════════════════════════════════════════════════════ */
 
 /** Beats of the stills path, from the tap. */
-const STILLS = { flashAt: 650, revealAt: 1000, secondSparkAt: 2800, finishAt: 3800 };
+const STILLS = { crackAt: 520, bloomAt: 900, revealAt: 1250, settleAt: 2900, finishAt: 3900 };
 /** Long enough for the cover's own opacity transition to finish. */
 const FADE_OUT_MS = 1200;
 const REDUCED_MOTION_HOLD_MS = 700;
 
-export default function VelvetBoxOpening({
+export default function WaxEnvelopeOpening({
   template,
   names,
   lang = 'en',
-  // Velvet Ring is always an engagement, so this changes nothing here — it is
-  // accepted and forwarded so every opening reads its copy the same way and a
-  // template that later varies a line by occasion cannot silently miss it.
   occasion = null,
   sessionKey = null,
   onComplete,
@@ -52,7 +55,6 @@ export default function VelvetBoxOpening({
   const copy = getCinematicCopy(template, { isRTL, occasion });
   const { poster, video: videoSrc, revealed } = template.assets;
 
-  const rootRef = useRef(null);
   const videoRef = useRef(null);
   const fxRef = useRef(null);
   const poolRef = useRef(null);
@@ -64,15 +66,24 @@ export default function VelvetBoxOpening({
   const reduceMotion = useReducedMotion();
   const ready = useMediaReadiness(videoRef, { enabled: !reduceMotion });
   const [alreadySeen, remember] = useOpeningMemory(sessionKey);
+  /* No recording ships for this template — `sealSfx` is absent from the theme
+     on purpose. useOpeningSfx falls through to its synthesiser when the URL is
+     missing or a decode fails, so the seal is never silent; dropping a real
+     sample in at that path upgrades it with no code change. */
+  /* Destructured, not held as an object: useOpeningSfx returns a fresh object
+     literal every render, so keeping `sfx` would put a new identity in the
+     dependency list of every callback below on every render. The individual
+     functions are each useCallback'd and stable. Same as KnockDoorOpening. */
+  const { playSeal, prime } = useOpeningSfx({ sealUrl: template.assets.sealSfx });
 
-  const [phase, setPhase] = useState('idle'); // idle | arming | playing | flash | revealed | done
+  const [phase, setPhase] = useState('idle'); // idle | arming | playing | bloom | revealed | done
   const [hint, setHint] = useState('loading'); // loading | tap | preparing
 
   useScrollLock(phase !== 'done');
 
   /* Same contract as InvitationReveal: a sessionKey means "once per session".
-     A returning guest who has already watched the box open is let straight
-     through rather than made to sit through it to reach the RSVP. */
+     A returning guest who has already watched the envelope open is let
+     straight through rather than made to sit through it to reach the RSVP. */
   useEffect(() => {
     if (alreadySeen && !openedRef.current) {
       openedRef.current = true;
@@ -102,17 +113,17 @@ export default function VelvetBoxOpening({
     timersRef.current.push(setTimeout(fn, ms));
   }, []);
 
-  /* The box sits at the optical centre of the frame, a little below the
-     geometric one — bursts have to originate there, not at 50/50, or the
-     light appears to come from above the lid. */
-  const boxCentre = useCallback(() => {
+  /* The seal sits at the optical centre of the frame, a little above the
+     geometric one — the envelope's flaps meet there, and light thrown from
+     50/50 appears to come from the fold below it instead. */
+  const sealCentre = useCallback(() => {
     /* Measured against the FX layer's own window, not the top-level one. The
        organizer's preview portals this page into an iframe (PreviewFrame.js),
        where `window` is still the dashboard's — so the burst originated
        hundreds of pixels outside a 390px frame and the reveal appeared to
        have no light source at all. The two are the same window for a guest. */
     const view = fxRef.current?.ownerDocument?.defaultView || window;
-    return { x: view.innerWidth * 0.5, y: view.innerHeight * 0.55 };
+    return { x: view.innerWidth * 0.5, y: view.innerHeight * 0.45 };
   }, []);
 
   /* Latched. watchOpeningVideo already promises exactly one of onReveal /
@@ -131,24 +142,23 @@ export default function VelvetBoxOpening({
   }, [after, onComplete, remember]);
 
   const revealAndFinish = useCallback(() => {
-    const { x, y } = boxCentre();
+    const { x, y } = sealCentre();
     setPhase('revealed');
-    poolRef.current?.burstSparks(x, y - 40, 16, 150);
-    poolRef.current?.burstPetals(x, y - 30, 10);
+    poolRef.current?.burstPetals(x, y + 40, 12);
     finish();
-  }, [boxCentre, finish]);
+  }, [sealCentre, finish]);
 
   const runStillsPath = useCallback(() => {
-    const { x, y } = boxCentre();
-    after(STILLS.flashAt, () => setPhase('flash'));
+    const { x, y } = sealCentre();
+    after(STILLS.crackAt, playSeal);
+    after(STILLS.bloomAt, () => setPhase('bloom'));
     after(STILLS.revealAt, () => {
       setPhase('revealed');
-      poolRef.current?.burstSparks(x, y - 40, 16, 150);
-      poolRef.current?.burstPetals(x, y - 30, 10);
+      poolRef.current?.burstPetals(x, y + 40, 12);
     });
-    after(STILLS.secondSparkAt, () => poolRef.current?.burstSparks(x, y - 70, 8, 95));
+    after(STILLS.settleAt, () => poolRef.current?.burstPetals(x, y - 20, 6));
     after(STILLS.finishAt, finish);
-  }, [after, boxCentre, finish]);
+  }, [after, sealCentre, finish, playSeal]);
 
   const open = useCallback(() => {
     if (openedRef.current) return;
@@ -160,6 +170,10 @@ export default function VelvetBoxOpening({
     // Inside the gesture, synchronously — this is the one moment a browser
     // will let the page make noise, and any await forfeits it.
     onGesture?.();
+    // Opens the audio output while we still hold the gesture, so the crack
+    // ~700ms later plays into an already-running context instead of racing
+    // resume(). Same reason KnockDoorOpening primes here.
+    prime();
 
     if (reduceMotion) {
       setPhase('revealed');
@@ -182,43 +196,47 @@ export default function VelvetBoxOpening({
 
     watchRef.current = watchOpeningVideo(el, {
       revealAt: template.revealAtSeconds,
-      onStart: () => setPhase('playing'),
+      onStart: () => {
+        setPhase('playing');
+        // The wax cracks a beat into the footage, not at play() — the seal is
+        // still whole for the first frames, and a crack over an intact seal
+        // is the same mistake as Door of Joy creaking at a shut door.
+        after(700, playSeal);
+      },
       onReveal: revealAndFinish,
       onFallback: runStillsPath,
     });
-  }, [reduceMotion, ready, onGesture, after, finish, runStillsPath, revealAndFinish, template.revealAtSeconds]);
+  }, [reduceMotion, ready, onGesture, prime, playSeal, after, finish, runStillsPath, revealAndFinish, template.revealAtSeconds]);
 
   const hintLabel = hint === 'loading' ? copy.loading : hint === 'preparing' ? copy.preparing : copy.hint;
 
   const stateClass = [
-    /* `done` belongs in this list. is-arming holds the scene at scale(1.07),
+    /* `done` belongs in this list. is-arming holds the scene at scale(1.05),
        and dropping it at the moment the cover starts fading animates the
-       photograph back down to 1 over 0.8s — while the hero behind, showing the
-       same photograph at 1, is fading in. The two drift against each other in
-       exactly the frames the crossfade is meant to hide. Every phase from
-       arming onward keeps it. */
+       photograph back down to 1 over 0.8s — while the hero behind is fading
+       in. The two drift against each other in exactly the frames the
+       crossfade is meant to hide. Every phase from arming onward keeps it. */
     phase !== 'idle' ? 'is-arming' : '',
     phase === 'playing' ? 'is-playing' : '',
-    phase === 'flash' ? 'is-flash' : '',
+    phase === 'bloom' ? 'is-bloom' : '',
     phase === 'revealed' ? 'is-revealed' : '',
     phase === 'done' ? 'is-done is-revealed' : '',
   ].filter(Boolean).join(' ');
 
   return (
     <div
-      ref={rootRef}
-      className={`cine-open cine-ring ${stateClass}`}
+      className={`cine-open cine-swan ${stateClass}`}
       style={template.cssVars}
       dir={isRTL ? 'rtl' : 'ltr'}
       data-testid="cine-opening"
-      data-opening="velvetBox"
+      data-opening="waxEnvelope"
     >
-      <div className="cine-ring__scene" aria-hidden="true">
+      <div className="cine-swan__scene" aria-hidden="true">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img className="cine-ring__plate cine-ring__closed" src={poster} alt="" />
+        <img className="cine-swan__plate cine-swan__sealed" src={poster} alt="" />
         <video
           ref={videoRef}
-          className="cine-ring__plate cine-ring__video"
+          className="cine-swan__plate cine-swan__video"
           src={videoSrc}
           muted
           playsInline
@@ -226,21 +244,11 @@ export default function VelvetBoxOpening({
           preload="auto"
         />
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img className="cine-ring__plate cine-ring__open" src={revealed} alt="" />
-        <span className="cine-ring__glints">
-          <span className="cine-ring__glint" />
-          <span className="cine-ring__glint" />
-          <span className="cine-ring__glint" />
-        </span>
+        <img className="cine-swan__plate cine-swan__card" src={revealed} alt="" />
       </div>
 
-      <div className="cine-ring__beam" aria-hidden="true">
-        <span /><span /><span /><span /><span />
-        <span /><span /><span /><span /><span />
-      </div>
-
-      <div className="cine-ring__tapglow" aria-hidden="true" />
-      <div className="cine-ring__flash" aria-hidden="true" />
+      <div className="cine-swan__bloom" aria-hidden="true" />
+      <div className="cine-swan__vignette" aria-hidden="true" />
 
       <button
         type="button"
@@ -250,13 +258,13 @@ export default function VelvetBoxOpening({
         data-testid="cine-opening-tap"
       />
 
-      <div className="cine-ring__ui">
-        <p className="cine-ring__latin" aria-hidden="true">{copy.latin}</p>
-        <p className="cine-ring__kicker">{copy.kicker}</p>
-        <p className="cine-ring__names">{names}</p>
-        <p className="cine-ring__hint">
-          <span className="cine-ring__hintring" aria-hidden="true" />
+      <div className="cine-swan__ui">
+        <p className="cine-swan__kicker">{copy.kicker}</p>
+        <p className="cine-swan__names">{names}</p>
+        <p className="cine-swan__hint">
+          <span className="cine-swan__hintrule" aria-hidden="true" />
           <span data-testid="cine-opening-hint">{hintLabel}</span>
+          <span className="cine-swan__hintrule" aria-hidden="true" />
         </p>
       </div>
 

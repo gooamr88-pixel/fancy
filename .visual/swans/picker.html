@@ -1,0 +1,215 @@
+<!doctype html><html><head><meta charset="utf-8">
+<base href="file:///C:/Users/yousef amr/Desktop/fancy/fancy/frontend/public/">
+<style>
+  *,*::before,*::after{box-sizing:border-box;}
+  :root{--font-serif:Georgia;--font-sans:'Segoe UI';}
+  html,body{margin:0;background:#FAFAF8;font-family:'Segoe UI',sans-serif;}
+</style></head><body><div style="display: grid; grid-template-columns: repeat(4, 236px); gap: 16px; padding: 16px;"><div class="tc-card" data-testid="template-card-ring" style="position: relative; cursor: pointer; border-radius: 18px; overflow: hidden; background: rgb(255, 255, 255); border: 1px solid rgba(184, 148, 79, 0.14); box-shadow: 0 3px 14px rgba(0,0,0,0.04); transform: translateY(0); transition: border-color 0.3s, box-shadow 0.35s, transform 0.35s cubic-bezier(0.16,1,0.3,1); animation: tc-entrance 0.4s cubic-bezier(0.16,1,0.3,1) 0s both; display: flex; flex-direction: column;"><div class="tc-hero" style="background: rgb(21, 16, 13);"><img class="tc-poster" alt="" aria-hidden="true" loading="lazy" style="object-position: 50% 45%;" src="templates/ring/video-poster.jpg"><div class="tc-scrim" style="background: linear-gradient(to top, rgba(10, 7, 5, 0.92) 0%, rgba(10, 7, 5, 0.55) 38%, transparent 78%);"></div><div class="tc-caption"><h3 style="font-family: var(--font-serif); font-size: 15px; font-weight: 600; color: rgb(255, 255, 255); margin: 0px; line-height: 1.15; text-shadow: 0 1px 6px rgba(0,0,0,0.5);">Velvet Ring</h3><span style="font-family: var(--font-sans); font-size: 9px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: rgba(255, 255, 255, 0.88); text-shadow: 0 1px 4px rgba(0,0,0,0.5);">Engagement</span></div></div><div style="padding: 10px 13px 12px; display: flex; flex-direction: column; gap: 9px; flex: 1 1 0%;"><p style="font-family: var(--font-sans); font-size: 10.5px; color: rgb(119, 115, 106); margin: 0px; line-height: 1.35;" class="fx-truncate">Cinematic · Velvet &amp; Gold</p><div style="margin-top: auto; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;"><button type="button" title="Velvet Rose" aria-label="Velvet Rose" style="width: 15px; height: 15px; padding: 0px; border-radius: 50%; background: rgb(143, 60, 82); cursor: pointer; border: 2px solid rgb(184, 148, 79); box-shadow: 0 0 0 2px rgba(184,148,79,0.25); transition: all 0.25s ease; transform: scale(1.15); flex-shrink: 0;"></button><button type="button" title="Midnight Gold" aria-label="Midnight Gold" style="width: 15px; height: 15px; padding: 0px; border-radius: 50%; background: rgb(107, 59, 90); cursor: pointer; border: 2px solid rgba(184, 148, 79, 0.15); box-shadow: none; transition: all 0.25s ease; transform: scale(1); flex-shrink: 0;"></button><button type="button" title="Deep Garnet" aria-label="Deep Garnet" style="width: 15px; height: 15px; padding: 0px; border-radius: 50%; background: rgb(125, 36, 56); cursor: pointer; border: 2px solid rgba(184, 148, 79, 0.15); box-shadow: none; transition: all 0.25s ease; transform: scale(1); flex-shrink: 0;"></button></div></div><style>
+        .tc-hero {
+          position: relative; overflow: hidden;
+          aspect-ratio: 4 / 5;
+          display: flex; align-items: center; justify-content: center;
+        }
+        /* An <img>, not a background-image: a background cannot be lazy-loaded
+           and cannot be given an intrinsic aspect ratio, and these stills are
+           200-300KB each. */
+        .tc-poster {
+          position: absolute; inset: 0;
+          width: 100%; height: 100%;
+          object-fit: cover;
+          transition: transform 0.5s cubic-bezier(0.16,1,0.3,1);
+        }
+        .tc-scrim { position: absolute; inset: 0; pointer-events: none; }
+        .tc-caption {
+          position: absolute; inset-inline: 0; bottom: 0;
+          padding: 12px 13px;
+          display: flex; flex-direction: column; gap: 3;
+        }
+        /* Fixed px, not a percentage of the fluid column: the card inside is a
+           fixed-size drawing that is scaled to fit this box, so the box has to
+           be a size the scale factor can be written against. 132 x 182 keeps
+           the 210:290 stationery ratio and clears the narrowest column the
+           picker grid produces (180px). */
+        .tc-card-art {
+          position: relative;
+          width: 132px; height: 182px; border-radius: 8px; overflow: hidden;
+          box-shadow: 0 10px 26px -10px rgba(0,0,0,0.35);
+          transition: transform 0.45s cubic-bezier(0.16,1,0.3,1);
+          /* Above the scrim: the Custom card IS the artwork, and a white wash
+             over its lower third would grey out the very colours the organizer
+             just picked. */
+          z-index: 1;
+          margin-bottom: 30px;
+        }
+        .tc-card-scale {
+          width: 260px; height: 359px;
+          transform: scale(0.5077);   /* 132 / 260 */
+          transform-origin: top left;
+        }
+        .tc-card:hover .tc-poster { transform: scale(1.05); }
+        .tc-card:hover .tc-card-art { transform: translateY(-3px) scale(1.02); }
+
+        @keyframes tc-entrance { from { opacity: 0; transform: translateY(18px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        @keyframes tc-pop { from { transform: scale(0); } to { transform: scale(1); } }
+
+        @media (prefers-reduced-motion: reduce) {
+          .tc-card { animation: none !important; }
+          .tc-poster, .tc-card-art { transition: none !important; }
+        }
+      </style></div><div class="tc-card" data-testid="template-card-bab" style="position: relative; cursor: pointer; border-radius: 18px; overflow: hidden; background: rgb(255, 255, 255); border: 1px solid rgba(184, 148, 79, 0.14); box-shadow: 0 3px 14px rgba(0,0,0,0.04); transform: translateY(0); transition: border-color 0.3s, box-shadow 0.35s, transform 0.35s cubic-bezier(0.16,1,0.3,1); animation: tc-entrance 0.4s cubic-bezier(0.16,1,0.3,1) 0.045s both; display: flex; flex-direction: column;"><div class="tc-hero" style="background: rgb(21, 16, 13);"><img class="tc-poster" alt="" aria-hidden="true" loading="lazy" style="object-position: 50% 40%;" src="templates/bab/door-poster.jpg"><div class="tc-scrim" style="background: linear-gradient(to top, rgba(10, 7, 5, 0.92) 0%, rgba(10, 7, 5, 0.55) 38%, transparent 78%);"></div><div class="tc-caption"><h3 style="font-family: var(--font-serif); font-size: 15px; font-weight: 600; color: rgb(255, 255, 255); margin: 0px; line-height: 1.15; text-shadow: 0 1px 6px rgba(0,0,0,0.5);">Door of Joy</h3><span style="font-family: var(--font-sans); font-size: 9px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: rgba(255, 255, 255, 0.88); text-shadow: 0 1px 4px rgba(0,0,0,0.5);">Wedding</span></div></div><div style="padding: 10px 13px 12px; display: flex; flex-direction: column; gap: 9px; flex: 1 1 0%;"><p style="font-family: var(--font-sans); font-size: 10.5px; color: rgb(119, 115, 106); margin: 0px; line-height: 1.35;" class="fx-truncate">Cinematic · Wood &amp; Lilac</p><div style="margin-top: auto; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;"><button type="button" title="Lilac Bloom" aria-label="Lilac Bloom" style="width: 15px; height: 15px; padding: 0px; border-radius: 50%; background: rgb(125, 86, 148); cursor: pointer; border: 2px solid rgb(184, 148, 79); box-shadow: 0 0 0 2px rgba(184,148,79,0.25); transition: all 0.25s ease; transform: scale(1.15); flex-shrink: 0;"></button><button type="button" title="Olive Courtyard" aria-label="Olive Courtyard" style="width: 15px; height: 15px; padding: 0px; border-radius: 50%; background: rgb(92, 107, 74); cursor: pointer; border: 2px solid rgba(184, 148, 79, 0.15); box-shadow: none; transition: all 0.25s ease; transform: scale(1); flex-shrink: 0;"></button><button type="button" title="Rose Stone" aria-label="Rose Stone" style="width: 15px; height: 15px; padding: 0px; border-radius: 50%; background: rgb(156, 90, 99); cursor: pointer; border: 2px solid rgba(184, 148, 79, 0.15); box-shadow: none; transition: all 0.25s ease; transform: scale(1); flex-shrink: 0;"></button></div></div><style>
+        .tc-hero {
+          position: relative; overflow: hidden;
+          aspect-ratio: 4 / 5;
+          display: flex; align-items: center; justify-content: center;
+        }
+        /* An <img>, not a background-image: a background cannot be lazy-loaded
+           and cannot be given an intrinsic aspect ratio, and these stills are
+           200-300KB each. */
+        .tc-poster {
+          position: absolute; inset: 0;
+          width: 100%; height: 100%;
+          object-fit: cover;
+          transition: transform 0.5s cubic-bezier(0.16,1,0.3,1);
+        }
+        .tc-scrim { position: absolute; inset: 0; pointer-events: none; }
+        .tc-caption {
+          position: absolute; inset-inline: 0; bottom: 0;
+          padding: 12px 13px;
+          display: flex; flex-direction: column; gap: 3;
+        }
+        /* Fixed px, not a percentage of the fluid column: the card inside is a
+           fixed-size drawing that is scaled to fit this box, so the box has to
+           be a size the scale factor can be written against. 132 x 182 keeps
+           the 210:290 stationery ratio and clears the narrowest column the
+           picker grid produces (180px). */
+        .tc-card-art {
+          position: relative;
+          width: 132px; height: 182px; border-radius: 8px; overflow: hidden;
+          box-shadow: 0 10px 26px -10px rgba(0,0,0,0.35);
+          transition: transform 0.45s cubic-bezier(0.16,1,0.3,1);
+          /* Above the scrim: the Custom card IS the artwork, and a white wash
+             over its lower third would grey out the very colours the organizer
+             just picked. */
+          z-index: 1;
+          margin-bottom: 30px;
+        }
+        .tc-card-scale {
+          width: 260px; height: 359px;
+          transform: scale(0.5077);   /* 132 / 260 */
+          transform-origin: top left;
+        }
+        .tc-card:hover .tc-poster { transform: scale(1.05); }
+        .tc-card:hover .tc-card-art { transform: translateY(-3px) scale(1.02); }
+
+        @keyframes tc-entrance { from { opacity: 0; transform: translateY(18px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        @keyframes tc-pop { from { transform: scale(0); } to { transform: scale(1); } }
+
+        @media (prefers-reduced-motion: reduce) {
+          .tc-card { animation: none !important; }
+          .tc-poster, .tc-card-art { transition: none !important; }
+        }
+      </style></div><div class="tc-card" data-testid="template-card-swans" style="position: relative; cursor: pointer; border-radius: 18px; overflow: hidden; background: rgb(255, 255, 255); border: 2px solid rgb(184, 148, 79); box-shadow: 0 16px 36px rgba(184,148,79,0.18), 0 6px 20px rgba(0,0,0,0.06); transform: translateY(0); transition: border-color 0.3s, box-shadow 0.35s, transform 0.35s cubic-bezier(0.16,1,0.3,1); animation: tc-entrance 0.4s cubic-bezier(0.16,1,0.3,1) 0.09s both; display: flex; flex-direction: column;"><div style="position: absolute; top: 10px; right: 10px; z-index: 10; width: 22px; height: 22px; border-radius: 50%; background: rgb(184, 148, 79); display: flex; flex-wrap: wrap; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(184,148,79,0.4); animation: tc-pop 0.3s cubic-bezier(0.16,1,0.3,1);"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"></path></svg></div><div class="tc-hero" style="background: rgb(21, 16, 13);"><img class="tc-poster" alt="" aria-hidden="true" loading="lazy" style="object-position: 50% 45%;" src="templates/swans/envelope-poster.jpg"><div class="tc-scrim" style="background: linear-gradient(to top, rgba(10, 7, 5, 0.92) 0%, rgba(10, 7, 5, 0.55) 38%, transparent 78%);"></div><div class="tc-caption"><h3 style="font-family: var(--font-serif); font-size: 15px; font-weight: 600; color: rgb(255, 255, 255); margin: 0px; line-height: 1.15; text-shadow: 0 1px 6px rgba(0,0,0,0.5);">Swan Lake</h3><span style="font-family: var(--font-sans); font-size: 9px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: rgba(255, 255, 255, 0.88); text-shadow: 0 1px 4px rgba(0,0,0,0.5);">Wedding &amp; Engagement</span></div></div><div style="padding: 10px 13px 12px; display: flex; flex-direction: column; gap: 9px; flex: 1 1 0%;"><p style="font-family: var(--font-sans); font-size: 10.5px; color: rgb(119, 115, 106); margin: 0px; line-height: 1.35;" class="fx-truncate">Cinematic · Olive &amp; Ivory</p><div style="margin-top: auto; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;"><button type="button" title="Olive &amp; Ivory" aria-label="Olive &amp; Ivory" style="width: 15px; height: 15px; padding: 0px; border-radius: 50%; background: rgb(51, 73, 47); cursor: pointer; border: 2px solid rgb(184, 148, 79); box-shadow: 0 0 0 2px rgba(184,148,79,0.25); transition: all 0.25s ease; transform: scale(1.15); flex-shrink: 0;"></button><button type="button" title="Burgundy Calla" aria-label="Burgundy Calla" style="width: 15px; height: 15px; padding: 0px; border-radius: 50%; background: rgb(92, 35, 49); cursor: pointer; border: 2px solid rgba(184, 148, 79, 0.15); box-shadow: none; transition: all 0.25s ease; transform: scale(1); flex-shrink: 0;"></button><button type="button" title="Still Water" aria-label="Still Water" style="width: 15px; height: 15px; padding: 0px; border-radius: 50%; background: rgb(47, 69, 80); cursor: pointer; border: 2px solid rgba(184, 148, 79, 0.15); box-shadow: none; transition: all 0.25s ease; transform: scale(1); flex-shrink: 0;"></button></div></div><style>
+        .tc-hero {
+          position: relative; overflow: hidden;
+          aspect-ratio: 4 / 5;
+          display: flex; align-items: center; justify-content: center;
+        }
+        /* An <img>, not a background-image: a background cannot be lazy-loaded
+           and cannot be given an intrinsic aspect ratio, and these stills are
+           200-300KB each. */
+        .tc-poster {
+          position: absolute; inset: 0;
+          width: 100%; height: 100%;
+          object-fit: cover;
+          transition: transform 0.5s cubic-bezier(0.16,1,0.3,1);
+        }
+        .tc-scrim { position: absolute; inset: 0; pointer-events: none; }
+        .tc-caption {
+          position: absolute; inset-inline: 0; bottom: 0;
+          padding: 12px 13px;
+          display: flex; flex-direction: column; gap: 3;
+        }
+        /* Fixed px, not a percentage of the fluid column: the card inside is a
+           fixed-size drawing that is scaled to fit this box, so the box has to
+           be a size the scale factor can be written against. 132 x 182 keeps
+           the 210:290 stationery ratio and clears the narrowest column the
+           picker grid produces (180px). */
+        .tc-card-art {
+          position: relative;
+          width: 132px; height: 182px; border-radius: 8px; overflow: hidden;
+          box-shadow: 0 10px 26px -10px rgba(0,0,0,0.35);
+          transition: transform 0.45s cubic-bezier(0.16,1,0.3,1);
+          /* Above the scrim: the Custom card IS the artwork, and a white wash
+             over its lower third would grey out the very colours the organizer
+             just picked. */
+          z-index: 1;
+          margin-bottom: 30px;
+        }
+        .tc-card-scale {
+          width: 260px; height: 359px;
+          transform: scale(0.5077);   /* 132 / 260 */
+          transform-origin: top left;
+        }
+        .tc-card:hover .tc-poster { transform: scale(1.05); }
+        .tc-card:hover .tc-card-art { transform: translateY(-3px) scale(1.02); }
+
+        @keyframes tc-entrance { from { opacity: 0; transform: translateY(18px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        @keyframes tc-pop { from { transform: scale(0); } to { transform: scale(1); } }
+
+        @media (prefers-reduced-motion: reduce) {
+          .tc-card { animation: none !important; }
+          .tc-poster, .tc-card-art { transition: none !important; }
+        }
+      </style></div><div class="tc-card" data-testid="template-card-custom" style="position: relative; cursor: pointer; border-radius: 18px; overflow: hidden; background: rgb(255, 255, 255); border: 1px solid rgba(184, 148, 79, 0.14); box-shadow: 0 3px 14px rgba(0,0,0,0.04); transform: translateY(0); transition: border-color 0.3s, box-shadow 0.35s, transform 0.35s cubic-bezier(0.16,1,0.3,1); animation: tc-entrance 0.4s cubic-bezier(0.16,1,0.3,1) 0.135s both; display: flex; flex-direction: column;"><div class="tc-hero" style="background: radial-gradient(120% 90% at 50% 15%, rgba(139, 115, 85, 0.133) 0%, transparent 70%), linear-gradient(160deg, rgb(250, 248, 245) 0%, rgb(255, 255, 255) 120%);"><div class="tc-card-art"><div class="tc-card-scale"><div class="w-full h-full flex flex-col select-none relative overflow-hidden rounded" style="background: rgb(250, 248, 245); border: 1.5px solid rgba(139, 115, 85, 0.19); color: rgb(139, 115, 85);"><div class="absolute w-5 h-5 pointer-events-none" style="top: 6px; left: 6px; border-top: 1.5px solid rgba(139, 115, 85, 0.314); border-left: 1.5px solid rgba(139, 115, 85, 0.314);"></div><div class="absolute w-5 h-5 pointer-events-none" style="top: 6px; right: 6px; border-top: 1.5px solid rgba(139, 115, 85, 0.314); border-right: 1.5px solid rgba(139, 115, 85, 0.314);"></div><div class="absolute w-5 h-5 pointer-events-none" style="bottom: 6px; left: 6px; border-bottom: 1.5px solid rgba(139, 115, 85, 0.314); border-left: 1.5px solid rgba(139, 115, 85, 0.314);"></div><div class="absolute w-5 h-5 pointer-events-none" style="bottom: 6px; right: 6px; border-bottom: 1.5px solid rgba(139, 115, 85, 0.314); border-right: 1.5px solid rgba(139, 115, 85, 0.314);"></div><div class="w-full h-2.5 shrink-0" style="background: linear-gradient(90deg, rgb(139, 115, 85), rgb(212, 197, 169), rgb(139, 115, 85));"></div><div class="flex-1 flex flex-col items-center justify-center text-center px-5 gap-2.5"><span class="text-[7px] uppercase tracking-[3px] font-sans font-semibold" style="color: rgba(139, 115, 85, 0.533);">You are invited</span><span class="font-serif leading-tight" style="color: rgb(139, 115, 85); font-size: 20px;">You're Invited</span><svg width="70" height="10" viewBox="0 0 70 10" fill="none" style="opacity: 0.5;"><path d="M0 5 Q17 0 35 5 Q53 10 70 5" stroke="#8B7355" stroke-width="0.8" fill="none"></path><circle cx="35" cy="5" r="1.5" fill="#8B7355" opacity="0.5"></circle></svg><span class="text-[8.5px] font-bold tracking-[1.5px]" style="color: rgb(212, 197, 169);">YOUR EVENT DATE</span><span class="text-[7.5px] italic text-stone-500">Your venue name</span></div><div class="flex flex-col items-center gap-0.5 pb-4 shrink-0"><span class="text-[6.5px] uppercase tracking-[2px] font-sans" style="color: rgba(139, 115, 85, 0.5);">Reserved for</span><span class="font-serif text-lg" style="color: rgb(139, 115, 85);">Sarah Al-Mansouri</span></div></div></div></div><div class="tc-scrim" style="background: linear-gradient(to top, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0.72) 38%, transparent 78%);"></div><div class="tc-caption"><h3 style="font-family: var(--font-serif); font-size: 15px; font-weight: 600; color: rgb(25, 27, 30); margin: 0px; line-height: 1.15; text-shadow: none;">Custom Canvas</h3><span style="font-family: var(--font-sans); font-size: 9px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: rgb(138, 109, 52); text-shadow: none;">Build your own</span></div></div><div style="padding: 10px 13px 12px; display: flex; flex-direction: column; gap: 9px; flex: 1 1 0%;"><p style="font-family: var(--font-sans); font-size: 10.5px; color: rgb(119, 115, 106); margin: 0px; line-height: 1.35;" class="fx-truncate">Fully editable</p><div style="margin-top: auto; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;"><button type="button" title="Clean Linen" aria-label="Clean Linen" style="width: 15px; height: 15px; padding: 0px; border-radius: 50%; background: rgb(139, 115, 85); cursor: pointer; border: 2px solid rgb(184, 148, 79); box-shadow: 0 0 0 2px rgba(184,148,79,0.25); transition: all 0.25s ease; transform: scale(1.15); flex-shrink: 0;"></button><button type="button" title="Warm Cream" aria-label="Warm Cream" style="width: 15px; height: 15px; padding: 0px; border-radius: 50%; background: rgb(160, 132, 92); cursor: pointer; border: 2px solid rgba(184, 148, 79, 0.15); box-shadow: none; transition: all 0.25s ease; transform: scale(1); flex-shrink: 0;"></button><button type="button" title="Obsidian Slate" aria-label="Obsidian Slate" style="width: 15px; height: 15px; padding: 0px; border-radius: 50%; background: rgb(71, 85, 105); cursor: pointer; border: 2px solid rgba(184, 148, 79, 0.15); box-shadow: none; transition: all 0.25s ease; transform: scale(1); flex-shrink: 0;"></button></div></div><style>
+        .tc-hero {
+          position: relative; overflow: hidden;
+          aspect-ratio: 4 / 5;
+          display: flex; align-items: center; justify-content: center;
+        }
+        /* An <img>, not a background-image: a background cannot be lazy-loaded
+           and cannot be given an intrinsic aspect ratio, and these stills are
+           200-300KB each. */
+        .tc-poster {
+          position: absolute; inset: 0;
+          width: 100%; height: 100%;
+          object-fit: cover;
+          transition: transform 0.5s cubic-bezier(0.16,1,0.3,1);
+        }
+        .tc-scrim { position: absolute; inset: 0; pointer-events: none; }
+        .tc-caption {
+          position: absolute; inset-inline: 0; bottom: 0;
+          padding: 12px 13px;
+          display: flex; flex-direction: column; gap: 3;
+        }
+        /* Fixed px, not a percentage of the fluid column: the card inside is a
+           fixed-size drawing that is scaled to fit this box, so the box has to
+           be a size the scale factor can be written against. 132 x 182 keeps
+           the 210:290 stationery ratio and clears the narrowest column the
+           picker grid produces (180px). */
+        .tc-card-art {
+          position: relative;
+          width: 132px; height: 182px; border-radius: 8px; overflow: hidden;
+          box-shadow: 0 10px 26px -10px rgba(0,0,0,0.35);
+          transition: transform 0.45s cubic-bezier(0.16,1,0.3,1);
+          /* Above the scrim: the Custom card IS the artwork, and a white wash
+             over its lower third would grey out the very colours the organizer
+             just picked. */
+          z-index: 1;
+          margin-bottom: 30px;
+        }
+        .tc-card-scale {
+          width: 260px; height: 359px;
+          transform: scale(0.5077);   /* 132 / 260 */
+          transform-origin: top left;
+        }
+        .tc-card:hover .tc-poster { transform: scale(1.05); }
+        .tc-card:hover .tc-card-art { transform: translateY(-3px) scale(1.02); }
+
+        @keyframes tc-entrance { from { opacity: 0; transform: translateY(18px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        @keyframes tc-pop { from { transform: scale(0); } to { transform: scale(1); } }
+
+        @media (prefers-reduced-motion: reduce) {
+          .tc-card { animation: none !important; }
+          .tc-poster, .tc-card-art { transition: none !important; }
+        }
+      </style></div></div></body></html>

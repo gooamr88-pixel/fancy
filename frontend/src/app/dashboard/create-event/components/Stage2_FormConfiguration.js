@@ -10,6 +10,7 @@ import DaysEditor from './DaysEditor';
 import SectionsOrderEditor from './SectionsOrderEditor';
 import { getHaDays } from '../../../utils/haDays';
 import { CUSTOM_CATEGORIES, CUSTOM_CATEGORY_BY_KEY } from '../../../utils/customEventCategories';
+import { getCinematicTemplate } from '../../../components/templates/cinematic/cinematicThemes';
 import EventCategoryIcon from '../../../components/icons/EventCategoryIcon';
 import Icon from '../../../components/icons/Icon';
 
@@ -39,7 +40,7 @@ const WEDDING_STYLE_TEMPLATE_KEYS = [
 // same ha_* section fields (corporate/birthday/gala keep the continuous-
 // scroll layout and their own content fields).
 // Keep in sync with FULL_PAGE_TEMPLATES in [slug]/EventPageClient.js.
-const FULL_PAGE_TEMPLATE_KEYS = [...WEDDING_STYLE_TEMPLATE_KEYS, 'engagement', 'custom', 'ring'];
+const FULL_PAGE_TEMPLATE_KEYS = [...WEDDING_STYLE_TEMPLATE_KEYS, 'engagement', 'custom', 'ring', 'swans'];
 const isFullPage = (t) => FULL_PAGE_TEMPLATE_KEYS.includes(t);
 
 // Engagement-schema templates: the base Engagement and Velvet Ring, the
@@ -47,8 +48,18 @@ const isFullPage = (t) => FULL_PAGE_TEMPLATE_KEYS.includes(t);
 // story, rather than the wedding pair's ceremony/reception venues — so every
 // place that used to test `templateType === 'engagement'` has to ask this
 // instead, or Velvet Ring silently renders with no name fields at all.
+// Swan Lake is deliberately NOT here: it carries BOTH schemas at once (see
+// TEMPLATE_TYPE_FIELD_KEYS.swans) so toggling its occasion never prunes the
+// other half of what the organizer already typed.
 const ENGAGEMENT_TEMPLATE_KEYS = ['engagement', 'ring'];
 const isEngagementStyle = (t) => ENGAGEMENT_TEMPLATE_KEYS.includes(t);
+
+/* The two choices a dual-occasion template offers, pulled from the shared
+   catalogue rather than written out here, so the keys stored in
+   `custom_category` are the same ones Custom Canvas stores and every reader
+   of that field already understands. */
+const DUAL_OCCASION_CATEGORIES = CUSTOM_CATEGORIES
+  .filter((c) => c.key === 'wedding' || c.key === 'engagement');
 
 // Custom's "what kind of event is this?" picker — imported from a shared file
 // (also used by the guest-facing HeritageArchPage) so the organizer's picker
@@ -218,7 +229,15 @@ export default function Stage2_FormConfiguration({
   // generic name+occasion fields, 'babyShower' shows its own fields.
   const customCategory = templateData.custom_category || '';
   const customCategoryMeta = CUSTOM_CATEGORY_BY_KEY[customCategory] || null;
+  /* Swan Lake: one template, two occasions. It writes its answer to the SAME
+     `custom_category` field Custom Canvas uses rather than a parallel one, so
+     the guest hero, the invitation card and the side labels all keep reading
+     one place. Unanswered defaults to wedding — the commoner case, and the
+     one whose field set is the superset, so the default hides nothing. */
+  const isDualOccasion = getCinematicTemplate(templateType)?.occasion === 'both';
+  const occasionChoice = isDualOccasion ? (customCategory || 'wedding') : customCategory;
   const showCoupleFields = WEDDING_STYLE_TEMPLATE_KEYS.includes(templateType)
+    || isDualOccasion
     || (templateType === 'custom' && customCategoryMeta?.kind === 'couple');
 
   // Ceremony/reception venue pickers behave like the main Venue field: a plain-
@@ -363,11 +382,14 @@ export default function Stage2_FormConfiguration({
         {/* ═══ Section B: Template-Specific ═══ */}
         {(
           <Section title={`${tpl.label} Details`} icon="palette">
-            {/* The cinematic pair are included: their sections recolour from
-                these values through buildPalette exactly like the others do,
-                so withholding the picker would leave the one template whose
-                palette is most visible the only one that can't be tuned. */}
-            {(templateType === 'wedding' || isEngagementStyle(templateType) || templateType === 'bab') && customColors && setCustomColors && (
+            {/* Every cinematic template is included: their sections recolour
+                from these values through buildPalette exactly like the others
+                do, so withholding the picker would leave the templates whose
+                palette is most visible the only ones that can't be tuned.
+                Asked of the registry rather than by naming keys — the literal
+                `templateType === 'bab'` here is exactly the shape that left
+                each newly-added template silently without a colour picker. */}
+            {(templateType === 'wedding' || isEngagementStyle(templateType) || !!getCinematicTemplate(templateType)) && customColors && setCustomColors && (
               <div style={{
                 marginBottom: 18, padding: 14, borderRadius: 12,
                 background: C.softBg, border: `1px solid ${C.border}`,
@@ -417,6 +439,39 @@ export default function Stage2_FormConfiguration({
                 </div>
                 <p style={{ fontSize: 'var(--fx-micro)', color: '#A09A91', margin: '8px 0 0', fontFamily: 'var(--font-sans)' }}>
                   Shapes the fields below and the name/tagline on your guest page — change it any time.
+                </p>
+              </div>
+            )}
+            {/* Swan Lake is offered for two occasions, so it asks the same
+                question Custom Canvas does with the list narrowed to those
+                two. Two tiles, not the 25-tile grid: an organizer who chose a
+                swan-lake wedding invitation is not choosing between it and a
+                corporate gala, and offering that would imply the artwork
+                changes to suit. */}
+            {isDualOccasion && (
+              <div style={{ marginBottom: 18 }}>
+                <label style={lblStyle}>Is this a wedding or an engagement?</label>
+                <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  {DUAL_OCCASION_CATEGORIES.map(({ key, label }) => {
+                    const active = occasionChoice === key;
+                    return (
+                      <button key={key} type="button" onClick={() => setTd('custom_category')(key)}
+                        style={{
+                          // Wraps for the same reason its twin in
+                          // EventSettings does — see mobileFit.test.js.
+                          display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 8,
+                          padding: '13px 10px', borderRadius: 10, cursor: 'pointer',
+                          border: `1.5px solid ${active ? C.gold : C.border}`,
+                          background: active ? 'rgba(184,148,79,0.08)' : C.white,
+                        }}>
+                        <EventCategoryIcon name={key} size={17} color={active ? C.gold : C.stone} />
+                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 600, color: active ? C.gold : C.stone }}>{label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p style={{ fontSize: 'var(--fx-micro)', color: '#A09A91', margin: '8px 0 0', fontFamily: 'var(--font-sans)' }}>
+                  Sets the wording on your invitation and how guest sides are labelled. The artwork is the same either way — change it any time.
                 </p>
               </div>
             )}

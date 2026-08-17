@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import useOpeningSfx from './useOpeningSfx';
+import { getCinematicCopy } from '../../templates/cinematic/cinematicThemes';
 import { useMediaReadiness, useOpeningMemory, useScrollLock, watchOpeningVideo } from './openingSafety';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -47,13 +48,16 @@ export default function KnockDoorOpening({
   template,
   names,
   lang = 'en',
+  // Door of Joy is always a wedding — accepted and forwarded so every opening
+  // reads its copy through the one accessor. See VelvetBoxOpening.
+  occasion = null,
   sessionKey = null,
   onComplete,
   onGesture,
   onFirstKnock,
 }) {
   const isRTL = lang === 'ar';
-  const copy = template.copy[isRTL ? 'ar' : 'en'];
+  const copy = getCinematicCopy(template, { isRTL, occasion });
   const { poster, video: videoSrc, knockSfx, doorSfx } = template.assets;
   const required = template.knocksRequired || 3;
 

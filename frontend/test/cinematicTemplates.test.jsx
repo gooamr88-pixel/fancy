@@ -316,6 +316,10 @@ describe('cinematic templates — no third-party residue', () => {
       path.join(process.cwd(), SOURCE_DIR, 'templates/cinematic'),
       path.join(process.cwd(), SOURCE_DIR, 'guest/openings'),
       path.join(process.cwd(), SOURCE_DIR, 'guest/fx'),
+      /* The stylesheet too. It is the file most likely to carry a pasted
+         @import from a source template — the one form of "self-hosted fonts"
+         regression that no component file would ever show. */
+      path.join(process.cwd(), 'src/app/styles'),
     ];
     const offenders = [];
     roots.flatMap(filesUnder).forEach((file) => {

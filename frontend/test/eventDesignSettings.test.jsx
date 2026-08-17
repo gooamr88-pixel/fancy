@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import { getTemplateOpening } from '../src/app/utils/templateOpening';
 import { TEMPLATES, palettesFor, matchPaletteIndex, RETIRED_TEMPLATE_KEYS } from '../src/app/utils/curatedTemplates';
+import { CINEMATIC_TEMPLATES } from '../src/app/components/templates/cinematic/cinematicThemes';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    The Design tab of an event's settings — the screen you edit a LIVE
@@ -86,10 +87,24 @@ describe('the opening a guest actually gets', () => {
   });
 
   it('the preview mounts the opening the template really has', () => {
-    // It used to mount InvitationReveal unconditionally.
-    expect(SETTINGS).toContain('VelvetBoxOpening');
-    expect(SETTINGS).toContain('KnockDoorOpening');
-    expect(SETTINGS).toMatch(/opening\?\.cinematic \?/);
+    /* Two defects, in order. It used to mount InvitationReveal
+       unconditionally — so every template previewed a wax envelope. That was
+       replaced by `opening.cinematic.opening === 'velvetBox' ? … : …`, which
+       is correct for exactly two templates and silently previews Door of Joy
+       for every one added after it.
+
+       Asserted from the registry rather than by naming components, so a
+       template added tomorrow fails here instead of quietly previewing
+       somebody else's cover. */
+    const map = SETTINGS.match(/const CINEMATIC_OPENINGS = \{([\s\S]*?)\};/)?.[1];
+    expect(map, 'EventSettings no longer keys its openings by cinematic.opening').toBeTruthy();
+    Object.values(CINEMATIC_TEMPLATES).forEach((tpl) => {
+      expect(map, `${tpl.key}'s opening ("${tpl.opening}") has no entry — it would preview nothing`)
+        .toContain(`${tpl.opening}:`);
+    });
+    expect(SETTINGS).toMatch(/CINEMATIC_OPENINGS\[opening\.cinematic\.opening\]/);
+    // No ternary may come back: it cannot fail loudly, only wrongly.
+    expect(SETTINGS).not.toMatch(/opening\?\.cinematic \?/);
     // The cinematic openings are unconditionally position:fixed and size
     // themselves in dvh/vw, so they need a real viewport to be fixed inside.
     expect(SETTINGS).toContain('PreviewFrame');

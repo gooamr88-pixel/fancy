@@ -11,6 +11,15 @@ frontend/.env.local
 logs/
 .DS_Store
 
+# ── Source material for the cinematic templates ──
+# Saved copies of the licensed source pages, kept locally for reference. Only
+# the artwork is ported (into frontend/public/templates/<key>/); the folders
+# themselves also carry vendor tracking bundles — a 566KB Google tag bundle and
+# a 410KB Facebook pixel — which must never reach the repo or a guest's
+# invitation. See test/swanLakeTemplate.test.jsx.
+templates/
+envelop/
+
 # ── Android ──
 # Machine-specific: sdk.dir, and the release signing credentials.
 android/local.properties

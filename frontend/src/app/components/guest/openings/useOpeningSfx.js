@@ -24,16 +24,17 @@ import { useCallback, useEffect, useRef } from 'react';
        return a promise. Both are wired.
 
    And the floor: when a sample is missing or fails to decode, a synthesised
-   equivalent plays instead. The two recordings this expects are NOT in the
+   equivalent plays instead. The three recordings this expects are NOT in the
    repository, so the synth path is what actually runs today — a knock built
-   from a pitch-dropping sine plus filtered noise, and a door built from a
-   latch, a slow detuning creak, and a band-passed grain bed. Dropping real
-   files in at the configured paths upgrades it with no code change.
+   from a pitch-dropping sine plus filtered noise, a door built from a latch,
+   a slow detuning creak and a band-passed grain bed, and a wax seal built
+   from a bright snap over a paper rustle. Dropping real files in at the
+   configured paths upgrades it with no code change.
    ═══════════════════════════════════════════════════════════════ */
 
-export default function useOpeningSfx({ knockUrl, doorUrl } = {}) {
+export default function useOpeningSfx({ knockUrl, doorUrl, sealUrl } = {}) {
   const ctxRef = useRef(null);
-  const buffersRef = useRef({ knock: null, door: null });
+  const buffersRef = useRef({ knock: null, door: null, seal: null });
 
   const getContext = useCallback(() => {
     if (ctxRef.current) return ctxRef.current;
@@ -72,13 +73,14 @@ export default function useOpeningSfx({ knockUrl, doorUrl } = {}) {
 
     load('knock', knockUrl);
     load('door', doorUrl);
+    load('seal', sealUrl);
 
     return () => {
       cancelled = true;
       try { ctxRef.current?.close?.(); } catch { /* already closed */ }
       ctxRef.current = null;
     };
-  }, [getContext, knockUrl, doorUrl]);
+  }, [getContext, knockUrl, doorUrl, sealUrl]);
 
   /** Runs `fn` once the context is genuinely open, not merely asked to open. */
   const whenLive = useCallback((fn) => {
@@ -215,6 +217,70 @@ export default function useOpeningSfx({ knockUrl, doorUrl } = {}) {
     } catch { /* decorative */ }
   }, []);
 
+  const synthSeal = useCallback((ctx) => {
+    try {
+      const t = ctx.currentTime;
+
+      /* The snap. Wax breaking is almost pure transient — 25ms of bright
+         noise with a near-instant decay. Anything longer reads as a crunch
+         (something being crushed) rather than as a disc cracking cleanly in
+         two, which is what the footage shows. */
+      const snapLength = Math.floor(ctx.sampleRate * 0.025);
+      const snapBuffer = ctx.createBuffer(1, snapLength, ctx.sampleRate);
+      const snapData = snapBuffer.getChannelData(0);
+      for (let i = 0; i < snapLength; i += 1) {
+        snapData[i] = (Math.random() * 2 - 1) * (1 - i / snapLength) ** 3;
+      }
+      const snap = ctx.createBufferSource();
+      snap.buffer = snapBuffer;
+      const snapFilter = ctx.createBiquadFilter();
+      snapFilter.type = 'bandpass';
+      snapFilter.frequency.value = 2600;
+      snapFilter.Q.value = 0.9;
+      const snapGain = ctx.createGain();
+      snapGain.gain.value = 0.5;
+      snap.connect(snapFilter).connect(snapGain).connect(ctx.destination);
+      snap.start(t);
+
+      /* A low knock under it, so the seal has mass. Much shorter and quieter
+         than synthKnock's — this is wax parting from paper, not a fist. */
+      const body = ctx.createOscillator();
+      const bodyGain = ctx.createGain();
+      body.type = 'sine';
+      body.frequency.setValueAtTime(190, t);
+      body.frequency.exponentialRampToValueAtTime(74, t + 0.07);
+      bodyGain.gain.setValueAtTime(0.34, t);
+      bodyGain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+      body.connect(bodyGain).connect(ctx.destination);
+      body.start(t);
+      body.stop(t + 0.12);
+
+      /* The card sliding out: a high band of noise swelling and fading over
+         ~1.1s, starting a beat after the snap. This is the sound the eye is
+         actually watching for — the flaps falling open and the paper moving. */
+      const slideDuration = 1.1;
+      const slideLength = Math.floor(ctx.sampleRate * slideDuration);
+      const slideBuffer = ctx.createBuffer(1, slideLength, ctx.sampleRate);
+      const slideData = slideBuffer.getChannelData(0);
+      for (let i = 0; i < slideLength; i += 1) {
+        const p = i / slideLength;
+        // Sin envelope so it swells and settles rather than clicking on/off.
+        slideData[i] = (Math.random() * 2 - 1) * Math.sin(Math.PI * p) ** 1.5;
+      }
+      const slide = ctx.createBufferSource();
+      slide.buffer = slideBuffer;
+      const slideFilter = ctx.createBiquadFilter();
+      slideFilter.type = 'bandpass';
+      slideFilter.frequency.setValueAtTime(1500, t + 0.16);
+      slideFilter.frequency.exponentialRampToValueAtTime(4200, t + 0.16 + slideDuration);
+      slideFilter.Q.value = 0.6;
+      const slideGain = ctx.createGain();
+      slideGain.gain.value = 0.085;
+      slide.connect(slideFilter).connect(slideGain).connect(ctx.destination);
+      slide.start(t + 0.16);
+    } catch { /* decorative */ }
+  }, []);
+
   /* Each knock is pitched a hair above the last. Without it three plays of
      one sample read as a loop rather than as three separate raps. */
   const playKnock = useCallback((index = 0) => {
@@ -228,8 +294,15 @@ export default function useOpeningSfx({ knockUrl, doorUrl } = {}) {
     whenLive(synthDoor);
   }, [playSample, whenLive, synthDoor]);
 
+  /* 0.8: the wax snap is a transient, and a transient at unity reads as a
+     click on small speakers. */
+  const playSeal = useCallback(() => {
+    if (playSample('seal', 0.8)) return;
+    whenLive(synthSeal);
+  }, [playSample, whenLive, synthSeal]);
+
   /** Opens the output inside a gesture, before anything needs to be heard. */
   const prime = useCallback(() => { whenLive(() => {}); }, [whenLive]);
 
-  return { playKnock, playDoor, prime };
+  return { playKnock, playDoor, playSeal, prime };
 }

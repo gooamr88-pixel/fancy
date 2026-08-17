@@ -19,6 +19,22 @@ test('deriveBaseSlug prefers couple names for weddings', () => {
   assert.equal(slug, 'julian-sophia');
 });
 
+test('deriveBaseSlug prefers couple names for the cinematic templates too', () => {
+  /* ring/bab/swans store the same partner1/partner2 keys as 'wedding', but had
+     no case of their own — so every Velvet Ring, Door of Joy and Swan Lake
+     event fell to the `default` arm and took its URL from the event title
+     ("our-big-day") instead of the couple ("julian-sophia"), unlike every
+     other couple template. Nothing errored; the links were just worse. */
+  for (const templateType of ['engagement', 'ring', 'bab', 'swans']) {
+    const slug = deriveBaseSlug({
+      templateType,
+      templateData: { partner1: 'Julian', partner2: 'Sophia' },
+      title: 'Our Big Day',
+    });
+    assert.equal(slug, 'julian-sophia', `${templateType} did not use the partner names`);
+  }
+});
+
 test('deriveBaseSlug falls back to title when template fields are missing', () => {
   const slug = deriveBaseSlug({ templateType: 'wedding', templateData: {}, title: 'Grand Gala' });
   assert.equal(slug, 'grand-gala');

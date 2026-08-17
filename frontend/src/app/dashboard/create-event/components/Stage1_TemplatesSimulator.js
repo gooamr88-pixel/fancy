@@ -22,12 +22,13 @@ const TEMPLATE_PREVIEW_MAP = {
   birthday:   { name: 'Garden Party',     pattern: 'floral',  accent: '#E88FAC' },
   gala:       { name: 'Pure & Simple',    pattern: 'minimal', accent: '#C5A059' },
   custom:     { name: 'Woodland Romance', pattern: 'organic', accent: '#8B7355' },
-  // The cinematic pair. Their guest page opens on photography rather than a
-  // stationery card, but the simulator still previews the card — it is what
-  // "Save the invitation" produces — so they map to the same serif artwork
-  // Wedding and Engagement use, tinted to their own accent.
+  // The cinematic templates. Their guest page opens on photography rather
+  // than a stationery card, but the simulator still previews the card — it is
+  // what "Save the invitation" produces — so they map to the same serif
+  // artwork Wedding and Engagement use, tinted to their own accent.
   ring:       { name: 'Velvet Ring',       pattern: 'serif',       accent: '#d4af6a' },
   bab:        { name: 'Door of Joy',       pattern: 'serif',       accent: '#a97fc0' },
+  swans:      { name: 'Swan Lake',         pattern: 'serif',       accent: '#6d6f4e' },
   tuscany:    { name: 'Tuscan Vineyard',   pattern: 'tuscany',     accent: '#6B7A4F' },
   marrakesh:  { name: 'Marrakesh Nights',  pattern: 'marrakesh',   accent: '#D9A94E' },
   kyoto:      { name: 'Kyoto Blossom',     pattern: 'kyoto',       accent: '#B23A48' },

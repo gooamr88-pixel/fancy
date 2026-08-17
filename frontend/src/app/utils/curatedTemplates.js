@@ -3,7 +3,7 @@
  * shared by the create-event wizard (Stage1_TemplatesSimulator) and the
  * organizer's Visual Template picker in EventSettings.
  *
- * Three templates: the two cinematic ones and the build-your-own canvas.
+ * Four templates: the three cinematic ones and the build-your-own canvas.
  *
  * RETIRED — 'wedding' (Royale Wedding) and 'engagement' (Eternal Love).
  * They were the same stationery-envelope page as each other with different
@@ -89,6 +89,25 @@ export const TEMPLATES = [
     specs: ['Knock-to-Enter Opening', 'Sound & Haptics', 'Living Hero Video', 'Arabic Display Typography', 'Every Section Toggleable'],
     fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
   },
+  /* ── Swan Lake — the first template offered for two occasions ─────────
+     An olive envelope with an ivory swan seal, opened on film; the embossed
+     card that rises out of it becomes the hero, colour flooding into the
+     engraving. Wedding or engagement — the organizer answers in Step 2 and
+     the kicker, tagline, invitation card and Groom's/Bride's Side labels all
+     follow that one answer. See cinematic/cinematicThemes.js. */
+  {
+    key: 'swans', label: 'Swan Lake', tier: 'Wedding & Engagement',
+    tagline: 'Cinematic · Olive & Ivory',
+    desc: 'An olive envelope engraved with foliage and sealed with ivory wax. Your guests break the seal, the flaps fall open, and an embossed card rises out — then the engraving fills with colour and becomes a painted lake with two swans.',
+    preview: { kind: 'poster', src: '/templates/swans/envelope-poster.jpg', position: '50% 45%', tone: 'dark' },
+    presets: [
+      { name: 'Olive & Ivory', primary: '#33492f', secondary: '#6d6f4e', accent: '#5c2331', background: '#f8f4e9' },
+      { name: 'Burgundy Calla', primary: '#5c2331', secondary: '#8b9070', accent: '#5c2331', background: '#f6f0e6' },
+      { name: 'Still Water', primary: '#2f4550', secondary: '#7d8f7a', accent: '#2f4550', background: '#f4f2ea' },
+    ],
+    specs: ['Wax-Seal Film Opening', 'Engraving Blooms Into Colour', 'Wedding or Engagement', 'Arabic Display Typography', 'Every Section Toggleable'],
+    fields: ['Partner Names', 'Your Story', 'Ceremony & Reception', 'Gift Registry'],
+  },
   {
     key: 'custom', label: 'Custom Canvas', tier: 'Build your own',
     tagline: 'Fully editable',
@@ -121,6 +140,7 @@ export const TEMPLATE_PREVIEW_PATTERN = {
   // — so it needs a pattern like every other template.
   ring: 'serif',
   bab: 'serif',
+  swans: 'serif',
   custom: 'custom',
 };
 
