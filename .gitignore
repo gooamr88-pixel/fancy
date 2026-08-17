@@ -17,8 +17,18 @@ logs/
 # themselves also carry vendor tracking bundles — a 566KB Google tag bundle and
 # a 410KB Facebook pixel — which must never reach the repo or a guest's
 # invitation. See test/swanLakeTemplate.test.jsx.
-templates/
-envelop/
+#
+# THE LEADING SLASH IS LOAD-BEARING. A bare `templates/` is not "the templates
+# folder at the root" — it matches a directory of that name at ANY depth, and
+# this repo has two more that matter:
+#     frontend/src/app/components/templates/   the entire template component tree
+#     frontend/public/templates/               every template's artwork
+# Written unanchored, git silently refused to track new files under both. The
+# tree still built locally and the already-tracked files were unaffected, so
+# nothing looked wrong until the deploy failed on a missing module.
+# `/templates/` anchors the match to this file's own directory.
+/templates/
+/envelop/
 
 # ── Android ──
 # Machine-specific: sdk.dir, and the release signing credentials.
