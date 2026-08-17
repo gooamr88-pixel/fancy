@@ -11,6 +11,7 @@ vi.mock('framer-motion', async (importOriginal) => {
 });
 
 import OccasionPicker from '../src/app/components/OccasionPicker';
+import { OccasionPreviewStrip } from '../src/app/dashboard/create-event/components/Stage1_TemplatesSimulator';
 import {
   CUSTOM_CATEGORIES, CUSTOM_CATEGORY_BY_KEY,
   occasionKicker, occasionLatin, occasionTagline,
@@ -19,7 +20,10 @@ import {
   CINEMATIC_TEMPLATES, CINEMATIC_KEYS,
   getCinematicOccasion, getCinematicCopy,
 } from '../src/app/components/templates/cinematic/cinematicThemes';
-import { resolveOccasion, occasionMetaFor, defaultOccasionFor } from '../src/app/utils/eventOccasion';
+import {
+  resolveOccasion, occasionMetaFor, defaultOccasionFor,
+  allowedOccasionsFor, isOccasionLocked, isOccasionAllowed, occasionPolicyFor,
+} from '../src/app/utils/eventOccasion';
 import { buildInvitationCardData } from '../src/app/utils/invitationCardData';
 import { TEMPLATES } from '../src/app/utils/curatedTemplates';
 import { WEDDING_VARIANT_TEMPLATES } from '../src/app/utils/templateFamilies';
@@ -142,23 +146,29 @@ describe('events created before the occasion picker are untouched', () => {
    2. Any occasion, on any template
    ════════════════════════════════════════════════════════════════════ */
 describe('the organizer\'s answer wins on every template', () => {
-  it('a birthday on Velvet Ring is a birthday', () => {
-    const ring = CINEMATIC_TEMPLATES.ring;
-    expect(getCinematicOccasion(ring, { custom_category: 'birthday' })).toBe('birthday');
-    expect(getCinematicCopy(ring, { occasion: 'birthday' }).kicker).toBe('Birthday Invitation');
-    expect(getCinematicCopy(ring, { occasion: 'birthday', isRTL: true }).kicker).toBe('دعوة عيد ميلاد');
+  it('a birthday on Door of Joy is a birthday', () => {
+    // Velvet Ring is deliberately NOT the example any more — it is locked to
+    // engagements, which the block below covers.
+    const bab = CINEMATIC_TEMPLATES.bab;
+    expect(getCinematicOccasion(bab, { custom_category: 'birthday' })).toBe('birthday');
+    expect(getCinematicCopy(bab, { occasion: 'birthday' }).kicker).toBe('Birthday Invitation');
+    expect(getCinematicCopy(bab, { occasion: 'birthday', isRTL: true }).kicker).toBe('دعوة عيد ميلاد');
   });
 
-  it('every occasion produces a kicker on every template, in both languages', () => {
-    /* The mechanical build is what makes 25 × 3 × 2 possible without anybody
-       writing 150 strings — so every combination has to actually produce one. */
+  it('every ALLOWED occasion produces a kicker on every template, in both languages', () => {
+    /* The mechanical build is what makes 25 × N × 2 possible without anybody
+       writing hundreds of strings — so every combination a template actually
+       permits has to produce one. */
     CINEMATIC_KEYS.forEach((key) => {
-      CUSTOM_CATEGORIES.forEach(({ key: occasion }) => {
-        [false, true].forEach((isRTL) => {
-          const { kicker } = getCinematicCopy(CINEMATIC_TEMPLATES[key], { isRTL, occasion });
-          expect(kicker, `${key} + ${occasion} (${isRTL ? 'ar' : 'en'}) has no kicker`).toBeTruthy();
+      const tpl = CINEMATIC_TEMPLATES[key];
+      CUSTOM_CATEGORIES
+        .filter((c) => isOccasionAllowed(key, c.key))
+        .forEach(({ key: occasion }) => {
+          [false, true].forEach((isRTL) => {
+            const { kicker } = getCinematicCopy(tpl, { isRTL, occasion });
+            expect(kicker, `${key} + ${occasion} (${isRTL ? 'ar' : 'en'}) has no kicker`).toBeTruthy();
+          });
         });
-      });
     });
   });
 
@@ -227,12 +237,18 @@ describe('the occasion reaches the rest of the product', () => {
     );
     expect(engagement.honorLine2).toBe('at the engagement of');
 
-    // Velvet Ring, but a wedding.
+    // Swan Lake, but a wedding.
     const wedding = buildInvitationCardData(
-      { ...base, template_type: 'ring', template_data: { ...td, custom_category: 'wedding' } }, false,
+      { ...base, template_type: 'swans', template_data: { ...td, custom_category: 'wedding' } }, false,
     );
     expect(wedding.celebrationLabel).toBeUndefined();
     expect(wedding.names).toBe('Adam & Mira');
+
+    // Velvet Ring is locked: it prints engagement copy whatever is stored.
+    const locked = buildInvitationCardData(
+      { ...base, template_type: 'ring', template_data: { ...td, custom_category: 'wedding' } }, false,
+    );
+    expect(locked.honorLine2).toBe('at the engagement of');
   });
 
   it('a non-couple occasion never gets couple card copy', () => {
@@ -240,7 +256,7 @@ describe('the occasion reaches the rest of the product', () => {
        td.celebrant / td.age — keys the occasion catalogue never writes, so
        routing there by name would render a card with every field blank. */
     const card = buildInvitationCardData({
-      title: "Sarah's 30th", event_date: '2027-05-07T18:00:00Z', template_type: 'ring',
+      title: "Sarah's 30th", event_date: '2027-05-07T18:00:00Z', template_type: 'bab',
       template_data: { custom_category: 'birthday', custom_honoree: 'Sarah', custom_milestone: 'Turning 30' },
     }, false);
     expect(card.honorLine2).toBeUndefined();
@@ -327,6 +343,82 @@ describe('the occasion reaches the rest of the product', () => {
 });
 
 /* ════════════════════════════════════════════════════════════════════
+   3b. Some artwork only means one thing
+   ════════════════════════════════════════════════════════════════════ */
+describe('a locked template stays locked', () => {
+  it('Velvet Ring allows only engagements', () => {
+    // Every frame of it is a ring box opening onto a ring. There is no
+    // reading of that under which it is a baby shower.
+    expect(allowedOccasionsFor('ring')).toEqual(['engagement']);
+    expect(isOccasionLocked('ring')).toBe(true);
+    expect(isOccasionAllowed('ring', 'engagement')).toBe(true);
+    expect(isOccasionAllowed('ring', 'birthday')).toBe(false);
+  });
+
+  it('Door of Joy, Swan Lake and Custom Canvas allow anything', () => {
+    ['bab', 'swans', 'custom'].forEach((key) => {
+      expect(allowedOccasionsFor(key), `${key} is not open`).toBe('any');
+      expect(isOccasionLocked(key)).toBe(false);
+      expect(isOccasionAllowed(key, 'babyShower')).toBe(true);
+      expect(isOccasionAllowed(key, 'memorial')).toBe(true);
+    });
+  });
+
+  it('CLAMPS a stored occasion the template is not for', () => {
+    /* The safety net. `custom_category` is free-form JSON on a row anybody
+       with API access can write, and an event carrying 'birthday' on Velvet
+       Ring would otherwise print a birthday kicker over a ring box. Clamping
+       on READ also means a policy change needs no migration. */
+    expect(resolveOccasion('ring', { custom_category: 'birthday' })).toBe('engagement');
+    expect(resolveOccasion('ring', { custom_category: 'wedding' })).toBe('engagement');
+    // ...and does not clamp what IS allowed.
+    expect(resolveOccasion('bab', { custom_category: 'birthday' })).toBe('birthday');
+  });
+
+  it('the guest page and the card agree about a clamped event', () => {
+    // Same resolver both sides, so the cover cannot say one thing while the
+    // sections say another.
+    const td = { custom_category: 'graduation', partner1: 'A', partner2: 'B' };
+    expect(getCinematicOccasion(CINEMATIC_TEMPLATES.ring, td)).toBe('engagement');
+    expect(getCinematicCopy(CINEMATIC_TEMPLATES.ring, { occasion: 'graduation' }).kicker)
+      .toBe('Engagement Invitation');
+  });
+
+  it('states its occasion instead of offering tiles it would refuse', () => {
+    render(<OccasionPicker value="engagement" onChange={() => {}} allowed={['engagement']} lockedNote="Fixed." />);
+    expect(screen.getByTestId('occasion-locked').getAttribute('data-occasion')).toBe('engagement');
+    // Not 25 tiles with 24 disabled — that invites 24 refusals.
+    expect(screen.queryByTestId('occasion-birthday')).toBeNull();
+    expect(screen.queryByTestId('occasion-picker')).toBeNull();
+  });
+
+  it('every template card carries a badge saying what it is for', () => {
+    TEMPLATES.forEach((tpl) => {
+      const policy = occasionPolicyFor(tpl.key);
+      expect(policy.label, `${tpl.key} has no badge text`).toBeTruthy();
+      expect(policy.note, `${tpl.key} has no badge explanation`).toBeTruthy();
+      expect(CUSTOM_CATEGORY_BY_KEY[policy.iconName] || policy.iconName === 'celebration').toBeTruthy();
+    });
+    expect(occasionPolicyFor('ring').label).toBe('Engagement');
+    expect(occasionPolicyFor('bab').label).toBe('Any occasion');
+    expect(occasionPolicyFor('swans').label).toBe('Any occasion');
+    expect(occasionPolicyFor('custom').label).toBe('Any occasion');
+  });
+
+  it('the badge and the picker read from ONE policy', () => {
+    /* A card promising "Any occasion" beside a picker that refuses them is
+       the product lying to the organizer at the moment they choose. */
+    const card = read('src/app/dashboard/create-event/components/TemplateCard.js');
+    expect(card).toMatch(/occasionPolicyFor\(template\.key\)/);
+    expect(card).toMatch(/data-testid=\{`template-badge-\$\{template\.key\}`\}/);
+    // `tier` must not carry occasion wording any more.
+    TEMPLATES.forEach((tpl) => {
+      expect(tpl.tier, `${tpl.key}'s tier still names an occasion`).not.toMatch(/occasion/i);
+    });
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════
    4. The picker itself
    ════════════════════════════════════════════════════════════════════ */
 describe('one occasion picker, offered on every template', () => {
@@ -367,6 +459,63 @@ describe('one occasion picker, offered on every template', () => {
       expect(src, `${file} does not use OccasionPicker`).toContain('<OccasionPicker');
       expect(src, `${file} still maps CUSTOM_CATEGORIES itself`).not.toMatch(/CUSTOM_CATEGORIES\.map/);
     });
+  });
+
+  it('lives in Event Details in Settings, not buried under Content', () => {
+    /* It replaced the "Event Type" select and was first put under Content,
+       which reads exactly as "I cannot change the event type of this event"
+       — a control moved somewhere nobody looks is a control removed. */
+    const settings = read('src/app/dashboard/components/EventSettings.js');
+    const detailsAt = settings.search(/<OccasionPicker\s+label="Event Type"/);
+    // The Content section starts at its own icon badge + heading.
+    const contentAt = settings.search(/iconBadgeStyle[^\n]*name="book"/);
+    expect(detailsAt, 'the Event Type control is gone entirely').toBeGreaterThan(-1);
+    expect(contentAt, 'the Content heading moved — re-anchor this check').toBeGreaterThan(-1);
+    expect(detailsAt, 'the occasion control is still below the Content heading')
+      .toBeLessThan(contentAt);
+    // And it is the picker that sits there, not the old six-answer select.
+    expect(settings).toMatch(/<OccasionPicker\s+label="Event Type"/);
+  });
+
+  it('the preview strip can shrink below its own content', () => {
+    /* Measured, not assumed: without `min-width: 0` the wrapper's `width:
+       100%` resolved against a grid track sized to the pill row's max-content
+       (~3,300px), `.fx-scroll-x`'s `max-width: 100%` had nothing to clamp,
+       and the caption laid out at x=3166 — off screen, and dragging the whole
+       column wide. `min-width: 0` is the precondition for a scroll port. */
+    const stage1 = read('src/app/dashboard/create-event/components/Stage1_TemplatesSimulator.js');
+    expect(stage1).toMatch(/width: '100%', minWidth: 0 \}\} data-testid="occasion-preview-strip"/);
+  });
+
+  it('renders both of its states', () => {
+    const open = render(
+      <OccasionPreviewStrip policy={occasionPolicyFor('bab')} value="birthday" onChange={() => {}} />,
+    );
+    expect(screen.getByTestId('preview-occasion-birthday').getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByTestId('preview-occasion-memorial')).toBeTruthy();
+    expect(screen.queryByTestId('occasion-preview-locked')).toBeNull();
+    open.unmount();
+
+    render(<OccasionPreviewStrip policy={occasionPolicyFor('ring')} value="engagement" onChange={() => {}} />);
+    // A locked template states its occasion; it does not offer 24 refusals.
+    expect(screen.getByTestId('occasion-preview-locked')).toBeTruthy();
+    expect(screen.queryByTestId('preview-occasion-birthday')).toBeNull();
+  });
+
+  it('the templates page can prove the badge before you commit', () => {
+    /* "Any occasion" on a card is a claim. The strip beside the phone is
+       where it is demonstrated: pick one and the real guest page re-renders
+       under it. */
+    const stage1 = read('src/app/dashboard/create-event/components/Stage1_TemplatesSimulator.js');
+    expect(stage1).toContain('OccasionPreviewStrip');
+    // Feeds the REAL preview event, not a mock.
+    expect(stage1).toMatch(/custom_category: previewOccasion/);
+    // Both layouts — the desktop split pane and the mobile column.
+    expect([...stage1.matchAll(/<OccasionPreviewStrip/g)].length).toBe(2);
+    // Locked templates show a statement, not a strip of refusals.
+    expect(stage1).toContain('occasion-preview-locked');
+    // Horizontal scroller: it sits above a phone frame and must not grow it.
+    expect(stage1).toMatch(/className="fx-scroll-x"/);
   });
 
   it('every template in the picker offers the occasion choice', () => {

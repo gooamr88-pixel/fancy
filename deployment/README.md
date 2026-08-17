@@ -158,7 +158,24 @@ sudo apt install certbot python3-certbot-nginx -y
      BREVO_API_KEY=xkeysib-...
      BREVO_FROM_EMAIL=info@fancyrsvp.com
      BREVO_FROM_NAME="Fancy RSVP"
+
+     # Lifecycle messaging — REQUIRED for guests to be reminded at all.
+     # Master switch for every automatic message: the day-before reminder
+     # (table + venue + QR entry pass, by email AND SMS), RSVP chasers, the
+     # organizer's final headcount, post-event thank-yous, and change notices.
+     # Unset, the scheduler no-ops silently — nothing errors, nothing retries,
+     # and the first symptom is a guest arriving without their table.
+     EMAIL_AUTOMATION_ENABLED=true
      ```
+
+   > **Check this one after every deploy.** It was missing from this template
+   > for a long time, so an install that followed these steps had lifecycle
+   > messaging off. To confirm it is on:
+   > ```bash
+   > pm2 logs fancy-rsvp-backend --lines 200 | grep email-scheduler
+   > # want: "[email-scheduler] enabled — sweeping every 15 min"
+   > # bad:  "[email-scheduler] DISABLED — no automatic guest messages…"
+   > ```
 3. Configure your Next.js frontend environment variables:
    - Create the file `/var/www/fancy-rsvp/frontend/.env.production`:
      ```env

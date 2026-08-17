@@ -2,7 +2,9 @@
 
 import React, { useState } from 'react';
 import InvitationCard from '../../../components/templates/InvitationCard';
+import EventCategoryIcon from '../../../components/icons/EventCategoryIcon';
 import { TEMPLATE_PREVIEW_PATTERN } from '../../../utils/curatedTemplates';
+import { occasionPolicyFor } from '../../../utils/eventOccasion';
 
 /* ═══════════════════════════════════════════════════════════════
    TemplateCard — the gallery card for the template picker.
@@ -49,6 +51,8 @@ export default function TemplateCard({
   // gives them: light type over the dark cinematic stills, dark type over the
   // Custom card's cream ground.
   const overDark = preview.tone !== 'light';
+  // What this template may be used for — the badge's only source of truth.
+  const policy = occasionPolicyFor(template.key);
   const titleColor = overDark ? '#FFFFFF' : '#191B1E';
   const tierColor = overDark ? 'rgba(255,255,255,0.88)' : '#8A6D34';
   // Custom Canvas follows the live builder; the others follow their preset.
@@ -86,6 +90,43 @@ export default function TemplateCard({
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 13l4 4L19 7" /></svg>
         </div>
       )}
+
+      {/* ── What this template is FOR ──────────────────────────────────
+          The one thing the card has to answer before anything else, and it
+          had no answer: `tier` read "Any occasion" as small type over the
+          artwork, on Velvet Ring too, which is not true of a ring box.
+
+          Opposite corner from the selected check so the two never collide.
+          Text and icon come from occasionPolicyFor(), the same source the
+          pickers offer from — so this cannot promise a freedom the next
+          screen refuses. */}
+      <div
+        className="tc-badge"
+        data-testid={`template-badge-${template.key}`}
+        title={policy.note}
+        style={{
+          position: 'absolute', top: 10, insetInlineStart: 10, zIndex: 10,
+          display: 'inline-flex', alignItems: 'center', gap: 5,
+          padding: '5px 10px 5px 8px', borderRadius: 999,
+          border: `1px solid ${overDark ? 'rgba(255,255,255,0.34)' : 'rgba(184,148,79,0.45)'}`,
+          background: overDark ? 'rgba(16,12,9,0.52)' : 'rgba(255,255,255,0.82)',
+          WebkitBackdropFilter: 'blur(10px)', backdropFilter: 'blur(10px)',
+          boxShadow: overDark ? '0 2px 10px rgba(0,0,0,0.35)' : '0 2px 10px rgba(0,0,0,0.08)',
+          maxWidth: 'calc(100% - 52px)',
+        }}
+      >
+        <EventCategoryIcon
+          name={policy.iconName}
+          size={12}
+          color={overDark ? '#F2E4C4' : '#8A6D34'}
+          strokeWidth={1.8}
+        />
+        <span className="fx-break" style={{
+          fontFamily: 'var(--font-sans)', fontSize: 9.5, fontWeight: 700,
+          letterSpacing: '0.07em', textTransform: 'uppercase',
+          color: overDark ? '#F2E4C4' : '#8A6D34', lineHeight: 1.2,
+        }}>{policy.label}</span>
+      </div>
 
       {/* ── Artwork ── */}
       <div

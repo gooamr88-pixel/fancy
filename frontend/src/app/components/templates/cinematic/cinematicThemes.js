@@ -41,11 +41,16 @@ export const CINEMATIC_TEMPLATES = {
      deep velvet ground, which buildPalette resolves as a dark theme. */
   ring: {
     key: 'ring',
-    /* What this renders as when the organizer has not chosen an occasion —
-       which is every event created before the occasion picker existed. It is
-       NOT a restriction: any of the catalogue's occasions can be picked on
-       any template. See utils/customEventCategories.js. */
     defaultOccasion: 'engagement',
+    /* LOCKED, and the only one that is. Every frame of this template is a
+       ring box opening onto a ring — there is no reading of that artwork
+       under which it is a birthday or a baby shower, and offering it would be
+       the product promising something it cannot deliver.
+
+       `occasions: 'any'` on the others is the opposite promise, and both are
+       stated on the template card by occasionPolicyFor() so the picker can
+       never offer what the card refuses. See utils/eventOccasion.js. */
+    occasions: ['engagement'],
     opening: 'velvetBox',
     hero: 'velvetRing',
 
@@ -116,8 +121,10 @@ export const CINEMATIC_TEMPLATES = {
      the light. Warm wood, cream stone and lilac; a light theme below. */
   bab: {
     key: 'bab',
-    // See the note on Velvet Ring's: a default, not a restriction.
+    /* A default, not a restriction: a carved door opening onto light is as
+       true of a graduation or a baby shower as of a wedding. */
     defaultOccasion: 'wedding',
+    occasions: 'any',
     opening: 'knockDoor',
     hero: 'doorOfJoy',
 
@@ -199,8 +206,9 @@ export const CINEMATIC_TEMPLATES = {
      the answer through getCinematicOccasion() below. */
   swans: {
     key: 'swans',
-    // See the note on Velvet Ring's: a default, not a restriction.
+    // A default, not a restriction — a sealed envelope suits any celebration.
     defaultOccasion: 'wedding',
+    occasions: 'any',
     opening: 'waxEnvelope',
     hero: 'swanLake',
 
@@ -313,13 +321,24 @@ export function getCinematicTemplate(templateType) {
  */
 export function getCinematicOccasion(template, templateData) {
   if (!template) return null;
-  /* Guarded against a key the catalogue does not know, exactly as
-     utils/eventOccasion.js's resolveOccasion() is. The two resolve the same
-     event and are called from different places — this one where the template
-     object is already in hand — so a difference between them is a page whose
-     cover and whose sections disagree about what is being celebrated. */
+  /* Two guards, and both must match utils/eventOccasion.js's
+     resolveOccasion() exactly. The two resolve the same event from different
+     places — this one where the template object is already in hand — so any
+     difference between them is a page whose COVER and whose SECTIONS disagree
+     about what is being celebrated.
+
+     1. a key the catalogue has never heard of, and
+     2. a key this template is not for. Velvet Ring declares
+        `occasions: ['engagement']`; without this check a row carrying
+        'graduation' opened on a graduation kicker over a ring box while every
+        section below it correctly said engagement.
+
+     Not imported from eventOccasion.js because that module imports this one —
+     the policy lives on the template, so the check is one line either way. */
   const chosen = templateData?.custom_category;
-  if (chosen && CUSTOM_CATEGORY_BY_KEY[chosen]) return chosen;
+  const allowed = template.occasions;
+  const permitted = !allowed || allowed === 'any' || allowed.includes(chosen);
+  if (chosen && CUSTOM_CATEGORY_BY_KEY[chosen] && permitted) return chosen;
   return template.defaultOccasion || null;
 }
 
@@ -339,11 +358,15 @@ export function getCinematicOccasion(template, templateData) {
 export function getCinematicCopy(template, { isRTL = false, occasion = null } = {}) {
   const lang = isRTL ? 'ar' : 'en';
   const base = template?.copy?.[lang] || {};
-  /* An occasion the catalogue does not know produces no kicker at all, and a
-     cover with a blank line above the names looks broken rather than plain.
-     A stale key is exactly what a half-applied migration or a hand-edited row
-     leaves behind, so fall back to what the template has always meant. */
-  const asked = occasion && CUSTOM_CATEGORY_BY_KEY[occasion] ? occasion : null;
+  /* Same two guards as getCinematicOccasion, applied again here rather than
+     trusted from the caller. An occasion the catalogue does not know produces
+     no kicker at all — a blank line above the names looks broken rather than
+     plain — and an occasion this template is not for would put a graduation
+     kicker over a ring box. Callers already resolve; this makes the function
+     impossible to misuse rather than merely unlikely to be. */
+  const allowedHere = template?.occasions;
+  const permitted = !allowedHere || allowedHere === 'any' || allowedHere.includes(occasion);
+  const asked = occasion && CUSTOM_CATEGORY_BY_KEY[occasion] && permitted ? occasion : null;
   const resolved = asked || template?.defaultOccasion;
 
   const kicker = occasionKicker(resolved, isRTL);

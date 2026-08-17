@@ -6,6 +6,8 @@ import PhoneSimulator from './PhoneSimulator';
 import CustomBuilder from './CustomBuilder';
 import { buildPreviewEvent } from './previewEvent';
 import EventCategoryIcon from '../../../components/icons/EventCategoryIcon';
+import { CUSTOM_CATEGORIES } from '../../../utils/customEventCategories';
+import { occasionPolicyFor } from '../../../utils/eventOccasion';
 // This file's own SSR-safe useSyncExternalStore hook was the good one in
 // the codebase; it has been promoted to src/app/hooks/useMediaQuery.js so
 // everything else can share it. Same 768px threshold, so no behaviour
@@ -222,6 +224,121 @@ function MobilePresetRow({ template, activePresetIndex, onPresetSelect }) {
   );
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   "Preview as" — the badge's claim, demonstrated.
+
+   A horizontal scroller, not a wrapping grid: it sits directly above a phone
+   frame and must never push the column taller than the device it is
+   introducing. `.fx-scroll-x` is the one construct frontend/AGENTS.md treats
+   as contributing zero min-content width, which is exactly what a 25-item
+   strip beside a 320px phone needs.
+
+   A LOCKED template gets a single static pill instead. Twenty-five tiles with
+   twenty-four disabled would invite the organizer to try each one and be
+   refused; saying it once is the better answer.
+   ═══════════════════════════════════════════════════════════════ */
+export function OccasionPreviewStrip({ policy, value, onChange, compact }) {
+  const options = policy.allowed === 'any'
+    ? CUSTOM_CATEGORIES
+    : CUSTOM_CATEGORIES.filter((c) => policy.allowed.includes(c.key));
+
+  return (
+    /* `minWidth: 0` is load-bearing, and its absence is not a subtle bug.
+
+       A grid or flex track sizes to its content's MAX-CONTENT width by
+       default, and this strip's content is 25 pills — about 3,300px. So
+       `width: 100%` resolved against 3,300px, `.fx-scroll-x`'s
+       `max-width: 100%` had a 3,300px hundred-percent to clamp against and
+       clamped nothing, and the "You choose for real" line was laid out at
+       x=3166 — off screen, invisible, and dragging the whole column wide.
+       Measured, not guessed: see .visual/badges/probe.html.
+
+       `min-width: 0` is what lets the track shrink below its content, which
+       is the whole precondition for a scroll port working. globals.css ships
+       `.fx-min0` for exactly this; it is inline here because this element
+       already carries no class of its own. */
+    <div style={{ width: '100%', minWidth: 0 }} data-testid="occasion-preview-strip">
+      {/* Wraps: a label beside a hint is two whole units, and on a 320px
+          phone "PREVIEW AS" and "You choose for real in the next step" do not
+          share a line. The pills below scroll instead — see .fx-scroll-x —
+          because a tab strip stops reading as one the moment it stacks. */}
+      <div style={{
+        display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between',
+        gap: 8, marginBottom: 6, padding: compact ? '0 4px' : 0,
+      }}>
+        <span style={{
+          fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 700,
+          letterSpacing: '0.09em', textTransform: 'uppercase', color: '#8A6D34',
+        }}>
+          {policy.locked ? 'Made for' : 'Preview as'}
+        </span>
+        {!policy.locked && (
+          /* #77736A, not the #A09A91 used for hints elsewhere in the wizard:
+             at --fx-micro on this cream ground that lighter grey lands around
+             2.5:1, under the 4.5:1 AA needs for small text, and it is the line
+             that explains the control is a preview. */
+          <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fx-micro)', color: '#77736A' }}>
+            You choose for real in the next step
+          </span>
+        )}
+      </div>
+
+      {policy.locked ? (
+        <div
+          data-testid="occasion-preview-locked"
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            padding: '8px 14px', borderRadius: 999,
+            border: '1px solid rgba(184,148,79,0.35)', background: 'rgba(184,148,79,0.08)',
+          }}
+        >
+          <EventCategoryIcon name={policy.occasion} size={14} color="#8A6D34" strokeWidth={1.8} />
+          <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 700, color: '#8A6D34' }}>
+            {policy.label}
+          </span>
+        </div>
+      ) : (
+        <div
+          className="fx-scroll-x"
+          style={{
+            display: 'flex', gap: 6, padding: '2px 2px 6px',
+            scrollbarWidth: 'none', msOverflowStyle: 'none',
+          }}
+        >
+          {options.map(({ key, label }) => {
+            const active = value === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                aria-pressed={active}
+                onClick={() => onChange(key)}
+                data-testid={`preview-occasion-${key}`}
+                style={{
+                  flex: '0 0 auto',
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '7px 12px', borderRadius: 999, cursor: 'pointer',
+                  border: `1px solid ${active ? '#B8944F' : 'rgba(184,148,79,0.18)'}`,
+                  background: active ? 'linear-gradient(135deg,#B8944F,#a6833f)' : 'rgba(255,255,255,0.7)',
+                  color: active ? '#FFFFFF' : '#77736A',
+                  fontFamily: 'var(--font-sans)', fontSize: 11.5, fontWeight: 600,
+                  WebkitBackdropFilter: 'blur(10px)', backdropFilter: 'blur(10px)',
+                  whiteSpace: 'nowrap',
+                  WebkitTapHighlightColor: 'transparent',
+                  transition: 'background 0.2s ease, border-color 0.2s ease',
+                }}
+              >
+                <EventCategoryIcon name={key} size={13} color={active ? '#FFFFFF' : '#8A6D34'} strokeWidth={1.7} />
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Stage1_TemplatesSimulator({
   templates, templateType, onTemplateSelect,
   selectedPresets, onPresetSelect, activePresetColors,
@@ -250,6 +367,22 @@ export default function Stage1_TemplatesSimulator({
      envelope prints it large, in script, under "For", where a couple's name
      makes the preview look like it is addressed to the people sending it. */
   const [guestName, setGuestName] = useState('Sarah Al-Mansouri');
+
+  /* ── "Preview as" ────────────────────────────────────────────────────────
+     The card's badge claims a template works for any occasion. This is where
+     that claim is PROVEN: pick one and the phone beside it re-renders the
+     real guest page under it — kicker, tagline and all.
+
+     Preview only. The occasion is answered for real in Step 2; committing it
+     here would reorder the wizard, and an organizer comparing templates is
+     not yet deciding what they are celebrating. Reset whenever the template
+     changes, because the previous pick may not even be allowed on the new
+     one (Velvet Ring is engagements only). */
+  const policy = occasionPolicyFor(templateType);
+  const [previewOccasion, setPreviewOccasion] = useState(policy.occasion);
+  useEffect(() => {
+    setPreviewOccasion(occasionPolicyFor(templateType).occasion);
+  }, [templateType]);
 
   /* Build props for PhoneSimulator. The Custom template renders the editable
      `custom` pattern driven entirely by the live builder config; the others
@@ -294,8 +427,10 @@ export default function Stage1_TemplatesSimulator({
         }
       : activePresetColors,
     customConfig,
-    templateData: {},
-  }), [templateType, isCustom, customConfig, activePresetColors]);
+    // The one field the organizer can drive from this step. resolveOccasion()
+    // clamps it on read, so a locked template ignores anything it is not for.
+    templateData: previewOccasion ? { custom_category: previewOccasion } : {},
+  }), [templateType, isCustom, customConfig, activePresetColors, previewOccasion]);
 
   return (
     <div style={{
@@ -373,6 +508,17 @@ export default function Stage1_TemplatesSimulator({
                 onGuestNameChange={setGuestName}
                 event={simulatorEvent}
                 isMobile={true}
+              />
+            </div>
+
+            {/* Under the phone on mobile, where the thumb is — above it would
+                push the device below the fold on a short screen. */}
+            <div style={{ padding: '10px 16px 0' }}>
+              <OccasionPreviewStrip
+                policy={policy}
+                value={previewOccasion}
+                onChange={setPreviewOccasion}
+                compact
               />
             </div>
 
@@ -585,6 +731,15 @@ export default function Stage1_TemplatesSimulator({
 
           {/* ─── RIGHT: Phone Simulator ─── */}
           <div className="s1-phone">
+            {/* Directly above the device, so the claim on the card and the
+                proof of it are the same glance. */}
+            <div style={{ marginBottom: 12 }}>
+              <OccasionPreviewStrip
+                policy={policy}
+                value={previewOccasion}
+                onChange={setPreviewOccasion}
+              />
+            </div>
             <PhoneSimulator
               key={templateType}
               template={simulatorTemplate}

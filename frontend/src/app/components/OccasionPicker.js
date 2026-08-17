@@ -42,7 +42,50 @@ export default function OccasionPicker({
   hint = 'Shapes the fields below, the wording on your invitation, and how guest sides are labelled — change it any time.',
   labelStyle,
   hintStyle,
+  /* The template's occasion policy, from occasionPolicyFor(). `'any'` offers
+     the whole catalogue; a one-entry list means the template is locked to it
+     and this renders a read-only row instead.
+
+     A locked template shows a STATEMENT, not 25 tiles with 24 disabled: a
+     grid of dead controls invites the organizer to try each one and be
+     refused, which is a worse answer than telling them once. */
+  allowed = 'any',
+  lockedNote = '',
 }) {
+  const categories = allowed === 'any'
+    ? CUSTOM_CATEGORIES
+    : CUSTOM_CATEGORIES.filter((c) => allowed.includes(c.key));
+
+  if (categories.length <= 1) {
+    const only = categories[0];
+    if (!only) return null;
+    return (
+      <div style={{ marginBottom: 18 }}>
+        <label style={labelStyle}>{label}</label>
+        <div
+          data-testid="occasion-locked"
+          data-occasion={only.key}
+          style={{
+            display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10,
+            marginTop: 6, padding: '12px 14px', borderRadius: 10,
+            border: `1px solid ${COLORS.border}`, background: 'rgba(184,148,79,0.05)',
+          }}
+        >
+          <EventCategoryIcon name={only.key} size={17} color={COLORS.gold} />
+          <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 600, color: COLORS.gold }}>
+            {only.label}
+          </span>
+        </div>
+        {(lockedNote || hint) && (
+          <p style={hintStyle || {
+            fontSize: 'var(--fx-micro)', color: COLORS.hint, margin: '8px 0 0',
+            fontFamily: 'var(--font-sans)', lineHeight: 1.55,
+          }}>{lockedNote || hint}</p>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div style={{ marginBottom: 18 }}>
       <label style={labelStyle}>{label}</label>
@@ -65,7 +108,7 @@ export default function OccasionPicker({
         aria-label={label}
         data-testid="occasion-picker"
       >
-        {CUSTOM_CATEGORIES.map(({ key, label: catLabel }) => {
+        {categories.map(({ key, label: catLabel }) => {
           const active = value === key;
           return (
             <button

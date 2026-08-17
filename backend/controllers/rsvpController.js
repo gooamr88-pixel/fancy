@@ -1629,7 +1629,14 @@ const getTicketSeatingView = async (req, res, next) => {
   try {
     const { data: event, error: eventError } = await supabase
       .from('events')
-      .select('id, slug, title, event_date, location_name, location_address, is_paid, status, custom_colors, custom_fonts, cover_image_url')
+      /* location_lat/location_lng are here for the ticket page's "Get
+         directions" link, and they are not optional. Without them the link
+         falls back to a Google text search on a free-typed address, which
+         drops the guest at whatever Google matches rather than at the pin the
+         organizer actually placed — on the one screen they open while
+         standing outside the venue. Same reasoning as the day-before email's
+         venue block (services/emailScheduler.js). */
+      .select('id, slug, title, event_date, location_name, location_address, location_lat, location_lng, is_paid, status, custom_colors, custom_fonts, cover_image_url')
       .eq('id', decoded.eventId)
       .single();
     /**
@@ -1671,6 +1678,7 @@ const getTicketSeatingView = async (req, res, next) => {
     const eventBrief = {
       title: event.title, slug: event.slug, event_date: event.event_date,
       location_name: event.location_name, location_address: event.location_address,
+      location_lat: event.location_lat, location_lng: event.location_lng,
       custom_colors: event.custom_colors, custom_fonts: event.custom_fonts, cover_image_url: event.cover_image_url,
     };
     const guestBrief = { id: seating.party.id, guest_name: seating.party.label, party_size: seating.party.partySize, response: seating.party.response };

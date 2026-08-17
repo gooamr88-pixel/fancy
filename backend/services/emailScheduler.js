@@ -696,7 +696,23 @@ async function runOnce(trigger = 'interval') {
 let timer = null;
 function start() {
   if (process.env.EMAIL_AUTOMATION_ENABLED !== 'true') {
-    logger.info('[email-scheduler] disabled — set EMAIL_AUTOMATION_ENABLED=true to enable lifecycle emails');
+    /* WARN, not INFO, and it names what is not happening.
+
+       This line was one `info` among a hundred at boot, and the flag is unset
+       by default and commented out in .env.production.example — so the most
+       likely state of any deployment is "no guest has ever been reminded",
+       reported in a tone indistinguishable from a healthy startup. The
+       symptom is silence: nothing errors, nothing retries, no row is written,
+       and the first sign is a guest arriving without their table.
+
+       Every automatic guest message lives behind this flag — the day-before
+       table + entry pass (email AND SMS), the RSVP chase, the post-event
+       thank-you, and the organizer's final headcount. */
+    logger.warn(
+      '[email-scheduler] DISABLED — no automatic guest messages will be sent: '
+      + 'no day-before table/entry-pass email or SMS, no RSVP reminders, no final report. '
+      + 'Set EMAIL_AUTOMATION_ENABLED=true in backend/.env to turn lifecycle messaging on.',
+    );
     return;
   }
   // Single-leader in a pm2 cluster: only instance 0 schedules.

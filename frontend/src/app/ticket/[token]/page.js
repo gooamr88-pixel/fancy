@@ -18,6 +18,9 @@ import { motion } from 'framer-motion';
 import { publicApiFetch, PublicApiError, API_URL } from '../../utils/publicApi';
 import SeatingResultPanel from '../../[slug]/rsvp/steps/SeatingResultPanel';
 import Icon from '../../components/icons/Icon';
+// The same coordinates-first / address-fallback builder the guest page's venue
+// sections use, so the pin a guest gets here is the pin they get everywhere.
+import { getDirectionsUrl } from '../../components/templates/heritageArch/shared';
 
 /**
  * Turns a failed ticket lookup into something true.
@@ -152,8 +155,40 @@ function TicketRoute({ token }) {
             {formattedDate && (
               <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', marginTop: '8px' }}>{formattedDate}</p>
             )}
-            {event?.location_name && (
-              <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', marginTop: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}><Icon name="mapPin" size={12} strokeWidth={1.6} /> {event.location_name}</p>
+            {/* ── The venue, as a way to GET there ────────────────────────
+                This was plain text, and this page is the only thing the
+                day-before SMS links to: the text says "show this at the
+                door", the guest opens it outside the venue, and the one
+                question they have — how do I get in there — had no answer
+                anywhere in the flow. The email has had a directions link all
+                along; the text and this page did not.
+
+                Deliberately NOT added to the SMS body instead. Measured, the
+                seating reminder has 47 GSM-7 units of slack in English and 40
+                UCS-2 units in Arabic at worst case; a shortened link plus a
+                label needs ~43. Arabic would tip 4 segments to 5 for every
+                guest on every event. The link is free here and the text
+                already points here. */}
+            {(event?.location_name || event?.location_address) && (
+              <a
+                href={getDirectionsUrl(event.location_lat, event.location_lng, event.location_address || event.location_name)}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-testid="ticket-directions"
+                style={{
+                  fontSize: '12px', color: 'rgba(255,255,255,0.72)', marginTop: '4px',
+                  display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center',
+                  justifyContent: 'center', gap: '5px',
+                  textDecoration: 'none', borderBottom: '1px solid rgba(255,255,255,0.28)',
+                  paddingBottom: '1px',
+                }}
+              >
+                <Icon name="mapPin" size={12} strokeWidth={1.6} />
+                {event.location_name || event.location_address}
+                <span style={{ color: themeColor, fontWeight: 600 }}>
+                  · {isRTL ? 'الاتجاهات' : 'Directions'}
+                </span>
+              </a>
             )}
           </div>
 

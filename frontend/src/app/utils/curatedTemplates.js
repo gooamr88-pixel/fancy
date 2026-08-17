@@ -69,7 +69,10 @@ export const TEMPLATES = [
      for organizers who want to shift it, not because the first is a
      placeholder. */
   {
-    key: 'ring', label: 'Velvet Ring', tier: 'Any occasion',
+    /* `tier` describes the LOOK, never the occasion. What a template may be
+       used for is the badge on the card, from occasionPolicyFor() — one
+       source, so the card cannot promise what the picker refuses. */
+    key: 'ring', label: 'Velvet Ring', tier: 'Cinematic',
     tagline: 'Cinematic · Velvet & Gold',
     desc: 'A velvet ring box on a darkened stage. Your guests touch it, the lid opens on film, and the invitation dissolves out of the light — then the whole page carries gold dust and drifting petals as they scroll.',
     // The video's own poster frame — the exact image a guest lands on.
@@ -79,11 +82,13 @@ export const TEMPLATES = [
       { name: 'Midnight Gold', primary: '#6b3b5a', secondary: '#e0c07d', accent: '#e0c07d', background: '#1d0f18' },
       { name: 'Deep Garnet', primary: '#7d2438', secondary: '#c9973f', accent: '#c9973f', background: '#25090c' },
     ],
-    specs: ['Cinematic Box Opening', 'Gold Dust & Petals Throughout', 'Any Occasion You Choose', 'Arabic Display Typography', 'Every Section Toggleable'],
-    fields: ['Your Occasion', 'Names', 'Your Story', 'Gift Registry'],
+    // No "any occasion" here: this one is engagements only, and the badge on
+    // the card says so. See `occasions` in cinematic/cinematicThemes.js.
+    specs: ['Cinematic Box Opening', 'Gold Dust & Petals Throughout', 'Made for Engagements', 'Arabic Display Typography', 'Every Section Toggleable'],
+    fields: ['Partner Names', 'Proposal Story', 'Gift Registry'],
   },
   {
-    key: 'bab', label: 'Door of Joy', tier: 'Any occasion',
+    key: 'bab', label: 'Door of Joy', tier: 'Cinematic',
     tagline: 'Cinematic · Wood & Lilac',
     desc: 'A carved door your guests knock on three times — it answers, swings open on the light beyond, and doves lift from the garden gate behind your names. Blossom drifts down the page as they read.',
     preview: { kind: 'poster', src: '/templates/bab/door-poster.jpg', position: '50% 40%', tone: 'dark' },
@@ -102,7 +107,7 @@ export const TEMPLATES = [
      the kicker, tagline, invitation card and Groom's/Bride's Side labels all
      follow that one answer. See cinematic/cinematicThemes.js. */
   {
-    key: 'swans', label: 'Swan Lake', tier: 'Any occasion',
+    key: 'swans', label: 'Swan Lake', tier: 'Cinematic',
     tagline: 'Cinematic · Olive & Ivory',
     desc: 'An olive envelope engraved with foliage and sealed with ivory wax. Your guests break the seal, the flaps fall open, and an embossed card rises out — then the engraving fills with colour and becomes a painted lake with two swans.',
     preview: { kind: 'poster', src: '/templates/swans/envelope-poster.jpg', position: '50% 45%', tone: 'dark' },

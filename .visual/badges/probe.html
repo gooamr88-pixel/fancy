@@ -1,0 +1,27 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+  html,body{margin:0;background:#111;color:#eee;font:12px/1.5 Consolas,monospace;}
+  iframe{width:430px;height:260px;border:0;position:absolute;left:-9999px;}
+  pre{padding:10px;white-space:pre-wrap;}
+</style></head><body>
+<iframe id="f" src="strip.html"></iframe>
+<pre id="out">measuring…</pre>
+<script>
+document.getElementById('f').addEventListener('load', function () {
+  var doc = this.contentDocument, win = this.contentWindow, L = [];
+  L.push('iframe viewport ' + win.innerWidth + 'x' + win.innerHeight);
+  var spans = doc.querySelectorAll('span');
+  spans.forEach(function (s) {
+    var t = (s.textContent || '').trim();
+    if (!t || t.length > 60) return;
+    var r = s.getBoundingClientRect();
+    var cs = win.getComputedStyle(s);
+    L.push('"' + t.slice(0, 40) + '"');
+    L.push('   box x=' + Math.round(r.left) + ' y=' + Math.round(r.top)
+      + ' w=' + Math.round(r.width) + ' h=' + Math.round(r.height));
+    L.push('   font=' + cs.fontSize + ' color=' + cs.color
+      + ' display=' + cs.display + ' visibility=' + cs.visibility + ' opacity=' + cs.opacity);
+  });
+  document.getElementById('out').textContent = L.join('\n');
+});
+</script>
+</body></html>

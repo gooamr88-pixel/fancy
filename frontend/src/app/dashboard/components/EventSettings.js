@@ -27,7 +27,7 @@ import { buildPalette } from '../../components/templates/heritageArch/theme';
 import TemplateCard from '../create-event/components/TemplateCard';
 import PreviewFrame from '../../components/templates/PreviewFrame';
 import { CUSTOM_CATEGORY_BY_KEY } from '../../utils/customEventCategories';
-import { resolveOccasion } from '../../utils/eventOccasion';
+import { resolveOccasion, occasionPolicyFor } from '../../utils/eventOccasion';
 import OccasionPicker from '../../components/OccasionPicker';
 
 const COLORS = {
@@ -1097,6 +1097,9 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
        is '' and only the coarse event_type names the occasion. */
     || (!form.template_type && CUSTOM_CATEGORY_BY_KEY[form.event_type] ? form.event_type : '');
   const occasionMeta = CUSTOM_CATEGORY_BY_KEY[occasionChoice] || null;
+  // What this template may be used for — the same source the picker card's
+  // badge reads, so the two can never disagree.
+  const occasionPolicy = occasionPolicyFor(effectiveTemplateType);
   // Which fields show is decided by the occasion's `kind`, for every template.
   const showCoupleFields = occasionMeta?.kind === 'couple';
 
@@ -1364,14 +1367,21 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           </div>
         </div>
 
-        {/* The coarse Event Type select is gone from every template that has
-            an occasion picker in Content — which is now all of them. It asked
-            the same question with six blunt answers, and two controls for one
-            decision is how you end up with an invitation that says
-            "engagement" while the guest list says "Groom's Side". The picker
-            writes `event_type` itself. Kept only for a legacy row that has no
-            template_type at all, where nothing else can set it. */}
-        {!form.template_type && (
+        {/* ── The occasion, in Event Details where the old "Event Type"
+            select was ──────────────────────────────────────────────────────
+            It replaced that select, and it was first put under Content —
+            which reads, correctly, as "I cannot change the event type of this
+            event any more". A control that moved somewhere nobody looks is a
+            control that was removed. It lives in its old slot now.
+
+            The select itself stays gone: it asked the same question with six
+            blunt answers, and two controls for one decision is how an
+            invitation ends up saying "engagement" while the guest list says
+            "Groom's Side". This writes `event_type` itself.
+
+            Kept, for a legacy row with no template_type at all, because
+            nothing else can set it there. */}
+        {!form.template_type ? (
           <div style={fieldGroupStyle}>
             <label style={labelStyle}>Event Type</label>
             <select value={form.event_type} onChange={handleChange('event_type')} style={{ ...inputStyle, cursor: 'pointer' }}>
@@ -1383,6 +1393,35 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               <option value="custom">Custom Event</option>
             </select>
           </div>
+        ) : occasionPolicy.allowed !== 'any' && occasionPolicy.locked ? (
+          <OccasionPicker
+            label="Event Type"
+            value={occasionChoice}
+            onChange={() => {}}
+            allowed={occasionPolicy.allowed}
+            lockedNote={occasionPolicy.note}
+            labelStyle={labelStyle}
+            hintStyle={hintStyle}
+          />
+        ) : (
+          <OccasionPicker
+            label="Event Type"
+            hint="Sets the wording on your invitation, which details you fill in below, and how guest sides are labelled — change it any time."
+            value={occasionChoice}
+            onChange={(key) => {
+              setTemplateData(prev => ({ ...prev, custom_category: key }));
+              /* event_type moves WITH the choice. It is what the side labels,
+                 meal selection, the RSVP wizard and the CSV export all read —
+                 none of which knows a template key — so leaving it behind
+                 would show "Groom's Side" on a birthday. Mirrors
+                 deriveEventType() in create-event/page.js. */
+              setForm(prev => ({ ...prev, event_type: key }));
+              setSuccess(false);
+            }}
+            allowed={occasionPolicy.allowed}
+            labelStyle={labelStyle}
+            hintStyle={hintStyle}
+          />
         )}
       </div>
 
@@ -2098,25 +2137,6 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             Content
           </span>
         </h3>
-
-        {/* Every template, and the same control the wizard shows. Settable
-            only at creation would freeze a decision that drives the
-            invitation's wording and the guest-side labels, not a heading. */}
-        <OccasionPicker
-          value={occasionChoice}
-          onChange={(key) => {
-            setTemplateData(prev => ({ ...prev, custom_category: key }));
-            /* event_type moves WITH the choice. It is what the side labels,
-               meal selection, the RSVP wizard and the CSV export all read —
-               none of which knows a template key — so leaving it behind would
-               show "Groom's Side" on a birthday. Mirrors deriveEventType()
-               in create-event/page.js. */
-            setForm(prev => ({ ...prev, event_type: key }));
-            setSuccess(false);
-          }}
-          labelStyle={labelStyle}
-          hintStyle={hintStyle}
-        />
 
         {occasionMeta?.kind === 'honoree' && (
           <div className="es-row" style={rowStyle}>

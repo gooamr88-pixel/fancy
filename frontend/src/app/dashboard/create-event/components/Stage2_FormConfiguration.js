@@ -10,7 +10,7 @@ import DaysEditor from './DaysEditor';
 import SectionsOrderEditor from './SectionsOrderEditor';
 import { getHaDays } from '../../../utils/haDays';
 import { CUSTOM_CATEGORY_BY_KEY } from '../../../utils/customEventCategories';
-import { resolveOccasion } from '../../../utils/eventOccasion';
+import { resolveOccasion, occasionPolicyFor } from '../../../utils/eventOccasion';
 import OccasionPicker from '../../../components/OccasionPicker';
 import { getCinematicTemplate } from '../../../components/templates/cinematic/cinematicThemes';
 import EventCategoryIcon from '../../../components/icons/EventCategoryIcon';
@@ -217,6 +217,7 @@ export default function Stage2_FormConfiguration({
      three hand-written copies of this chain got wrong. */
   const occasionChoice = resolveOccasion(templateType, templateData);
   const customCategoryMeta = CUSTOM_CATEGORY_BY_KEY[occasionChoice] || null;
+  const occasionPolicy = occasionPolicyFor(templateType);
   /* Which fields show is now decided ENTIRELY by the occasion's `kind`, not
      by which artwork was picked. That is the whole change: a birthday on
      Velvet Ring must show the honoree fields, and asking a template what
@@ -413,6 +414,12 @@ export default function Stage2_FormConfiguration({
               <OccasionPicker
                 value={occasionChoice}
                 onChange={setTd('custom_category')}
+                /* The template's own policy — so a locked one (Velvet Ring)
+                   states its occasion here instead of offering 25 tiles it
+                   would then refuse, and the wizard agrees with the badge the
+                   organizer just chose the template by. */
+                allowed={occasionPolicy.allowed}
+                lockedNote={occasionPolicy.note}
                 labelStyle={lblStyle}
               />
             )}
