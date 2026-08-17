@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, fireEvent } from '@testing-library/react';
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 /* Same reason cinematicTemplates.test.jsx mocks it: framer-motion caches its
    matchMedia result in module scope on the first call, so overriding
@@ -489,9 +490,46 @@ describe('the port left the source platform behind', () => {
     });
   });
 
-  it('the source folder is not committed', () => {
-    // It holds the tracking bundles above and a saved copy of the original
-    // page. Same treatment as the templates/ folder the first two came from.
-    expect(read('../.gitignore')).toMatch(/^envelop\/$/m);
+  it('the source folder is not committed, and the ignore rule is anchored', () => {
+    /* Both halves matter, and the second one broke the deploy.
+
+       A bare `templates/` in .gitignore is NOT "the templates folder at the
+       root" — it matches a directory of that name at ANY depth. This repo has
+       two more that matter: the entire template component tree
+       (frontend/src/app/components/templates/) and every template's artwork
+       (frontend/public/templates/). Written unanchored, git silently refused
+       to track SwanLakeHero.js and all four swans assets. Already-tracked
+       files were unaffected and the tree still built locally, so nothing
+       looked wrong until `next build` failed on the server with
+       "Can't resolve '../cinematic/SwanLakeHero'". */
+    const ignore = read('../.gitignore');
+    expect(ignore, 'the source folders are no longer ignored').toMatch(/^\/envelop\/$/m);
+    expect(ignore, 'the source folders are no longer ignored').toMatch(/^\/templates\/$/m);
+    expect(ignore, 'an unanchored `templates/` also swallows src and public')
+      .not.toMatch(/^templates\/$/m);
+    expect(ignore).not.toMatch(/^envelop\/$/m);
+  });
+
+  it('git actually tracks the files the build imports', () => {
+    /* The assertion above reads the rules; this one asks git. A pattern can be
+       correct and still be defeated by a second rule elsewhere in the file, and
+       the failure mode is invisible locally — the module is on disk, the tests
+       pass, and only the deploy notices it was never committed. */
+    const needed = [
+      'frontend/src/app/components/templates/cinematic/SwanLakeHero.js',
+      'frontend/src/app/components/guest/openings/WaxEnvelopeOpening.js',
+      ...Object.values(SWANS.assets).map((s) => `frontend/public${s}`),
+    ];
+    let tracked;
+    try {
+      tracked = new Set(
+        execFileSync('git', ['ls-files', '--', ...needed], { cwd: path.join(ROOT, '..'), encoding: 'utf8' })
+          .split('\n').map((s) => s.trim()).filter(Boolean),
+      );
+    } catch {
+      return; // no git here (a tarball, a sandbox) — the rule check above stands
+    }
+    const missing = needed.filter((f) => !tracked.has(f));
+    expect(missing, 'on disk but never committed — the deploy will not have these').toEqual([]);
   });
 });
