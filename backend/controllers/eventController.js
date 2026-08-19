@@ -5,6 +5,7 @@ const { getPublicBaseUrl } = require('../utils/publicUrl');
 const { revalidateEventSlugs } = require('../utils/revalidateFrontend');
 const { isAcceptedResponse, isDeclinedResponse, isMaybeResponse } = require('../utils/responseHelpers');
 const { getPlatformConfig } = require('../utils/configCache');
+const { resolveTier } = require('../utils/tierResolver');
 const { hashEventPassword, verifyEventPassword, isHashedEventPassword } = require('../utils/eventPassword');
 const tokenService = require('../services/tokenService');
 const logger = require('../utils/logger');
@@ -81,6 +82,7 @@ async function withResolvedTier(rawEvent) {
   }
 
   let tierName = event.tier_name || null;
+  let tierKey = event.tier_key || null;
   let tierMaxGuests = event.tier_max_guests;
   let tierRemoveWatermark = !!event.tier_remove_watermark;
   let tierFeatures = [];
@@ -98,56 +100,61 @@ async function withResolvedTier(rawEvent) {
   // If we don't have a tierName, try resolving from the completed payment
   if (!tierName && completed) {
     tierName = completed.tier_name || null;
+    tierKey = tierKey || completed.tier_key || null;
     tierMaxGuests = completed.tier_max_guests ?? null;
     tierRemoveWatermark = !!completed.tier_remove_watermark;
   }
+  if (!tierKey && completed) tierKey = completed.tier_key || null;
 
-  // If still unresolved or guest limit is missing/null, lookup from the platform configuration
-  if (!tierName || tierMaxGuests === null || tierMaxGuests === undefined) {
-    if ((completed && completed.amount_cents != null) || tierName) {
-      try {
-        const cfg = await getPlatformConfig();
-        const tiers = cfg.pricing_tiers || [];
+  // The purchase-time snapshot, which is what survives the plan being renamed
+  // or deleted. Read from the event, or from the payment that bought it.
+  const snapshot = Array.isArray(event.tier_features) ? event.tier_features
+    : (Array.isArray(completed?.tier_features) ? completed.tier_features : null);
 
-        if (tierName) {
-          const match = tiers.find(t => t.name.toLowerCase() === tierName.toLowerCase());
-          if (match) {
-            tierMaxGuests = Number.isFinite(match.max_guests) ? match.max_guests : null;
-            tierRemoveWatermark = !!match.remove_watermark;
-            tierFeatures = Array.isArray(match.features) ? match.features : [];
-          }
-        } else if (completed && completed.amount_cents != null) {
-          const match = tiers.find(t => Number(t.price_cents) === Number(completed.amount_cents));
-          if (match) {
-            tierName = match.name;
-            tierMaxGuests = Number.isFinite(match.max_guests) ? match.max_guests : null;
-            tierRemoveWatermark = !!match.remove_watermark;
-            tierFeatures = Array.isArray(match.features) ? match.features : [];
-          }
-        }
-      } catch { /* config unavailable — leave the plan unresolved this time */ }
-    }
-  }
-
-  // If we have a tierName but haven't resolved features yet, do a separate lookup.
-  if (tierName && tierFeatures.length === 0) {
+  // Resolve against the live config — by KEY. This used to match on the
+  // display name and, failing, hand the dashboard `tier_features: []`, so
+  // renaming a plan visually stripped every paid capability from every event
+  // on it. See utils/tierResolver.js.
+  if (tierKey || tierName || (completed && completed.amount_cents != null)) {
     try {
       const cfg = await getPlatformConfig();
       const tiers = cfg.pricing_tiers || [];
-      const match = tiers.find(t => (t.name || '').toLowerCase() === tierName.toLowerCase());
-      if (match && Array.isArray(match.features)) {
-        tierFeatures = match.features;
+      let { tier: match } = resolveTier(tiers, { key: tierKey, name: tierName });
+
+      // Nothing identifies the plan at all — fall back to the price paid, as
+      // before. Last resort: it is a guess, and two tiers at the same price
+      // make it the wrong one, so it never overrides a key or a name.
+      if (!match && !tierKey && !tierName && completed && completed.amount_cents != null) {
+        match = tiers.find(t => Number(t.price_cents) === Number(completed.amount_cents)) || null;
       }
-    } catch { /* features stay empty — safe fallback */ }
+
+      if (match) {
+        tierName = match.name;
+        tierKey = String(match.key || '').trim() || tierKey;
+        tierMaxGuests = Number.isFinite(match.max_guests) ? match.max_guests : null;
+        tierRemoveWatermark = !!match.remove_watermark;
+        tierFeatures = Array.isArray(match.features) ? match.features : [];
+      } else if (snapshot) {
+        // The plan is gone. The purchase is not.
+        tierFeatures = snapshot;
+      }
+    } catch { /* config unavailable — leave the plan unresolved this time */ }
   }
 
-  if (!tierName) return { ...event, tier_features: [] };
+  if (!tierName && !tierKey) return { ...event, tier_features: snapshot || [] };
 
-  // Self-heal: persist so future reads don't re-derive. Never block/fault the read.
-  supabase.from('events').update({ tier_name: tierName, tier_max_guests: tierMaxGuests, tier_remove_watermark: tierRemoveWatermark }).eq('id', event.id)
-    .then(() => {}, () => {});
+  // Self-heal: persist so future reads don't re-derive. Never block/fault the
+  // read. tier_features is written too, so an event bought before keys existed
+  // gains the snapshot that protects it from a later deletion.
+  supabase.from('events').update({
+    tier_name: tierName,
+    tier_key: tierKey,
+    tier_max_guests: tierMaxGuests,
+    tier_remove_watermark: tierRemoveWatermark,
+    ...(tierFeatures.length > 0 ? { tier_features: tierFeatures } : {}),
+  }).eq('id', event.id).then(() => {}, () => {});
 
-  return { ...event, tier_name: tierName, tier_max_guests: tierMaxGuests, tier_remove_watermark: tierRemoveWatermark, tier_features: tierFeatures };
+  return { ...event, tier_name: tierName, tier_key: tierKey, tier_max_guests: tierMaxGuests, tier_remove_watermark: tierRemoveWatermark, tier_features: tierFeatures };
 }
 
 

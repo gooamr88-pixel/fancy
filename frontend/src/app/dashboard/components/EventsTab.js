@@ -307,7 +307,30 @@ function PayCopyBtn({ value }) {
 }
 
 /* ═══ Event Payment / Activation Panel ═══ */
-function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
+/**
+ * Which tier is this event currently on?
+ *
+ * By KEY, with the display name only as a fallback for events bought before
+ * keys existed. Matching on the name — and with `===`, while the backend
+ * compared case-insensitively — meant that renaming a plan (even just its
+ * capitalisation) made the current plan unresolvable here: the upgrade prices
+ * silently stopped being prorated in the UI and the Upgrade button vanished
+ * altogether. See backend/utils/tierResolver.js.
+ */
+function findTier(tiers, key, name) {
+  if (!Array.isArray(tiers)) return null;
+  if (key) {
+    const byKey = tiers.find(t => t && t.key === key);
+    if (byKey) return byKey;
+  }
+  if (name) {
+    const byName = tiers.find(t => t && String(t.name || '').toLowerCase() === String(name).toLowerCase());
+    if (byName) return byName;
+  }
+  return null;
+}
+
+function EventPaymentPanel({ eventId, event, upgradeFromTier = null, upgradeFromTierKey = null }) {
   const [pricingTiers, setPricingTiers] = useState([]);
   const [manualMethods, setManualMethods] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -320,7 +343,7 @@ function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
 
-  const isUpgrade = !!upgradeFromTier;
+  const isUpgrade = !!(upgradeFromTier || upgradeFromTierKey);
   const initialPendingPayment = event.event_payments?.find(
     p => p.payment_method === 'cash_manual' && p.status === 'pending'
   );
@@ -350,8 +373,8 @@ function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
           // higher-priced) tier — an upgrade charges only the difference from the
           // already-paid plan (see dueNowCents below), never the full new price.
           const billable = all.filter(t => t && t.is_custom !== true);
-          const curPrice = upgradeFromTier ? (all.find(t => t.name === upgradeFromTier)?.price_cents ?? null) : null;
-          const disp = (upgradeFromTier && curPrice != null) ? billable.filter(t => t.price_cents > curPrice) : billable;
+          const curPrice = findTier(all, upgradeFromTierKey, upgradeFromTier)?.price_cents ?? null;
+          const disp = curPrice != null ? billable.filter(t => t.price_cents > curPrice) : billable;
           setSelectedTier(disp[0] || null);
         }
       } catch (e) {
@@ -361,11 +384,11 @@ function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
       }
     };
     loadPricing();
-  }, [initialPendingPayment, upgradeFromTier]);
+  }, [initialPendingPayment, upgradeFromTier, upgradeFromTierKey]);
 
   // Tiers shown: billable only; in upgrade mode, only strictly higher-priced.
   const billableTiers = pricingTiers.filter(t => t && t.is_custom !== true);
-  const currentPrice = upgradeFromTier ? (pricingTiers.find(t => t.name === upgradeFromTier)?.price_cents ?? null) : null;
+  const currentPrice = findTier(pricingTiers, upgradeFromTierKey, upgradeFromTier)?.price_cents ?? null;
   const displayTiers = (isUpgrade && currentPrice != null)
     ? billableTiers.filter(t => t.price_cents > currentPrice)
     : billableTiers;
@@ -381,7 +404,11 @@ function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
     try {
       const res = await apiFetch(`/payments/events/${eventId}/create-checkout`, {
         method: 'POST',
-        body: JSON.stringify({ eventId, tierName: selectedTier.name, returnPath: '/dashboard' })
+        // tierKey is the plan's stable identity; the name rides along only so an
+        // older backend still understands the request. Sending the name alone
+        // meant an admin renaming the plan between page load and payment got a
+        // 400 "Pricing tier not found" instead of a purchase.
+        body: JSON.stringify({ eventId, tierKey: selectedTier.key, tierName: selectedTier.name, returnPath: '/dashboard' })
       });
       if (res.activated) {
         // Free ($0) tier — activated synchronously server-side, no Stripe round-trip.
@@ -408,6 +435,7 @@ function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
       const res = await apiFetch(`/payments/events/${eventId}/manual-payment`, {
         method: 'POST',
         body: JSON.stringify({
+          tierKey: selectedTier.key,
           tierName: selectedTier.name,
           methodLabel,
           payerReference: payerRef.trim() || undefined,
@@ -672,17 +700,21 @@ function CurrentPlanBlock({ eventId, event }) {
   // Check whether higher tiers exist so we can hide the "Upgrade" button at the ceiling.
   useEffect(() => {
     const check = async () => {
-      if (!event.tier_name) { setHasUpgrades(true); return; }
+      if (!event.tier_name && !event.tier_key) { setHasUpgrades(true); return; }
       try {
         const res = await apiFetch('/payments/pricing-config');
         if (res.success && res.config?.pricing_tiers) {
           const all = res.config.pricing_tiers;
-          const curTier = all.find(t => t.name === event.tier_name);
+          const curTier = findTier(all, event.tier_key, event.tier_name);
           // Custom / enterprise tiers are the ceiling — no upgrades available.
           if (curTier?.is_custom) { setHasUpgrades(false); return; }
           const billable = all.filter(t => t && t.is_custom !== true);
-          const curPrice = curTier?.price_cents ?? null;
-          const higher = (curPrice != null) ? billable.filter(t => t.price_cents > curPrice) : [];
+          const curPrice = curTier?.price_cents ?? event.tier_price_cents ?? null;
+          // curPrice null means the plan itself is gone from the config. Every
+          // billable tier is then a candidate rather than none: showing NO
+          // upgrade path is how a customer whose plan was renamed ended up
+          // stuck, unable to move even to a plan that still exists.
+          const higher = (curPrice != null) ? billable.filter(t => t.price_cents > curPrice) : billable;
           setHasUpgrades(higher.length > 0);
         } else {
           setHasUpgrades(false);
@@ -692,7 +724,7 @@ function CurrentPlanBlock({ eventId, event }) {
       }
     };
     check();
-  }, [event.tier_name]);
+  }, [event.tier_name, event.tier_key, event.tier_price_cents]);
 
   // Manual payment receipt data for approved cash payments. An event can have
   // more than one completed cash_manual row (the original payment, then a later
@@ -785,7 +817,7 @@ function CurrentPlanBlock({ eventId, event }) {
 
       {showUpgrade && (
         <div style={{ marginTop: 18, paddingTop: 18, borderTop: `1px solid ${C.border}` }}>
-          <EventPaymentPanel eventId={eventId} event={event} upgradeFromTier={event.tier_name || null} />
+          <EventPaymentPanel eventId={eventId} event={event} upgradeFromTier={event.tier_name || null} upgradeFromTierKey={event.tier_key || null} />
         </div>
       )}
     </div>

@@ -23,10 +23,12 @@ const METHOD_ICON = { bank: 'bank', wallet: 'mobile', instapay: 'lightning', cas
    became admin-editable, quoting every customer a price the checkout would not
    honour. The algorithm is stable; only the data changes, so only the data is
    fetched. */
-function previewSmsCents(unitPriceCents, segments, markupPct = 0, volumeDiscounts = null) {
-  if (!Number.isFinite(unitPriceCents) || !Number.isFinite(segments) || segments <= 0) return null;
+function previewSmsCents(listPriceCents, segments, volumeDiscounts = null) {
+  if (!Number.isFinite(listPriceCents) || !Number.isFinite(segments) || segments <= 0) return null;
 
-  let total = unitPriceCents * segments * (1 + (Number(markupPct) || 0) / 100);
+  // The server sends the finished list price, so there is no markup to apply
+  // here — the client is never told what a segment costs us.
+  let total = listPriceCents * segments;
 
   // Tiers arrive sorted descending, so the first match is the best one earned.
   // Never cumulative — stacking them is how a discount table reaches 100% off.
@@ -65,14 +67,14 @@ function previewSmsCents(unitPriceCents, segments, markupPct = 0, volumeDiscount
  */
 function SmsAddonCard({
   enabled, onToggle, segments, onChangeSegments,
-  estimate, rateCents, markupPct, volumeDiscounts, fmt,
+  estimate, listPriceCents, volumeDiscounts, fmt,
 }) {
   const [showAdjust, setShowAdjust] = useState(false);
 
   const bounds = estimate?.bounds || { min: 50, max: 50000, step: 50 };
   const recommended = estimate?.recommendedSegments || null;
   const value = Number.isFinite(segments) ? segments : (recommended || bounds.min);
-  const priceCents = previewSmsCents(rateCents, value, markupPct, volumeDiscounts);
+  const priceCents = previewSmsCents(listPriceCents, value, volumeDiscounts);
 
   const invitations = estimate?.estimatedParties || 0;
   const shortOfSuggestion = recommended != null && value < recommended;
@@ -420,13 +422,13 @@ export default function StagePayment({
   smsAddonSegments = null, onChangeSmsAddonSegments,
   smsEstimate = null, smsVolumeDiscounts = null,
   featureLabels = {}, hiddenTierFeatures = [], featureNotes = {},
-  smsRateCentsPerCredit = null, smsMarkupPercentage = 0,
+  smsListPriceCents = null,
 }) {
   const fmt = (cents) => `$${((cents || 0) / 100).toFixed(2)}`;
   // What the SMS choice adds to whatever the plan costs. Zero when it is off, so
   // both the card button and the transfer amount can add it unconditionally.
   const smsAddonCents = (smsAddonEnabled && Number.isFinite(smsAddonSegments))
-    ? (previewSmsCents(smsRateCentsPerCredit, smsAddonSegments, smsMarkupPercentage, smsVolumeDiscounts) || 0)
+    ? (previewSmsCents(smsListPriceCents, smsAddonSegments, smsVolumeDiscounts) || 0)
     : 0;
 
   // Tier bullets: hide keys that no longer grant anything, and never print a raw
@@ -883,8 +885,7 @@ export default function StagePayment({
           segments={smsAddonSegments}
           onChangeSegments={onChangeSmsAddonSegments}
           estimate={smsEstimate}
-          rateCents={smsRateCentsPerCredit}
-          markupPct={smsMarkupPercentage}
+          listPriceCents={smsListPriceCents}
           volumeDiscounts={smsVolumeDiscounts}
           fmt={fmt}
         />

@@ -3,6 +3,7 @@ const logger = require('../../utils/logger');
 const { parsePagination, applyPagination, buildListResponse, escapeOrSearchTerm } = require('../../middleware/pagination');
 const { logAdminAction } = require('../../middleware/adminAudit');
 const { getPlatformConfig } = require('../../utils/configCache');
+const { resolveTier } = require('../../utils/tierResolver');
 const { generateUniquePromoCode } = require('../../services/promoCodeService');
 
 /**
@@ -21,10 +22,17 @@ function deriveStatus(row) {
   return 'active';
 }
 
-/** Confirms the tier exists in the current pricing config; returns the tier or null. */
-async function findTier(tierName) {
+/**
+ * Confirms the tier exists in the current pricing config; returns it or null.
+ *
+ * By KEY. A promo code stores the tier it grants, and while that was stored as
+ * a display name a rename detached every code from its plan — at redemption the
+ * lookup missed and the event was activated with a NULL guest cap, which the
+ * cap trigger reads as unlimited. See utils/tierResolver.js.
+ */
+async function findTier({ key, name }) {
   const config = await getPlatformConfig();
-  return (config.pricing_tiers || []).find((t) => (t.name || '').toLowerCase() === (tierName || '').toLowerCase()) || null;
+  return resolveTier(config.pricing_tiers, { key, name }).tier;
 }
 
 /**
@@ -121,18 +129,18 @@ const listPromoCodeRedemptions = async (req, res, next) => {
 
 /** POST /api/v1/admin/promo-codes */
 const createPromoCode = async (req, res, next) => {
-  const { code, description, tierName, maxRedemptions, expiresAt } = req.body || {};
-  if (!tierName || !tierName.toString().trim()) {
-    return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'tierName is required.' });
+  const { code, description, tierName, tierKey, maxRedemptions, expiresAt } = req.body || {};
+  if ((!tierName || !tierName.toString().trim()) && (!tierKey || !tierKey.toString().trim())) {
+    return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'A plan (tierKey) is required.' });
   }
   let tier;
   try {
-    tier = await findTier(tierName);
+    tier = await findTier({ key: tierKey, name: tierName });
   } catch {
     return res.status(500).json({ success: false, error: 'CONFIG_ERROR', message: 'Could not retrieve pricing configuration.' });
   }
   if (!tier) {
-    return res.status(400).json({ success: false, error: 'INVALID_TIER', message: `Pricing tier '${tierName}' not found.` });
+    return res.status(400).json({ success: false, error: 'INVALID_TIER', message: `Pricing tier '${tierName || tierKey}' not found.` });
   }
 
   let maxR = null;
@@ -164,6 +172,9 @@ const createPromoCode = async (req, res, next) => {
       .insert({
         code: finalCode,
         description: (description || '').toString().trim() || null,
+        // Both: the key is the identity the redemption resolves by, the name
+        // is what the admin list shows without a config lookup per row.
+        tier_key: tier.key,
         tier_name: tier.name,
         max_redemptions: maxR,
         expires_at: expires,
@@ -193,14 +204,15 @@ const updatePromoCode = async (req, res, next) => {
   if (b.description !== undefined) updates.description = (b.description || '').toString().trim() || null;
   if (b.isActive !== undefined) updates.is_active = !!b.isActive;
 
-  if (b.tierName !== undefined) {
+  if (b.tierName !== undefined || b.tierKey !== undefined) {
     let tier;
     try {
-      tier = await findTier(b.tierName);
+      tier = await findTier({ key: b.tierKey, name: b.tierName });
     } catch {
       return res.status(500).json({ success: false, error: 'CONFIG_ERROR', message: 'Could not retrieve pricing configuration.' });
     }
-    if (!tier) return res.status(400).json({ success: false, error: 'INVALID_TIER', message: `Pricing tier '${b.tierName}' not found.` });
+    if (!tier) return res.status(400).json({ success: false, error: 'INVALID_TIER', message: `Pricing tier '${b.tierName || b.tierKey}' not found.` });
+    updates.tier_key = tier.key;
     updates.tier_name = tier.name;
   }
 

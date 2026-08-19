@@ -166,13 +166,22 @@ test('the settings endpoint answers plan access, so the client never re-derives 
   assert.match(src, /^\s+access,\s*$/m, 'and return it in the payload');
   assert.match(src, /plansWithSms/, 'and name the plans that do carry texting');
 
-  // The select has to carry the columns that verdict is computed from. A missing
+  // The read has to carry the columns that verdict is computed from. A missing
   // column reads as undefined rather than throwing, which would lock texting for
   // the entire platform without a single error.
+  //
+  // Those columns now come from selectEventWithTier (which also survives the
+  // tier-identity migration not being applied), so the guarantee is checked
+  // through it rather than against a literal column list here.
   const fn = src.slice(src.indexOf('const getSmsSettings'));
-  const select = fn.slice(0, fn.indexOf('.eq('));
-  assert.match(select, /tier_name/);
-  assert.match(select, /manual_override/);
+  const read_ = fn.slice(0, fn.indexOf('if (error || !event)'));
+  assert.match(read_, /selectEventWithTier\(/, 'the tier columns must come from the shared selector');
+  assert.match(read_, /manual_override/, 'grandfathering reads this one directly');
+
+  const { TIER_COLUMNS } = require('../utils/tierResolver');
+  assert.match(TIER_COLUMNS, /tier_name/);
+  assert.match(TIER_COLUMNS, /tier_key/, 'identity, not just the display name');
+  assert.match(TIER_COLUMNS, /tier_features/, 'the snapshot the verdict falls back to');
 });
 
 test('the gate and the settings endpoint share one definition of "plan includes SMS"', () => {

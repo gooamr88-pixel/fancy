@@ -48,6 +48,10 @@ export const NAV_GROUPS = [
     heading: 'Platform',
     items: [
       { key: 'cms', label: 'Landing CMS', href: '/admin/cms', perm: 'cms.view', ready: true },
+      // The physical printed-card catalogue at /printed-invitations. Same
+      // cms.view / cms.manage pair as the Landing CMS above — it is the same
+      // job (public marketing content), on a different surface.
+      { key: 'shop', label: 'Printed Invitations', href: '/admin/shop', perm: 'cms.view', ready: true },
       { key: 'config', label: 'Configuration', href: '/admin/config', perm: 'config.view', ready: true },
       { key: 'feature-flags', label: 'Feature Flags', href: '/admin/feature-flags', perm: 'flags.view', ready: false },
       { key: 'auth-config', label: 'Auth Settings', href: '/admin/auth-config', perm: 'authconfig.view', ready: false },

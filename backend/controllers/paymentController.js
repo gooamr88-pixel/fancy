@@ -33,6 +33,59 @@ const { normalizeSmsPricing, describeSmsPricingAdjustments, DEFAULT_SMS_PRICING,
 const { SMS_MESSAGE_TYPES } = require('../config/smsMessageTypes');
 const { PLATFORM_FEATURES, FEATURE_NOTES } = require('../config/featureRegistry');
 const { SMS_FEATURE_KEY } = require('../middleware/smsAddonGate');
+const { resolveTier, tierSnapshot, ensureTierKeys } = require('../utils/tierResolver');
+
+/**
+ * How many of this org's OTHER paid events are already on `tier`?
+ *
+ * Counted by tier_key, falling back to the name only for rows sold before keys
+ * existed. The old `.ilike('tier_name', tier.name)` stopped matching the
+ * instant a plan was renamed, so a per-plan event cap silently stopped being
+ * enforced for exactly the customers already on it.
+ */
+/**
+ * Optimistic lock for an upgrade: only move the event forward if it is still on
+ * the plan we priced the upgrade against.
+ *
+ * Guards on the identity STORED ON THE ROW, not on a name from the config —
+ * those two drift apart the moment a plan is renamed, and guarding on the
+ * config's name then matched zero rows, leaving a customer charged and not
+ * upgraded. It also has to tolerate `previousTier` being null, which is now a
+ * real state (the plan was deleted; the credit came from payment history).
+ */
+function lockOnStoredTier(query, eventRow) {
+  if (eventRow?.tier_key) return query.eq('tier_key', eventRow.tier_key);
+  if (eventRow?.tier_name) return query.eq('tier_name', eventRow.tier_name);
+  // Nothing identifies the current plan: fall back to the fact that it is paid,
+  // which is still enough to stop a double-activation of a fresh purchase.
+  return query.eq('is_paid', true);
+}
+
+async function countEventsOnTier(orgId, tier, excludeEventId) {
+  const base = () => supabase
+    .from('events')
+    .select('id', { count: 'exact', head: true })
+    .eq('org_id', orgId)
+    .eq('is_paid', true)
+    .neq('id', excludeEventId);
+
+  const key = String(tier?.key || '').trim();
+  if (!key) return base().ilike('tier_name', tier.name);
+
+  // TWO counts rather than one `.or()`. An `.or()` filter is a hand-built
+  // string, and a tier NAME goes into it — an admin naming a plan
+  // "Pro, Plus" or "Gold (2026)" would inject commas and parentheses into
+  // PostgREST's filter grammar and corrupt or break the query. Individual
+  // filter methods have their values encoded for them, so this form cannot be
+  // broken by punctuation in a plan name.
+  //
+  // The second count covers rows sold before keys existed: same plan, no key.
+  const [byKey, legacy] = await Promise.all([
+    base().eq('tier_key', key),
+    base().is('tier_key', null).ilike('tier_name', tier.name),
+  ]);
+  return { count: (byKey.count || 0) + (legacy.count || 0) };
+}
 
 /**
  * Refuse to SELL an SMS allowance on a plan that does not include texting.
@@ -209,7 +262,10 @@ const createCheckoutSession = async (req, res, next) => {
   // the operation MUST key off the same identifier. Trusting req.body.eventId
   // (which ownership was never checked against) is an IDOR.
   const eventId = req.params.eventId;
-  const { tierName } = req.body;
+  // tierKey is the plan's stable identity and is what a current client sends;
+  // tierName is accepted alongside it so a browser holding a page rendered
+  // before this deploy still checks out. See utils/tierResolver.js.
+  const { tierName, tierKey } = req.body;
 
   // Where to send the browser back to after Checkout. Restricted to in-app dashboard
   // paths so a caller can't turn it into an open redirect. Defaults to the creation
@@ -230,11 +286,11 @@ const createCheckoutSession = async (req, res, next) => {
   // Re-clamped against the admin's configured bounds inside the try block below,
   // once getPlatformConfig has resolved.
 
-  if (!eventId || !tierName) {
+  if (!eventId || (!tierName && !tierKey)) {
     return res.status(400).json({
       success: false,
       error: 'VALIDATION_ERROR',
-      message: 'eventId and tierName are required.'
+      message: 'eventId and a plan (tierKey) are required.'
     });
   }
 
@@ -258,12 +314,12 @@ const createCheckoutSession = async (req, res, next) => {
       smsAddonSegments = sanitizeAllowanceRequest(smsAddonSegments, adminConfig.sms_pricing_config);
     }
 
-    const tier = adminConfig.pricing_tiers.find(t => t.name.toLowerCase() === tierName.toLowerCase());
+    const { tier } = resolveTier(adminConfig.pricing_tiers, { key: tierKey, name: tierName });
     if (!tier) {
       return res.status(400).json({
         success: false,
         error: 'INVALID_TIER',
-        message: `Pricing tier '${tierName}' not found.`
+        message: `Pricing tier '${tierName || tierKey}' not found.`
       });
     }
     // Contact-Sales tiers have no fixed price — same guard as initiateManualPayment
@@ -292,7 +348,7 @@ const createCheckoutSession = async (req, res, next) => {
     // 2. Fetch or create stripe customer ID for organization
     const { data: eventData, error: eventError } = await supabase
       .from('events')
-      .select('org_id, is_paid, tier_name, organizations(stripe_customer_id, email, name)')
+      .select('org_id, is_paid, tier_key, tier_name, tier_price_cents, organizations(stripe_customer_id, email, name)')
       .eq('id', eventId)
       .single();
 
@@ -309,29 +365,66 @@ const createCheckoutSession = async (req, res, next) => {
     // base tier once. `events.tier_name` only changes when a checkout/manual
     // payment is actually fulfilled, so it's still the pre-upgrade tier here even
     // if an earlier upgrade attempt is sitting pending.
+    //
+    // Resolved by KEY. Matching on the display name meant that renaming a plan
+    // in the admin UI made every event on it look like it had never paid for
+    // anything: previousTier came back null, isUpgrade went false, and the
+    // organizer was charged the new plan's FULL price on top of what they had
+    // already paid. The same null also disabled the NOT_AN_UPGRADE guard below,
+    // so a *cheaper* plan could be sold at full price as an "upgrade".
     let previousTier = null;
-    if (eventData.is_paid && eventData.tier_name) {
-      previousTier = adminConfig.pricing_tiers.find(t => t.name.toLowerCase() === eventData.tier_name.toLowerCase()) || null;
+    if (eventData.is_paid && (eventData.tier_key || eventData.tier_name)) {
+      previousTier = resolveTier(adminConfig.pricing_tiers, {
+        key: eventData.tier_key, name: eventData.tier_name,
+      }).tier;
     }
-    const isUpgrade = !!previousTier;
-    if (isUpgrade && tier.price_cents <= previousTier.price_cents) {
+    // What the organizer has already paid towards a licence on this event.
+    // Normally the current price of the plan they are on; but a tier can be
+    // DELETED, not just renamed, and a key cannot resolve what no longer
+    // exists. Falling through to "not an upgrade" there would charge the new
+    // plan's full price a second time, so the price frozen on the event at
+    // purchase is used instead.
+    //
+    // Deliberately NOT summed from event_payments: a checkout can bundle an
+    // SMS allowance into the same amount_cents, so payment history over-states
+    // licence spend and would under-charge the upgrade.
+    let previousPaidCents = previousTier ? Number(previousTier.price_cents) || 0 : null;
+    // `!= null` and not Number.isFinite(Number(x)): Number(null) is 0, which IS
+    // finite, so a row with no snapshot would have credited ZERO and charged the
+    // new plan's full price — the exact double-charge this fallback exists to
+    // prevent.
+    if (eventData.is_paid && previousPaidCents === null && eventData.tier_price_cents != null
+        && Number.isFinite(Number(eventData.tier_price_cents))) {
+      previousPaidCents = Number(eventData.tier_price_cents);
+      logger.warn({ eventId, tierName: eventData.tier_name, tierKey: eventData.tier_key, previousPaidCents },
+        'checkout: current plan no longer exists — crediting the price snapshotted at purchase');
+    }
+
+    // Paid, but nothing says what for. Refusing is the only honest option:
+    // charging full price would bill them twice for the same licence.
+    if (eventData.is_paid && previousPaidCents === null) {
+      return res.status(409).json({
+        success: false,
+        error: 'PLAN_UNRESOLVABLE',
+        message: 'This event is already paid, but we cannot determine which plan it is on, so we will not charge you for an upgrade. Please contact support and we will sort it out.',
+      });
+    }
+
+    const isUpgrade = eventData.is_paid && previousPaidCents !== null;
+    if (isUpgrade && tier.price_cents <= previousPaidCents) {
       return res.status(400).json({
         success: false,
         error: 'NOT_AN_UPGRADE',
-        message: `'${tier.name}' is not more expensive than your current plan ('${previousTier.name}'). Choose a higher tier to upgrade.`
+        message: `'${tier.name}' is not more expensive than what you've already paid${previousTier ? ` for your current plan ('${previousTier.name}')` : ''}. Choose a higher tier to upgrade.`
       });
     }
 
     // Per-tier event cap: a tier's max_events (0/null = unlimited) limits how many of
     // this org's OTHER paid events may already be on that same tier.
+    // Counted by tier_key: counting by name stopped counting an event the
+    // moment the plan was renamed, silently un-enforcing the cap.
     if (Number(tier.max_events) > 0) {
-      const { count } = await supabase
-        .from('events')
-        .select('id', { count: 'exact', head: true })
-        .eq('org_id', eventData.org_id)
-        .eq('is_paid', true)
-        .ilike('tier_name', tier.name)
-        .neq('id', eventId);
+      const { count } = await countEventsOnTier(eventData.org_id, tier, eventId);
       if ((count || 0) >= tier.max_events) {
         return res.status(409).json({
           success: false,
@@ -341,7 +434,7 @@ const createCheckoutSession = async (req, res, next) => {
       }
     }
 
-    const chargeAmountCents = isUpgrade ? (tier.price_cents - previousTier.price_cents) : tier.price_cents;
+    const chargeAmountCents = isUpgrade ? (tier.price_cents - previousPaidCents) : tier.price_cents;
 
     // A genuinely free tier (price_cents <= 0, fresh purchase only — an upgrade
     // can never land here since NOT_AN_UPGRADE above already requires a strictly
@@ -354,9 +447,7 @@ const createCheckoutSession = async (req, res, next) => {
         .update({
           is_paid: true,
           status: 'pending_review',
-          tier_name: tier.name,
-          tier_max_guests: Number.isFinite(tier.max_guests) ? tier.max_guests : null,
-          tier_remove_watermark: !!tier.remove_watermark,
+          ...tierSnapshot(tier),
           updated_at: new Date().toISOString(),
         })
         .eq('id', eventId)
@@ -372,9 +463,7 @@ const createCheckoutSession = async (req, res, next) => {
           currency: 'usd',
           status: 'completed',
           payment_method: 'free_tier',
-          tier_name: tier.name,
-          tier_max_guests: Number.isFinite(tier.max_guests) ? tier.max_guests : null,
-          tier_remove_watermark: !!tier.remove_watermark,
+          ...tierSnapshot(tier),
           completed_at: new Date().toISOString(),
         });
         await supabase.from('activity_logs').insert({
@@ -439,13 +528,7 @@ const createCheckoutSession = async (req, res, next) => {
       // cap is exceeded we can simply refuse — release the hold (so the credit
       // isn't stranded) and bail, rather than over-provisioning the org's plan.
       if (Number(tier.max_events) > 0) {
-        const { count } = await supabase
-          .from('events')
-          .select('id', { count: 'exact', head: true })
-          .eq('org_id', eventData.org_id)
-          .eq('is_paid', true)
-          .ilike('tier_name', tier.name)
-          .neq('id', eventId);
+        const { count } = await countEventsOnTier(eventData.org_id, tier, eventId);
         if ((count || 0) >= tier.max_events) {
           await releaseReferralHold(referralHoldId);
           return res.status(409).json({
@@ -458,9 +541,7 @@ const createCheckoutSession = async (req, res, next) => {
 
       const eventUpdate = {
         is_paid: true,
-        tier_name: tier.name,
-        tier_max_guests: Number.isFinite(tier.max_guests) ? tier.max_guests : null,
-        tier_remove_watermark: !!tier.remove_watermark,
+        ...tierSnapshot(tier),
         updated_at: new Date().toISOString(),
       };
       if (!isUpgrade) eventUpdate.status = 'pending_review';
@@ -470,7 +551,7 @@ const createCheckoutSession = async (req, res, next) => {
       // matches 0 rows (its own first run already moved the tier forward).
       let eventQuery = supabase.from('events').update(eventUpdate).eq('id', eventId);
       if (!isUpgrade) eventQuery = eventQuery.eq('is_paid', false);
-      else eventQuery = eventQuery.eq('tier_name', previousTier.name);
+      else eventQuery = lockOnStoredTier(eventQuery, eventData);
       const { data: updatedEvent, error: activateError } = await eventQuery.select('id').maybeSingle();
       if (activateError) throw activateError;
 
@@ -483,9 +564,7 @@ const createCheckoutSession = async (req, res, next) => {
           payment_method: 'referral_credit',
           referral_credit_applied_cents: referralCreditAppliedCents,
           referral_hold_id: referralHoldId,
-          tier_name: tier.name,
-          tier_max_guests: Number.isFinite(tier.max_guests) ? tier.max_guests : null,
-          tier_remove_watermark: !!tier.remove_watermark,
+          ...tierSnapshot(tier),
           completed_at: new Date().toISOString(),
         }).select('id').single();
 
@@ -571,8 +650,11 @@ const createCheckoutSession = async (req, res, next) => {
         unit_amount: finalChargeCents,
         product_data: {
           name: isUpgrade ? `Fancy RSVP - Upgrade to ${tier.name} License` : `Fancy RSVP - ${tier.name} License`,
+          // previousTier is null when the previous plan has been deleted; the
+          // credit is still real (it came from what was actually paid), so the
+          // line item states the amount and names the plan only if it exists.
           description: isUpgrade
-            ? `License for ${tier.max_guests ? `up to ${tier.max_guests}` : 'unlimited'} guests. Full price $${(tier.price_cents / 100).toFixed(2)}, credited $${(previousTier.price_cents / 100).toFixed(2)} already paid for ${previousTier.name}.`
+            ? `License for ${tier.max_guests ? `up to ${tier.max_guests}` : 'unlimited'} guests. Full price $${(tier.price_cents / 100).toFixed(2)}, credited $${(previousPaidCents / 100).toFixed(2)} already paid${previousTier ? ` for ${previousTier.name}` : ''}.`
             : `License for ${tier.max_guests ? `up to ${tier.max_guests}` : 'unlimited'} guests`
         }
       },
@@ -600,13 +682,27 @@ const createCheckoutSession = async (req, res, next) => {
       line_items: lineItems,
       metadata: {
         event_id: eventId,
+        // The KEY is what fulfillment resolves the plan by. tier_name rides
+        // along for receipts and for a session created before keys existed.
+        // The feature list deliberately does NOT travel through metadata —
+        // Stripe caps a value at 500 characters and a 20-key feature array is
+        // close enough to that to be a silent truncation waiting to happen;
+        // fulfillment reads it from the config by key instead.
+        tier_key: String(tier.key || ''),
         tier_name: tier.name,
+        // The licence price as of THIS session, frozen for the upgrade credit.
+        tier_price_cents: String(Number(tier.price_cents) || 0),
         tier_max_guests: tier.max_guests != null ? String(tier.max_guests) : '',
         tier_remove_watermark: tier.remove_watermark ? '1' : '0',
         type: 'event_fee',
         is_upgrade: isUpgrade ? '1' : '0',
-        previous_tier_name: isUpgrade ? previousTier.name : '',
-        previous_amount_cents: isUpgrade ? String(previousTier.price_cents) : '',
+        // previousTier is null when the plan they are on has been DELETED —
+        // isUpgrade is still true in that case (they have paid), and the
+        // credit came from payment history, so neither field may dereference
+        // it. Reading `previousTier.name` here threw a TypeError.
+        previous_tier_key: isUpgrade ? String(previousTier?.key || '') : '',
+        previous_tier_name: isUpgrade ? (previousTier?.name || '') : '',
+        previous_amount_cents: isUpgrade ? String(previousPaidCents) : '',
         referral_credit_applied_cents: String(referralCreditAppliedCents),
         referral_hold_id: referralHoldId || '',
         // Read by fulfillCheckoutSession to credit the wallet and flip
@@ -1012,7 +1108,7 @@ const manualCashApproval = async (req, res, next) => {
     // 1. Check if there is an existing pending cash_manual payment record
     const { data: pendingPayment, error: findError } = await supabase
       .from('event_payments')
-      .select('id, amount_cents, stripe_checkout_session_id, reference_number, tier_name, tier_max_guests, tier_remove_watermark, referral_credit_applied_cents, referral_hold_id, sms_addon_segments')
+      .select('id, amount_cents, stripe_checkout_session_id, reference_number, tier_key, tier_name, tier_max_guests, tier_remove_watermark, tier_features, tier_price_cents, referral_credit_applied_cents, referral_hold_id, sms_addon_segments')
       .eq('event_id', eventId)
       .eq('payment_method', 'cash_manual')
       .eq('status', 'pending')
@@ -1060,9 +1156,19 @@ const manualCashApproval = async (req, res, next) => {
         .update({
           is_paid: true,
           status: 'active',
+          // The WHOLE snapshot the pending payment captured, not just the name
+          // and cap. Copying a subset left a bank-transfer customer's event
+          // with no tier_key and no feature snapshot — so it fell back to
+          // matching on the display name, which is precisely the coupling that
+          // makes renaming a plan destructive. Bank transfer is the only
+          // payment path at all when card checkout is switched off, so this is
+          // the common case, not an edge one.
+          tier_key: pendingPayment[0].tier_key || null,
           tier_name: pendingPayment[0].tier_name || null,
           tier_max_guests: pendingPayment[0].tier_max_guests ?? null,
           tier_remove_watermark: !!pendingPayment[0].tier_remove_watermark,
+          tier_features: pendingPayment[0].tier_features ?? null,
+          tier_price_cents: pendingPayment[0].tier_price_cents ?? null,
           updated_at: new Date().toISOString()
         })
         .eq('id', eventId);
@@ -1210,12 +1316,22 @@ const updatePricingConfig = async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'Maximum 20 pricing tiers allowed.' });
     }
     const { validateFeatureKeys } = require('../config/featureRegistry');
-    updates.pricing_tiers = pricingTiers
+    updates.pricing_tiers = ensureTierKeys(pricingTiers
       .filter(t => t && (t.name || '').toString().trim())
       .map(t => {
         const features = Array.isArray(t.features) ? t.features : [];
         const { valid } = validateFeatureKeys(features);
         return {
+          // THE IDENTITY. Passed straight through from the client, which
+          // round-trips it from getPricingConfig — that is what makes a rename
+          // a rename rather than a delete-and-recreate. A tier arriving
+          // without one is new, and ensureTierKeys mints it below.
+          //
+          // Before this existed the display name WAS the primary key, so
+          // renaming "Enterprise" stripped every paid feature from every event
+          // on it, charged upgrades at full price, and turned that tier's promo
+          // codes into unlimited-guest grants. See utils/tierResolver.js.
+          key: String(t.key || '').trim(),
           name: String(t.name).trim(),
           price_cents: Number(t.price_cents) || 0,
           max_guests: Number(t.max_guests) || 0,
@@ -1228,7 +1344,7 @@ const updatePricingConfig = async (req, res, next) => {
           cta_label: (t.cta_label || '').toString().trim(),
           description: (t.description || '').toString().trim(),
         };
-      });
+      }));
   }
   // A bad value here breaks Stripe checkout for every organizer at once (a
   // negative/zero unit_amount is rejected by Stripe) rather than being caught
@@ -1349,6 +1465,11 @@ const getPricingConfig = async (req, res, next) => {
 
     if (error) throw error;
 
+    // Every tier goes out with its key so the admin form can send it back on
+    // save — that round trip is what turns an edited name into a RENAME rather
+    // than a delete-and-recreate that detaches every event on the plan.
+    config.pricing_tiers = ensureTierKeys(config.pricing_tiers);
+
     // Per-tier SMS allowance recommendations, so the payment step can answer
     // "how many messages will I actually need?" the moment a plan is picked —
     // with the arithmetic shown, not a bare number.
@@ -1408,6 +1529,90 @@ const getPricingConfig = async (req, res, next) => {
       hiddenTierFeatures: PLATFORM_FEATURES.filter((f) => f.supersededBy).map((f) => f.key),
       // Tells the dashboard which paid integrations are live right now, so the
       // payment step can render manual-first and hide card / SMS-purchase CTAs.
+      features: { stripeEnabled: stripeEnabled(), smsEnabled: smsEnabled() },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * The pricing an ORGANIZER is allowed to see.
+ * GET /api/v1/payments/pricing-config
+ *
+ * ── Why this is a separate handler ──
+ *
+ * This route used to be `getPricingConfig` itself — the admin one — mounted
+ * behind nothing but `requireAuth`. That handler does `select('*')` on
+ * `super_admin_config`, so **every authenticated organizer** was served the
+ * whole platform configuration row: our per-segment carrier COST
+ * (`sms_rate_cents_per_credit`), our GROSS MARGIN
+ * (`sms_markup_percentage`), `platform_commission_pct`, the referral reward
+ * budget, and the super admin's user id in `updated_by`. Nothing on any
+ * organizer screen ever read those; they were simply along for the ride.
+ *
+ * So this is a whitelist, and it is written as one: anything not named here
+ * does not leave the server, and a column added to the config table later is
+ * private by default rather than published by accident.
+ *
+ * ── The one thing that needed rethinking rather than removing ──
+ *
+ * The dashboard genuinely has to quote a price for text messages. It used to
+ * do that by taking cost × (1 + markup) client-side — i.e. it needed both
+ * secrets to show one public number. It gets the finished LIST PRICE instead,
+ * which is all it ever needed: identical arithmetic, nothing disclosed.
+ * Deliberately un-rounded, because the client multiplies by the segment count
+ * and rounds once at the end — pre-rounding here would shift quotes by a cent
+ * or two against the checkout that has to honour them.
+ */
+const getOrganizerPricing = async (req, res, next) => {
+  try {
+    const config = await getPlatformConfig();
+
+    const tiers = ensureTierKeys(Array.isArray(config.pricing_tiers) ? config.pricing_tiers : []);
+    const smsPricing = normalizeSmsPricing(config.sms_pricing_config);
+
+    const rate = Number(config.sms_rate_cents_per_credit) || 0;
+    const markup = Number(config.sms_markup_percentage) || 0;
+    const listPriceCentsPerSegment = rate * (1 + markup / 100);
+
+    const smsEstimates = {};
+    for (const tier of tiers) {
+      if (!tier || !tier.name || tier.is_custom === true) continue;
+      const maxGuests = Number.isFinite(tier.max_guests) ? tier.max_guests : null;
+      smsEstimates[tier.name] = {
+        latin: estimateAllowance({ maxGuests, script: 'latin', pricingConfig: config.sms_pricing_config }),
+        arabic: estimateAllowance({ maxGuests, script: 'arabic', pricingConfig: config.sms_pricing_config }),
+      };
+    }
+
+    return res.json({
+      success: true,
+      config: {
+        // What the organizer is being sold, and how they may pay for it.
+        pricing_tiers: tiers,
+        // Only the methods actually switched on — an inactive one is an
+        // internal note about a bank account, not an offer.
+        manual_payment_methods: (config.manual_payment_methods || []).filter((m) => m && m.is_active !== false),
+        sms_list_price_cents_per_segment: listPriceCentsPerSegment,
+      },
+      smsEstimates,
+      // The quoting model only: how many messages an event needs and what
+      // volume earns a discount. `limits` (the anti-abuse ramp-up thresholds)
+      // is deliberately NOT included — publishing the exact thresholds tells
+      // an abuser precisely how to stay under them.
+      smsPricing: {
+        estimator: smsPricing.estimator,
+        guest_bands: smsPricing.guest_bands,
+        volume_discounts: smsPricing.volume_discounts,
+        type_weights: smsPricing.type_weights,
+        type_frequencies: smsPricing.type_frequencies,
+        bounds: smsPricing.bounds,
+      },
+      smsMessageTypes: SMS_MESSAGE_TYPES,
+      featureLabels: Object.fromEntries(PLATFORM_FEATURES.map((f) => [f.key, f.label])),
+      featureNotes: FEATURE_NOTES,
+      hiddenTierFeatures: PLATFORM_FEATURES.filter((f) => f.supersededBy).map((f) => f.key),
       features: { stripeEnabled: stripeEnabled(), smsEnabled: smsEnabled() },
     });
   } catch (err) {
@@ -1532,7 +1737,9 @@ const previewSmsPricing = async (req, res, next) => {
  */
 const initiateManualPayment = async (req, res, next) => {
   const { eventId } = req.params;
-  const { tierName, methodLabel, payerReference } = req.body;
+  // tierKey identifies the plan; tierName is accepted alongside it for clients
+  // rendered before keys shipped. See createCheckoutSession.
+  const { tierName, tierKey, methodLabel, payerReference } = req.body;
 
   // Text messaging can be bought on a bank transfer too. It was card-only, which
   // meant that while card payments are switched off — leaving manual as the ONLY
@@ -1540,11 +1747,11 @@ const initiateManualPayment = async (req, res, next) => {
   // transfer covered the licence alone.
   const smsAddonSegments = sanitizeAllowanceRequest(req.body.smsAddonSegments);
 
-  if (!tierName) {
+  if (!tierName && !tierKey) {
     return res.status(400).json({
       success: false,
       error: 'VALIDATION_ERROR',
-      message: 'tierName is required.'
+      message: 'A plan (tierKey) is required.'
     });
   }
 
@@ -1562,12 +1769,12 @@ const initiateManualPayment = async (req, res, next) => {
       });
     }
 
-    const tier = adminConfig.pricing_tiers.find(t => t.name.toLowerCase() === tierName.toLowerCase());
+    const { tier } = resolveTier(adminConfig.pricing_tiers, { key: tierKey, name: tierName });
     if (!tier) {
       return res.status(400).json({
         success: false,
         error: 'INVALID_TIER',
-        message: `Pricing tier '${tierName}' not found.`
+        message: `Pricing tier '${tierName || tierKey}' not found.`
       });
     }
     // Contact-Sales tiers have no fixed price and can't be paid offline either.
@@ -1588,38 +1795,53 @@ const initiateManualPayment = async (req, res, next) => {
       const smsGuard = assertTierAllowsSmsAddon(tier, smsAddonSegments);
       if (smsGuard) return res.status(smsGuard.status).json(smsGuard.body);
     }
-    const tierMaxGuests = Number.isFinite(tier.max_guests) ? tier.max_guests : null;
 
     // PRICING-1: an upgrade charges only the DIFFERENCE from the already-paid plan
     // — mirrors createCheckoutSession's logic exactly so card and manual payment
     // never disagree on what an upgrade costs.
     const { data: eventRow } = await supabase
       .from('events')
-      .select('is_paid, tier_name, org_id')
+      .select('is_paid, tier_key, tier_name, tier_price_cents, org_id')
       .eq('id', eventId)
       .single();
+    // Identical resolution to createCheckoutSession, deliberately — card and
+    // bank transfer disagreeing about what an upgrade costs is worse than
+    // either being wrong. Key first, then legacy name, then what was actually
+    // paid if the plan itself has been deleted.
     let previousTier = null;
-    if (eventRow?.is_paid && eventRow.tier_name) {
-      previousTier = adminConfig.pricing_tiers.find(t => t.name.toLowerCase() === eventRow.tier_name.toLowerCase()) || null;
+    if (eventRow?.is_paid && (eventRow.tier_key || eventRow.tier_name)) {
+      previousTier = resolveTier(adminConfig.pricing_tiers, {
+        key: eventRow.tier_key, name: eventRow.tier_name,
+      }).tier;
     }
-    const isUpgrade = !!previousTier;
-    if (isUpgrade && tier.price_cents <= previousTier.price_cents) {
+    let previousPaidCents = previousTier ? Number(previousTier.price_cents) || 0 : null;
+    // See the note in createCheckoutSession: Number(null) is 0 and would credit
+    // nothing while looking like a valid snapshot.
+    if (eventRow?.is_paid && previousPaidCents === null && eventRow.tier_price_cents != null
+        && Number.isFinite(Number(eventRow.tier_price_cents))) {
+      previousPaidCents = Number(eventRow.tier_price_cents);
+      logger.warn({ eventId, tierName: eventRow.tier_name, tierKey: eventRow.tier_key, previousPaidCents },
+        'manual payment: current plan no longer exists — crediting the price snapshotted at purchase');
+    }
+    if (eventRow?.is_paid && previousPaidCents === null) {
+      return res.status(409).json({
+        success: false,
+        error: 'PLAN_UNRESOLVABLE',
+        message: 'This event is already paid, but we cannot determine which plan it is on, so we will not bill you for an upgrade. Please contact support and we will sort it out.',
+      });
+    }
+    const isUpgrade = !!eventRow?.is_paid && previousPaidCents !== null;
+    if (isUpgrade && tier.price_cents <= previousPaidCents) {
       return res.status(400).json({
         success: false,
         error: 'NOT_AN_UPGRADE',
-        message: `'${tier.name}' is not more expensive than your current plan ('${previousTier.name}'). Choose a higher tier to upgrade.`
+        message: `'${tier.name}' is not more expensive than what you've already paid${previousTier ? ` for your current plan ('${previousTier.name}')` : ''}. Choose a higher tier to upgrade.`
       });
     }
 
     // Per-tier event cap — mirrors the same check in createCheckoutSession.
     if (Number(tier.max_events) > 0 && eventRow?.org_id) {
-      const { count } = await supabase
-        .from('events')
-        .select('id', { count: 'exact', head: true })
-        .eq('org_id', eventRow.org_id)
-        .eq('is_paid', true)
-        .ilike('tier_name', tier.name)
-        .neq('id', eventId);
+      const { count } = await countEventsOnTier(eventRow.org_id, tier, eventId);
       if ((count || 0) >= tier.max_events) {
         return res.status(409).json({
           success: false,
@@ -1629,7 +1851,7 @@ const initiateManualPayment = async (req, res, next) => {
       }
     }
 
-    const licenceCents = isUpgrade ? (tier.price_cents - previousTier.price_cents) : tier.price_cents;
+    const licenceCents = isUpgrade ? (tier.price_cents - previousPaidCents) : tier.price_cents;
 
     // Priced with the SAME function the card path and every top-up use, so the
     // figure on the transfer instructions is the figure the customer would have
@@ -1671,13 +1893,7 @@ const initiateManualPayment = async (req, res, next) => {
       // Authoritative max_events re-check — no money moves here, so if the cap is
       // exceeded we simply refuse and hand the credit back.
       if (Number(tier.max_events) > 0 && eventRow?.org_id) {
-        const { count } = await supabase
-          .from('events')
-          .select('id', { count: 'exact', head: true })
-          .eq('org_id', eventRow.org_id)
-          .eq('is_paid', true)
-          .ilike('tier_name', tier.name)
-          .neq('id', eventId);
+        const { count } = await countEventsOnTier(eventRow.org_id, tier, eventId);
         if ((count || 0) >= tier.max_events) {
           await releaseReferralHold(referralHoldId);
           return res.status(409).json({
@@ -1690,15 +1906,13 @@ const initiateManualPayment = async (req, res, next) => {
 
       const eventUpdate = {
         is_paid: true,
-        tier_name: tier.name,
-        tier_max_guests: tierMaxGuests,
-        tier_remove_watermark: !!tier.remove_watermark,
+        ...tierSnapshot(tier),
         updated_at: new Date().toISOString(),
       };
       if (!isUpgrade) eventUpdate.status = 'pending_review';
       let activateQuery = supabase.from('events').update(eventUpdate).eq('id', eventId);
       if (!isUpgrade) activateQuery = activateQuery.eq('is_paid', false);
-      else activateQuery = activateQuery.eq('tier_name', previousTier.name);
+      else activateQuery = lockOnStoredTier(activateQuery, eventRow);
       const { data: activated, error: activateErr } = await activateQuery.select('id').maybeSingle();
       if (activateErr) throw activateErr;
 
@@ -1720,9 +1934,7 @@ const initiateManualPayment = async (req, res, next) => {
         payment_method: 'referral_credit',
         referral_credit_applied_cents: referralCreditAppliedCents,
         referral_hold_id: referralHoldId,
-        tier_name: tier.name,
-        tier_max_guests: tierMaxGuests,
-        tier_remove_watermark: !!tier.remove_watermark,
+        ...tierSnapshot(tier),
         completed_at: new Date().toISOString(),
       }).select('id').single();
 
@@ -1786,9 +1998,7 @@ const initiateManualPayment = async (req, res, next) => {
         referral_credit_applied_cents: referralCreditAppliedCents,
         referral_hold_id: referralHoldId,
         sms_addon_segments: smsAddonSegments,
-        tier_name: tier.name,
-        tier_max_guests: tierMaxGuests,
-        tier_remove_watermark: !!tier.remove_watermark,
+        ...tierSnapshot(tier),
       };
       if (methodLabel !== undefined) patch.manual_method = (methodLabel || '').toString().slice(0, 200);
       if (payerReference !== undefined) patch.payer_reference = (payerReference || '').toString().slice(0, 300);
@@ -1829,9 +2039,7 @@ const initiateManualPayment = async (req, res, next) => {
         status: 'pending',
         payment_method: 'cash_manual',
         currency: 'usd',
-        tier_name: tier.name,
-        tier_max_guests: Number.isFinite(tier.max_guests) ? tier.max_guests : null,
-        tier_remove_watermark: !!tier.remove_watermark,
+        ...tierSnapshot(tier),
         manual_method: methodLabel ? methodLabel.toString().slice(0, 200) : null,
         payer_reference: payerReference ? payerReference.toString().slice(0, 300) : null
       })
@@ -1903,7 +2111,10 @@ const getPublicPricing = async (req, res, next) => {
   try {
     const config = await getPlatformConfig();
     const { getFeatureByKey } = require('../config/featureRegistry');
-    const tiers = Array.isArray(config?.pricing_tiers) ? config.pricing_tiers : [];
+    // Keys are minted on the way out for a config saved before they existed, so
+    // a client always has an identity to send back to checkout. The stored row
+    // is left alone here; the first admin save persists them.
+    const tiers = ensureTierKeys(Array.isArray(config?.pricing_tiers) ? config.pricing_tiers : []);
 
     const publicTiers = tiers.map((t) => {
       // Convert feature keys to human-readable labels for the public page.
@@ -1913,6 +2124,10 @@ const getPublicPricing = async (req, res, next) => {
             .filter(Boolean)
         : [];
       return {
+        // The plan's stable identity — what checkout must send back, so that
+        // renaming a plan between page load and payment cannot 400 the
+        // purchase ("Pricing tier 'Enterprise' not found").
+        key: String(t.key || ''),
         name: String(t.name || ''),
         price_cents: Number(t.price_cents) || 0,
         max_guests: Number(t.max_guests) || 0,
@@ -2024,6 +2239,7 @@ module.exports = {
   manualCashApproval,
   updatePricingConfig,
   getPricingConfig,
+  getOrganizerPricing,
   previewSmsPricing,
   getPublicPricing,
   initiateManualPayment,

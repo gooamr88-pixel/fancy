@@ -46,6 +46,7 @@ const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { getPlatformConfig } = require('../utils/configCache');
 const { getFeatureByKey } = require('../config/featureRegistry');
+const { entitledFeatures, selectEventWithTier } = require('../utils/tierResolver');
 
 /** The registry key an admin toggles per tier to sell texting with a plan. */
 const SMS_FEATURE_KEY = 'sms_campaigns';
@@ -53,21 +54,19 @@ const SMS_FEATURE_KEY = 'sms_campaigns';
 /**
  * Does this event's plan include texting?
  *
- * Mirrors featureGate.requireFeature's resolution exactly — tier name off the
- * event, tier definition out of the cached platform config, feature key in the
- * tier's `features` array — because two different answers to "does this plan
- * include X" is how a surface ends up visible and un-callable.
+ * Mirrors featureGate.requireFeature's resolution exactly — and now literally,
+ * through the shared resolver — because two different answers to "does this
+ * plan include X" is how a surface ends up visible and un-callable.
  *
- * A missing or renamed tier grants NOTHING, matching featureGate's safe
- * fallback: a deleted tier must not become a wildcard.
+ * A RENAMED tier keeps granting what it granted: identity is `tier_key`, not
+ * the display name. A DELETED tier falls back to the event's purchase-time
+ * feature snapshot. Neither is a wildcard — an event that never had the
+ * feature still does not get it.
  */
 async function tierGrantsSms(event) {
-  if (!event.tier_name) return false;
+  if (!event.tier_key && !event.tier_name) return false;
   const config = await getPlatformConfig();
-  const tier = (config.pricing_tiers || []).find(
-    (t) => (t.name || '').toLowerCase() === String(event.tier_name).toLowerCase(),
-  );
-  return Array.isArray(tier?.features) && tier.features.includes(SMS_FEATURE_KEY);
+  return entitledFeatures(config.pricing_tiers, event).features.includes(SMS_FEATURE_KEY);
 }
 
 const requireSmsAddon = async (req, res, next) => {
@@ -77,11 +76,8 @@ const requireSmsAddon = async (req, res, next) => {
   if (req.user?.isSuperAdmin) return next();
 
   try {
-    const { data: event, error } = await supabase
-      .from('events')
-      .select('id, is_paid, manual_override, status, tier_name, sms_addon_purchased_at, sms_settings')
-      .eq('id', eventId)
-      .single();
+    const { data: event, error } = await selectEventWithTier(
+      supabase, eventId, 'id, is_paid, manual_override, status, sms_addon_purchased_at, sms_settings');
 
     if (error || !event) {
       return res.status(404).json({

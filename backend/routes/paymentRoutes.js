@@ -1,6 +1,6 @@
 const express = require('express');
 const { requireAuth, verifyEventOwner } = require('../middleware/auth');
-const { createCheckoutSession, purchaseSMSCredits, stripeWebhook, verifyCheckoutSession, getPricingConfig, getPublicPricing, initiateManualPayment, redeemPromoCode } = require('../controllers/paymentController');
+const { createCheckoutSession, purchaseSMSCredits, stripeWebhook, verifyCheckoutSession, getPricingConfig, getOrganizerPricing, getPublicPricing, initiateManualPayment, redeemPromoCode } = require('../controllers/paymentController');
 
 const router = express.Router({ mergeParams: true });
 
@@ -21,6 +21,11 @@ router.post('/events/:eventId/manual-payment', requireAuth, verifyEventOwner, in
 router.post('/events/:eventId/redeem-promo-code', requireAuth, verifyEventOwner, redeemPromoCode);
 
 // Allow organizers to fetch platform licensing and SMS config
-router.get('/pricing-config', requireAuth, getPricingConfig);
+// Organizer-facing pricing. Deliberately NOT getPricingConfig (the admin
+// handler): that one does select('*') on super_admin_config, so behind plain
+// requireAuth it served our carrier cost, our margin, the platform commission
+// and the referral budget to every logged-in customer. getOrganizerPricing is
+// a whitelist of what a purchase screen actually needs.
+router.get('/pricing-config', requireAuth, getOrganizerPricing);
 
 module.exports = router;

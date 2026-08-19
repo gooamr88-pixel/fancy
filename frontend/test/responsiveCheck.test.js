@@ -1,3 +1,16 @@
+// @vitest-environment node
+//
+// This file renders nothing and never touches document/window — it walks the
+// source tree and reads files. The suite-wide default is jsdom, whose setup
+// measured ~19s here against ~0.9s of actual work, and under full-suite
+// parallel load that pushed individual tests past the 15s ceiling: the file
+// passed alone and failed at random inside `vitest run`, on a different test
+// each time.
+//
+// A test that only fails when other tests are running is the kind everybody
+// learns to re-run instead of read, which is where a real finding goes to die
+// (the same argument vitest.config.mjs makes for its testTimeout). Dropping
+// the DOM it never used removes the cause rather than raising the ceiling.
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';

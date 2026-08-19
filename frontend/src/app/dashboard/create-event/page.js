@@ -247,8 +247,7 @@ export default function CreateEventWizard() {
   const [pricingTiers, setPricingTiers] = useState([]);
   const [manualMethods, setManualMethods] = useState([]);
   const [referralCreditCents, setReferralCreditCents] = useState(0);
-  const [smsRateCentsPerCredit, setSmsRateCentsPerCredit] = useState(null);
-  const [smsMarkupPercentage, setSmsMarkupPercentage] = useState(0);
+  const [smsListPriceCents, setSmsListPriceCents] = useState(null);
 
   /* ═══ SMS add-on, chosen on the payment step ═══
      Sizing comes from the server (payments/pricing-config → smsEstimates), keyed
@@ -273,6 +272,19 @@ export default function CreateEventWizard() {
   // UI is manual-first until the backend reports card/SMS are enabled.
   const [features, setFeatures] = useState({ stripeEnabled: false, smsEnabled: false });
   const [selectedTierName, setSelectedTierName] = useState('');
+  /**
+   * The stable key of the plan the organizer picked.
+   *
+   * The wizard tracks its selection by NAME (the estimates map and the resume
+   * snapshot are both keyed that way), but the name is display text an admin
+   * can change at any moment — including between this page loading and the
+   * organizer pressing Pay, which used to fail checkout outright with
+   * "Pricing tier 'X' not found". The key is resolved from the loaded tiers at
+   * submit time and sent alongside. See backend/utils/tierResolver.js.
+   */
+  const selectedTierKey = (pricingTiers.find(
+    t => String(t?.name || '').toLowerCase() === String(selectedTierName || '').toLowerCase(),
+  ) || {}).key || undefined;
   const [manualRef, setManualRef] = useState('');
   const [payProcessing, setPayProcessing] = useState(false);
   const [payError, setPayError] = useState('');
@@ -608,8 +620,13 @@ export default function CreateEventWizard() {
           // For the SMS credit-buy button's price preview (Stage3_Distribution) —
           // that button previously redirected to Stripe Checkout with no price
           // shown at all, unlike every other paid action in this wizard.
-          if (Number.isFinite(data.config.sms_rate_cents_per_credit)) setSmsRateCentsPerCredit(data.config.sms_rate_cents_per_credit);
-          if (Number.isFinite(data.config.sms_markup_percentage)) setSmsMarkupPercentage(data.config.sms_markup_percentage);
+          // The finished LIST PRICE per segment, not our cost and margin.
+          // This screen only ever needed the public number; asking for the two
+          // private ones to multiply them together meant the server had to
+          // hand every organizer our carrier cost and our gross margin.
+          if (Number.isFinite(data.config.sms_list_price_cents_per_segment)) {
+            setSmsListPriceCents(data.config.sms_list_price_cents_per_segment);
+          }
           // Per-tier allowance recommendations + the message-type catalogue, both
           // computed server-side so the estimate can never drift from the charge.
           if (data.smsEstimates) setSmsEstimates(data.smsEstimates);
@@ -1274,6 +1291,7 @@ export default function CreateEventWizard() {
         // two line items. null when the organizer left it switched off.
         body: JSON.stringify({
           eventId,
+          tierKey: selectedTierKey,
           tierName: selectedTierName,
           smsAddonSegments: smsAddonEnabled ? smsAddonSegments : null,
         }),
@@ -1303,7 +1321,7 @@ export default function CreateEventWizard() {
       setPayError(err.message || 'Payment could not be started.');
       setPayProcessing(false);
     }
-  }, [apiUrl, eventId, selectedTierName, slug, payProcessing, smsAddonEnabled, smsAddonSegments]);
+  }, [apiUrl, eventId, selectedTierName, selectedTierKey, slug, payProcessing, smsAddonEnabled, smsAddonSegments]);
 
   const handlePayManual = useCallback(async (methodLabel = '', payerReference = '') => {
     // Same re-entrancy guard as handlePayStripe above.
@@ -1318,6 +1336,7 @@ export default function CreateEventWizard() {
         // The add-on rides on the bank transfer too — the amount the organizer is
         // told to send must cover everything they chose, not the licence alone.
         body: JSON.stringify({
+          tierKey: selectedTierKey,
           tierName: selectedTierName,
           methodLabel,
           payerReference,
@@ -1342,7 +1361,7 @@ export default function CreateEventWizard() {
     } finally {
       setPayProcessing(false);
     }
-  }, [apiUrl, eventId, selectedTierName, payProcessing, smsAddonEnabled, smsAddonSegments]);
+  }, [apiUrl, eventId, selectedTierName, selectedTierKey, payProcessing, smsAddonEnabled, smsAddonSegments]);
 
   // Self-service alternative to both payment paths above: a valid super-admin
   // -issued promo code publishes the event immediately, free — same end
@@ -1629,8 +1648,7 @@ export default function CreateEventWizard() {
               featureLabels={featureLabels}
               hiddenTierFeatures={hiddenTierFeatures}
               featureNotes={featureNotes}
-              smsRateCentsPerCredit={smsRateCentsPerCredit}
-              smsMarkupPercentage={smsMarkupPercentage}
+              smsListPriceCents={smsListPriceCents}
               processing={payProcessing}
               error={payError}
               paymentConfirmed={paymentConfirmed}
@@ -1737,8 +1755,7 @@ export default function CreateEventWizard() {
               buyingCredits={buyingCredits}
               creditError={creditError}
               smsEnabled={features.smsEnabled}
-              smsRateCentsPerCredit={smsRateCentsPerCredit}
-              smsMarkupPercentage={smsMarkupPercentage}
+              smsListPriceCents={smsListPriceCents}
               onSubmit={handleSubmit}
               onBack={goBack}
               submitting={submitting}

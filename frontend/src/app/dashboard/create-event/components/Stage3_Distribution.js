@@ -23,9 +23,10 @@ const CREDIT_PACKS = [50, 100, 250, 500];
 // computed authoritatively server-side at checkout-session creation.
 const SMS_VOLUME_DISCOUNT_THRESHOLD = 500;
 const SMS_VOLUME_DISCOUNT_RATE = 0.875;
-function estimateSmsChargeCents(unitPriceCents, creditCount, markupPct = 0) {
-  if (!Number.isFinite(unitPriceCents) || !Number.isFinite(creditCount) || creditCount <= 0) return null;
-  let total = unitPriceCents * creditCount * (1 + (Number(markupPct) || 0) / 100);
+function estimateSmsChargeCents(listPriceCents, creditCount) {
+  if (!Number.isFinite(listPriceCents) || !Number.isFinite(creditCount) || creditCount <= 0) return null;
+  // List price in, no markup: the client is never told our cost.
+  let total = listPriceCents * creditCount;
   if (creditCount >= SMS_VOLUME_DISCOUNT_THRESHOLD) total *= SMS_VOLUME_DISCOUNT_RATE;
   return Math.max(0, Math.round(total));
 }
@@ -34,12 +35,12 @@ export default function Stage3_Distribution({
   slug, distributionMethods, onMethodToggle,
   smsTemplate, setSmsTemplate,
   smsCredits, smsCreditsLoading, onRefreshCredits, onBuyCredits, buyingCredits, creditError,
-  smsRateCentsPerCredit = null, smsMarkupPercentage = 0,
+  smsListPriceCents = null,
   onSubmit, onBack, submitting, error, smsEnabled = true,
 }) {
   const [copied, setCopied] = useState(false);
   const [creditQty, setCreditQty] = useState(100);
-  const estimatedCents = estimateSmsChargeCents(smsRateCentsPerCredit, creditQty, smsMarkupPercentage);
+  const estimatedCents = estimateSmsChargeCents(smsListPriceCents, creditQty);
   const eventUrl = `fancyrsvp.com/${slug || 'your-event'}`;
   // Segment-accurate counter: Arabic/emoji switch the body to Unicode (70-char
   // segments vs 160), so the per-segment cap and credit cost change with content.

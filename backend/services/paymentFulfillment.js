@@ -3,6 +3,7 @@ const logger = require('../utils/logger');
 const { sendEmailViaBrevo } = require('../utils/notificationService');
 const { getStripePaymentReceiptTemplate } = require('../utils/emailTemplates');
 const { getPlatformConfig } = require('../utils/configCache');
+const { resolveTier } = require('../utils/tierResolver');
 const { captureReferralHold, spendReferralCredit, grantReferralRewardIfEligible, reverseReferralForRefundedPayment } = require('./referralService');
 
 /**
@@ -72,11 +73,29 @@ const fulfillCheckoutSession = async (session) => {
     // Snapshot the purchased tier ("current plan") from the checkout metadata
     // (set in createCheckoutSession). tier_max_guests arrives as a string.
     const tierName = session.metadata.tier_name || null;
+    const tierKey = session.metadata.tier_key || null;
     const rawCap = session.metadata.tier_max_guests;
     const parsedCap = rawCap !== undefined && rawCap !== '' ? parseInt(rawCap, 10) : NaN;
     const tierMaxGuests = Number.isFinite(parsedCap) ? parsedCap : null;
     const tierRemoveWatermark = session.metadata.tier_remove_watermark === '1';
     const isUpgrade = session.metadata.is_upgrade === '1';
+    const rawPrice = session.metadata.tier_price_cents;
+    const parsedPrice = rawPrice !== undefined && rawPrice !== '' ? parseInt(rawPrice, 10) : NaN;
+    const tierPriceCents = Number.isFinite(parsedPrice) ? parsedPrice : null;
+
+    // The feature list is NOT in the metadata (Stripe caps a value at 500
+    // chars); it is read from the live config by key and written onto the event
+    // so the purchase carries its own entitlement from the moment it completes.
+    // A checkout can outlive an admin's config edit — session creation and this
+    // webhook are minutes and a redirect apart — so if the plan cannot be
+    // resolved here the snapshot is simply omitted rather than written empty,
+    // and withResolvedTier heals the row on the next read.
+    let tierFeatures = null;
+    try {
+      const cfg = await getPlatformConfig();
+      const { tier: resolved } = resolveTier(cfg.pricing_tiers, { key: tierKey, name: tierName });
+      if (resolved && Array.isArray(resolved.features)) tierFeatures = resolved.features;
+    } catch { /* leave unsnapshotted; the read path will heal it */ }
 
     // BIZ-2: re-check the tier's max_events cap authoritatively HERE, not just
     // at checkout-session creation (createCheckoutSession). The cap check
@@ -92,18 +111,36 @@ const fulfillCheckoutSession = async (session) => {
     // hooks further below — one read serves both, regardless of tierName.
     const { data: eventOrgRow } = await supabase.from('events').select('org_id').eq('id', event_id).maybeSingle();
     const eventOrgId = eventOrgRow?.org_id || null;
-    if (tierName && eventOrgId) {
+    if ((tierName || tierKey) && eventOrgId) {
       try {
         const adminConfig = await getPlatformConfig();
-        const tier = adminConfig.pricing_tiers.find((t) => t.name.toLowerCase() === tierName.toLowerCase());
+        const { tier } = resolveTier(adminConfig.pricing_tiers, { key: tierKey, name: tierName });
         if (tier && Number(tier.max_events) > 0) {
-          const { count } = await supabase
+          // By key, with a second count for rows sold before keys existed:
+          // counting by name alone stopped counting an event the moment its
+          // plan was renamed, which quietly un-enforced the cap.
+          //
+          // Two counts rather than one `.or()`, because an `.or()` filter is a
+          // hand-built string and a tier NAME goes into it — "Pro, Plus" would
+          // inject a comma into PostgREST's filter grammar. Individual filter
+          // methods encode their values.
+          const base = () => supabase
             .from('events')
             .select('id', { count: 'exact', head: true })
             .eq('org_id', eventOrgId)
             .eq('is_paid', true)
-            .ilike('tier_name', tier.name)
             .neq('id', event_id);
+          const key = String(tier.key || '').trim();
+          let count = 0;
+          if (key) {
+            const [byKey, legacy] = await Promise.all([
+              base().eq('tier_key', key),
+              base().is('tier_key', null).ilike('tier_name', tier.name),
+            ]);
+            count = (byKey.count || 0) + (legacy.count || 0);
+          } else {
+            ({ count } = await base().ilike('tier_name', tier.name));
+          }
           if ((count || 0) >= tier.max_events) tierCapExceeded = true;
         }
       } catch (e) {
@@ -155,7 +192,7 @@ const fulfillCheckoutSession = async (session) => {
       } catch (e) {
         logger.warn({ err: e, eventId: event_id }, '[fulfill] activity_log skipped for tier_cap_exceeded');
       }
-    } else if (tierName || tierMaxGuests !== null) {
+    } else if (tierName || tierKey || tierMaxGuests !== null) {
       // Persist the tier separately and best-effort: the tier_name/tier_max_guests
       // columns ship in migration 20260624000000. If it hasn't been applied yet we
       // must NOT fail (and make Stripe retry) the already-committed activation — so
@@ -165,7 +202,14 @@ const fulfillCheckoutSession = async (session) => {
       // reads. Apply the migration to make the "Current Plan" panel light up.
       const { error: tierErr } = await supabase
         .from('events')
-        .update({ tier_name: tierName, tier_max_guests: tierMaxGuests, tier_remove_watermark: tierRemoveWatermark })
+        .update({
+          tier_name: tierName,
+          tier_key: tierKey,
+          tier_max_guests: tierMaxGuests,
+          tier_remove_watermark: tierRemoveWatermark,
+          ...(tierFeatures ? { tier_features: tierFeatures } : {}),
+          ...(tierPriceCents !== null ? { tier_price_cents: tierPriceCents } : {}),
+        })
         .eq('id', event_id);
       if (tierErr) {
         logger.error({ err: tierErr, eventId: event_id }, '[fulfill] TIER PERSISTENCE FAILED — customer charged but tier/guest-cap not applied (run migration 20260624000000)');
@@ -201,6 +245,15 @@ const fulfillCheckoutSession = async (session) => {
       currency: session.currency,
       status: 'completed',
       payment_method: 'stripe',
+      // The card path never recorded which plan it bought — every other
+      // payment path did. That gap is why a Stripe receipt could not name the
+      // plan and why the event's tier could only ever be re-derived.
+      tier_key: tierKey,
+      tier_name: tierName,
+      tier_max_guests: tierMaxGuests,
+      tier_remove_watermark: tierRemoveWatermark,
+      ...(tierFeatures ? { tier_features: tierFeatures } : {}),
+      ...(tierPriceCents !== null ? { tier_price_cents: tierPriceCents } : {}),
       referral_credit_applied_cents: referralCreditAppliedCents,
       referral_hold_id: referralHoldId,
       completed_at: new Date().toISOString(),

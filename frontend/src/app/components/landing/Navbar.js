@@ -37,6 +37,10 @@ const NAV_LINKS = [
   { label: "Features", href: "/features" },
   { label: "Door App", href: "/checkin-app" },
   { label: "Pricing", href: "/pricing" },
+  // The physical, hand-finished cards. Sold by WhatsApp rather than checkout —
+  // see utils/shopLinks.js. Kept in the main nav rather than buried in the
+  // footer because it is a second product line, not a support page.
+  { label: "Printed Cards", href: "/printed-invitations" },
   { label: "Solutions", href: "/solutions" },
   { label: "Blog", href: "/blog" },
   { label: "About", href: "/about" },
@@ -503,13 +507,36 @@ export default function Navbar() {
           gap: clamp(16px, 4.6875vw - 32px, 28px);
         }
 
-        /* Was 768px, and that was the bug: the desktop nav needs ~1080px
-           to lay out, so iPad Air portrait (820), iPad Pro 11" portrait
-           (834) and iPad landscape (1024) all rendered it and overflowed.
-           Above 768px the overflow guard does not clip either, so those
-           devices got a real horizontal page scrollbar with the "Get
-           Started" CTA hanging off the right edge. */
-        @media (max-width: 1023.98px) {
+        /* Was 768px, then 1024px, now 1150px — each time for the same reason:
+           the desktop nav cannot shrink (every link is whiteSpace:nowrap), so
+           the breakpoint has to track how wide it actually is, and it got
+           wider when a link was added.
+
+           768 → 1024 fixed iPad Air portrait (820), iPad Pro 11" portrait
+           (834) and iPad landscape (1024), which all rendered it and
+           overflowed.
+
+           1024 → 1150 is the "Printed Cards" link. MEASURED, not estimated,
+           with test/shots/navbarWidthProbe.dump.jsx rendering the real
+           component at real widths (logged out — the widest case, since it
+           shows "Log In" AND "Get Started" where a signed-in visitor gets
+           only "Dashboard"):
+
+             1024px → overflowed by 53px
+             1100px → overflowed by 15px
+             1120px → clean
+             1280px → clean
+
+           and the overflow CLIPS rather than scrolls, so the symptom was the
+           "Get Started" CTA — the primary conversion button on the marketing
+           site — simply not being visible between roughly 1024 and 1115px.
+           1150 is the first clean measurement plus real headroom, because the
+           arithmetic budget above this rule was wrong by exactly the amount
+           that matters: it was written for 7 links and there are now 9.
+
+           If you add another link, re-run that probe. Do not re-derive this
+           number from the character-count budget above — that is what failed. */
+        @media (max-width: 1149.98px) {
           .desktop-nav {
             display: none !important;
           }

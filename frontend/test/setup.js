@@ -15,8 +15,18 @@ expect.extend(jestDomMatchers);
    that cares about the behaviour has to opt in explicitly rather than
    inheriting it. */
 
+/* Every stub below is a jsdom stub, and setupFiles run for EVERY test file —
+   including one that declares `@vitest-environment node` because it only reads
+   files and never renders. In that environment there is no `window`, and this
+   hook threw before the first assertion, failing all of its tests at once.
+   Guarded rather than moved, so a DOM-free test file stays a one-line opt-in
+   with no second setup file to keep in sync. */
+const HAS_DOM = typeof window !== 'undefined';
+
 // framer-motion's useReducedMotion reads this. Default: motion is fine.
 beforeEach(() => {
+  if (!HAS_DOM) return;
+
   window.matchMedia = vi.fn().mockImplementation((query) => ({
     matches: false,
     media: query,
@@ -82,7 +92,9 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  cleanup();
+  // cleanup() unmounts React trees and needs a document; in the node
+  // environment there is nothing mounted to clean up.
+  if (HAS_DOM) cleanup();
   vi.restoreAllMocks();
   try { window.sessionStorage.clear(); } catch { /* not available */ }
 });

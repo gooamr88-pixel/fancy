@@ -1,5 +1,7 @@
 'use client';
 
+// See the note in DataTable.js.
+import React from 'react';
 import { T } from './theme';
 
 /** Consistent full-page loading treatment for panel pages. */

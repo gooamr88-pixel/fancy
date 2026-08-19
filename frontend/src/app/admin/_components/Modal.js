@@ -1,5 +1,8 @@
 'use client';
 
+// See the note in DataTable.js — the test runner's classic JSX transform needs
+// React in scope; Next's automatic runtime does not.
+import React from 'react';
 import { T } from './theme';
 import { useModalA11y } from '../../hooks/useModalA11y';
 

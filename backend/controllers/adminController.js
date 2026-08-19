@@ -7,6 +7,7 @@ const { releaseReferralHold } = require('../services/referralService');
 const { sendEmailViaBrevo } = require('../utils/notificationService');
 const { getEventLiveTemplate, getPublicBaseUrl } = require('../utils/emailTemplates');
 const { getPlatformConfig } = require('../utils/configCache');
+const { resolveTier, tierSnapshot } = require('../utils/tierResolver');
 const { applyAdminRoles, isForbiddenSelfDemotion } = require('./admin/rbacController');
 
 const VALID_ROLES = ['organizer', 'super_admin'];
@@ -442,7 +443,7 @@ const declineManualPayment = async (req, res, next) => {
  */
 const updateEventAdmin = async (req, res, next) => {
   const { eventId } = req.params;
-  const { status, isPaid, tierName, compReason } = req.body;
+  const { status, isPaid, tierName, tierKey, compReason } = req.body;
 
   const updates = {};
   if (status !== undefined) {
@@ -454,11 +455,11 @@ const updateEventAdmin = async (req, res, next) => {
   if (isPaid !== undefined) {
     updates.is_paid = !!isPaid;
     if (isPaid) {
-      if (!tierName || !compReason || !compReason.trim()) {
+      if ((!tierName && !tierKey) || !compReason || !compReason.trim()) {
         return res.status(400).json({
           success: false,
           error: 'VALIDATION_ERROR',
-          message: 'tierName and compReason are required when granting a complimentary event.',
+          message: 'A plan (tierKey) and compReason are required when granting a complimentary event.',
         });
       }
       let adminConfig;
@@ -467,20 +468,25 @@ const updateEventAdmin = async (req, res, next) => {
       } catch {
         return res.status(500).json({ success: false, error: 'CONFIG_ERROR', message: 'Could not retrieve pricing configuration.' });
       }
-      const tier = (adminConfig.pricing_tiers || []).find(t => (t.name || '').toLowerCase() === tierName.toLowerCase());
+      const { tier } = resolveTier(adminConfig.pricing_tiers, { key: tierKey, name: tierName });
       if (!tier) {
-        return res.status(400).json({ success: false, error: 'INVALID_TIER', message: `Pricing tier '${tierName}' not found.` });
+        return res.status(400).json({ success: false, error: 'INVALID_TIER', message: `Pricing tier '${tierName || tierKey}' not found.` });
       }
       updates.manual_override = true;
-      updates.tier_name = tier.name;
-      updates.tier_max_guests = Number.isFinite(tier.max_guests) ? tier.max_guests : null;
-      updates.tier_remove_watermark = !!tier.remove_watermark;
+      // The full snapshot — identity, cap, watermark, FEATURES and price — so a
+      // comped event survives its plan being renamed or deleted exactly as a
+      // paid one does. It previously stored the name and cap only, which meant
+      // a rename left the comp with no features at all.
+      Object.assign(updates, tierSnapshot(tier));
       updates.comp_reason = compReason.trim();
     } else {
       // Revoking removes the granted tier/reason too — a real Stripe/cash payment
       // re-populates these from checkout metadata, so nothing legitimate is lost.
       updates.manual_override = false;
       updates.tier_name = null;
+      updates.tier_key = null;
+      updates.tier_features = null;
+      updates.tier_price_cents = null;
       updates.tier_max_guests = null;
       updates.tier_remove_watermark = false;
       updates.comp_reason = null;

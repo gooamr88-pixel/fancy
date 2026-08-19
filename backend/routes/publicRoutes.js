@@ -8,6 +8,7 @@ const checkinController = require('../controllers/checkinController');
 const { trackGuestEvent } = require('../controllers/analyticsController');
 const { handleSmsStatusCallback, handleInboundSms } = require('../controllers/campaignController');
 const { subscribeNewsletter, submitContactForm, submitSmsOptIn, getPublicTestimonials, getPublicPressMentions, getPublicBlogPosts, getPublicBlogPostBySlug } = require('../controllers/marketingController');
+const { getPublicShop, getPublicProductBySlug, recordShopInquiry } = require('../controllers/shopController');
 const { verifyTurnstile } = require('../middleware/captcha');
 const { generateQRCodeBuffer } = require('../utils/qrHelper');
 const { getPlatformConfig } = require('../utils/configCache');
@@ -130,6 +131,29 @@ router.get('/press-mentions', getPublicPressMentions);
 // controllers/admin/blogController.js for the full CRUD surface.
 router.get('/blog', getPublicBlogPosts);
 router.get('/blog/:slug', getPublicBlogPostBySlug);
+
+// Printed Invitations — the physical-card catalogue at /printed-invitations
+// (published rows only). Full CRUD in controllers/admin/shopController.js.
+router.get('/shop', getPublicShop);
+router.get('/shop/:slug', getPublicProductBySlug);
+
+// "Order on WhatsApp" beacon. Capped: the whole funnel leaves the site here, so
+// this counter is the only demand signal there is, and an uncapped anonymous
+// write is an invitation to inflate it. Generous enough that a real visitor
+// comparing several cards is never blocked.
+router.post(
+  '/shop/:productId/inquiry',
+  rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 60,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, error: 'TOO_MANY_REQUESTS', message: 'Too many requests.' },
+  }),
+  param('productId').isUUID().withMessage('Invalid product'),
+  validate,
+  recordShopInquiry,
+);
 
 // Live SMS opt-in form on /sms-opt-in (the Toll-Free Verification opt-in URL).
 // Records a timestamped, consent-text-versioned opt-in (marketingController).

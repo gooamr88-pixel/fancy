@@ -29,6 +29,15 @@ function mockRes() {
   res.json = (b) => { res.body = b; res.finished = true; return res; };
   res.send = (b) => { res.body = b; res.finished = true; return res; };
   res.setHeader = (k, v) => { res.headers[k] = v; return res; };
+  // Express exposes BOTH res.set and res.setHeader, and the marketing/public
+  // controllers use `res.set('Cache-Control', …)`. Without this alias a handler
+  // that sets a cache header throws a TypeError straight into next(), which the
+  // caller then reads as a mysterious 500 rather than a missing double.
+  res.set = (k, v) => {
+    if (k && typeof k === 'object') Object.entries(k).forEach(([kk, vv]) => { res.headers[kk] = vv; });
+    else res.headers[k] = v;
+    return res;
+  };
   res.sendFile = (p) => { res.body = `[file:${p}]`; res.finished = true; return res; };
   // Express allows redirect(url) or redirect(status, url). Without this a
   // handler that redirects throws a TypeError straight into next(), which the

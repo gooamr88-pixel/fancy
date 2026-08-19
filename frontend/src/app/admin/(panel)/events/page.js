@@ -30,7 +30,7 @@ export default function EventsPage() {
   // unlimited-guest plan). See backend/controllers/adminController.js updateEventAdmin.
   const [freeEventModal, setFreeEventModal] = useState(null); // { eventId, title }
   const [pricingTiers, setPricingTiers] = useState([]);
-  const [selectedTierName, setSelectedTierName] = useState('');
+  const [selectedTierKey, setSelectedTierKey] = useState('');
   const [compReason, setCompReason] = useState('');
   const [submittingFreeGrant, setSubmittingFreeGrant] = useState(false);
 
@@ -61,19 +61,21 @@ export default function EventsPage() {
   };
 
   const openFreeEventModal = (eventId, title) => {
-    setSelectedTierName(pricingTiers[0]?.name || '');
+    setSelectedTierKey(pricingTiers[0]?.key || '');
     setCompReason('');
     setFreeEventModal({ eventId, title });
   };
 
   const handleGrantFreeEvent = async (e) => {
     e.preventDefault();
-    if (!freeEventModal || !selectedTierName || !compReason.trim()) return;
+    if (!freeEventModal || !selectedTierKey || !compReason.trim()) return;
     setSubmittingFreeGrant(true);
     try {
       await adminApi.patch(`/events/${freeEventModal.eventId}`, {
         isPaid: true,
-        tierName: selectedTierName,
+        // By key: the grant snapshots the plan onto the event, and a plan
+        // identified by display name detaches the moment it is renamed.
+        tierKey: selectedTierKey,
         compReason: compReason.trim(),
       });
       await showAlert('Event activated as complimentary.', 'Success', 'success');
@@ -305,10 +307,10 @@ export default function EventsPage() {
           <label style={{ display: 'block' }}>
             <span style={{ display: 'block', fontSize: 11, color: T.text400, fontWeight: 600, marginBottom: 4, textTransform: 'uppercase' }}>Tier to Grant</span>
             {pricingTiers.length > 0 ? (
-              <select required value={selectedTierName} onChange={e => setSelectedTierName(e.target.value)}
+              <select required value={selectedTierKey} onChange={e => setSelectedTierKey(e.target.value)}
                 style={{ width: '100%', padding: '9px 11px', border: `1px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, background: T.surfaceAlt, color: T.text900, outline: 'none', cursor: 'pointer' }}>
                 {pricingTiers.map(t => (
-                  <option key={t.name} value={t.name}>{t.name} — {t.max_guests || '∞'} guests</option>
+                  <option key={t.key} value={t.key}>{t.name} — {t.max_guests || '∞'} guests</option>
                 ))}
               </select>
             ) : (

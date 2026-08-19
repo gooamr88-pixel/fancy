@@ -12,6 +12,7 @@ const securityRoutes = require('./admin/securityRoutes');
 const testimonialsRoutes = require('./admin/testimonialsRoutes');
 const pressMentionsRoutes = require('./admin/pressMentionsRoutes');
 const blogRoutes = require('./admin/blogRoutes');
+const shopRoutes = require('./admin/shopRoutes');
 const referralAdminRoutes = require('./admin/referralAdminRoutes');
 const contactInquiriesRoutes = require('./admin/contactInquiriesRoutes');
 const promoCodeRoutes = require('./admin/promoCodeRoutes');
@@ -74,6 +75,10 @@ router.use('/finance', financeRoutes);
 router.use('/testimonials', testimonialsRoutes);
 router.use('/press-mentions', pressMentionsRoutes);
 router.use('/blog', blogRoutes);
+
+// ── Printed Invitations — the physical-card catalogue sold by WhatsApp ──
+// Same cms.view / cms.manage pair as the CMS routers above.
+router.use('/shop', shopRoutes);
 
 // ── Marketing — referral / affiliate program oversight, contact inquiries ──
 router.use('/referrals', referralAdminRoutes);

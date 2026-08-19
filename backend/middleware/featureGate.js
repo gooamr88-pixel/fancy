@@ -14,7 +14,11 @@
  *      requested feature key is in the tier's `features` array.
  *
  * Relies on:
- *   - `events.tier_name` (set at checkout fulfillment)
+ *   - `events.tier_key` — the plan's STABLE identity (set at fulfillment).
+ *     `tier_name` is display text an admin may edit at any moment and is only
+ *     a legacy fallback for rows sold before keys existed.
+ *   - `events.tier_features` — the purchase-time snapshot, used when the tier
+ *     has been deleted outright, so a config edit cannot revoke a purchase.
  *   - `super_admin_config.pricing_tiers[].features` (set by admin via config UI)
  *   - `configCache.getPlatformConfig()` (30 s TTL, no extra DB hit per request)
  */
@@ -23,6 +27,7 @@ const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { getPlatformConfig } = require('../utils/configCache');
 const { FREE_TIER_FEATURES, getFeatureByKey, isValidFeatureKey } = require('../config/featureRegistry');
+const { entitledFeatures, selectEventWithTier } = require('../utils/tierResolver');
 
 /**
  * Primary feature-gate middleware factory.
@@ -40,11 +45,11 @@ const requireFeature = (featureKey) => async (req, res, next) => {
 
   try {
     // 1. Load event
-    const { data: event, error } = await supabase
-      .from('events')
-      .select('id, is_paid, manual_override, status, tier_name')
-      .eq('id', eventId)
-      .single();
+    // selectEventWithTier, not a plain select: an unapplied tier-identity
+    // migration would otherwise make this read fail and every paid feature on
+    // the platform report EVENT_NOT_FOUND. See utils/tierResolver.js.
+    const { data: event, error } = await selectEventWithTier(
+      supabase, eventId, 'id, is_paid, manual_override, status');
 
     if (error || !event) {
       return res.status(404).json({
@@ -75,18 +80,28 @@ const requireFeature = (featureKey) => async (req, res, next) => {
     // 3. Paid / manually-overridden events — check the tier's feature list.
     let tierFeatures = [];
 
-    if (event.tier_name) {
+    if (event.tier_key || event.tier_name) {
       try {
         const config = await getPlatformConfig();
-        const tier = (config.pricing_tiers || []).find(
-          (t) => (t.name || '').toLowerCase() === event.tier_name.toLowerCase(),
-        );
-        if (tier && Array.isArray(tier.features)) {
-          tierFeatures = tier.features;
+        // Resolved by KEY, with the event's own purchase-time snapshot as the
+        // fallback when the plan no longer exists.
+        //
+        // What used to be here looked the tier up by DISPLAY NAME and, on a
+        // miss, left this empty — "a deleted tier grants NOTHING rather than
+        // everything". Safe against a wildcard, catastrophic in the case that
+        // actually happens: an admin renaming a plan revoked every paid
+        // feature from every event that had bought it, instantly, and the 403
+        // below then named a plan that no longer existed. Renaming is a
+        // display-text edit; it must not be an entitlement event.
+        const resolved = entitledFeatures(config.pricing_tiers, event);
+        tierFeatures = resolved.features;
+
+        if (resolved.source === 'snapshot') {
+          // The plan is gone but the purchase stands. Loud, because it means
+          // an admin deleted a tier that customers are still on.
+          logger.warn({ eventId, featureKey, tierName: event.tier_name, tierKey: event.tier_key },
+            'featureGate: tier no longer exists — honouring the purchase-time feature snapshot');
         }
-        // If the tier is missing (renamed/deleted), tierFeatures stays empty
-        // and we fall through to the "not in tier" check below. This is the
-        // safe-fallback: a deleted tier grants NOTHING rather than everything.
       } catch (configErr) {
         logger.warn({ err: configErr, eventId, featureKey }, 'featureGate: config lookup failed — denying');
         return res.status(500).json({
@@ -134,11 +149,11 @@ const requireAnyFeature = (...featureKeys) => async (req, res, next) => {
   if (req.user?.isSuperAdmin) return next();
 
   try {
-    const { data: event, error } = await supabase
-      .from('events')
-      .select('id, is_paid, manual_override, status, tier_name')
-      .eq('id', eventId)
-      .single();
+    // selectEventWithTier, not a plain select: an unapplied tier-identity
+    // migration would otherwise make this read fail and every paid feature on
+    // the platform report EVENT_NOT_FOUND. See utils/tierResolver.js.
+    const { data: event, error } = await selectEventWithTier(
+      supabase, eventId, 'id, is_paid, manual_override, status');
 
     if (error || !event) {
       return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND', message: 'Event not found.' });
@@ -158,15 +173,15 @@ const requireAnyFeature = (...featureKeys) => async (req, res, next) => {
       });
     }
 
-    // Paid — resolve tier features.
+    // Paid — resolve tier features. Same resolution as requireFeature above
+    // (key, then legacy name, then the purchase-time snapshot); two different
+    // answers to "does this plan include X" is how a surface ends up visible
+    // and un-callable.
     let tierFeatures = [];
-    if (event.tier_name) {
+    if (event.tier_key || event.tier_name) {
       try {
         const config = await getPlatformConfig();
-        const tier = (config.pricing_tiers || []).find(
-          (t) => (t.name || '').toLowerCase() === event.tier_name.toLowerCase(),
-        );
-        if (tier && Array.isArray(tier.features)) tierFeatures = tier.features;
+        tierFeatures = entitledFeatures(config.pricing_tiers, event).features;
       } catch {
         return res.status(500).json({ success: false, error: 'CONFIG_ERROR', message: 'Could not verify feature access.' });
       }

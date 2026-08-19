@@ -8,6 +8,7 @@ import RsvpProgressDonut from './RsvpProgressDonut';
 import RsvpTrendChart from './RsvpTrendChart';
 import UpcomingEventsCards from './UpcomingEventsCards';
 import RecentActivityFeed from './RecentActivityFeed';
+import PrintedInvitationsCard from './PrintedInvitationsCard';
 
 /* ═══ CSS Animations ═══ */
 const OV_STYLES_ID = 'organizer-overview-styles';
@@ -597,6 +598,13 @@ export default function OrganizerOverview({ onNavigateToReferrals }) {
                 the second thing on it. It also has no business greeting somebody
                 who has not run an event yet, which is why it now sits inside this
                 branch at all. */}
+            {/* Printed cards — the studio's physical product, offered to the
+                one audience the marketing site cannot reach because they are
+                logged in. Renders nothing unless an admin has published a
+                piece, left the dashboard placement on, and set a WhatsApp
+                number to reach. */}
+            <PrintedInvitationsCard />
+
             <ReferralBanner onNavigate={onNavigateToReferrals} />
           </>
         )}

@@ -285,20 +285,26 @@ function PromoCodeFormModal({ initial, tiers, onClose, onSaved }) {
   const { showToast } = useAlert();
   const [code, setCode] = useState(initial.code || '');
   const [description, setDescription] = useState(initial.description || '');
-  const [tierName, setTierName] = useState(initial.tier_name || tiers[0]?.name || '');
+  /* Selected by KEY, not by name. A promo code stores the plan it grants, and
+     while that was stored as a display name, renaming the plan detached every
+     code from it: at redemption the lookup missed and the event was activated
+     with a NULL guest cap — which the cap trigger reads as UNLIMITED. */
+  const [tierKey, setTierKey] = useState(initial.tier_key || tiers[0]?.key || '');
+  const selectedTier = tiers.find((t) => t.key === tierKey) || null;
   const [maxRedemptions, setMaxRedemptions] = useState(initial.max_redemptions != null ? String(initial.max_redemptions) : '');
   const [expiresAt, setExpiresAt] = useState(initial.expires_at ? initial.expires_at.slice(0, 10) : '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   const submit = async () => {
-    if (!tierName) { setError('Choose which tier this code grants.'); return; }
+    if (!tierKey) { setError('Choose which plan this code grants.'); return; }
     setSaving(true);
     setError('');
     try {
       const body = {
         description,
-        tierName,
+        tierKey,
+        tierName: selectedTier?.name,
         maxRedemptions: maxRedemptions === '' ? null : maxRedemptions,
         expiresAt: expiresAt || null,
       };
@@ -347,10 +353,15 @@ function PromoCodeFormModal({ initial, tiers, onClose, onSaved }) {
         </Field>
 
         <Field label="Grants Tier">
-          <select value={tierName} onChange={(e) => setTierName(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
-            <option value="" disabled>Select a tier</option>
-            {tiers.map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
-            {tierName && !tiers.some((t) => t.name === tierName) && <option value={tierName}>{tierName}</option>}
+          <select value={tierKey} onChange={(e) => setTierKey(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+            <option value="" disabled>Select a plan</option>
+            {tiers.map((t) => <option key={t.key} value={t.key}>{t.name}</option>)}
+            {/* The code's plan has been DELETED from the pricing config. Kept
+                selectable so editing the code doesn't silently re-point it,
+                and labelled, because such a code cannot be redeemed. */}
+            {tierKey && !tiers.some((t) => t.key === tierKey) && (
+              <option value={tierKey}>{initial.tier_name || tierKey} — no longer exists</option>
+            )}
           </select>
         </Field>
 

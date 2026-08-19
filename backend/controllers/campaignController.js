@@ -5,6 +5,7 @@ const {
 const { resolveProvider, resolveWebhookProvider } = require('../services/smsProviders');
 const { normalizeSmsPricing, maxPerSendFor } = require('../config/smsPricing');
 const { getPlatformConfig } = require('../utils/configCache');
+const { selectEventWithTier } = require('../utils/tierResolver');
 const { summarizeBalance, coverageForGuests, explainSkip, isResendable } = require('../utils/smsUsage');
 const { normalizeToE164 } = require('../utils/phone');
 const { SMS_CONSENT_TEXT_VERSION, logSmsConsentDecision } = require('../utils/smsConsent');
@@ -356,16 +357,14 @@ const handleInboundSms = async (req, res) => {
 const getSmsSettings = async (req, res, next) => {
   const { eventId } = req.params;
   try {
-    const { data: event, error } = await supabase
-      .from('events')
-      // tier_name + manual_override are NOT optional here: they are what
-      // tierGrantsSms and the grandfathering check below read. Omitting them
-      // would make every event report `access: 'locked'` and lock the SMS
-      // surfaces for the entire platform — silently, since a missing column
-      // reads as undefined rather than throwing.
-      .select('id, sms_addon_purchased_at, sms_settings, tier_name, manual_override')
-      .eq('id', eventId)
-      .single();
+    // The tier columns are NOT optional here: they are what tierGrantsSms and
+    // the grandfathering check below read. Omitting them would make every
+    // event report `access: 'locked'` and lock the SMS surfaces for the entire
+    // platform — silently, since a missing column reads as undefined rather
+    // than throwing. selectEventWithTier also keeps this page working if the
+    // tier-identity migration has not been applied yet.
+    const { data: event, error } = await selectEventWithTier(
+      supabase, eventId, 'id, sms_addon_purchased_at, sms_settings, manual_override');
     if (error || !event) {
       return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND', message: 'Event not found.' });
     }

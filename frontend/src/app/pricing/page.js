@@ -164,7 +164,13 @@ function PricingCard({ plan }) {
         {plan.name}
       </h3>
 
-      <div style={{ marginBottom: "12px", display: "flex", alignItems: "baseline", gap: "4px" }}>
+      {/* flexWrap + a nowrap period, together: four cards in a row are 252px
+          wide, and "/ event" was breaking between the slash and the word —
+          the price read "$249 /" with "event" orphaned on the next line.
+          Wrapping the whole period instead keeps it a phrase wherever it
+          lands, and wrap (rather than flex-shrink: 0) means it drops to a
+          second line rather than overflowing a card that clips. */}
+      <div style={{ marginBottom: "12px", display: "flex", alignItems: "baseline", gap: "4px", flexWrap: "wrap" }}>
         <span
           style={{
             fontFamily: "var(--font-serif)",
@@ -182,6 +188,7 @@ function PricingCard({ plan }) {
               fontFamily: "var(--font-sans)",
               fontSize: "16px",
               color: plan.highlight ? "rgba(255,255,255,0.5)" : "#5E5A52",
+              whiteSpace: "nowrap",
             }}
           >
             {plan.period}
@@ -201,8 +208,13 @@ function PricingCard({ plan }) {
         {plan.description}
       </p>
 
+      {/* `plan.href` is already computed by tierHref() from is_custom — the
+          property that actually means "this one is quoted by sales". The
+          fallback used to hardcode the NAME "Enterprise", so renaming that
+          plan silently pointed its call-to-action at /register and dropped
+          every enterprise lead into self-serve signup. */}
       <Link
-        href={plan.href || (plan.name === "Enterprise" ? "/contact" : "/register")}
+        href={plan.href || "/register"}
         className={plan.highlight ? "btn-gold" : "btn-outline"}
         style={{
           display: "block",
@@ -501,29 +513,36 @@ export default function PricingPage() {
             </p>
           )}
           {plans.length > 0 && (
-            /* This was a HARD fixed-column grid — repeat(plans.length, 1fr),
-               no fallback of any kind — on a container designed for a
-               ~1200px desktop layout. plans.length is whatever the admin has
-               configured (3, 4, however many tiers), so on a 375px phone
-               this laid out that many equal columns side by side with zero
-               reflow: each card's OWN 36–44px of padding alone already
-               exceeded the resulting column width, before a single price
-               digit or feature line was drawn. That is what "terrible on
-               mobile" was — cards squeezed into unreadable slivers, not a
-               cosmetic spacing complaint.
-               .fx-grid (see globals.css) replaces it with the same visual
-               column count on desktop — the modifier below is chosen FROM
-               the live plan count precisely because it's data-driven, not a
-               fixed constant — but its auto-fit/minmax(min(...),100%)
-               mechanism drops to fewer columns, and eventually one, purely
-               from available width. No breakpoint to keep in sync with
-               however many tiers pricing happens to have this month.
-               Clamped to [2,6] — the range globals.css actually defines
-               presets for (.fx-grid--2 … --6) — rather than trusting
-               plans.length outright; a plan count outside that range would
-               otherwise reference a modifier class that doesn't exist and
-               silently fall back to .fx-grid's own 280px default column. */
-            <div className={`fx-grid fx-grid--${Math.min(Math.max(plans.length, 2), 6)}`} style={{ alignItems: "start" }}>
+            /* THE PLAN GRID, AND WHY A PRESET ALONE WAS NOT ENOUGH.
+               This began as a hard repeat(plans.length, 1fr) with no fallback,
+               which on a phone squeezed every tier into a sliver narrower than
+               its own padding. .fx-grid fixed that: auto-fit reflows to fewer
+               columns purely from available width, with no breakpoint to keep
+               in sync with however many tiers pricing has this month. The
+               modifier is still chosen from the live plan count and clamped to
+               [2,6], the range globals.css defines presets for.
+               What it did NOT fix, and the margin is 32 pixels. Measured at a
+               1280px viewport: this section is fx-container--4xl (max-width
+               1200) with fx-section's 48px of padding a side, so the grid's
+               content box is 1104px, and the desktop column-gap resolves to
+               32px. Four .fx-grid--4 columns need 4x260 + 3x32 = 1136. It
+               misses by 32, auto-fit drops to three, and the fourth plan lands
+               alone on a second row beside an empty two-thirds of the page —
+               on every desktop, for every four-tier price list.
+               So from 1024px up, where there is definitely room, the count is
+               stated outright instead of inferred. minmax(0, 1fr) rather than
+               1fr: a track's automatic minimum is its content's min-content
+               width, and one long feature line would otherwise push the row
+               wide again. Only up to four — five equal columns inside 1104px
+               would be ~200px each, and below that auto-fit's judgement beats
+               mine.
+               `alignItems: start` is also gone. It left four cards of four
+               different heights ending at four different points, which on a
+               price list reads as a rendering fault rather than as content. */
+            <div
+              className={`fx-grid fx-grid--${Math.min(Math.max(plans.length, 2), 6)}${plans.length <= 4 ? " pricing-plan-grid" : ""}`}
+              style={{ "--plan-count": plans.length }}
+            >
               {plans.map((plan) => (
                 <PricingCard key={plan.name} plan={plan} />
               ))}
@@ -571,13 +590,24 @@ export default function PricingPage() {
                 overscroll-behavior-x (without it, swiping past the last
                 column on iOS/Android triggers the browser's own back-
                 navigation instead of just stopping). */}
+            <p className="cmp-swipe" aria-hidden="true">
+              Swipe the table sideways to see every plan
+            </p>
+
             <div className="fx-scroll-x">
             <div
               style={{
                 background: "#FFFFFF",
                 borderRadius: "16px",
                 border: "1px solid #E8E2D6",
-                overflow: "hidden",
+                /* NO overflow:hidden here, deliberately. It used to be, to
+                   clip the dark header into the rounded corners — but an
+                   ancestor with a non-visible overflow BECOMES the scrollport
+                   for any position:sticky inside it, and this one never
+                   scrolls, so the sticky feature column below was completely
+                   inert: measured at 390px it slid to -207px, i.e. straight
+                   off the screen, exactly like a static cell. The corners are
+                   rounded by the header and the last row themselves instead. */
                 minWidth: `${(plans.length + 2) * 100}px`,
               }}
             >
@@ -586,11 +616,18 @@ export default function PricingPage() {
                 style={{
                   display: "grid",
                   gridTemplateColumns: `2fr repeat(${plans.length}, 1fr)`,
-                  padding: "20px 32px",
+                  /* The row's own start padding moves ONTO the sticky cell
+                     (below), so that when the cell is stuck to the edge of the
+                     scroll port it still carries its 32px inset instead of
+                     printing text flush against the table border. */
+                  paddingBlock: "20px",
+                  paddingInlineStart: 0,
+                  paddingInlineEnd: "32px",
                   background: "#191B1E",
+                  borderRadius: "16px 16px 0 0",
                 }}
               >
-                <div style={{ fontFamily: "var(--font-sans)", fontSize: "13px", fontWeight: 700, color: "rgba(255,255,255,0.5)", letterSpacing: "1px", textTransform: "uppercase" }}>
+                <div className="cmp-feature" style={{ fontFamily: "var(--font-sans)", fontSize: "13px", fontWeight: 700, color: "rgba(255,255,255,0.5)", letterSpacing: "1px", textTransform: "uppercase", background: "#191B1E", paddingInlineStart: "32px", paddingInlineEnd: "12px" }}>
                   Feature
                 </div>
                 {plans.map((plan) => (
@@ -618,12 +655,18 @@ export default function PricingPage() {
                   style={{
                     display: "grid",
                     gridTemplateColumns: `2fr repeat(${plans.length}, 1fr)`,
-                    padding: "16px 32px",
+                    paddingBlock: "16px",
+                    paddingInlineStart: 0,
+                    paddingInlineEnd: "32px",
                     borderBottom: i < comparisonFeatures.length - 1 ? "1px solid #F0EBE2" : "none",
                     background: i % 2 === 0 ? "#FDFCF9" : "#FFFFFF",
+                    ...(i === comparisonFeatures.length - 1 ? { borderRadius: "0 0 16px 16px" } : {}),
                   }}
                 >
-                  <div style={{ fontFamily: "var(--font-sans)", fontSize: "14px", color: "#191B1E", fontWeight: 500 }}>
+                  {/* The sticky cell repeats its row's own striping — a
+                      transparent one lets the scrolling columns slide
+                      visibly underneath it. */}
+                  <div className="cmp-feature" style={{ fontFamily: "var(--font-sans)", fontSize: "14px", color: "#191B1E", fontWeight: 500, background: i % 2 === 0 ? "#FDFCF9" : "#FFFFFF", paddingInlineStart: "32px", paddingInlineEnd: "12px" }}>
                     {row.feature}
                   </div>
                   {plans.map((plan, j) => {
@@ -755,6 +798,55 @@ export default function PricingPage() {
         </section>
       </main>
       <FooterSection />
+
+      <style jsx>{`
+        /* See the note at the grid: auto-fit misses four columns by 32px in
+           this container, so the count is stated from 1024 up. Below that,
+           .fx-grid's own auto-fit does the reflowing. */
+        @media (min-width: 1024px) {
+          .pricing-plan-grid {
+            grid-template-columns: repeat(var(--plan-count), minmax(0, 1fr));
+          }
+        }
+
+        /* ── The comparison table's first column stays put ────────────────
+           The table is the one thing on this page that legitimately cannot
+           reflow, so it lives in a scroll port. But scrolling it moved the
+           FEATURE NAME off screen too, leaving a grid of ticks and dashes
+           with nothing to say what any row was — you could see that Signature
+           had a tick, but not what it had a tick FOR. Pinning the first
+           column makes the port usable instead of merely present.
+
+           Each sticky cell needs its own opaque background or the scrolling
+           columns show through it — and NOTHING between it and .fx-scroll-x
+           may set a non-visible overflow, which is why the table card no
+           longer clips (see the note there). Both halves are pinned by
+           test/pricingResponsive.test.jsx. */
+        .cmp-feature {
+          position: sticky;
+          inset-inline-start: 0;
+          z-index: 1;
+        }
+
+        /* A cut-off column header reads as a broken page, not as something
+           you can swipe — say so, on the widths where the table actually
+           overflows. */
+        .cmp-swipe {
+          font-family: var(--font-sans);
+          font-size: 13px;
+          color: #8A8579;
+          text-align: center;
+          margin: 0 0 12px;
+        }
+        .cmp-swipe::after {
+          content: " \\2192";
+        }
+        @media (min-width: 768px) {
+          .cmp-swipe {
+            display: none;
+          }
+        }
+      `}</style>
     </>
   );
 }

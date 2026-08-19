@@ -98,8 +98,11 @@ export default function SmsPlansPage() {
         const data = await res.json();
         if (!cancelled && data.success) {
           setCfg({
-            rate: Number(data.config?.sms_rate_cents_per_credit ?? 1.1),
-            markup: Number(data.config?.sms_markup_percentage ?? 172.73),
+            // The published price per segment. This page used to be handed our
+            // carrier cost and our markup and multiply them itself, which meant
+            // the endpoint had to disclose both to every organizer to show one
+            // public number.
+            listCents: Number(data.config?.sms_list_price_cents_per_segment ?? 3.0),
             pricing: data.smsPricing || null,
           });
         }
@@ -148,7 +151,7 @@ export default function SmsPlansPage() {
 
     const tier = (p.volume_discounts || []).find((t) => recommended >= t.min_segments);
     const discountPct = tier ? tier.discount_pct : 0;
-    const listCents = cfg.rate * (1 + cfg.markup / 100);
+    const listCents = cfg.listCents;
     const cents = Math.round(listCents * recommended * (1 - discountPct / 100));
 
     return {

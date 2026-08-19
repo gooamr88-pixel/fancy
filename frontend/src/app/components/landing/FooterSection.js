@@ -10,6 +10,8 @@ const footerLinks = {
     { text: 'Features', href: '/features' },
     { text: 'Check-in app', href: '/checkin-app' },
     { text: 'Pricing', href: '/pricing' },
+    // Physical, hand-finished cards — ordered over WhatsApp, not checkout.
+    { text: 'Printed invitations', href: '/printed-invitations' },
     { text: 'Integrations', href: '/integrations' },
   ],
   Solutions: [

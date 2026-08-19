@@ -8,6 +8,7 @@ import TestimonialsSection from "./components/landing/TestimonialsSection";
 import FAQSection from "./components/landing/FAQSection";
 import CTASection from "./components/landing/CTASection";
 import FooterSection from "./components/landing/FooterSection";
+import PrintedInvitationsSection from "./components/landing/PrintedInvitationsSection";
 import ScrollReveal from "./components/landing/ScrollReveal";
 import LinkNoticeBanner from "./components/landing/LinkNoticeBanner";
 import { safeJsonLdHtml } from "./utils/jsonLdSafe.mjs";
@@ -37,6 +38,12 @@ export const metadata = {
 // homepage's initial bundle rather than shipped eagerly with the above-fold sections.
 const DashboardPreviewSection = dynamic(() => import("./components/landing/DashboardPreviewSection"), {
   loading: () => <div style={{ minHeight: 900, background: "#F8F4EC" }} />,
+});
+
+// Six full-bleed invitation screenshots. Split out for the same reason: they
+// sit below the fold and must not delay the hero.
+const TemplatesShowcaseSection = dynamic(() => import("./components/landing/TemplatesShowcaseSection"), {
+  loading: () => <div style={{ minHeight: 700, background: "#191B1E" }} />,
 });
 
 const jsonLd = {
@@ -82,6 +89,13 @@ export default function Home() {
         {/* Hero — no scroll reveal (above fold, loads immediately) */}
         <HeroSection />
 
+        {/* The invitations themselves — real screenshots of the three
+            cinematic templates rendering, placed high because they are the
+            most differentiated thing here and appeared on this page nowhere. */}
+        <ScrollReveal direction="up" duration={900} threshold={0.08}>
+          <TemplatesShowcaseSection />
+        </ScrollReveal>
+
         {/* As Seen In — real, admin-managed press mentions/trust badges
             (see /admin/cms). Renders nothing until at least one is published. */}
         <PressBar />
@@ -97,6 +111,16 @@ export default function Home() {
         {/* Dashboard Preview — the showpiece */}
         <ScrollReveal direction="up" duration={900} threshold={0.08}>
           <DashboardPreviewSection />
+        </ScrollReveal>
+
+        {/* Printed Invitations — the physical cards the studio makes by hand,
+            sold by WhatsApp rather than checkout (/printed-invitations).
+            Placed after the product story rather than inside it: this is a
+            second thing we make, not a feature of the first. Renders nothing
+            until an admin publishes a piece and leaves the homepage placement
+            switched on. */}
+        <ScrollReveal direction="up" duration={900} threshold={0.08}>
+          <PrintedInvitationsSection />
         </ScrollReveal>
 
         {/* Testimonials — social proof */}

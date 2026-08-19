@@ -9,7 +9,10 @@ import Modal, { Button } from '../../_components/Modal';
 import { T, card } from '../../_components/theme';
 import { useAlert } from '../../_components/AlertContext';
 import { Field } from '../../_components/Field';
-import { supabase } from '../../../utils/supabaseClient';
+// Shared with admin/(panel)/shop — see admin/_lib/uploadImage.js. It used to be
+// a private helper in this file; a second screen needed the identical storage +
+// base64-fallback behaviour, and two copies of a fallback fail differently.
+import { makeImageUploadHandler } from '../../_lib/uploadImage';
 
 /**
  * Landing CMS — real, admin-managed testimonials + "As Seen In" press
@@ -36,46 +39,6 @@ const EMPTY_BLOG_FORM = {
 
 function deriveInitials(name) {
   return (name || '').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
-}
-
-/**
- * Shared direct-to-Supabase-storage upload handler, factored out so both
- * Testimonials (customer photo) and PressMentions (publication logo) get
- * identical upload/fallback behavior — 'event-assets' bucket, path prefixed
- * per section, graceful base64 fallback if storage is unreachable, mirroring
- * OrganizerProfile.js's own logo upload. Returns an <input type="file">
- * onChange handler bound to the caller's own field/uploading state setters.
- */
-function makeImageUploadHandler({ pathPrefix, setField, setUploading, showAlert }) {
-  return async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 8 * 1024 * 1024) { showAlert('File size exceeds 8MB. Please use a smaller file.', 'File Too Large', 'warning'); return; }
-    setUploading(true);
-    try {
-      if (!supabase) throw new Error('Supabase client is not initialized.');
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${fileExt}`;
-      const filePath = `${pathPrefix}/${fileName}`;
-      const { error: uploadErr } = await supabase.storage.from('event-assets').upload(filePath, file, { cacheControl: '3600', upsert: true });
-      if (uploadErr) throw uploadErr;
-      const { data: { publicUrl } } = supabase.storage.from('event-assets').getPublicUrl(filePath);
-      setField(publicUrl);
-    } catch (err) {
-      if (file.size > 3.5 * 1024 * 1024) {
-        showAlert("Couldn't upload to storage, and this file is too large to embed directly (max ~3.5MB). Please use a smaller file.", 'Upload Failed', 'error');
-        setUploading(false);
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = (ev) => { setField(ev.target.result); setUploading(false); };
-      reader.onerror = () => { showAlert('Failed to read the image file.', 'Upload Failed', 'error'); setUploading(false); };
-      reader.readAsDataURL(file);
-      return;
-    } finally {
-      setUploading(false);
-    }
-  };
 }
 
 function StarPicker({ value, onChange }) {

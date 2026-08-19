@@ -1,5 +1,10 @@
 'use client';
 
+// Explicit React import so this component can be rendered by the test runner,
+// which transforms JSX with the CLASSIC runtime and needs React in scope. Next
+// uses the automatic runtime and does not — which is why this was absent, and
+// why the admin panel could not be screenshotted or unit-tested at all.
+import React from 'react';
 import { T, card } from './theme';
 import Icon from '../../components/icons/Icon';
 

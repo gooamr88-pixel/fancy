@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { getPlatformConfig } = require('../utils/configCache');
+const { resolveTier, tierSnapshot } = require('../utils/tierResolver');
 const { sendEmailViaBrevo } = require('../utils/notificationService');
 const { getEventLiveTemplate, getPublicBaseUrl } = require('../utils/emailTemplates');
 
@@ -35,6 +36,9 @@ const ERROR_MESSAGES = {
   CODE_EXPIRED: 'That promo code has expired.',
   CODE_LIMIT_REACHED: 'That promo code has reached its redemption limit.',
   EVENT_ALREADY_REDEEMED: 'This event has already redeemed a promo code.',
+  // The code is valid, but the plan it grants has been deleted from the
+  // pricing config. Activating anyway used to hand out an uncapped event.
+  TIER_GONE: 'This code grants a plan that is no longer available. Please contact support.',
 };
 
 /**
@@ -68,6 +72,7 @@ async function redeemPromoCodeForEvent({ code, eventId, orgId, actorId }) {
   }
 
   const tierName = rpcData.tier_name;
+  const tierKey = rpcData.tier_key || null;
   let adminConfig;
   try {
     adminConfig = await getPlatformConfig();
@@ -75,15 +80,67 @@ async function redeemPromoCodeForEvent({ code, eventId, orgId, actorId }) {
     logger.error({ err, eventId, tierName }, '[promoCode] could not load pricing config after redemption');
     return { ok: false, error: 'CONFIG_ERROR', message: 'Could not activate your event right now. Please contact support — your code has been recorded.' };
   }
-  const tier = (adminConfig.pricing_tiers || []).find((t) => (t.name || '').toLowerCase() === (tierName || '').toLowerCase());
+  const { tier } = resolveTier(adminConfig.pricing_tiers, { key: tierKey, name: tierName });
+
+  // A code whose tier no longer exists must NOT be redeemable.
+  //
+  // It used to fall through with `tier` undefined, and every field then
+  // degraded in the customer's favour: tier_max_guests became null — which the
+  // guest-cap trigger reads as UNLIMITED — with no features and no watermark
+  // removal. So renaming a plan silently converted its promo codes into
+  // uncapped free events. Refusing is the only safe answer: the redemption has
+  // already been recorded by the RPC, so this returns an error the caller
+  // surfaces rather than activating something nobody priced.
+  if (!tier) {
+    logger.error({ eventId, tierName, tierKey, code: code.toUpperCase().trim() },
+      '[promoCode] code grants a tier that no longer exists — refusing to activate');
+
+    // UNDO the redemption the RPC already recorded.
+    //
+    // This is not tidiness. The RPC has, by this point, inserted a
+    // promo_code_redemptions row and incremented redemption_count — and that
+    // row is what makes any FUTURE redemption on this event fail with
+    // EVENT_ALREADY_REDEEMED. Leaving it means the organizer's code is spent,
+    // their event is permanently blocked from redeeming any other code, and
+    // they got nothing: the worst possible outcome of an admin deleting a
+    // plan. Best-effort, and the message below tells the truth about which
+    // way it went rather than assuming.
+    let rolledBack = false;
+    try {
+      const { error: delErr } = await supabase
+        .from('promo_code_redemptions')
+        .delete()
+        .eq('promo_code_id', rpcData.promo_code_id)
+        .eq('event_id', eventId);
+      if (!delErr) {
+        const { data: row } = await supabase
+          .from('promo_codes').select('redemption_count').eq('id', rpcData.promo_code_id).maybeSingle();
+        if (row && Number(row.redemption_count) > 0) {
+          await supabase.from('promo_codes')
+            .update({ redemption_count: Number(row.redemption_count) - 1 })
+            .eq('id', rpcData.promo_code_id);
+        }
+        rolledBack = true;
+      }
+    } catch (err) {
+      logger.error({ err, eventId, code: code.toUpperCase().trim() },
+        '[promoCode] could not roll back a redemption for a deleted tier — the code is spent and the event is blocked');
+    }
+
+    return {
+      ok: false,
+      error: 'TIER_GONE',
+      message: rolledBack
+        ? 'This code grants a plan that is no longer available, so your event was not activated. Your code has not been used up — please contact us and we will sort it out.'
+        : 'This code grants a plan that is no longer available. Please contact support quoting your event name — we will activate it manually.',
+    };
+  }
 
   const updates = {
     is_paid: true,
     status: 'active',
     manual_override: true,
-    tier_name: tier?.name || tierName,
-    tier_max_guests: Number.isFinite(tier?.max_guests) ? tier.max_guests : null,
-    tier_remove_watermark: !!tier?.remove_watermark,
+    ...tierSnapshot(tier),
     comp_reason: `Promo code: ${code.toUpperCase().trim()}`,
     updated_at: new Date().toISOString(),
   };

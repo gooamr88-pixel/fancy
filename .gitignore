@@ -30,6 +30,12 @@ logs/
 /templates/
 /envelop/
 
+# ── Screenshot scratch ──
+# Where test/shots/*.dump.jsx stages HTML and the headless-Chrome captures
+# land. Regenerable from the harness (which IS committed) and several MB of
+# PNG per pass, so the output stays out. Anchored, for the reason above.
+/.visual/
+
 # ── Android ──
 # Machine-specific: sdk.dir, and the release signing credentials.
 android/local.properties

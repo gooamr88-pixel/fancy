@@ -61,6 +61,16 @@ sudo apt install certbot python3-certbot-nginx -y
 
 1. Go to your **Supabase Dashboard** and create a new project.
 2. **Do NOT run `schema.sql` directly** — the migrations contain the complete schema with hardened RLS policies.
+
+> **Migrations go BEFORE the app is restarted, not after.** On an existing
+> install, apply any new migration first, then `git pull` + rebuild + restart.
+> `20260818000000_tier_identity.sql` is the current example: it must be applied
+> **before** anyone renames a pricing plan, because its backfill matches events
+> to plans by display name one last time — after a rename that information is
+> gone and those events cannot be reattached automatically. (The app tolerates
+> the columns being absent and falls back to the old name matching, so a
+> mis-ordered deploy is not an outage — but the backfill window closes for good
+> the first time a plan is renamed.)
 3. Apply the migration files (found in `supabase/migrations/` folder) by copy-pasting their SQL code into the SQL Editor, in chronological order, to ensure the production schema is fully up to date. This list must be regenerated from `ls supabase/migrations/ | sort` before every deploy — it silently fell ~39 files behind the repo once before, so treat "matches `ls supabase/migrations/`" as the actual source of truth, not this file:
    - `20260607000000_init_schema.sql`
    - `20260607100000_schema_completion.sql`

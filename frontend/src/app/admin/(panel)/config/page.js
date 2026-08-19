@@ -886,7 +886,15 @@ export default function ConfigPage() {
     if (pricingTiers.length <= 1) return;
     const tier = pricingTiers[idx];
     const ok = await showConfirm(
-      `Delete the "${tier?.name || 'this'}" tier? This takes effect once you save, and any event already on this tier keeps its previously-granted limits but the tier itself will no longer exist to select or reference.`,
+      `Delete the "${tier?.name || 'this'}" tier? This takes effect once you save.
+
+` +
+      `Events already on it keep the guest cap AND the features they paid for — those were snapshotted at purchase. ` +
+      `But the plan disappears from checkout, nobody can be upgraded onto it, and any promo code granting it stops working ` +
+      `until you point it at another plan.
+
+` +
+      `To rename it instead, edit the Tier Name field — that is safe and keeps every event attached.`,
       'Delete Pricing Tier',
       'danger'
     );
@@ -1191,6 +1199,19 @@ export default function ConfigPage() {
                     <div className="cfg-responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
                       <Field label="Tier Name">
                         <input value={currentTier.name} onChange={e => handleTierChange(selectedTierIdx, 'name', e.target.value)} style={inputStyle} />
+                        {/* Renaming used to be destructive and silent: a plan
+                            had no identity beyond this text, so editing it
+                            detached every event that had bought the plan —
+                            revoking their paid features, breaking upgrade
+                            pricing and turning that plan's promo codes into
+                            unlimited-guest grants. Plans now carry a stable
+                            key, shown here so it is visible that the name is
+                            only a label. */}
+                        <p style={{ fontSize: 11, color: T.text500, margin: '6px 0 0', lineHeight: 1.5 }}>
+                          {currentTier.key
+                            ? <>Display name only — safe to change. Events stay attached to this plan by its ID <code style={{ fontFamily: 'monospace', color: T.text900 }}>{currentTier.key}</code>.</>
+                            : <>This plan gets its permanent ID when you save.</>}
+                        </p>
                       </Field>
                       <Field label={currentTier.is_custom ? 'Price (cents - Custom)' : 'Price (cents)'}>
                         <input type="number" value={currentTier.price_cents} disabled={currentTier.is_custom} onChange={e => handleTierChange(selectedTierIdx, 'price_cents', e.target.value)} style={{ ...inputStyle, opacity: currentTier.is_custom ? 0.5 : 1 }} />

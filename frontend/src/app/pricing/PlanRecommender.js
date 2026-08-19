@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { formatTierPrice, tierCta, tierHref, tierGuestLine } from "../utils/usePublicPricing";
 
@@ -133,7 +133,13 @@ export default function PlanRecommender({ tiers }) {
               onChange={(e) => setGuestCount(Math.max(1, Number(e.target.value) || 1))}
               style={{
                 width: "100px", flexShrink: 0, boxSizing: "border-box", padding: "8px 12px", borderRadius: "8px",
-                border: "1.5px solid #E8E2D6", fontFamily: "var(--font-sans)", fontSize: "14px",
+                border: "1.5px solid #E8E2D6", fontFamily: "var(--font-sans)",
+                /* 16px, not 14: iOS Safari ZOOMS the whole page in when a
+                   focused field's text is under 16px, and never zooms back
+                   out. This is the only text input on the pricing page, and
+                   it sits mid-page — one tap and the visitor is stranded at
+                   1.3x with the plan cards off screen. */
+                fontSize: "16px",
                 color: "#191B1E", outline: "none",
               }}
             />
@@ -183,6 +189,12 @@ export default function PlanRecommender({ tiers }) {
             padding: "28px 26px",
             display: "flex",
             flexDirection: "column",
+            /* Side by side, this panel stretches to the height of the input
+               column — which is driven by however many feature chips the
+               tiers happen to produce — and left a ~200px void under the
+               recommendation. Centring costs nothing when the column stacks
+               on a phone, where the panel is only as tall as its contents. */
+            justifyContent: "center",
           }}
         >
           {recommended ? (
@@ -240,7 +252,12 @@ export default function PlanRecommender({ tiers }) {
       </div>
 
       <style jsx>{`
-        @media (max-width: 767.98px) {
+        /* Collapses at 1024, not 768. Two columns inside a 768px page leaves
+           each about 330px: the feature chips wrap to one per line and stack
+           into a tall ragged column, while the recommendation beside it —
+           which is short — sits in its own half-empty box. Stacked, the chips
+           get the full width and flow three to a row. */
+        @media (max-width: 1023.98px) {
           .pr-grid { grid-template-columns: 1fr !important; gap: 28px !important; }
         }
         @media (max-width: 639.98px) {
