@@ -23,28 +23,40 @@ import { useModalA11y } from "../../hooks/useModalA11y";
    ═══════════════════════════════════════════════════════════ */
 
 /* Primary navigation links — shared by desktop nav + mobile menu.
-   "Home" links back to the landing page; the rest are the key
-   marketing pages that live under /src/app.
-   "Templates" is deliberately absent: the gallery page itself has been
-   retired (see next.config.mjs's redirect), so linking to it here would
-   point at a dead end.
-   "Blog" was real, admin-authored content (see admin/(panel)/cms and
-   /blog's own real fetch) sitting behind a URL nobody was ever given —
-   it had no entry point anywhere on the site. Listed here, between the
-   product pages and Company, matching where it sits in FooterSection. */
+
+   SIX, down from nine. The bar carried Home, Features, Door App, Pricing,
+   Printed Cards, Solutions, Blog, About and Contact, plus Log In and a gold
+   Get Started button: eleven targets competing at 14px, which is not a
+   navigation bar, it is a list. Nine of them also had to fit beside the
+   logo before the mobile menu takes over, which is why they were set so
+   small in the first place.
+
+   What went, and where it went instead:
+     • "Home" — the logo to its left already links there. A Home item beside
+       a home-linking logo is one of two things doing the same job.
+     • "About" and "Contact" — both are in the footer's Company column, and
+       Contact is also linked from the FAQ band ("Talk to us"), which is
+       where somebody actually forms the intention to ask something.
+
+   What stayed, and why each earns a slot:
+     • Features and Pricing — the two questions every visitor has.
+     • Printed Cards — a SECOND PRODUCT LINE, not a support page. Nothing in
+       the app leads to it; if it is not here it is only discoverable from
+       the homepage teaser, which itself disappears when the catalogue is
+       empty (see utils/shopLinks.js).
+     • Door App — the hardware story, and the one feature with a page of its
+       own.
+     • Solutions — the segment pages (planners / venues / corporate).
+     • Blog — real admin-authored content (admin/(panel)/cms) that sat behind
+       a URL nobody was ever given. Removing it from here would put it back
+       in that state for anyone who does not read footers. */
 const NAV_LINKS = [
-  { label: "Home", href: "/" },
   { label: "Features", href: "/features" },
-  { label: "Door App", href: "/checkin-app" },
   { label: "Pricing", href: "/pricing" },
-  // The physical, hand-finished cards. Sold by WhatsApp rather than checkout —
-  // see utils/shopLinks.js. Kept in the main nav rather than buried in the
-  // footer because it is a second product line, not a support page.
   { label: "Printed Cards", href: "/printed-invitations" },
+  { label: "Door App", href: "/checkin-app" },
   { label: "Solutions", href: "/solutions" },
   { label: "Blog", href: "/blog" },
-  { label: "About", href: "/about" },
-  { label: "Contact", href: "/contact" },
 ];
 
 export default function Navbar() {

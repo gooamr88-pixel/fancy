@@ -342,8 +342,17 @@ describe('wiring', () => {
   });
 
   it('the navbar and footer both link to it', () => {
-    expect(read('src/app/components/landing/Navbar.js')).toContain('/printed-invitations');
-    expect(read('src/app/components/landing/FooterSection.js')).toContain('/printed-invitations');
+    /* Either the literal path or the shared SHOP_PATH constant counts. The
+       footer now imports SHOP_PATH (and SHOP_LABEL) from utils/shopLinks
+       rather than writing the string out, which is what that module exists
+       for — four surfaces used to hold four copies of this path. A test that
+       demanded the literal would push the next person back into copying it. */
+    const linksToShop = (rel) => {
+      const src = read(rel);
+      return src.includes('/printed-invitations') || /\bSHOP_PATH\b/.test(src);
+    };
+    expect(linksToShop('src/app/components/landing/Navbar.js')).toBe(true);
+    expect(linksToShop('src/app/components/landing/FooterSection.js')).toBe(true);
   });
 
   it('the homepage renders the teaser and the dashboard renders the offer card', () => {

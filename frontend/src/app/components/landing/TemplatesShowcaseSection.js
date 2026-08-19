@@ -110,7 +110,14 @@ export default function TemplatesShowcaseSection() {
     <section className="tss" aria-labelledby="tss-title">
       <div aria-hidden className="tss-glow" />
 
-      <div className="fx-container fx-container--lg fx-gutter tss-inner">
+      {/* --4xl (1200px), not --lg. .fx-container--lg is 720px — a READING
+          measure — and this is an alternating two-column layout of photographs
+          and copy. At 720px each row's art track was ~390px for two phones
+          side by side, so both were pinned at their 220px cap with the copy
+          crushed beside them, and the section ran ~2,400px tall to fit three
+          of those. The wider measure makes each row SHORTER, which is most of
+          this band's height saving. */}
+      <div className="fx-container fx-container--4xl fx-gutter tss-inner">
         <header className="tss-head">
           <span className="tss-kicker">The invitations</span>
           <h2 id="tss-title" className="tss-title">
@@ -141,7 +148,10 @@ export default function TemplatesShowcaseSection() {
           position: relative;
           overflow: hidden;
           background: linear-gradient(178deg, #14171a 0%, #191b1e 45%, #211e1a 100%);
-          padding-block: clamp(64px, 9vw, 118px);
+          /* Was clamp(64px, 9vw, 118px) — 236px of vertical padding on a
+             desktop, on the tallest section of the page. --fx-pad-y-sm is the
+             band rhythm every other section on this page now uses. */
+          padding-block: var(--fx-pad-y-sm);
         }
         /* One off-canvas warm light. A flat dark fill has no light in it, and
            these photographs are all lit from somewhere. */
@@ -181,8 +191,8 @@ export default function TemplatesShowcaseSection() {
 
         .tss-rows {
           display: grid;
-          gap: clamp(56px, 8vw, 104px);
-          margin-top: clamp(44px, 6vw, 76px);
+          gap: clamp(40px, 5vw, 68px);
+          margin-top: clamp(30px, 3.5vw, 48px);
         }
 
         .tss-row {
@@ -214,7 +224,11 @@ export default function TemplatesShowcaseSection() {
         }
         .tss-phone {
           flex: 0 1 auto;
-          width: min(46%, 220px);
+          /* 250px, up from 220px: the art track is ~630px wide inside the
+             --4xl container instead of ~390px inside --lg, so the pair no
+             longer has to be shrunk to fit beside the copy. The images are
+             468px wide as shipped, so this is still comfortably past 2x. */
+          width: min(46%, 250px);
           border-radius: 20px;
           padding: 6px;
           background: linear-gradient(150deg, #33363b, #191b1e 55%, #101214);
@@ -233,7 +247,7 @@ export default function TemplatesShowcaseSection() {
         /* The opened invitation sits a little lower than the cover, so the
            pair reads as a sequence rather than as two unrelated pictures. */
         @media (min-width: 768px) {
-          .tss-phone--hero { margin-top: 42px; }
+          .tss-phone--hero { margin-top: 30px; }
         }
 
         /* ── The words ── */
@@ -306,7 +320,7 @@ export default function TemplatesShowcaseSection() {
           flex-wrap: wrap;
           gap: 14px;
           justify-content: center;
-          margin-top: clamp(48px, 7vw, 84px);
+          margin-top: clamp(34px, 4vw, 54px);
         }
       `}</style>
 

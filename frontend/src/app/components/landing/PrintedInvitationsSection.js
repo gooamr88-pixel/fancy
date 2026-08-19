@@ -1,6 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { SHOP_PATH, priceLine, coverImage } from '../../utils/shopLinks';
+import { C as TOKENS } from './landingTokens';
 
 /**
  * PRINTED INVITATIONS — the homepage teaser.
@@ -24,16 +25,11 @@ const API_URL = process.env.INTERNAL_API_URL
   || process.env.NEXT_PUBLIC_API_URL
   || 'http://localhost:5000/api/v1';
 
-const C = {
-  ivory: '#F8F4EC',
-  charcoal: '#191B1E',
-  gold: '#B8944F',
-  goldSoft: '#D7BE80',
-  goldCta: '#8A6D34',
-  stone: '#5E5A52',
-  border: '#E8E2D6',
-  white: '#FFFFFF',
-};
+/* The palette was a seventh private copy of the same eight hex values. It now
+   comes from landingTokens.js like every other band; `goldCta` was character
+   for character the token now called `goldInk` (the darkened gold that clears
+   4.5:1 as text on a light ground), so this is a rename, not a restyle. */
+const C = { ...TOKENS, goldCta: TOKENS.goldInk };
 
 async function fetchShop() {
   try {
@@ -117,10 +113,13 @@ export default async function PrintedInvitationsSection() {
       </div>
 
       <style>{`
-        .pis { background: ${C.white}; padding: clamp(64px, 9vw, 108px) 0; }
+        /* padding was clamp(64px, 9vw, 108px) — 216px of vertical air on a
+           desktop for a three-card teaser. --fx-pad-y-sm is the rhythm the
+           rest of the page now keeps. */
+        .pis { background: ${C.white}; padding: var(--fx-pad-y-sm) 0; }
         .pis-head {
           display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-          gap: clamp(20px, 4vw, 56px); align-items: end; margin-bottom: 44px;
+          gap: clamp(20px, 4vw, 56px); align-items: end; margin-bottom: 32px;
         }
         @media (max-width: 800px) { .pis-head { grid-template-columns: minmax(0, 1fr); align-items: start; } }
         .pis-kicker {
@@ -133,7 +132,7 @@ export default async function PrintedInvitationsSection() {
         }
         .pis-lede { font-size: 15.5px; line-height: 1.8; color: ${C.stone}; margin: 0; }
 
-        .pis-grid { margin-bottom: 40px; }
+        .pis-grid { margin-bottom: 30px; }
         .pis-card { display: block; text-decoration: none; min-width: 0; }
         .pis-art {
           position: relative; aspect-ratio: 4 / 5; overflow: hidden;

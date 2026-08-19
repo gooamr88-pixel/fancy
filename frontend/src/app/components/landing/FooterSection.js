@@ -1,123 +1,144 @@
 'use client';
 
-import { useState } from 'react';
+/* React itself, not just the hook. This file's JSX is compiled by the test
+   runner with esbuild's CLASSIC transform, which emits React.createElement and
+   needs React in scope; Next's automatic runtime injects it, so the omission
+   is invisible in production and throws the moment a test renders the footer. */
+import React, { useState } from 'react';
 import Link from 'next/link';
+import { C, ON_DARK } from './landingTokens';
+import { SHOP_PATH, SHOP_LABEL } from '../../utils/shopLinks';
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE FOOTER.
+
+   WHAT WAS WRONG WITH THE OLD ONE
+
+   One six-track grid held everything: the brand blurb, four link lists, and
+   the newsletter form. Six tracks inside a 1200px container leaves each about
+   170px, so the newsletter's input and its "Subscribe" button shared a column
+   narrower than the button's own text — it survived only because that one
+   track was given 1.5fr, which then squeezed the four link lists. Below
+   1024px the whole thing collapsed to two columns, turning six lists into a
+   six-row tower with the newsletter stranded at the bottom.
+
+   It also omitted the things people come to a footer FOR: no email address
+   (info@fancyrsvp.com appears on /contact and /careers but not here), no
+   physical link to the door app, and no route to the printed cards except
+   through the Product list.
+
+   WHAT IT IS NOW
+
+   Three deliberate rows instead of one overloaded grid:
+
+     1. A full-width band: who we are on the left, the newsletter on the
+        right. The form finally gets a whole half of the page, so the input
+        and button sit side by side at every width down to 320px.
+     2. FOUR link columns — Product, Solutions, Company, Support — which fit
+        a 1200px container at ~280px each and step 4 → 2 → 1 through .fx-grid
+        with no breakpoints to keep in sync.
+     3. A bottom bar: copyright, the corporate identity sentence, and social.
+
+   CARRIED OVER DELIBERATELY, DO NOT "SIMPLIFY" BACK:
+
+   • Link colour is an INLINE style, not a scoped `<style jsx>` rule. When
+     these were styled by a scoped className on a next/link, the colour rule
+     failed to attach in the production Turbopack build and every footer link
+     rendered near-black on a near-black background — invisible, and only in
+     production. Hover is React state for the same reason.
+   • The column layout is driven by a real class, never `nth-child`. The old
+     rules targeted `footer > div:nth-child(2) > div:first-child`, so
+     inserting anything into the footer silently stopped the mobile collapse
+     from applying and left six fixed columns on a 320px phone.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const CONTACT_EMAIL = 'info@fancyrsvp.com';
 
 const footerLinks = {
-  // 'Templates' removed: the gallery page is retired (redirected in
-  // next.config.mjs), so this list no longer links to it.
   Product: [
     { text: 'Features', href: '/features' },
-    { text: 'Check-in app', href: '/checkin-app' },
     { text: 'Pricing', href: '/pricing' },
-    // Physical, hand-finished cards — ordered over WhatsApp, not checkout.
-    { text: 'Printed invitations', href: '/printed-invitations' },
+    { text: 'Check-in app', href: '/checkin-app' },
+    { text: SHOP_LABEL, href: SHOP_PATH },
     { text: 'Integrations', href: '/integrations' },
   ],
   Solutions: [
-    { text: 'For Planners', href: '/solutions/planners' },
-    { text: 'For Venues', href: '/solutions/venues' },
-    { text: 'For Corporate', href: '/solutions/corporate' },
+    { text: 'For planners', href: '/solutions/planners' },
+    { text: 'For venues', href: '/solutions/venues' },
+    { text: 'For corporate', href: '/solutions/corporate' },
   ],
   Company: [
     { text: 'About', href: '/about' },
     { text: 'Blog', href: '/blog' },
     { text: 'Careers', href: '/careers' },
+    { text: 'Contact', href: '/contact' },
   ],
   Support: [
-    { text: 'Help Center', href: '/help' },
-    { text: 'Contact', href: '/contact' },
+    { text: 'Help centre', href: '/help' },
     { text: 'Privacy', href: '/privacy' },
     { text: 'Terms', href: '/terms' },
-    { text: 'SMS Opt-In & Consent', href: '/sms-opt-in' },
+    { text: 'SMS opt-in & consent', href: '/sms-opt-in' },
   ],
 };
 
 function FooterLink({ text, href }) {
-  // Color is inline (not scoped `<style jsx>`) — when this styled a `next/link`
-  // via a scoped className, the color rule silently failed to attach in
-  // production (Turbopack build), leaving every footer link the same near-
-  // black as the background and effectively invisible. Hover/focus state is
-  // plain React state for the same reason — no dependency on style scoping
-  // that wraps a Link.
+  // Inline colour, not a scoped rule — see the header. A scoped className on
+  // a next/link is exactly the thing that once made this list invisible in
+  // production only.
   const [active, setActive] = useState(false);
   return (
-    <Link
-      href={href}
-      onMouseEnter={() => setActive(true)}
-      onMouseLeave={() => setActive(false)}
-      onFocus={() => setActive(true)}
-      onBlur={() => setActive(false)}
-      style={{
-        fontFamily: 'var(--font-sans)',
-        fontSize: '14px',
-        textDecoration: 'none',
-        lineHeight: '2.2',
-        display: 'block',
-        color: active ? '#B8944F' : 'rgba(255, 255, 255, 0.6)',
-        transition: 'color 0.25s ease',
-      }}
-    >
-      {text}
-    </Link>
+    <li>
+      <Link
+        href={href}
+        onMouseEnter={() => setActive(true)}
+        onMouseLeave={() => setActive(false)}
+        onFocus={() => setActive(true)}
+        onBlur={() => setActive(false)}
+        style={{
+          fontFamily: 'var(--font-sans)',
+          fontSize: '14px',
+          textDecoration: 'none',
+          lineHeight: 1.6,
+          display: 'inline-block',
+          paddingBlock: '5px',
+          color: active ? C.goldSoft : 'rgba(255, 255, 255, 0.62)',
+          transition: 'color 0.22s ease',
+        }}
+      >
+        {text}
+      </Link>
+    </li>
   );
 }
 
-function SocialIcon({ children, label, href = '#' }) {
+function SocialIcon({ children, label, href }) {
   return (
     <a
       href={href}
       target="_blank"
       rel="noopener noreferrer"
       aria-label={label}
-      className="social-icon"
-      style={{
-        width: '36px',
-        height: '36px',
-        borderRadius: '50%',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
+      className="foot-social"
     >
       <svg
-        className="social-icon-svg"
         width="16"
         height="16"
         viewBox="0 0 24 24"
         fill="none"
-        stroke="rgba(255, 255, 255, 0.5)"
+        stroke="currentColor"
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
+        aria-hidden="true"
       >
         {children}
       </svg>
 
-      <style jsx>{`
-        .social-icon {
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          background: transparent;
-          transition: all 0.25s ease;
-        }
-        .social-icon:hover,
-        .social-icon:focus-visible {
-          border-color: #B8944F;
-          background: rgba(184, 148, 79, 0.1);
-        }
-        .social-icon-svg {
-          transition: stroke 0.25s ease;
-        }
-        .social-icon:hover .social-icon-svg,
-        .social-icon:focus-visible .social-icon-svg {
-          stroke: #B8944F;
-        }
-      `}</style>
     </a>
   );
 }
 
-export default function FooterSection() {
+function Newsletter() {
   const [emailValue, setEmailValue] = useState('');
   const [emailFocused, setEmailFocused] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
@@ -149,306 +170,372 @@ export default function FooterSection() {
   };
 
   return (
-    <footer
-      style={{
-        background: '#191B1E',
-        padding: '0',
-      }}
-    >
-      {/* Gold shimmer divider */}
+    <div className="foot-news">
+      <h2 className="foot-news__title">Event planning notes, occasionally.</h2>
+      <p className="foot-news__body">
+        What we have learned running other people&apos;s events, plus what is new
+        here. No more than once a month.
+      </p>
+
+      <div className="foot-news__row">
+        <input
+          type="email"
+          autoComplete="email"
+          placeholder="you@example.com"
+          aria-label="Email address for the newsletter"
+          value={emailValue}
+          onChange={(e) => setEmailValue(e.target.value)}
+          onFocus={() => setEmailFocused(true)}
+          onBlur={() => setEmailFocused(false)}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleSubscribe(); }}
+          style={{
+            // Inline because the focus ring is React state; keeping the rest
+            // of the box here too avoids one property living in each place.
+            flex: '1 1 190px',
+            minWidth: 0,
+            padding: '12px 14px',
+            borderRadius: '8px',
+            border: `1px solid ${emailFocused ? C.gold : 'rgba(255,255,255,0.14)'}`,
+            background: 'rgba(255, 255, 255, 0.05)',
+            color: '#FFFFFF',
+            fontFamily: 'var(--font-sans)',
+            // 16px, not 13px. Anything under 16px makes iOS Safari ZOOM the
+            // whole page on focus and leave it zoomed — the single worst
+            // mobile bug this codebase has shipped, fixed across 264 inputs.
+            fontSize: '16px',
+            outline: 'none',
+            transition: 'border-color 0.22s ease',
+          }}
+        />
+        <button
+          type="button"
+          onClick={handleSubscribe}
+          disabled={subscribed || subscribing}
+          className={`foot-news__btn${subscribed ? ' foot-news__btn--done' : ''}`}
+        >
+          {subscribed ? 'Subscribed' : subscribing ? 'Subscribing…' : 'Subscribe'}
+        </button>
+      </div>
+
+      {subscribeError && <p className="foot-news__err">{subscribeError}</p>}
+
+    </div>
+  );
+}
+
+export default function FooterSection() {
+  return (
+    <footer className="foot">
       <div className="gold-shimmer-line" />
 
-      {/* Main footer content.
-          --fx-pad-x pinned to 24px so .fx-gutter keeps the footer's own
-          tighter gutter rather than the 48px page default, while still
-          picking up the landscape safe-area inset via its max(). */}
-      <div
-        className="fx-container fx-container--4xl fx-gutter"
-        style={{ paddingTop: '72px', '--fx-pad-x': '24px' }}
-      >
-        {/* gridTemplateColumns and gap live in <style jsx> below, NOT here:
-            they have to change at two breakpoints, and a rule can never
-            override an inline style. This grid keeps its asymmetric track
-            sizing (the brand blurb and the newsletter form genuinely need
-            more room than a link list) rather than moving to .fx-grid,
-            which would equalise them and leave the email input + Subscribe
-            button sharing a 200px column. The minmax(0,…) floors are what
-            keep it from overflowing, and they were already correct. */}
-        <div className="footer-grid">
-          {/* Brand column */}
-          <div>
-            <div
-              style={{
-                fontFamily: 'var(--font-serif)',
-                fontSize: '24px',
-                fontWeight: '600',
-                marginBottom: '16px',
-                lineHeight: '1',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-              }}
-            >
-              <svg
-                width="24"
-                height="20"
-                viewBox="0 0 38 32"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                style={{ flexShrink: 0 }}
-              >
-                <rect x="2" y="8" width="34" height="22" rx="2" stroke="#B8944F" strokeWidth="2" fill="none" />
-                <path d="M2 10L19 22L36 10" stroke="#B8944F" strokeWidth="2" fill="none" strokeLinejoin="round" />
-                <path d="M4 8L19 0L34 8" stroke="#B8944F" strokeWidth="2" fill="none" strokeLinejoin="round" />
+      <div className="fx-container fx-container--4xl fx-gutter foot-inner">
+        {/* ── 1. Who we are, and the newsletter ── */}
+        <div className="foot-top">
+          <div className="foot-brand">
+            <Link href="/" className="foot-logo" aria-label="Fancy RSVP, home">
+              <svg width="26" height="22" viewBox="0 0 38 32" fill="none" aria-hidden="true">
+                <rect x="2" y="8" width="34" height="22" rx="2" stroke={C.gold} strokeWidth="2" />
+                <path d="M2 10L19 22L36 10" stroke={C.gold} strokeWidth="2" strokeLinejoin="round" />
+                <path d="M4 8L19 0L34 8" stroke={C.gold} strokeWidth="2" strokeLinejoin="round" />
               </svg>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
-                <span style={{ color: '#B8944F', fontFamily: 'var(--font-script)', fontWeight: 400 }}>Fancy</span>
-                <span style={{ color: '#FFFFFF' }}> RSVP</span>
-              </div>
-            </div>
-            <p
-              style={{
-                fontFamily: 'var(--font-sans)',
-                fontSize: '14px',
-                color: 'rgba(255, 255, 255, 0.65)',
-                lineHeight: '1.7',
-                maxWidth: '240px',
-              }}
-            >
-              Premium RSVP branding for weddings and elegant events.
+              <span className="foot-logo__word">
+                <span className="foot-logo__fancy">Fancy</span>
+                <span className="foot-logo__rsvp">RSVP</span>
+              </span>
+            </Link>
+
+            <p className="foot-blurb">
+              Digital invitations, guest lists, seating and door check-in for
+              weddings and events people remember.
             </p>
+
+            <a href={`mailto:${CONTACT_EMAIL}`} className="foot-mail">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="2" y="4" width="20" height="16" rx="2" />
+                <path d="M22 7l-8.97 5.7a2 2 0 0 1-2.06 0L2 7" />
+              </svg>
+              {CONTACT_EMAIL}
+            </a>
           </div>
 
-          {/* Link columns */}
-          {Object.entries(footerLinks).map(([category, links]) => (
-            <div key={category}>
-              <h4
-                style={{
-                  fontFamily: 'var(--font-sans)',
-                  fontSize: '12px',
-                  fontWeight: '700',
-                  letterSpacing: '2px',
-                  textTransform: 'uppercase',
-                  color: 'rgba(255, 255, 255, 0.7)',
-                  marginBottom: '20px',
-                }}
-              >
-                {category}
-              </h4>
-              {links.map((link) => (
-                <FooterLink key={link.text} text={link.text} href={link.href} />
-              ))}
-            </div>
-          ))}
-
-          {/* Newsletter column */}
-          <div>
-            <h4
-              style={{
-                fontFamily: 'var(--font-sans)',
-                fontSize: '12px',
-                fontWeight: '700',
-                letterSpacing: '2px',
-                textTransform: 'uppercase',
-                color: 'rgba(255, 255, 255, 0.7)',
-                marginBottom: '20px',
-              }}
-            >
-              Newsletter
-            </h4>
-            <p
-              style={{
-                fontFamily: 'var(--font-sans)',
-                fontSize: '14px',
-                color: 'rgba(255, 255, 255, 0.65)',
-                lineHeight: '1.6',
-                marginBottom: '16px',
-              }}
-            >
-              Get tips on event planning and product updates.
-            </p>
-            <div
-              style={{
-                display: 'flex',
-                gap: '8px',
-              }}
-            >
-              <input
-                type="email"
-                autoComplete="email"
-                placeholder="Enter your email"
-                aria-label="Email address for newsletter"
-                value={emailValue}
-                onChange={(e) => setEmailValue(e.target.value)}
-                onFocus={() => setEmailFocused(true)}
-                onBlur={() => setEmailFocused(false)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleSubscribe(); }}
-                style={{
-                  flex: 1,
-                  padding: '10px 14px',
-                  borderRadius: '8px',
-                  border: `1px solid ${emailFocused ? '#B8944F' : 'rgba(255, 255, 255, 0.12)'}`,
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  color: '#FFFFFF',
-                  fontFamily: 'var(--font-sans)',
-                  fontSize: '13px',
-                  outline: 'none',
-                  transition: 'border-color 0.25s ease',
-                  minWidth: '0',
-                }}
-              />
-              <button
-                onClick={handleSubscribe}
-                disabled={subscribed || subscribing}
-                className={`footer-subscribe-btn${subscribed ? ' footer-subscribe-btn-done' : ''}`}
-                style={{
-                  padding: '10px 18px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  color: '#FFFFFF',
-                  fontFamily: 'var(--font-sans)',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  cursor: (subscribed || subscribing) ? 'default' : 'pointer',
-                  opacity: subscribing ? 0.7 : 1,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {subscribed ? '✓ Subscribed' : subscribing ? 'Subscribing…' : 'Subscribe'}
-              </button>
-            </div>
-            {subscribeError && (
-              <p
-                style={{
-                  fontFamily: 'var(--font-sans)',
-                  fontSize: '12px',
-                  color: '#E88F8F',
-                  marginTop: '8px',
-                  marginBottom: 0,
-                }}
-              >
-                {subscribeError}
-              </p>
-            )}
-          </div>
+          <Newsletter />
         </div>
 
-        {/* Bottom bar */}
-        <div
-          style={{
-            marginTop: '60px',
-            borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-            padding: '28px 0',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '16px',
-          }}
+        {/* ── 2. The links: four columns, stepping 4 → 2 → 1 on their own ── */}
+        <nav
+          className="foot-links fx-grid"
+          aria-label="Footer"
+          /* 150px, not 210. The four groups hold 16 links between them, and
+             at 210px .fx-grid could only fit ONE track on a 390px phone —
+             a 900px tower of link text at the bottom of an already long
+             page. At 150px the arithmetic is (350 + 28) / 178 = 2.1, so a
+             phone gets two columns and a 320px screen still gets one.
+             Desktop is unaffected: auto-fit COLLAPSES the tracks it cannot
+             fill, so four groups render as four equal columns however many
+             tracks would technically fit. */
+          style={{ '--fx-col': '150px', '--fx-gap': '28px' }}
         >
-          <div>
-            <p
-              style={{
-                fontFamily: 'var(--font-sans)',
-                fontSize: '13px',
-                color: 'rgba(255, 255, 255, 0.7)',
-                marginBottom: '6px',
-              }}
-            >
-              © {new Date().getFullYear()} 16941460 Canada Corp. o/a Via Marketing. All rights reserved.
+          {Object.entries(footerLinks).map(([category, links]) => (
+            <div key={category} className="foot-col">
+              <h3 className="foot-col__head">{category}</h3>
+              <ul className="foot-col__list">
+                {links.map((link) => (
+                  <FooterLink key={link.text} text={link.text} href={link.href} />
+                ))}
+              </ul>
+            </div>
+          ))}
+        </nav>
+
+        {/* ── 3. Legal and social ── */}
+        <div className="foot-bottom">
+          <div className="foot-legal">
+            <p className="foot-legal__line">
+              © {new Date().getFullYear()} 16941460 Canada Corp. o/a Via Marketing.
+              All rights reserved.
             </p>
-            <p
-              style={{
-                fontFamily: 'var(--font-sans)',
-                fontSize: '12px',
-                color: 'rgba(255, 255, 255, 0.45)',
-                lineHeight: 1.6,
-                maxWidth: '520px',
-              }}
-            >
+            <p className="foot-legal__fine">
               Fancy RSVP is owned and operated by 16941460 Canada Corp., operating as{' '}
-              <a
-                href="https://viamarketing.ca"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: 'rgba(255, 255, 255, 0.6)', textDecoration: 'underline' }}
-              >
-                Via Marketing
-              </a>
+              <a href="https://viamarketing.ca" target="_blank" rel="noopener noreferrer">Via Marketing</a>
               {' '}· 2488 Selord Court, Mississauga, Ontario L5J 1P7, Canada
             </p>
           </div>
 
-          {/* Social icons — Via Marketing's actual accounts */}
-          <div style={{ display: 'flex', gap: '10px' }}>
-            {/* Instagram */}
-            <SocialIcon label="Instagram" href="https://www.instagram.com/viamarketing.ca/">
+          <div className="foot-social-row">
+            <SocialIcon label="Fancy RSVP on Instagram" href="https://www.instagram.com/viamarketing.ca/">
               <rect x="2" y="2" width="20" height="20" rx="5" />
               <circle cx="12" cy="12" r="5" />
               <circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" stroke="none" />
             </SocialIcon>
-
-            {/* Facebook */}
-            <SocialIcon label="Facebook" href="https://www.facebook.com/viamarketing.ca">
+            <SocialIcon label="Fancy RSVP on Facebook" href="https://www.facebook.com/viamarketing.ca">
               <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3Z" />
             </SocialIcon>
           </div>
         </div>
       </div>
 
-      <style jsx>{`
-        input::placeholder {
-          color: rgba(255, 255, 255, 0.45);
+
+      {/* ONE PLAIN STYLE ELEMENT, for the whole component.
+
+          Two separate reasons, both of which this repo has already paid for:
+
+          1. A <style jsx> block inside a NESTED, non-default-export component
+             does not reliably compile in this build. AGENTS.md names the two
+             cases that proved it, and one of them is FooterLink IN THIS FILE.
+             SocialIcon and Newsletter are the same pattern, and their CSS
+             used to live inside them.
+
+          2. styled-jsx stamps its hash class only onto lowercase intrinsic
+             elements, so a scoped rule aimed at a class on a next/link
+             compiles to .foo.jsx-hash and matches NOTHING. That is the bug
+             that made every alert on this platform invisible, and the one
+             that made this footer's links unreadable in production.
+
+          A plain <style> has neither failure mode. The scoping it gives up is
+          replaced by a prefix on every class name, which is what
+          PrintedInvitationsSection already does. */}
+      <style>{`
+        .foot-social {
+          width: 38px;
+          height: 38px;
+          border-radius: 50%;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border: 1px solid ${ON_DARK.hairline};
+          background: transparent;
+          color: rgba(255, 255, 255, 0.5);
+          transition: color 0.22s ease, border-color 0.22s ease, background 0.22s ease;
         }
-        .footer-subscribe-btn {
-          background: linear-gradient(135deg, #B8944F 0%, #D7BE80 100%);
-          box-shadow: 0 2px 8px rgba(184, 148, 79, 0.2);
-          transition: all 0.25s ease;
+        .foot-social:hover,
+        .foot-social:focus-visible {
+          color: ${C.goldSoft};
+          border-color: ${C.gold};
+          background: rgba(184, 148, 79, 0.12);
         }
-        .footer-subscribe-btn:not(:disabled):hover,
-        .footer-subscribe-btn:not(:disabled):focus-visible {
-          background: linear-gradient(135deg, #a07f3f 0%, #c9a85e 100%);
-          box-shadow: 0 4px 14px rgba(184, 148, 79, 0.35);
+
+        .foot-news { min-width: 0; }
+        .foot-news__title {
+          font-family: var(--font-serif);
+          font-size: clamp(19px, 1.083rem + 0.42vw, 23px);
+          font-weight: 500;
+          line-height: 1.3;
+          color: ${ON_DARK.title};
+          margin: 0;
         }
-        .footer-subscribe-btn-done {
+        .foot-news__body {
+          font-family: var(--font-sans);
+          font-size: 14px;
+          font-weight: 300;
+          line-height: 1.65;
+          color: ${ON_DARK.body};
+          margin: 10px 0 0;
+          max-width: 44ch;
+        }
+        /* Wraps rather than nowrap: a non-wrapping flex row's min-content is
+           the SUM of its children, so at 320px the input and button together
+           could not fit and would push the page sideways. */
+        .foot-news__row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          margin-top: 18px;
+          max-width: 440px;
+        }
+        .foot-news__btn {
+          flex: 0 0 auto;
+          min-height: var(--fx-touch);
+          padding: 12px 22px;
+          border-radius: 8px;
+          border: none;
+          color: #191b1e;
+          font-family: var(--font-sans);
+          font-size: 14px;
+          font-weight: 700;
+          white-space: nowrap;
+          cursor: pointer;
+          background: linear-gradient(135deg, #d7be80 0%, #b8944f 100%);
+          transition: box-shadow 0.22s ease, background 0.22s ease;
+        }
+        .foot-news__btn:disabled { cursor: default; opacity: 0.85; }
+        .foot-news__btn:not(:disabled):hover,
+        .foot-news__btn:not(:disabled):focus-visible {
+          box-shadow: 0 6px 18px rgba(184, 148, 79, 0.38);
+        }
+        .foot-news__btn--done {
           background: linear-gradient(135deg, #2e7d32 0%, #4caf50 100%);
+          color: #ffffff;
         }
-        /* Was "footer > div:nth-child(2) > div:first-child", twice, both
-           with !important. That selector targeted DOM POSITION, not the
-           element: inserting anything into the footer — a cookie banner, a
-           locale switcher, even a conditional isLoggedIn && div —
-           shifted nth-child(2) and the 6→2→1 collapse silently stopped
-           applying, leaving six fixed columns on a 320px phone. It failed
-           only on mobile, only after an unrelated edit, and with the cause
-           in a different part of the file. A real class cannot do that.
-           Both !importants are gone too, since the properties are no
-           longer competing with an inline style. */
-        .footer-grid {
+        .foot-news__err {
+          font-family: var(--font-sans);
+          font-size: 12.5px;
+          color: #e88f8f;
+          margin: 10px 0 0;
+        }
+        /* SCOPED to the newsletter row, not a bare "input::placeholder".
+           Under styled-jsx the bare selector was safe because the hash
+           confined it; in a plain style element it would repaint the
+           placeholder of every input on the page white-on-white — the login
+           form, the RSVP form, the search box. This is the one selector in
+           this block that does not start with a class, and it is why the
+           rest of them do. */
+        .foot-news__row input::placeholder { color: rgba(255, 255, 255, 0.4); }
+
+        .foot {
+          background: ${C.charcoal};
+          padding: 0;
+        }
+        .foot-inner { padding-top: clamp(48px, 5vw, 72px); }
+
+        /* ── Row 1 ── */
+        .foot-top {
           display: grid;
-          grid-template-columns:
-            minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr)
-            minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.5fr);
-          gap: 40px;
+          gap: clamp(32px, 4vw, 56px);
+          padding-bottom: clamp(36px, 4vw, 52px);
+          border-bottom: 1px solid ${ON_DARK.hairline};
         }
-        /* Six columns need ~1000px to stay legible; below lg go to two.
-           At 640px (the tightest 2-column case) each track is
-           (640 − 48 gutters − 32 gap) / 2 = 280px, which fits the
-           newsletter input and its Subscribe button. Was 900px. */
-        @media (max-width: 1023.98px) {
-          .footer-grid {
-            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-            gap: 40px 32px;
-          }
+        /* Two columns from md up. The arithmetic at the tight end, 768px:
+           the --4xl container is unconstrained there, so the row is
+           768 − 2×34px gutter = 700px, less a 32px gap, giving 334px per
+           track. The newsletter needs its input (flex-basis 190px) beside its
+           Subscribe button (~112px) plus a 10px gap = 312px, which fits with
+           22px to spare — and the row wraps rather than overflows if a font
+           change eats that margin. Below md they stack.
+           768px because AGENTS.md permits exactly four breakpoint values.
+           This wanted ~860; 768 is the nearest allowed one that still fits,
+           which is why the arithmetic above is written down. */
+        @media (min-width: 768px) {
+          .foot-top { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
         }
-        /* Single column below sm. At 320px: 320 − 48 = 272px per column,
-           against a longest-link min-content of ~114px ("Terms of
-           Service" at 13px). Was 560px. */
-        @media (max-width: 639.98px) {
-          .footer-grid {
-            grid-template-columns: minmax(0, 1fr);
-            gap: 36px;
-          }
+        .foot-brand { min-width: 0; }
+        .foot-blurb {
+          font-family: var(--font-sans);
+          font-size: 14px;
+          font-weight: 300;
+          line-height: 1.7;
+          color: ${ON_DARK.body};
+          margin: 16px 0 0;
+          max-width: 40ch;
         }
+
+        /* ── Row 2 ── */
+        .foot-links { padding-block: clamp(36px, 4vw, 52px); }
+        .foot-col { min-width: 0; }
+        .foot-col__head {
+          font-family: var(--font-sans);
+          font-size: 11.5px;
+          font-weight: 700;
+          letter-spacing: 2px;
+          text-transform: uppercase;
+          color: rgba(255, 255, 255, 0.72);
+          margin: 0 0 12px;
+        }
+        .foot-col__list { list-style: none; margin: 0; padding: 0; }
+
+        /* ── Row 3 ── */
+        .foot-bottom {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 20px;
+          padding-block: 26px 32px;
+          border-top: 1px solid ${ON_DARK.hairline};
+        }
+        .foot-legal { min-width: 0; flex: 1 1 320px; }
+        .foot-legal__line {
+          font-family: var(--font-sans);
+          font-size: 13px;
+          color: rgba(255, 255, 255, 0.68);
+          margin: 0 0 6px;
+        }
+        .foot-legal__fine {
+          font-family: var(--font-sans);
+          font-size: 12px;
+          line-height: 1.6;
+          color: ${ON_DARK.muted};
+          margin: 0;
+          max-width: 62ch;
+        }
+        .foot-legal__fine a {
+          color: rgba(255, 255, 255, 0.62);
+          text-decoration: underline;
+          text-underline-offset: 2px;
+        }
+        .foot-legal__fine a:hover { color: ${C.goldSoft}; }
+        .foot-social-row { display: flex; gap: 10px; flex-shrink: 0; }
+
+        .foot-logo {
+          display: inline-flex;
+          align-items: center;
+          gap: 9px;
+          text-decoration: none;
+          line-height: 1;
+        }
+        .foot-logo__word {
+          display: inline-flex;
+          align-items: baseline;
+          gap: 5px;
+          font-family: var(--font-serif);
+          font-size: 23px;
+          font-weight: 600;
+        }
+        .foot-logo__fancy { color: #b8944f; font-family: var(--font-script); font-weight: 400; }
+        .foot-logo__rsvp { color: #ffffff; }
+        .foot-mail {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          margin-top: 18px;
+          min-height: var(--fx-touch);
+          font-family: var(--font-sans);
+          font-size: 14px;
+          font-weight: 500;
+          color: rgba(255, 255, 255, 0.72);
+          text-decoration: none;
+          transition: color 0.22s ease;
+        }
+        .foot-mail:hover, .foot-mail:focus-visible { color: #d7be80; }
       `}</style>
     </footer>
   );

@@ -3,332 +3,445 @@
 import React from "react";
 import Link from "next/link";
 import { useAuth } from "../../hooks/useAuth";
-import HeroEnvelope from "./HeroEnvelope";
+import { useLandingStats, formatStatValue } from "../../utils/useLandingStats";
+import { C, SHADOW } from "./landingTokens";
 
-/* ═══════════════════════════════════════════════════════════════
-   HeroSection — Fancy RSVP (Page 09 Brand Guide — Pixel Perfect)
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE HERO.
 
-   Layout from mockup (Desktop):
-   ┌──────────────────────────────────────────────────────────────┐
-   │                                                              │
-   │  BEAUTIFULLY DESIGNED                    ┌────────────────┐  │
-   │  RSVP EXPERIENCES                        │                │  │
-   │                                          │  Interactive   │  │
-   │  Elegant RSVPs.                          │   Envelope     │  │
-   │  Effortless Planning.                    │   Animation    │  │
-   │                                          │                │  │
-   │  The all-in-one RSVP and guest           └────────────────┘  │
-   │  management platform for weddings                            │
-   │  and special events.                                         │
-   │                                                              │
-   │  [Get Started]  [View Features]                              │
-   │                                                              │
-   └──────────────────────────────────────────────────────────────┘
-   ═══════════════════════════════════════════════════════════════ */
+   WHAT CHANGED AND WHY
+
+   1. It now says what the product IS. The old headline was "Elegant RSVPs.
+      Effortless Planning." — a mood, not a sentence you could repeat to a
+      friend. Nothing above the fold indicated that this thing holds a guest
+      list, seats people, or runs a door. A visitor's first job is to decide
+      "is this the category of thing I need", and the old hero did not answer
+      it.
+
+   2. The art is the PRODUCT, not a drawing of it. The right column used to be
+      `HeroEnvelope` — a hand-built envelope animation that imitated the
+      cinematic reveal without being it. It is now two real screenshots: the
+      actual Velvet Ring invitation as a guest sees it on a phone, in front of
+      the actual organizer dashboard. Both come out of the screenshot pipeline
+      in test/shots, so a redesign of either cannot leave a stale picture on
+      the front page.
+
+   3. It absorbed SocialProofBar. Three animated counters used to occupy an
+      entire 310px band of their own, four screens down, where they proved
+      nothing to anyone who had already decided to leave. The same three
+      numbers are now a single line under the buttons — read from the same
+      `useLandingStats` hook, still real COUNT(*) values from the backend, but
+      costing one line instead of a section. That is one whole band deleted.
+
+   The counters do not animate any more, deliberately: an entrance animation on
+   a number that is already visible on first paint reads as a gimmick, and it
+   was the only reason this needed an IntersectionObserver.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/** The two screenshots. Produced by test/shots/landingShots.dump.jsx. */
+const ART = {
+  invitation: "/images/landing/hero-ring.webp",
+  dashboard: "/images/landing/dash-overview.webp",
+};
+
+function TrustLine() {
+  const { stats } = useLandingStats();
+
+  return (
+    <ul className="hero-trust">
+      {stats.map((s) => (
+        <li key={s.label}>
+          <strong>{formatStatValue(s)}</strong>
+          <span>{s.label}</span>
+        </li>
+      ))}
+
+    </ul>
+  );
+}
+
+/**
+ * The product, photographed.
+ *
+ * The dashboard sits behind and to the side; the phone overlaps its lower-left
+ * corner. That specific arrangement is the point of the picture — it says "the
+ * guest gets that, you get this" in one glance, which is the sentence the old
+ * page took two invented mockup sections and 1,918 lines to fail to say.
+ *
+ * `aspect-ratio` is declared on both images so the box reserves its height
+ * before either file arrives — without it the headline jumps on load, and the
+ * hero is the one place on the site where that is guaranteed to be noticed.
+ */
+function HeroArt() {
+  return (
+    <div className="hero-art">
+      <figure className="hero-art__screen">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={ART.dashboard}
+          alt="The Fancy RSVP organizer dashboard, showing live totals for guests invited, accepted, declined and still to reply."
+          width={1120}
+          height={860}
+          fetchPriority="high"
+        />
+      </figure>
+
+      <figure className="hero-art__phone">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={ART.invitation}
+          alt="A wedding invitation from Fancy RSVP as a guest sees it on their phone."
+          width={468}
+          height={1013}
+          fetchPriority="high"
+        />
+      </figure>
+
+    </div>
+  );
+}
 
 export default function HeroSection() {
   const { isLoggedIn, loading } = useAuth();
+  const signedIn = !loading && isLoggedIn;
 
   return (
-    <>
-      {/* ════════════════════════════════════════════
-          HERO SECTION
-          ════════════════════════════════════════════ */}
-      <section
-        id="hero"
+    <section id="hero" className="hero">
+      <div
+        className="hero-grid fx-container fx-container--5xl fx-gutter fx-grid"
         style={{
-          width: "100%",
-          background: "#FFFFFF",
-          position: "relative",
-          overflow: "hidden",
+          "--fx-col": "400px",
+          "--fx-gap": "clamp(36px, 1.667rem + 2.5vw, 60px)",
         }}
       >
-        {/* Subtle warm ivory gradient overlay at bottom */}
-        <div
-          style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: "200px",
-            background: "linear-gradient(to bottom, transparent, #F8F4EC)",
-            pointerEvents: "none",
-            zIndex: 1,
-          }}
-        />
+        {/* ─── The claim ─── */}
+        <div className="hero-copy animate-fade-in-up">
+          <span className="hero-eyebrow">RSVPs · Seating · Door check-in</span>
 
-        {/* --fx-col 380px keeps the copy and the envelope side by side down
-            to roughly the 1024px the old .hero-grid query used, then stacks
-            intrinsically. Vertical padding stays inline because the 80/100
-            asymmetry is deliberate; the horizontal 48px moves to .fx-gutter. */}
-        <div
-          className="hero-grid fx-container fx-container--5xl fx-gutter fx-grid"
-          style={{
-            "--fx-col": "380px",
-            "--fx-gap": "clamp(40px, 2.083rem + 2.5vw, 64px)",
-            paddingTop: "var(--fx-pad-y-sm)",
-            paddingBottom: "var(--fx-pad-y)",
-            alignItems: "center",
-            position: "relative",
-            zIndex: 2,
-          }}
-        >
-          {/* ─── Left Column: Text Content ─── */}
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "28px",
-            }}
-            className="animate-fade-in-up"
-          >
-            {/* Eyebrow Label */}
-            <span
-              style={{
-                fontFamily: "var(--font-sans)",
-                fontSize: "11px",
-                fontWeight: 700,
-                letterSpacing: "3px",
-                textTransform: "uppercase",
-                color: "#B8944F",
-              }}
-            >
-              Beautifully Designed RSVP Experiences
-            </span>
+          {/* No <br>. It was there to force "Every guest, from the / invitation
+              to the door." — but the copy column is about 560px at 1280, so
+              the browser wrapped each of those halves AGAIN and the headline
+              came out as four ragged lines. A max-width in ch lets it break
+              where it actually fits at every width instead. */}
+          <h1 className="hero-headline">
+            Every guest, from the invitation to the door.
+          </h1>
 
-            {/* Main Headline */}
-            <h1
-              style={{
-                fontFamily: "var(--font-serif)",
-                fontSize: "52px",
-                fontWeight: 500,
-                lineHeight: 1.12,
-                color: "#191B1E",
-                letterSpacing: "-0.5px",
-              }}
-              className="hero-headline"
-            >
-              Elegant RSVPs.
-              <br />
-              Effortless Planning.
-            </h1>
+          <p className="hero-sub">
+            Send an invitation your guests actually open, collect their replies,
+            seat them, and scan them in on the night — all from one place.
+          </p>
 
-            {/* Subtext */}
-            <p
-              style={{
-                fontFamily: "var(--font-sans)",
-                fontSize: "17px",
-                fontWeight: 300,
-                lineHeight: 1.7,
-                color: "#77736A",
-                maxWidth: "440px",
-              }}
+          <div className="hero-buttons">
+            <Link
+              href={signedIn ? "/dashboard" : "/register"}
+              className="hero-btn hero-btn--gold"
+              id="hero-cta-get-started"
             >
-              The all-in-one RSVP and guest management platform for weddings and special events.
-            </p>
-
-            {/* CTA Buttons */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "16px",
-                marginTop: "8px",
-              }}
-              className="hero-buttons"
-            >
-              <Link
-                href={!loading && isLoggedIn ? "/dashboard" : "/register"}
-                className="btn-gold"
-                style={{
-                  padding: "15px 36px",
-                  fontSize: "14px",
-                  fontWeight: 700,
-                  borderRadius: "6px",
-                  textDecoration: "none",
-                }}
-                id="hero-cta-get-started"
-              >
-                {!loading && isLoggedIn ? "Go to Dashboard" : "Get Started"}
-              </Link>
-              <Link
-                href="/features"
-                className="btn-outline"
-                style={{
-                  padding: "15px 36px",
-                  fontSize: "14px",
-                  fontWeight: 700,
-                  borderRadius: "6px",
-                  textDecoration: "none",
-                }}
-                id="hero-cta-view-features"
-              >
-                View Features
-              </Link>
-            </div>
+              {signedIn ? "Go to dashboard" : "Create your event"}
+            </Link>
+            <Link href="/pricing" className="hero-btn hero-btn--ghost" id="hero-cta-pricing">
+              See pricing
+            </Link>
           </div>
 
-          {/* ─── Right Column: Interactive Card Preview ─── */}
-          <HeroEnvelope />
+          <p className="hero-reassure">
+            Free plan to start · No credit card · Pay once per event, not monthly
+          </p>
+
+          <TrustLine />
         </div>
-      </section>
 
-      {/* ════════════════════════════════════════════
-          OCCASIONS SECTION — "Perfect for Any Occasion"
-          ════════════════════════════════════════════ */}
-      <section
-        id="occasions"
-        style={{
-          width: "100%",
-          background: "#F8F4EC",
-          padding: "80px 0",
-        }}
-      >
-        <div
-          className="fx-container fx-container--5xl fx-gutter"
-          style={{ textAlign: "center" }}
-        >
-          {/* Eyebrow */}
-          <span
-            style={{
-              fontFamily: "var(--font-sans)",
-              fontSize: "11px",
-              fontWeight: 700,
-              letterSpacing: "3px",
-              textTransform: "uppercase",
-              color: "#B8944F",
-              display: "block",
-              marginBottom: "12px",
-            }}
-          >
-            Perfect for Any Occasion
-          </span>
+        {/* ─── The product ─── */}
+        <HeroArt />
+      </div>
 
-          {/* Section Title */}
-          <h2
-            style={{
-              fontFamily: "var(--font-serif)",
-              fontSize: "36px",
-              fontWeight: 500,
-              color: "#191B1E",
-              marginBottom: "56px",
-              letterSpacing: "-0.3px",
-            }}
-          >
-            Weddings, Engagements &amp; Custom Events
-          </h2>
 
-          {/* Occasion Cards Grid */}
-          {/* Was repeat(3, 1fr) + two media queries stepping 3→2→1.
-              .fx-grid--3 (--fx-col 340px) does the same ladder with no
-              breakpoints: 3 tracks in the 960px container, then 2, then 1. */}
-          <div
-            className="occasions-grid fx-container fx-container--2xl fx-grid fx-grid--3"
-            style={{ "--fx-gap": "24px" }}
-          >
-            {[
-              {
-                icon: (
-                  <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-                    <circle cx="20" cy="20" r="18" stroke="#D7BE80" strokeWidth="1" />
-                    <circle cx="16" cy="23" r="6" stroke="#B8944F" strokeWidth="1.5" />
-                    <circle cx="24" cy="23" r="6" stroke="#B8944F" strokeWidth="1.5" />
-                  </svg>
-                ),
-                title: "Weddings",
-                desc: "Celebrate your big day with elegant RSVPs.",
-              },
-              {
-                icon: (
-                  <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-                    <circle cx="20" cy="20" r="18" stroke="#D7BE80" strokeWidth="1" />
-                    <path d="M13 27L15 25M18 22L27 13C28.1 11.9 28.1 10.1 27 9C25.9 7.9 24.1 7.9 23 9L14 18M14 18L12 24L18 22" stroke="#B8944F" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    <path d="M25 8L27 10" stroke="#D7BE80" strokeWidth="1" strokeLinecap="round" />
-                  </svg>
-                ),
-                title: "Custom",
-                desc: "Design custom event pages tailored to your style.",
-              },
-              {
-                icon: (
-                  <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-                    <circle cx="20" cy="20" r="18" stroke="#D7BE80" strokeWidth="1" />
-                    <path d="M15 16C15 13.2 17.2 11 20 11C21.6 11 22.8 11.8 23.5 12.6C24.2 11.8 25.4 11 27 11C29.8 11 32 13.2 32 16C32 20.8 24.2 25.2 23.5 25.2C22.8 25.2 15 20.8 15 16Z" stroke="#B8944F" strokeWidth="1.5" />
-                    <path d="M8 19C8 16.8 9.8 15 12 15C13.3 15 14.2 15.6 14.8 16.3M14.8 26.2C14.2 26.2 8 22.8 8 19C8 18 8.3 17 9 16.2" stroke="#D7BE80" strokeWidth="1.2" strokeLinecap="round" />
-                  </svg>
-                ),
-                title: "Engagement",
-                desc: "Announce the proposal with elegant engagement pages.",
-              },
-            ].map((card) => (
-              <div key={card.title} className="occasion-card">
-                <div style={{ marginBottom: "20px" }}>{card.icon}</div>
-                <h3
-                  style={{
-                    fontFamily: "var(--font-serif)",
-                    fontSize: "20px",
-                    fontWeight: 600,
-                    color: "#191B1E",
-                    marginBottom: "10px",
-                  }}
-                >
-                  {card.title}
-                </h3>
-                <p
-                  style={{
-                    fontFamily: "var(--font-sans)",
-                    fontSize: "14px",
-                    fontWeight: 300,
-                    color: "#77736A",
-                    lineHeight: 1.6,
-                  }}
-                >
-                  {card.desc}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* ONE PLAIN STYLE ELEMENT, for the whole component.
 
-      {/* ─── Responsive Styles ─── */}
-      <style jsx>{`
-        /* .hero-grid keeps ONLY text-align here now — its columns, padding
-           and gap come from .fx-grid / .fx-gutter and stack intrinsically.
-           The centring still needs a breakpoint because it is a typographic
-           choice, not a consequence of the layout: 1024px is where the two
-           columns actually become one. The .occasions-grid rules are gone
-           entirely — .fx-grid--3 walks 3→2→1 on its own. */
-        @media (max-width: 1023.98px) {
-          .hero-grid {
-            text-align: center;
-          }
-          .hero-headline {
-            font-size: 42px !important;
-          }
-          .hero-buttons {
-            justify-content: center !important;
-          }
+          Two separate reasons, both of which this repo has already paid for:
+
+          1. A <style jsx> block inside a NESTED, non-default-export component
+             does not reliably compile in this build. AGENTS.md names the two
+             cases that proved it (FooterLink, PrintPreviewModal) and both had
+             to be moved out. TrustLine and HeroArt in this file are exactly
+             that pattern, and their CSS used to live inside them.
+
+          2. styled-jsx stamps its hash class only onto lowercase intrinsic
+             elements, so a scoped rule aimed at a class on a next/link
+             compiles to .foo.jsx-hash and matches NOTHING. That is the bug
+             that made every alert on this platform invisible, and the one
+             that made the footer links unreadable in production.
+
+          A plain <style> has neither failure mode. The scoping it gives up is
+          replaced by a prefix on every class name, which is what
+          PrintedInvitationsSection already does. */}
+      <style>{`
+        .hero-trust {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: baseline;
+          gap: 10px 28px;
+          margin: 4px 0 0;
+          padding: 0;
+          list-style: none;
         }
+        .hero-trust li {
+          display: flex;
+          align-items: baseline;
+          gap: 7px;
+        }
+        .hero-trust strong {
+          font-family: var(--font-serif);
+          font-size: 20px;
+          font-weight: 600;
+          color: ${C.charcoal};
+          line-height: 1;
+        }
+        .hero-trust span {
+          font-family: var(--font-sans);
+          font-size: 12.5px;
+          font-weight: 500;
+          letter-spacing: 0.04em;
+          color: ${C.stone};
+        }
+
+        .hero-art {
+          position: relative;
+          /* Reserves the composition's height at every width, so nothing
+             below it moves when the two images decode. */
+          aspect-ratio: 5 / 4;
+          width: 100%;
+          max-width: 620px;
+          margin-inline: auto;
+        }
+        .hero-art__screen {
+          position: absolute;
+          inset-block-start: 0;
+          inset-inline-end: 0;
+          width: 88%;
+          margin: 0;
+          border-radius: 12px;
+          overflow: hidden;
+          background: ${C.white};
+          box-shadow: ${SHADOW.device};
+        }
+        .hero-art__phone {
+          position: absolute;
+          inset-block-end: 0;
+          inset-inline-start: 0;
+          width: 30%;
+          margin: 0;
+          padding: 5px;
+          border-radius: 18px;
+          background: linear-gradient(150deg, #33363b, #191b1e 55%, #101214);
+          box-shadow: 0 30px 60px -22px rgba(0, 0, 0, 0.55);
+        }
+        .hero-art figure img {
+          display: block;
+          width: 100%;
+          height: auto;
+        }
+        /* The source file is 1120x860 — the same one the dashboard band shows
+           in full. Cropped to 1120/700 from the TOP here, deliberately: at
+           hero size this card is about 550px wide, where the lower half of
+           that screenshot (the events list and the activity feed) is too
+           small to read and only makes the top half smaller. */
+        .hero-art__screen img {
+          aspect-ratio: 1120 / 700;
+          object-fit: cover;
+          object-position: top center;
+        }
+        .hero-art__phone img {
+          aspect-ratio: 390 / 844;
+          object-fit: cover;
+          border-radius: 14px;
+        }
+
+        /* Below the two-column breakpoint the overlap gets cramped and the
+           phone starts covering the dashboard's own numbers, so the pair
+           becomes a simple side-by-side row with no absolute positioning at
+           all. Reset every offset explicitly: a leftover inset-inline-start on
+           a static element is inert, but a leftover position:absolute
+           collapses the parent.
+           (No backticks in here. One inside a styled-jsx CSS comment ends the
+           template literal and the file stops parsing — this exact line cost
+           a build.) */
+        @media (max-width: 1023.98px) {
+          .hero-art {
+            aspect-ratio: auto;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            gap: 16px;
+            max-width: 560px;
+          }
+          .hero-art__screen,
+          .hero-art__phone {
+            position: static;
+            width: auto;
+            flex: 0 1 auto;
+          }
+          .hero-art__screen { flex-basis: 68%; min-width: 0; }
+          .hero-art__phone { flex-basis: 26%; min-width: 0; }
+        }
+
+        /* On a PHONE the dashboard is dropped entirely and the invitation
+           stands alone.
+
+           Not a space saving — a legibility one. At 390px the row gave the
+           dashboard 238px to render a 1120px-wide screenshot, which is not a
+           picture of a dashboard, it is a grey rectangle with specks in it. A
+           thumbnail nobody can read argues for nothing, and it made the hero
+           look cheap, which is the one thing this page cannot afford.
+
+           Nothing is lost: the dashboard gets a full-width, legible band of
+           its own four screens down. And leading a phone with the thing a
+           GUEST sees is the better story on the device guests actually use. */
         @media (max-width: 639.98px) {
-          .hero-headline {
-            font-size: 34px !important;
-          }
-          .hero-buttons {
-            flex-direction: column !important;
-            width: 100%;
-          }
-          /* Preserves the old "max-width: 360px" on the stacked occasion
-             cards, which .fx-grid alone would not reproduce: with three
-             items always present, auto-fit has no empty track to collapse,
-             so a single column would stretch the full container width.
-             Setting --fx-w is .fx-container's documented input, so this
-             needs no !important and does not fight the class. */
-          .occasions-grid {
-            --fx-w: 360px;
-          }
+          .hero-art__screen { display: none; }
+          .hero-art { max-width: 240px; }
+          .hero-art__phone { flex-basis: 100%; }
+        }
+
+        .hero {
+          width: 100%;
+          background: ${C.white};
+          position: relative;
+          overflow: hidden;
+        }
+        /* One warm wash bleeding up out of the next band, so the white hero
+           and the ivory section under it read as one surface rather than two
+           stacked rectangles. */
+        .hero::after {
+          content: "";
+          position: absolute;
+          inset-inline: 0;
+          bottom: 0;
+          height: 180px;
+          background: linear-gradient(to bottom, transparent, ${C.ivory});
+          pointer-events: none;
+          z-index: 1;
+        }
+        .hero-grid {
+          position: relative;
+          z-index: 2;
+          align-items: center;
+          padding-top: var(--fx-pad-y-sm);
+          padding-bottom: var(--fx-pad-y-sm);
+        }
+        .hero-copy {
+          display: flex;
+          flex-direction: column;
+          gap: 22px;
+          /* An .fx-grid track sizes to its content's min-content width unless
+             told otherwise, and a long unbroken headline word would push this
+             column past its share. */
+          min-width: 0;
+        }
+
+        .hero-eyebrow {
+          font-family: var(--font-sans);
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 2.4px;
+          text-transform: uppercase;
+          /* goldInk, not gold: this is small text on white, where #B8944F
+             measures about 2.9:1 and fails AA. */
+          color: ${C.goldInk};
+        }
+        .hero-headline {
+          font-family: var(--font-serif);
+          /* 60px at the top end, not 72. The copy column is about 560px wide
+             at 1280, and 72px serif put four ragged lines in it. */
+          font-size: clamp(34px, 1.583rem + 2.708vw, 60px);
+          font-weight: 500;
+          line-height: 1.08;
+          letter-spacing: -0.8px;
+          color: ${C.charcoal};
+          /* A measure, so it breaks into two or three even lines instead of
+             filling whatever width the grid happens to give it. */
+          max-width: 15ch;
+          margin: 0;
+        }
+        .hero-sub {
+          font-family: var(--font-sans);
+          font-size: 17px;
+          font-weight: 300;
+          line-height: 1.65;
+          color: ${C.stone};
+          max-width: 46ch;
+          margin: 0;
+        }
+        .hero-buttons {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 14px;
+          margin-top: 2px;
+        }
+        .hero-reassure {
+          margin: -8px 0 0;
+          font-family: var(--font-sans);
+          font-size: 12.5px;
+          color: ${C.stoneSoft};
+        }
+
+        /* The stacked layout is a typographic decision, not a consequence of
+           the grid — .fx-grid has already collapsed to one column by here on
+           its own — so it keeps its breakpoint. 1023.98px is where the two
+           columns actually become one. */
+        @media (max-width: 1023.98px) {
+          .hero-grid { text-align: center; }
+          .hero-copy { align-items: center; }
+          .hero-sub { max-width: 52ch; }
+          .hero-buttons { justify-content: center; }
+        }
+        /* 639.98, not 479.98. AGENTS.md allows exactly four breakpoint values
+           and a fifth is never to be introduced — anything that wants to
+           change at 480px folds into the < sm rule and has to be acceptable
+           at 639px too. Full-width stacked buttons at 639px are: they are the
+           only two actions on the screen. */
+        @media (max-width: 639.98px) {
+          .hero-buttons { flex-direction: column; align-items: stretch; width: 100%; }
+        }
+
+        .hero-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          /* --fx-touch, so the tap target clears 44px on a phone even though
+             the padding alone would give 46px — it survives a font change. */
+          min-height: var(--fx-touch);
+          padding: 15px 32px;
+          border-radius: 8px;
+          font-family: var(--font-sans);
+          font-size: 15px;
+          font-weight: 600;
+          text-decoration: none;
+          white-space: nowrap;
+          transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+        }
+        .hero-btn--gold {
+          background: linear-gradient(135deg, #d7be80 0%, #b8944f 100%);
+          color: #191b1e;
+          border: 1px solid #b8944f;
+          box-shadow: 0 10px 26px -10px rgba(184, 148, 79, 0.7);
+        }
+        .hero-btn--gold:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 14px 30px -10px rgba(184, 148, 79, 0.8);
+        }
+        .hero-btn--ghost {
+          background: transparent;
+          color: #191b1e;
+          border: 1px solid #d9d3c6;
+        }
+        .hero-btn--ghost:hover { background: #f8f4ec; border-color: #b8944f; }
+        @media (prefers-reduced-motion: reduce) {
+          .hero-btn:hover { transform: none; }
         }
       `}</style>
-    </>
+    </section>
   );
 }

@@ -16,11 +16,16 @@ import { makeImageUploadHandler } from '../../_lib/uploadImage';
 
 /**
  * Landing CMS — real, admin-managed testimonials + "As Seen In" press
- * mentions (replaces the three fabricated testimonials previously
- * hard-coded in TestimonialsSection.js, and adds real press-logo trust
- * badges that were never surfaced on the landing page at all — see
- * PressBar.js). Full CRUD for both; the public landing page only ever reads
- * published rows via GET /public/testimonials and GET /public/press-mentions.
+ * mentions (replacing three testimonials that were once fabricated and
+ * hard-coded, and adding press-logo trust badges that were never surfaced on
+ * the landing page at all). Full CRUD for both; the public landing page only
+ * ever reads published rows via GET /public/testimonials and
+ * GET /public/press-mentions.
+ *
+ * Both now render in ONE homepage band — components/landing/ProofSection.js,
+ * which merged the former PressBar and TestimonialsSection. It renders
+ * nothing at all while both lists are empty, so publishing the first row here
+ * is what makes that section appear on the homepage.
  */
 
 const EMPTY_TESTIMONIAL_FORM = {
