@@ -248,6 +248,24 @@ function PricingCard({ plan }) {
         }}
       />
 
+      {/* Set in the display face and not shouted: this line is the reason the
+          list below is short, so it has to read as a sentence rather than as
+          another label. */}
+      {plan.inheritsFrom && (
+        <p
+          style={{
+            fontFamily: "var(--font-sans)",
+            fontSize: "13.5px",
+            fontStyle: "italic",
+            lineHeight: 1.5,
+            color: plan.highlight ? "rgba(255,255,255,0.62)" : "#5E5A52",
+            margin: "0 0 16px",
+          }}
+        >
+          Everything in {plan.inheritsFrom}, plus:
+        </p>
+      )}
+
       <ul style={{ listStyle: "none", padding: 0, margin: 0, flex: 1 }}>
         {plan.features.map((feat) => (
           <li
@@ -390,8 +408,39 @@ export default function PricingPage() {
   const [openFaq, setOpenFaq] = useState(0);
   const { tiers, error } = usePublicPricing();
 
-  const plans = (tiers || []).map((tier) => {
+  /* ─────────────────────────────────────────────────────────────────────
+     EACH CARD LISTS WHAT IT ADDS, NOT EVERYTHING IT HAS.
+
+     Tier features are CUMULATIVE — an admin ticks the full set on each tier
+     in /admin/config, so a four-tier ladder is 5 → 12 → 19 → 25 features and
+     every card restated everything the cards above it had already listed. On
+     a desktop, side by side, that is a comparison. Stacked on a phone it is
+     the same list four times: 61 bullets, and the plan section measured
+     5,694px of a 10,020px page at 440px — roughly six full iPhone screens of
+     mostly repetition.
+
+     So each card now shows "Everything in <previous>, plus" and only its
+     DELTA. The full matrix has not gone anywhere; it is the comparison table
+     directly below, which is what that table is for.
+
+     THE SUPERSET CHECK IS NOT DECORATION. Nothing in the product enforces
+     that a higher tier contains a lower one — the admin ticks each tier
+     independently, and an ordinary mistake (or a deliberately odd ladder)
+     can leave Enterprise missing something Signature has. Printing
+     "Everything in Signature" there would be a false claim on a pricing
+     page. When the containment does not hold, the card falls back to its
+     full list, which is always true. */
+  const rawTiers = tiers || [];
+  const plans = rawTiers.map((tier, i) => {
     const { price, period } = formatTierPrice(tier);
+    const own = tier.features || [];
+    const prev = i > 0 ? rawTiers[i - 1] : null;
+    const prevFeatures = prev ? (prev.features || []) : [];
+
+    const isSuperset = prevFeatures.length > 0
+      && prevFeatures.every((f) => own.includes(f));
+    const shown = isSuperset ? own.filter((f) => !prevFeatures.includes(f)) : own;
+
     return {
       name: tier.name,
       price,
@@ -401,7 +450,8 @@ export default function PricingPage() {
       badge: tier.recommended ? "Most Popular" : undefined,
       cta: tierCta(tier),
       href: tierHref(tier),
-      features: [tierGuestLine(tier), ...(tier.features || [])],
+      inheritsFrom: isSuperset ? prev.name : null,
+      features: [tierGuestLine(tier), ...shown],
     };
   });
 

@@ -12,9 +12,15 @@ import { formatTierPrice, tierCta, tierHref, tierGuestLine } from "../utils/useP
  * the persuasion here is just removing the "which plan is right for me?"
  * friction with an honest, data-backed answer.
  */
+/** How many filter chips are shown before the "show all" toggle. Eight is two
+ *  or three rows at a phone width — enough to make the control legible without
+ *  turning it into a wall. */
+const CHIP_LIMIT = 8;
+
 export default function PlanRecommender({ tiers }) {
   const [guestCount, setGuestCount] = useState(100);
   const [mustHave, setMustHave] = useState(new Set());
+  const [showAllFeatures, setShowAllFeatures] = useState(false);
 
   const allFeatures = useMemo(() => {
     const set = new Set();
@@ -23,6 +29,18 @@ export default function PlanRecommender({ tiers }) {
     }
     return [...set];
   }, [tiers]);
+
+  /* Selected chips are always visible, whatever the limit. Otherwise a viewer
+     could tick a feature, collapse the list, and be left with a
+     recommendation that has no visible reason for being what it is. */
+  const visibleFeatures = useMemo(() => {
+    if (showAllFeatures || allFeatures.length <= CHIP_LIMIT) return allFeatures;
+    const head = allFeatures.slice(0, CHIP_LIMIT);
+    const selectedBelow = allFeatures
+      .slice(CHIP_LIMIT)
+      .filter((f) => mustHave.has(f));
+    return [...head, ...selectedBelow];
+  }, [allFeatures, showAllFeatures, mustHave]);
 
   // The slider's ceiling is the largest FIXED (non-custom) plan's real guest
   // cap — never a hardcoded number that could silently drift from what an
@@ -153,8 +171,20 @@ export default function PlanRecommender({ tiers }) {
               <span style={{ fontFamily: "var(--font-sans)", fontSize: "13px", fontWeight: 700, color: "#191B1E", display: "block", marginBottom: "10px" }}>
                 Must-have features (optional)
               </span>
+              {/* COLLAPSED BY DEFAULT.
+
+                  A full ladder has ~25 features, and every one of them became
+                  a chip. Measured at 440px that was an 824px wall inside a
+                  1,671px card — 1.75 phone screens spent on a control the
+                  heading itself calls optional, before a visitor has reached a
+                  single price.
+
+                  Eight is enough to show what the control DOES; the rest are
+                  one tap away. Anything already selected is forced into the
+                  visible set, so collapsing can never hide an active filter
+                  and leave a recommendation that looks unexplained. */}
               <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                {allFeatures.map((f) => {
+                {visibleFeatures.map((f) => {
                   const active = mustHave.has(f);
                   return (
                     <button
@@ -176,6 +206,32 @@ export default function PlanRecommender({ tiers }) {
                   );
                 })}
               </div>
+
+              {allFeatures.length > CHIP_LIMIT && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllFeatures((v) => !v)}
+                  aria-expanded={showAllFeatures}
+                  style={{
+                    marginTop: "12px",
+                    minHeight: "44px",
+                    padding: "0 2px",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    fontFamily: "var(--font-sans)",
+                    fontSize: "12.5px",
+                    fontWeight: 600,
+                    color: "#8A6D34",
+                    textDecoration: "underline",
+                    textUnderlineOffset: "4px",
+                  }}
+                >
+                  {showAllFeatures
+                    ? "Show fewer"
+                    : `Show all ${allFeatures.length} features`}
+                </button>
+              )}
             </div>
           )}
         </div>

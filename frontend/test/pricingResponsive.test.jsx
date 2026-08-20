@@ -8,11 +8,25 @@ vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams('
 vi.mock('../src/app/components/landing/Navbar', () => ({ default: () => null }));
 vi.mock('../src/app/components/landing/FooterSection', () => ({ default: () => null }));
 
+/* CUMULATIVE, with real registry labels — the shape getPublicPricing actually
+   returns. A tier's `features` are keys an admin ticks per tier in
+   /admin/config, mapped through backend/config/featureRegistry.js on the way
+   out, so higher tiers are SUPERSETS rather than incremental lists.
+
+   This mock used to say "Everything in Essential" — a prose roll-up that does
+   not exist in the registry and cannot come out of that endpoint. It made the
+   comparison table render as a diagonal of ticks in a field of dashes, which
+   looks exactly like a broken table and is not one. */
+const F_ESSENTIAL = ['Basic RSVP forms', 'Email notifications'];
+const F_SIGNATURE = [...F_ESSENTIAL, 'Seating chart designer', 'Text messaging'];
+const F_ENTERPRISE = [...F_SIGNATURE, 'Fancy Check-in app (offline door scanner)', 'Priority email & chat support'];
+const F_BESPOKE = [...F_ENTERPRISE, 'White-label solution', 'Dedicated account manager'];
+
 const TIERS = [
-  { name: 'Essential', price_cents: 9900, currency: 'USD', max_guests: 100, is_custom: false, description: 'For an intimate celebration', features: ['Digital invitations', 'Email invitations'] },
-  { name: 'Signature', price_cents: 24900, currency: 'USD', max_guests: 300, is_custom: false, recommended: true, description: 'The one most couples choose', features: ['Everything in Essential', 'Seating chart & table plan'] },
-  { name: 'Enterprise', price_cents: 59900, currency: 'USD', max_guests: 1000, is_custom: false, description: 'For a large or multi-day event', features: ['Everything in Signature', 'Priority support'] },
-  { name: 'Bespoke', price_cents: null, currency: 'USD', max_guests: null, is_custom: true, description: 'Built around your event', features: ['Everything in Enterprise', 'On-site support'] },
+  { name: 'Essential', price_cents: 9900, currency: 'USD', max_guests: 100, is_custom: false, description: 'For an intimate celebration', features: F_ESSENTIAL },
+  { name: 'Signature', price_cents: 24900, currency: 'USD', max_guests: 300, is_custom: false, recommended: true, description: 'The one most couples choose', features: F_SIGNATURE },
+  { name: 'Enterprise', price_cents: 59900, currency: 'USD', max_guests: 1000, is_custom: false, description: 'For a large or multi-day event', features: F_ENTERPRISE },
+  { name: 'Bespoke', price_cents: null, currency: 'USD', max_guests: null, is_custom: true, description: 'Built around your event', features: F_BESPOKE },
 ];
 
 vi.mock('../src/app/utils/usePublicPricing', async (importOriginal) => {

@@ -19,17 +19,75 @@ vi.mock('../../src/app/components/landing/FooterSection', () => ({ default: () =
    behaviour was being judged. It now imports React like the other 149
    components here do, so it renders for real and is shot with the page. */
 
-/* Four tiers with realistic names and long feature strings — the shapes that
-   actually break a layout are long labels and many columns, not the tidy
-   three-plan case. */
+/* ─────────────────────────────────────────────────────────────────────────
+   THE MOCK HAS TO HAVE THE SHAPE THE ENDPOINT ACTUALLY RETURNS.
+
+   It did not, and that quietly invalidated every screenshot taken here.
+
+   The old mock gave each tier four or five PROSE strings and roll-ups like
+   "Everything in Essential". The real endpoint
+   (paymentController.getPublicPricing) maps a tier's `features` — which are
+   KEYS an admin ticks per tier in /admin/config — through the feature registry
+   into labels. So two things were wrong at once:
+
+     · the labels were invented, not registry labels ("Multi-day schedule" is
+       not a feature this platform has; "Custom RSVP form builder" is);
+     · the sets were incremental rather than cumulative, because a roll-up
+       string stood in for the lower tier's features. The comparison table
+       matches feature strings exactly, so with that mock the matrix rendered
+       as a DIAGONAL of ticks in a field of dashes.
+
+   That made the table look broken when it is not — with real data the higher
+   tiers are supersets and it fills in properly. A harness that invents a
+   defect is worse than no harness; this is the second time that exact
+   sentence has had to be written in this file.
+
+   These are real labels from backend/config/featureRegistry.js, in cumulative
+   sets, at the realistic size of a full ladder (~25 features). That is the
+   shape that actually stresses this page: 25 comparison rows and a 25-chip
+   filter list, not four tidy bullets.
+   ───────────────────────────────────────────────────────────────────────── */
+const F = {
+  rsvpBasic: 'Basic RSVP forms',
+  analytics: 'Basic analytics dashboard',
+  email: 'Email notifications',
+  community: 'Community support',
+  manualGuest: 'Manual guest entry',
+  customFields: 'Custom RSVP form builder',
+  csvIn: 'CSV guest import',
+  csvOut: 'Guest export (CSV)',
+  seating: 'Seating chart designer',
+  tables: 'Table management',
+  branding: 'Custom themes & branding',
+  sms: 'Text messaging',
+  qr: 'QR code check-in',
+  manualCheckin: 'Manual check-in',
+  checkinApp: 'Fancy Check-in app (offline door scanner)',
+  excel: 'Guest export (Excel)',
+  watermark: 'Remove Fancy watermark',
+  analyticsPro: 'Real-time analytics & reports',
+  priority: 'Priority email & chat support',
+  whiteLabel: 'White-label solution',
+  dedicated: 'Dedicated account manager',
+  integrations: 'All integrations',
+  api: 'Custom integrations & API',
+  sso: 'SSO & team management',
+  security: 'Advanced security & compliance',
+};
+
+const ESSENTIAL = [F.rsvpBasic, F.analytics, F.email, F.community, F.manualGuest];
+const SIGNATURE = [...ESSENTIAL, F.customFields, F.csvIn, F.csvOut, F.seating, F.tables, F.branding, F.sms];
+const ENTERPRISE = [...SIGNATURE, F.qr, F.manualCheckin, F.checkinApp, F.excel, F.watermark, F.analyticsPro, F.priority];
+const BESPOKE = [...ENTERPRISE, F.whiteLabel, F.dedicated, F.integrations, F.api, F.sso, F.security];
+
 const TIERS = [
-  { name: 'Essential', price_cents: 9900, currency: 'USD', max_guests: 100, is_custom: false, description: 'For an intimate celebration', features: ['Digital invitations', 'Real-time RSVP tracking', 'Guest list import from CSV', 'Email invitations'] },
+  { name: 'Essential', price_cents: 9900, currency: 'USD', max_guests: 100, is_custom: false, description: 'For an intimate celebration', features: ESSENTIAL },
   /* `recommended`, not `popular` — that is the field the page reads to
      highlight a card and print its "Most Popular" badge. Mocking the wrong
      name renders four identical cards and hides the design being judged. */
-  { name: 'Signature', price_cents: 24900, currency: 'USD', max_guests: 300, is_custom: false, recommended: true, description: 'The one most couples choose', features: ['Everything in Essential', 'Seating chart & table plan', 'SMS invitations and reminders', 'Custom colours and typography', 'Multi-day schedule'] },
-  { name: 'Enterprise', price_cents: 59900, currency: 'USD', max_guests: 1000, is_custom: false, description: 'For a large or multi-day event', features: ['Everything in Signature', 'Fancy Check-in app (offline door scanner)', 'Dedicated onboarding session', 'Priority support'] },
-  { name: 'Bespoke', price_cents: null, currency: 'USD', max_guests: null, is_custom: true, description: 'Built around your event', features: ['Everything in Enterprise', 'Custom integrations', 'On-site support'] },
+  { name: 'Signature', price_cents: 24900, currency: 'USD', max_guests: 300, is_custom: false, recommended: true, description: 'The one most couples choose', features: SIGNATURE },
+  { name: 'Enterprise', price_cents: 59900, currency: 'USD', max_guests: 1000, is_custom: false, description: 'For a large or multi-day event', features: ENTERPRISE },
+  { name: 'Bespoke', price_cents: null, currency: 'USD', max_guests: null, is_custom: true, description: 'Built around your event', features: BESPOKE },
 ];
 
 vi.mock('../../src/app/utils/usePublicPricing', async (importOriginal) => {
@@ -57,11 +115,47 @@ const GLOBALS = fs.readFileSync(path.join(ROOT, 'src/app/globals.css'), 'utf8');
    The small block after it only supplies what next/font would. */
 const REAL = GLOBALS;
 
-/* Only what next/font supplies at runtime and globals.css therefore assumes.
-   Everything else — the tokens, .fx-*, .btn-* — comes from the real file
-   above, and must NOT be restated here or the shim silently wins. */
+/* THE REAL TYPEFACES — this used to declare Georgia and Segoe UI.
+
+   next/font SELF-HOSTS: every face is already sitting in .next/static/media,
+   and the @font-face rules that point at them are in the BUILT css (not in
+   globals.css, which is what this probe otherwise reads). So the fonts were
+   available the whole time and this shim was overriding them with two the
+   product does not use.
+
+   That matters more than it sounds. --font-serif is ABORETO, a capitals-only
+   face with a single weight; Georgia is neither. Every pricing screenshot ever
+   taken here was of a page set in the wrong type, which is not a page anyone
+   can judge. Same defect as landingPageProbe had, found the same way. */
+function fontFaces() {
+  const dir = path.join(ROOT, '.next/static/chunks');
+  if (!fs.existsSync(dir)) throw new Error('No .next build. Run `npx next build` first.');
+  const css = fs.readdirSync(dir).filter((f) => f.endsWith('.css'))
+    .map((f) => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n');
+
+  /* URL-ENCODED: this repo lives under "C:/Users/yousef amr/", and a raw space
+     inside an unquoted CSS url() ends the token, so the rule parses as garbage
+     and the font falls back silently — the exact failure this block removes. */
+  const media = encodeURI(path.join(ROOT, '.next/static/media').split(path.sep).join('/'));
+  const withFonts = css.replace(/url\(\.\.\/media\//g, `url(file:///${media}/`);
+  if (!/@font-face\{font-family:Aboreto;/.test(withFonts)) {
+    throw new Error('No Aboreto @font-face in the built CSS — the font pipeline moved.');
+  }
+  return withFonts.match(/@font-face\{[^}]*\}/g).join('\n');
+}
+
+/* next/font puts the family names on a generated class on <html>. The staged
+   page has no such class, so var(--font-heading) would be UNDEFINED — and an
+   invalid var() inside a font-family list invalidates the WHOLE declaration,
+   dropping the page to the body sans. Declared verbatim from the built CSS. */
 const FX = `
-  :root { --font-serif: Georgia; --font-sans: 'Segoe UI'; }
+  :root {
+    --font-heading: "Aboreto", "Aboreto Fallback";
+    --font-body: "Google Sans";
+    --font-cormorant: "Cormorant Garamond", "Cormorant Garamond Fallback";
+    --font-playfair: "Playfair Display", "Playfair Display Fallback";
+    --font-script: "Great Vibes", "Great Vibes Fallback";
+  }
   html, body { margin: 0; padding: 0; }
 `;
 
@@ -74,13 +168,16 @@ describe('pricing probe', () => {
     fs.mkdirSync(OUT, { recursive: true });
     fs.writeFileSync(path.join(OUT, 'page.html'),
       `<!doctype html><html lang="en"><head><meta charset="utf-8">
-<style>${REAL}</style><style>${FX}</style></head>
+<style>${fontFaces()}</style><style>${REAL}</style><style>${FX}</style></head>
 <body>${r.container.innerHTML}</body></html>`, 'utf8');
 
     /* Widths are shot through an IFRAME. Chrome on Windows will not open a
        window under ~500px, so --window-size=320 lays out at 500 and crops —
        which looks exactly like horizontal overflow and is not. */
-    for (const w of [320, 390, 768, 1280]) {
+    /* 440 is the iPhone 16 Pro Max, and its ABSENCE from this list is why the
+       page shipped broken at that width: 390 and 768 both looked fine and
+       nothing ever laid out in between them. 430 covers the 15/16 Plus. */
+    for (const w of [320, 390, 430, 440, 768, 1280]) {
       fs.writeFileSync(path.join(OUT, `frame-${w}.html`),
         `<!doctype html><html><head><meta charset="utf-8"><style>
   html,body{margin:0;background:#666;}
