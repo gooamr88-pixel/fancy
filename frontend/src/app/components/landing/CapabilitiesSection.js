@@ -56,7 +56,7 @@ export default function CapabilitiesSection() {
             Everything in one place
             <span aria-hidden="true" className="cap-kicker__rule" />
           </span>
-          <span className="cap-numeral" aria-hidden="true">VI</span>
+          <span className="cap-numeral" aria-hidden="true">IV</span>
 
           <h2 id="cap-title" className="cap-h2">
             The parts you would otherwise stitch together yourself.

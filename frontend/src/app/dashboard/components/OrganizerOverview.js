@@ -9,6 +9,7 @@ import RsvpTrendChart from './RsvpTrendChart';
 import UpcomingEventsCards from './UpcomingEventsCards';
 import RecentActivityFeed from './RecentActivityFeed';
 import PrintedInvitationsCard from './PrintedInvitationsCard';
+import CheckinAppAnnounce from './CheckinAppAnnounce';
 
 /* ═══ CSS Animations ═══ */
 const OV_STYLES_ID = 'organizer-overview-styles';
@@ -571,8 +572,22 @@ export default function OrganizerOverview({ onNavigateToReferrals }) {
               />
             </div>
 
-            {/* ── Door scanner, only when the door is nearly open ── */}
-            {hasImminentEvent(upcomingEvents) && <CheckInBanner />}
+            {/* ── Door scanner ─────────────────────────────────────────────
+                TWO SURFACES, AND THEY NEVER BOTH SHOW.
+
+                Inside 72 hours of an event the banner is the right thing: it
+                is an ACTION ("open the door now"), and the app is a link on it
+                because there is no time left to install anything.
+
+                Outside that window the banner is absent — and that was the
+                whole problem. The app was announced to the people who need it
+                three days before they need it, and only as a link to a
+                brochure, so an organizer buying a tablet a month out never
+                learned it existed. The announcement fills exactly that gap and
+                gets out of the way once the door is close. */}
+            {hasImminentEvent(upcomingEvents)
+              ? <CheckInBanner />
+              : <CheckinAppAnnounce />}
 
             {/* ── Bottom Row ──
                 Moved above the charts. "What is coming up" and "what just

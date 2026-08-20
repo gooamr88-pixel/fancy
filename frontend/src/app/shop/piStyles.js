@@ -3,15 +3,21 @@
 import React from 'react';
 
 /**
- * PRINTED INVITATIONS — the styling both pages share.
+ * THE SHOP — the product page's button, badge and heading styling.
  *
  * ── Why this file exists ──
  *
- * The buttons, badges and section headings were originally defined only in
- * ShopClient's own <style jsx global> block. That works on the catalogue and
- * fails silently on the product page: the two are separate routes, so
- * ShopClient is never mounted at /printed-invitations/[slug], and every rule
- * it declared was simply absent there.
+ * These rules were originally defined only inside the catalogue component's
+ * own <style jsx global> block. That works on the catalogue and fails silently
+ * on the product page: the two are separate routes, so the catalogue is never
+ * mounted at the product URL, and every rule it declared was simply absent
+ * there.
+ *
+ * Since the /shop rebuild only the PRODUCT page consumes this — the browse
+ * grid (ShopBrowse.js) ships its own self-contained style block and uses none
+ * of the pi- classes. The file is kept rather than folded into the product
+ * page because the failure it documents is what happens when shared rules live
+ * inside one route's component.
  *
  * The symptom was not a crash or a missing element. It was the single most
  * important control in the whole feature — "Order on WhatsApp" — rendering as

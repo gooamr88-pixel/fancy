@@ -7,8 +7,8 @@ import path from 'node:path';
 
 vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(''), usePathname: () => '/' }));
 
-import ShopClient from '../src/app/printed-invitations/ShopClient';
-import ProductClient from '../src/app/printed-invitations/[slug]/ProductClient';
+import ShopBrowse from '../src/app/shop/ShopBrowse';
+import ProductClient from '../src/app/shop/[category]/[slug]/ProductClient';
 import {
   formatPrice, priceLine, isShopLive, buildWhatsappUrl, sortProducts, SHOP_PATH, SITE_URL,
 } from '../src/app/utils/shopLinks';
@@ -53,7 +53,7 @@ const product = (over = {}) => ({
   tagline: 'Gold-foiled on cotton board',
   category_id: CAT_WEDDING.id,
   price_cents: 899,
-  currency: 'CAD',
+  currency: 'USD',
   price_unit: 'per card',
   min_order_qty: 50,
   is_featured: false,
@@ -104,14 +104,27 @@ describe('price', () => {
 
 describe('whatsapp link', () => {
   it('builds a wa.me url carrying the product name and its page', () => {
-    const url = buildWhatsappUrl({ settings: SETTINGS, product: product() });
+    const url = buildWhatsappUrl({
+      settings: SETTINGS,
+      product: product({ category: CAT_WEDDING }),
+    });
     expect(url.startsWith('https://wa.me/19055550134?text=')).toBe(true);
     const text = decodeURIComponent(url.split('text=')[1]);
     expect(text).toContain('Velvet & Gold Suite');
     // The CANONICAL origin, not window.location — a preview or staging host
     // would otherwise be pasted into a customer's chat and read days later.
-    expect(text).toContain(`${SITE_URL}/printed-invitations/velvet-gold-suite`);
+    // And the CATEGORY-SCOPED path, which is where the product actually lives.
+    expect(text).toContain(`${SITE_URL}/shop/wedding/velvet-gold-suite`);
     expect(SITE_URL).toBe('https://fancyrsvp.com');
+  });
+
+  it('falls back to the catalogue when the product has no category', () => {
+    // Rather than pasting "/shop/undefined/velvet-gold-suite" into a chat a
+    // customer opens days later.
+    const url = buildWhatsappUrl({ settings: SETTINGS, product: product() });
+    const text = decodeURIComponent(url.split('text=')[1]);
+    expect(text).toContain(`${SITE_URL}/shop`);
+    expect(text).not.toContain('undefined');
   });
 
   it('prefers the product override over the platform greeting', () => {
@@ -168,22 +181,52 @@ describe('sorting', () => {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 describe('catalogue', () => {
+  const two = () => [
+    product(),
+    product({
+      id: 'p2',
+      title: 'Door of Joy Card',
+      slug: 'door-of-joy',
+      category_id: CAT_GRAD.id,
+      price_cents: null,
+      badges: [BADGE_HAND],
+      sort_order: 1,
+    }),
+  ];
+
   const renderShop = (over = {}) => render(
-    <ShopClient
-      products={[product(), product({ id: 'p2', title: 'Door of Joy Card', slug: 'door-of-joy', category_id: CAT_GRAD.id, price_cents: null, badges: [BADGE_HAND], sort_order: 1 })]}
+    <ShopBrowse
+      products={two()}
       categories={[CAT_WEDDING, CAT_GRAD]}
       badges={[BADGE_NEW, BADGE_HAND]}
       settings={SETTINGS}
+      category={null}
       {...over}
     />,
   );
+
+  /* The filter panel is display:none below 768 and revealed by the Filter
+     button. jsdom applies the component's own <style> block, so it really is
+     hidden here — which is correct, and means a test that wants a checkbox has
+     to open the panel exactly as a phone user would. */
+  const openFilters = async (user) => {
+    await user.click(screen.getByRole('button', { name: /Filter/i }));
+  };
+
+  /** The product grid alone. Several strings — "Price on request" among them —
+   *  legitimately appear in BOTH a filter label and a card, and a bare
+   *  getByText cannot tell which one it found. */
+  const grid = () => document.querySelector('.shop-grid');
 
   it('renders every published piece with its price', () => {
     renderShop();
     expect(screen.getByText('Velvet & Gold Suite')).toBeTruthy();
     expect(screen.getByText('Door of Joy Card')).toBeTruthy();
-    expect(screen.getByText('$8.99 per card')).toBeTruthy();
-    expect(screen.getByText('Price on request')).toBeTruthy();
+    expect(screen.getByText('$8.99')).toBeTruthy();
+    expect(screen.getByText('/ per card')).toBeTruthy();
+    // A null price is a sentence, not a zero.
+    expect(within(grid()).getByText('Price on request')).toBeTruthy();
+    expect(grid().textContent).not.toMatch(/\$0\.00/);
   });
 
   it('paints the admin-written label on the card', () => {
@@ -193,10 +236,9 @@ describe('catalogue', () => {
     expect(screen.getAllByText('Handmade').length).toBeGreaterThan(0);
   });
 
-  it('filters by collection', async () => {
-    const user = userEvent.setup();
-    renderShop();
-    await user.click(screen.getByRole('button', { name: 'Graduation' }));
+  it('shows one shelf when a category is selected', () => {
+    // The /shop/<category> route passes the slug; the same component renders it.
+    renderShop({ category: CAT_GRAD.slug });
     expect(screen.queryByText('Velvet & Gold Suite')).toBeNull();
     expect(screen.getByText('Door of Joy Card')).toBeTruthy();
   });
@@ -204,44 +246,134 @@ describe('catalogue', () => {
   it('filters by an admin-written label', async () => {
     const user = userEvent.setup();
     renderShop();
+    await openFilters(user);
     // The "filters we can write New on" requirement, exercised end to end.
-    const chips = screen.getAllByRole('button', { name: 'New' });
-    await user.click(chips[chips.length - 1]);
+    await user.click(screen.getByRole('checkbox', { name: /New/ }));
     expect(screen.getByText('Velvet & Gold Suite')).toBeTruthy();
     expect(screen.queryByText('Door of Joy Card')).toBeNull();
   });
 
-  it('offers a way back when a filter empties the grid', async () => {
+  it('counts each filter option against the shelf, not the result', async () => {
+    const user = userEvent.setup();
+    renderShop();
+    await openFilters(user);
+    const handmade = screen.getByRole('checkbox', { name: /Handmade/ });
+    await user.click(screen.getByRole('checkbox', { name: /New/ }));
+    // Ticking "New" leaves one product on screen, but "Handmade" must still
+    // report the 1 it would find — a count that collapses to 0 as you filter
+    // tells you nothing about what the next click would do.
+    expect(handmade.closest('label').textContent).toMatch(/Handmade\s*1/);
+  });
+
+  it('never offers a filter that would return nothing', async () => {
     const user = userEvent.setup();
     render(
-      <ShopClient
-        products={[product({ category_id: CAT_WEDDING.id, badges: [] })]}
+      <ShopBrowse
+        products={[product({ badges: [] })]}
         categories={[CAT_WEDDING, CAT_GRAD]}
         badges={[BADGE_NEW]}
         settings={SETTINGS}
+        category={null}
       />,
     );
-    // A collection with no product in it is never rendered as a chip, so the
-    // only way to empty the grid is a label filter.
-    expect(screen.queryByRole('button', { name: 'Graduation' })).toBeNull();
+    await openFilters(user);
+    // Nothing carries "New", so the option is shown at zero and disabled
+    // rather than hidden: an option that vanishes as you browse makes the
+    // panel shift under the pointer, and one that is clickable-but-empty
+    // wastes the click.
+    const dead = screen.getByRole('checkbox', { name: /New/ });
+    expect(dead.disabled).toBe(true);
   });
 
-  it('hides every order button when no WhatsApp number is set', () => {
-    renderShop({ settings: { ...SETTINGS, whatsapp_number: '' } });
-    // The catalogue still shows — only the dead buttons go.
-    expect(screen.getByText('Velvet & Gold Suite')).toBeTruthy();
-    expect(screen.queryByRole('link', { name: /Order/i })).toBeNull();
-  });
-
-  it('links each card at its own product page', () => {
+  it('offers a way back when a COMBINATION empties the grid', async () => {
+    const user = userEvent.setup();
     renderShop();
-    const link = screen.getAllByRole('link', { name: /View Velvet & Gold Suite|Velvet & Gold Suite/ })[0];
-    expect(link.getAttribute('href')).toBe(`${SHOP_PATH}/velvet-gold-suite`);
+    await openFilters(user);
+
+    // Each of these matches one piece on its own; together they match none —
+    // the only way to empty this grid, since a zero-count option is disabled.
+    await user.click(screen.getByRole('checkbox', { name: /New/ }));
+    await user.click(screen.getByRole('checkbox', { name: /Price on request/ }));
+
+    expect(screen.getByText(/Nothing matches those filters/i)).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: /Clear them/i }));
+    expect(screen.getByText('Velvet & Gold Suite')).toBeTruthy();
+    expect(screen.getByText('Door of Joy Card')).toBeTruthy();
   });
 
-  it('shows an honest empty state rather than a broken grid', () => {
-    render(<ShopClient products={[]} categories={[]} badges={[]} settings={SETTINGS} />);
+  it('links each card at its category-scoped product page', () => {
+    renderShop();
+    const link = screen.getAllByRole('link', { name: 'Velvet & Gold Suite' })[0];
+    expect(link.getAttribute('href')).toBe(`${SHOP_PATH}/${CAT_WEDDING.slug}/velvet-gold-suite`);
+  });
+
+  it('sorts price-on-request last in both directions', async () => {
+    const user = userEvent.setup();
+    renderShop();
+    const titles = () => screen.getAllByRole('link')
+      .map((a) => a.textContent)
+      .filter((t) => t === 'Velvet & Gold Suite' || t === 'Door of Joy Card');
+
+    await user.selectOptions(screen.getByRole('combobox'), 'price-asc');
+    expect(titles()[0]).toBe('Velvet & Gold Suite');
+
+    await user.selectOptions(screen.getByRole('combobox'), 'price-desc');
+    // Still last: a quoted piece is not free, and "high to low" must not put
+    // an absent price at either extreme of a real one.
+    expect(titles()[0]).toBe('Velvet & Gold Suite');
+  });
+
+  it('does not scramble the grid when several pieces are all quote-only', async () => {
+    const user = userEvent.setup();
+    // Mapping a null price to ±Infinity made two quoted pieces compare as
+    // `Infinity - Infinity` — NaN — and a comparator returning NaN has no
+    // defined ordering at all.
+    const quoted = ['Alpha', 'Beta', 'Gamma'].map((t, i) => product({
+      id: `q${i}`, title: t, slug: t.toLowerCase(), price_cents: null, badges: [],
+    }));
+    render(
+      <ShopBrowse
+        products={quoted}
+        categories={[CAT_WEDDING]}
+        badges={[]}
+        settings={SETTINGS}
+        category={null}
+      />,
+    );
+
+    // The TITLE links: each card also wraps its image in a link, so counting
+    // every anchor counts each product twice.
+    const shown = () => [...document.querySelectorAll('.shop-grid .sp-title')]
+      .map((a) => a.textContent);
+
+    await user.selectOptions(screen.getByRole('combobox'), 'price-asc');
+    expect(shown()).toHaveLength(3);
+    await user.selectOptions(screen.getByRole('combobox'), 'price-desc');
+    expect(shown()).toHaveLength(3);
+    // Every piece still present and each rendered exactly once.
+    expect(new Set(shown()).size).toBe(3);
+  });
+
+  it('tells an empty catalogue apart from an over-tight filter', () => {
+    // Offering "clear your filters" to someone who has set none reads as a
+    // broken page — and it is what an unreachable backend produced.
+    render(<ShopBrowse products={[]} categories={[]} badges={[]} settings={SETTINGS} category={null} />);
     expect(screen.getByText(/being photographed/i)).toBeTruthy();
+    expect(screen.queryByText(/Nothing matches those filters/i)).toBeNull();
+  });
+
+  it('names the shelf when that one shelf is empty', () => {
+    render(
+      <ShopBrowse
+        products={[product()]}
+        categories={[CAT_WEDDING, CAT_GRAD]}
+        badges={[]}
+        settings={SETTINGS}
+        category={CAT_GRAD.slug}
+      />,
+    );
+    expect(screen.getByText(/Nothing is listed under Graduation yet/i)).toBeTruthy();
   });
 });
 
@@ -368,12 +500,18 @@ describe('wiring', () => {
     expect(read('src/app/admin/_components/Sidebar.js')).toMatch(/\n\s*shop:\s*<svg/);
   });
 
-  it('all four surfaces build their WhatsApp link through the one helper', () => {
-    // Four hand-rolled `wa.me/${n}` templates would not crash when the number
-    // changes — three of them would just keep sending people to the old one.
+  it('every surface that offers WhatsApp builds the link through the one helper', () => {
+    // Hand-rolled `wa.me/${n}` templates would not crash when the number
+    // changes — they would just keep sending people to the old one.
+    //
+    // ShopBrowse is deliberately NOT in this list. Since the /shop rebuild the
+    // browse grid carries no order button: a card shows the piece, the price
+    // and the minimum, and the conversation starts on the product page where
+    // there is something specific to say. A surface with no CTA has no link to
+    // build, and asserting it imports the helper would only force a dead
+    // import.
     const surfaces = [
-      'src/app/printed-invitations/ShopClient.js',
-      'src/app/printed-invitations/[slug]/ProductClient.js',
+      'src/app/shop/[category]/[slug]/ProductClient.js',
       'src/app/dashboard/components/PrintedInvitationsCard.js',
     ];
     surfaces.forEach((rel) => {
@@ -381,27 +519,29 @@ describe('wiring', () => {
       expect(src).toContain('buildWhatsappUrl');
       expect(src).not.toMatch(/https:\/\/wa\.me\//);
     });
+
+    // And the browse grid really does stay out of it.
+    expect(read('src/app/shop/ShopBrowse.js')).not.toMatch(/https:\/\/wa\.me\//);
   });
 
   it('the product page carries its own copy of the shared button/badge CSS', () => {
-    // A real bug this caught: .pi-btn lived only in ShopClient's style block.
-    // /printed-invitations/[slug] is a different route, so ShopClient is never
-    // mounted there and the main "Order on WhatsApp" control shipped as a bare
-    // blue underlined anchor. Every test passed while it was broken; only a
-    // screenshot showed it. Both pages must include the shared layer.
-    ['src/app/printed-invitations/ShopClient.js', 'src/app/printed-invitations/[slug]/ProductClient.js']
-      .forEach((rel) => {
-        const src = read(rel);
-        expect(src).toContain('PI_BASE_CSS');
-        expect(src).toMatch(/\$\{PI_BASE_CSS\}/);
-      });
+    // A real bug this caught: .pi-btn lived only in the catalogue's style
+    // block. The product page is a different route, so the main "Order on
+    // WhatsApp" control shipped as a bare blue underlined anchor. Every test
+    // passed while it was broken; only a screenshot showed it.
+    //
+    // Only the product page needs the layer now — ShopBrowse ships its own
+    // self-contained style block and uses none of the pi- classes.
+    const src = read('src/app/shop/[category]/[slug]/ProductClient.js');
+    expect(src).toContain('PI_BASE_CSS');
+    expect(src).toMatch(/\$\{PI_BASE_CSS\}/);
   });
 
   it('the shared button rules are declared exactly once', () => {
-    const shared = read('src/app/printed-invitations/piStyles.js');
+    const shared = read('src/app/shop/piStyles.js');
     expect(shared).toMatch(/\.pi-btn\s*\{/);
     // Redeclaring them per page is how the two drift apart again.
-    ['src/app/printed-invitations/ShopClient.js', 'src/app/printed-invitations/[slug]/ProductClient.js']
+    ['src/app/shop/ShopBrowse.js', 'src/app/shop/[category]/[slug]/ProductClient.js']
       .forEach((rel) => {
         expect(read(rel)).not.toMatch(/\n\s*\.pi-btn\s*\{/);
       });

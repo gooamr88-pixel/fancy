@@ -2,6 +2,8 @@
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { formatTierPrice, tierCta, tierHref, tierGuestLine } from "../utils/usePublicPricing";
+// Cormorant, not Aboreto — see the note in pricing/page.js.
+import { T } from "../components/landing/landingTokens";
 
 /**
  * "Which Plan Do You Need?" — an interactive plan finder driven entirely by
@@ -115,7 +117,7 @@ export default function PlanRecommender({ tiers }) {
         <span style={{ fontFamily: "var(--font-sans)", fontSize: "12px", fontWeight: 700, color: "#B8944F", letterSpacing: "1.5px", textTransform: "uppercase", display: "block", marginBottom: "10px" }}>
           Plan Finder
         </span>
-        <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "28px", fontWeight: 700, color: "#191B1E", marginBottom: "8px" }}>
+        <h2 style={{ fontFamily: T.display, fontSize: "28px", fontWeight: 700, color: "#191B1E", marginBottom: "8px" }}>
           Not sure which plan fits?
         </h2>
         <p style={{ fontFamily: "var(--font-sans)", fontSize: "14.5px", color: "#5E5A52" }}>
@@ -258,11 +260,11 @@ export default function PlanRecommender({ tiers }) {
               <span style={{ fontFamily: "var(--font-sans)", fontSize: "11px", fontWeight: 700, color: "#B8944F", letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: "10px" }}>
                 {fallback ? "Closest Match" : "Recommended For You"}
               </span>
-              <h3 style={{ fontFamily: "var(--font-serif)", fontSize: "24px", fontWeight: 700, color: "#191B1E", marginBottom: "4px" }}>
+              <h3 style={{ fontFamily: T.display, fontSize: "24px", fontWeight: 700, color: "#191B1E", marginBottom: "4px" }}>
                 {recommended.name}
               </h3>
               <div style={{ display: "flex", alignItems: "baseline", gap: "4px", marginBottom: "14px" }}>
-                <span style={{ fontFamily: "var(--font-serif)", fontSize: "30px", fontWeight: 700, color: "#191B1E" }}>
+                <span style={{ fontFamily: T.display, fontSize: "30px", fontWeight: 700, color: "#191B1E" }}>
                   {formatTierPrice(recommended).price}
                 </span>
                 <span style={{ fontFamily: "var(--font-sans)", fontSize: "13px", color: "#5E5A52" }}>

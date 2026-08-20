@@ -5,6 +5,13 @@ import Navbar from "../components/landing/Navbar";
 import FooterSection from "../components/landing/FooterSection";
 import { usePublicPricing, formatTierPrice, tierCta, tierHref, tierGuestLine } from "../utils/usePublicPricing";
 import PlanRecommender from "./PlanRecommender";
+/* The DISPLAY face, shared with the homepage.
+   These headings used to be `var(--font-serif)`, which is ABORETO — a
+   capitals-only face with a single weight. "Simple, transparent pricing"
+   therefore rendered as SIMPLE, TRANSPARENT PRICING, three shouted lines deep
+   on a phone, while the homepage next door had moved to Cormorant Garamond.
+   Same product, two typographic systems, one screen apart. */
+import { T } from "../components/landing/landingTokens";
 
 const faqData = [
   {
@@ -173,7 +180,7 @@ function PricingCard({ plan }) {
       <div style={{ marginBottom: "12px", display: "flex", alignItems: "baseline", gap: "4px", flexWrap: "wrap" }}>
         <span
           style={{
-            fontFamily: "var(--font-serif)",
+            fontFamily: T.display,
             fontSize: "52px",
             fontWeight: 700,
             color: plan.highlight ? "#FFFFFF" : "#191B1E",
@@ -344,7 +351,7 @@ function FaqItem({ item, isOpen, onToggle }) {
       >
         <span
           style={{
-            fontFamily: "var(--font-serif)",
+            fontFamily: T.display,
             fontSize: "18px",
             fontWeight: 600,
             color: "#191B1E",
@@ -406,6 +413,8 @@ function FaqItem({ item, isOpen, onToggle }) {
 
 export default function PricingPage() {
   const [openFaq, setOpenFaq] = useState(0);
+  /** Phone comparison: the rows every plan shares start collapsed. */
+  const [showCommon, setShowCommon] = useState(false);
   const { tiers, error } = usePublicPricing();
 
   /* ─────────────────────────────────────────────────────────────────────
@@ -451,7 +460,17 @@ export default function PricingPage() {
       cta: tierCta(tier),
       href: tierHref(tier),
       inheritsFrom: isSuperset ? prev.name : null,
+      /** What the CARD lists: the delta, under an "Everything in X" line. */
       features: [tierGuestLine(tier), ...shown],
+      /** What the TABLE compares: everything this tier actually includes.
+       *
+       *  These have to stay separate. The comparison table below builds its
+       *  matrix by testing `includes(feature)` per plan, so handing it the
+       *  delta would mark a tier as NOT having the features it inherits —
+       *  rendering a diagonal of ticks in a field of dashes and telling a
+       *  customer that Signature does not include the RSVP forms it plainly
+       *  does. The card is a summary; the table is the claim. */
+      allFeatures: [tierGuestLine(tier), ...own],
     };
   });
 
@@ -463,20 +482,43 @@ export default function PricingPage() {
     : faqData;
 
   // Comparison features are built dynamically from the loaded plans.
+  // `allFeatures`, NOT `features` — see the note where plans is built. The
+  // card's list is a delta and would make every inherited feature read as
+  // absent here.
   const comparisonFeatures = (() => {
-    const allFeatures = new Set();
+    const everyFeature = new Set();
     for (const plan of plans) {
-      for (const f of (plan.features || [])) {
-        allFeatures.add(f);
+      for (const f of (plan.allFeatures || [])) {
+        everyFeature.add(f);
       }
     }
-    return [...allFeatures].map(feature => {
+    return [...everyFeature].map(feature => {
       const row = { feature };
       for (const plan of plans) {
-        row[plan.name] = (plan.features || []).includes(feature) ? '✓' : '—';
+        row[plan.name] = (plan.allFeatures || []).includes(feature) ? '✓' : '—';
       }
       return row;
     });
+  })();
+
+  /**
+   * The same rows, split for the phone list: the ones that DIFFER between
+   * plans, and the ones every plan shares.
+   *
+   * Computed here rather than in the markup so the toggle's label can say how
+   * many are hidden without counting them twice. A row nobody has (every plan
+   * "—") counts as differing, because "no plan includes this" is information;
+   * a row everybody has is not.
+   */
+  const mobileRows = (() => {
+    const differing = [];
+    const common = [];
+    for (const row of comparisonFeatures) {
+      const included = plans.filter((p) => row[p.name] === '✓');
+      if (plans.length > 0 && included.length === plans.length) common.push(row);
+      else differing.push({ ...row, included });
+    }
+    return { differing, common };
   })();
 
   return (
@@ -521,7 +563,7 @@ export default function PricingPage() {
 
             <h1
               style={{
-                fontFamily: "var(--font-serif)",
+                fontFamily: T.display,
                 fontSize: "clamp(2.4rem, 5vw, 3.8rem)",
                 fontWeight: 700,
                 color: "#191B1E",
@@ -607,7 +649,7 @@ export default function PricingPage() {
             <div style={{ textAlign: "center", marginBottom: "56px" }}>
               <h2
                 style={{
-                  fontFamily: "var(--font-serif)",
+                  fontFamily: T.display,
                   fontSize: "40px",
                   fontWeight: 700,
                   color: "#191B1E",
@@ -644,7 +686,70 @@ export default function PricingPage() {
               Swipe the table sideways to see every plan
             </p>
 
-            <div className="fx-scroll-x">
+            {/* ── THE PHONE VERSION ──────────────────────────────────────────
+                Below 768 the table is replaced outright rather than scrolled.
+
+                Measured at 390px the grid showed 1.8 of its 5 columns — the
+                third plan's name was cut mid-word — so reading one row meant
+                swiping sideways and back, per row, for twenty-five rows. That
+                is a scroll port working exactly as designed and a comparison
+                nobody can actually make.
+
+                Here each feature names the plans that include it. It is
+                shorter than a row of ticks, it needs no header to decode, and
+                "which plans have this?" is answered by reading rather than by
+                counting columns.
+
+                Both versions render and CSS picks one: no JS, no hydration
+                mismatch, and the desktop table stays exactly as it was. */}
+            {/* THE ROWS THAT DIFFER COME FIRST — and by default, alone.
+                A feature every plan includes cannot help anyone choose
+                between them, and with a real ladder those are the MAJORITY of
+                rows: at 440px five of the first six read "Every plan", so the
+                differences a visitor came for started a screen and a half
+                down. They are still available, one tap away, because "what do
+                I get at all?" is a fair second question — just not the one
+                this table is for. */}
+            <ul className="cmp-mobile">
+              {mobileRows.differing.map((row) => (
+                <li key={row.feature} className="cmp-m-row">
+                  <span className="cmp-m-feature">{row.feature}</span>
+                  {row.included.length === 0 ? (
+                    <span className="cmp-m-none">Not included on any plan</span>
+                  ) : (
+                    <span className="cmp-m-plans">
+                      {row.included.map((p) => (
+                        <span
+                          key={p.name}
+                          className={`cmp-m-plan${p.highlight ? " is-rec" : ""}`}
+                        >
+                          {p.name}
+                        </span>
+                      ))}
+                    </span>
+                  )}
+                </li>
+              ))}
+
+              {showCommon && mobileRows.common.map((row) => (
+                <li key={row.feature} className="cmp-m-row">
+                  <span className="cmp-m-feature">{row.feature}</span>
+                  <span className="cmp-m-all">Every plan</span>
+                </li>
+              ))}
+
+              {mobileRows.common.length > 0 && (
+                <li className="cmp-m-row cmp-m-toggle">
+                  <button type="button" onClick={() => setShowCommon((v) => !v)} aria-expanded={showCommon}>
+                    {showCommon
+                      ? "Hide what every plan includes"
+                      : `Show ${mobileRows.common.length} more on every plan`}
+                  </button>
+                </li>
+              )}
+            </ul>
+
+            <div className="fx-scroll-x cmp-wide">
             <div
               style={{
                 background: "#FFFFFF",
@@ -750,7 +855,7 @@ export default function PricingPage() {
             <div style={{ textAlign: "center", marginBottom: "56px" }}>
               <h2
                 style={{
-                  fontFamily: "var(--font-serif)",
+                  fontFamily: T.display,
                   fontSize: "40px",
                   fontWeight: 700,
                   color: "#191B1E",
@@ -810,7 +915,7 @@ export default function PricingPage() {
           <div className="fx-container fx-container--sm" style={{ position: "relative", zIndex: 1 }}>
             <h2
               style={{
-                fontFamily: "var(--font-serif)",
+                fontFamily: T.display,
                 fontSize: "44px",
                 fontWeight: 700,
                 color: "#FFFFFF",
@@ -878,20 +983,118 @@ export default function PricingPage() {
           z-index: 1;
         }
 
-        /* A cut-off column header reads as a broken page, not as something
-           you can swipe — say so, on the widths where the table actually
-           overflows. */
-        .cmp-swipe {
-          font-family: var(--font-sans);
-          font-size: 13px;
-          color: #8A8579;
-          text-align: center;
-          margin: 0 0 12px;
+        /* ── which comparison shows ──────────────────────────────────────
+           Phone gets the list; 768 and up gets the table. The swipe hint goes
+           with the table, and is now never shown on the widths that used to
+           need it — because those widths no longer have a table to swipe. */
+        .cmp-swipe,
+        .cmp-wide {
+          display: none;
         }
         .cmp-swipe::after {
           content: " \\2192";
         }
+
+        .cmp-mobile {
+          list-style: none;
+          margin: 0;
+          padding: 0;
+          border: 1px solid #E8E2D6;
+          border-radius: 16px;
+          overflow: hidden;
+          background: #FFFFFF;
+        }
+        .cmp-m-row {
+          display: flex;
+          flex-direction: column;
+          gap: 7px;
+          padding: 14px 16px;
+        }
+        .cmp-m-row + .cmp-m-row {
+          border-top: 1px solid #F0EBE2;
+        }
+        .cmp-m-row:nth-child(odd) {
+          background: #FDFCF9;
+        }
+        .cmp-m-feature {
+          font-family: var(--font-sans);
+          font-size: 14px;
+          font-weight: 600;
+          color: #191B1E;
+          line-height: 1.35;
+        }
+        .cmp-m-plans {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+        }
+        .cmp-m-plan {
+          font-family: var(--font-sans);
+          font-size: 11px;
+          letter-spacing: 0.04em;
+          color: #5E5A52;
+          background: #F8F4EC;
+          border: 1px solid #E8E2D6;
+          border-radius: 999px;
+          padding: 3px 10px;
+          white-space: nowrap;
+        }
+        /* The recommended plan is marked here too. Without it the chip row
+           gives no clue which plan the page is steering toward, which the
+           table communicated with a gold column header. */
+        .cmp-m-plan.is-rec {
+          color: #8A6D34;
+          border-color: rgba(184, 148, 79, 0.45);
+          background: rgba(184, 148, 79, 0.08);
+          font-weight: 600;
+        }
+        .cmp-m-all,
+        .cmp-m-none {
+          font-family: var(--font-sans);
+          font-size: 12px;
+          color: #5E5A52;
+        }
+        .cmp-m-all {
+          color: #8A6D34;
+        }
+        .cmp-m-toggle {
+          padding: 0;
+        }
+        .cmp-m-toggle button {
+          width: 100%;
+          /* 44px: a control shorter than this is a control people miss. */
+          min-height: 48px;
+          padding: 0 16px;
+          background: none;
+          border: 0;
+          text-align: start;
+          cursor: pointer;
+          font-family: var(--font-sans);
+          font-size: 12.5px;
+          font-weight: 600;
+          letter-spacing: 0.04em;
+          color: #8A6D34;
+        }
+
         @media (min-width: 768px) {
+          .cmp-mobile {
+            display: none;
+          }
+          .cmp-wide {
+            display: block;
+          }
+          /* Still overflows between 768 and roughly 1100 with four plans, so
+             the hint comes back exactly where the swipe is real. */
+          .cmp-swipe {
+            display: block;
+            font-family: var(--font-sans);
+            font-size: 13px;
+            color: #8A8579;
+            text-align: center;
+            margin: 0 0 12px;
+          }
+        }
+        @media (min-width: 1280px) {
           .cmp-swipe {
             display: none;
           }

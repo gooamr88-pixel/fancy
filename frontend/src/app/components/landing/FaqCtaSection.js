@@ -72,7 +72,7 @@ export default function FaqCtaSection() {
               Before you ask
               <span aria-hidden="true" className="fc-kicker__rule" />
             </span>
-            <span className="fc-numeral" aria-hidden="true">IX</span>
+            <span className="fc-numeral" aria-hidden="true">V</span>
             <h2 id="fc-faq-title" className="fc-h2">Questions we get.</h2>
 
             <div className="fc-list">

@@ -14,10 +14,37 @@ const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), textarea:not([disab
  * Usage:
  *   const dialogRef = useModalA11y(isOpen, { onClose });
  *   <div ref={dialogRef} role="dialog" aria-modal="true" tabIndex={-1}>...</div>
+ *
+ * ── WHY THE EFFECT DEPENDS ONLY ON `isOpen` ──────────────────────────────
+ *
+ * It used to depend on `[isOpen, onClose]`, and that made every modal form in
+ * this app impossible to type in.
+ *
+ * Callers pass `onClose={() => setOpen(false)}` — an inline arrow, so a NEW
+ * function identity on every render of the parent. Typing one character into
+ * a field calls setState, the parent re-renders, `onClose` is a different
+ * function, the dependency array changes, and React tears the effect down and
+ * runs it again. The teardown calls `triggerRef.current.focus()` (restoring
+ * focus to whatever opened the modal) and the re-run focuses the dialog's
+ * FIRST focusable child. Net effect: focus left the field after every single
+ * keystroke, so text came out one letter at a time into whatever was focused
+ * next. It was reported as "I write letter letter and not able to write
+ * constant", on the shop's product form, and it was never a shop bug — all 16
+ * modals that use this hook had it, including Edit guest and Import guests.
+ *
+ * The callback lives in a ref instead. The effect keeps the LATEST `onClose`
+ * without depending on its identity, so it runs exactly twice per modal: once
+ * when it opens, once when it closes.
  */
 export function useModalA11y(isOpen, { onClose } = {}) {
   const dialogRef = useRef(null);
   const triggerRef = useRef(null);
+
+  /* Updated on every render, read only from inside the effect. Assigned during
+     render rather than in its own effect so that an Escape keypress in the
+     same tick as a re-render still calls the current handler. */
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -36,7 +63,7 @@ export function useModalA11y(isOpen, { onClose } = {}) {
     });
 
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') { onClose?.(); return; }
+      if (e.key === 'Escape') { onCloseRef.current?.(); return; }
       if (e.key !== 'Tab') return;
       const container = dialogRef.current;
       if (!container) return;
@@ -55,7 +82,7 @@ export function useModalA11y(isOpen, { onClose } = {}) {
       document.body.style.overflow = prevOverflow;
       triggerRef.current?.focus?.();
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   return dialogRef;
 }

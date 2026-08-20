@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 
 vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(''), usePathname: () => '/pricing' }));
 vi.mock('../src/app/components/landing/Navbar', () => ({ default: () => null }));
@@ -126,5 +126,67 @@ describe('a plan card lists what it adds, not everything it has', () => {
 
     expect(only.textContent).not.toContain('Everything in');
     ESSENTIAL.forEach((f) => expect(within(only).getByText(f)).toBeTruthy());
+  });
+
+  it('the phone comparison leads with what DIFFERS, not what everyone has', async () => {
+    /* At 440px the table showed 1.8 of its 5 columns, so it was replaced below
+       768 by a list naming the plans per feature. That list then opened with
+       five consecutive "Every plan" rows — features that cannot help anyone
+       choose — pushing the actual differences a screen and a half down. */
+    mockTiers.current = [
+      tier('Essential', ESSENTIAL),
+      tier('Signature', SIGNATURE, { max_guests: 300 }),
+    ];
+    const { container } = render(<PricingPage />);
+
+    const list = container.querySelector('.cmp-mobile');
+    expect(list, 'no phone comparison rendered').toBeTruthy();
+
+    const featureNames = () => [...list.querySelectorAll('.cmp-m-feature')]
+      .map((el) => el.textContent.trim());
+
+    // Shared features are hidden behind the toggle…
+    expect(featureNames()).not.toContain('Basic RSVP forms');
+    // …and the differentiating ones are there.
+    expect(featureNames()).toContain('Seating chart designer');
+
+    // The toggle says how many it is holding back.
+    const toggle = list.querySelector('.cmp-m-toggle button');
+    expect(toggle.textContent).toMatch(/Show \d+ more on every plan/);
+
+    fireEvent.click(toggle);
+    expect(featureNames()).toContain('Basic RSVP forms');
+    expect(toggle.textContent).toMatch(/Hide what every plan includes/);
+  });
+
+  it('the comparison table still credits INHERITED features to the higher tier', () => {
+    /* The regression this exists to stop: the cards were changed to list a
+       delta, and the table builds its matrix from the same array. Handing it
+       the delta marked every inherited feature as absent — a diagonal of ticks
+       in a field of dashes, telling a customer that Signature does not include
+       the RSVP forms it plainly does.
+
+       The card is a summary. The table is the claim, and it has to be true. */
+    mockTiers.current = [
+      tier('Essential', ESSENTIAL),
+      tier('Signature', SIGNATURE, { max_guests: 300 }),
+    ];
+    const { container } = render(<PricingPage />);
+
+    // The card elides it…
+    const signatureCard = cardFor(container, 'Signature');
+    expect(within(signatureCard).queryByText('Basic RSVP forms')).toBeNull();
+
+    // …and the table must still say Signature has it.
+    const row = [...container.querySelectorAll('div')].find((d) => {
+      const first = d.firstElementChild;
+      return first && first.textContent.trim() === 'Basic RSVP forms'
+        && d.children.length === 3; // feature + one cell per plan
+    });
+    expect(row, 'no comparison row found for an inherited feature').toBeTruthy();
+
+    const cells = [...row.children].slice(1).map((c) => c.textContent.trim());
+    expect(cells, 'an inherited feature was marked absent on the higher tier')
+      .toEqual(['✓', '✓']);
   });
 });

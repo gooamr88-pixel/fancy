@@ -1,5 +1,5 @@
 /**
- * PRINTED INVITATIONS — the shared vocabulary of the catalogue.
+ * THE SHOP — the shared vocabulary of the catalogue.
  *
  * Four separate surfaces send people to the same WhatsApp conversation: the
  * listing page, the product page, the homepage teaser and the organizer
@@ -13,8 +13,17 @@
  * customer says nobody replied.
  */
 
-/** The catalogue's public route. Referenced by nav, footer, teaser and cards. */
-export const SHOP_PATH = '/printed-invitations';
+/** The catalogue's public route. Referenced by nav, footer, teaser and cards.
+ *
+ *  Was /printed-invitations, which named the only shelf the catalogue had when
+ *  it was built. The old path still resolves — it 308s here — but every link
+ *  inside the app should point at the real one rather than take the hop. */
+export const SHOP_PATH = '/shop';
+
+/** A category shelf, and one piece on it. Built here so no caller has to
+ *  remember that the product URL carries its category segment. */
+export const categoryPath = (slug) => `/shop/${slug}`;
+export const productPath = (categorySlug, productSlug) => `/shop/${categorySlug || 'all'}/${productSlug}`;
 
 /**
  * The canonical public origin, used to build the link inside a customer's
@@ -35,8 +44,26 @@ export const SHOP_PATH = '/printed-invitations';
  */
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://fancyrsvp.com').replace(/\/+$/, '');
 
-/** What the section is called to a customer, everywhere. */
-export const SHOP_LABEL = 'Printed Invitations';
+/** What the section is called to a customer, everywhere.
+ *
+ *  "Printed Invitations" until 2026-08-20. The catalogue now sells screens,
+ *  scanners, signage and print as well, so the old label described a sixth of
+ *  it — and a customer looking for a door scanner would never open a menu item
+ *  that promises invitations. */
+export const SHOP_LABEL = 'Shop';
+
+/**
+ * The catalogue's currency and order floor.
+ *
+ * Both mirror the column defaults in 20260826000000_shop_usd_and_moq.sql, and
+ * both exist as constants because the literals they replace had already
+ * drifted: 'CAD' was written out in eight places across the frontend and
+ * backend, so "what currency is a product with no explicit currency?" had
+ * different answers in the admin form, the price formatter and the JSON-LD
+ * offer on the product page.
+ */
+export const SHOP_CURRENCY = 'USD';
+export const SHOP_MIN_ORDER_QTY = 100;
 
 /**
  * Money, from integer cents.
@@ -46,16 +73,20 @@ export const SHOP_LABEL = 'Printed Invitations';
  * words. Returning null here (rather than "$0.00") forces every caller to
  * decide what to show instead, which is the point.
  */
-export function formatPrice(cents, currency = 'CAD') {
+export function formatPrice(cents, currency = SHOP_CURRENCY) {
   if (cents === null || cents === undefined || Number.isNaN(Number(cents))) return null;
   try {
     // Always two decimals. Dropping them on whole amounts renders "$9" beside
     // "$12.50" in the same grid, which reads as a formatting bug rather than a
     // style — and a price list is exactly where inconsistent money notation
     // gets noticed.
-    return new Intl.NumberFormat('en-CA', {
+    //
+    // en-US, not en-CA: the locale decides how the symbol is written, and
+    // en-CA formats USD as "US$1.85" while en-US writes the "$1.85" the
+    // catalogue is designed around.
+    return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: currency || 'CAD',
+      currency: currency || SHOP_CURRENCY,
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(Number(cents) / 100);
@@ -63,7 +94,7 @@ export function formatPrice(cents, currency = 'CAD') {
     // An admin can type any three letters into the currency field; an unknown
     // ISO code makes Intl throw, and a thrown formatter would blank the whole
     // price rail rather than the one symbol it could not resolve.
-    return `${(Number(cents) / 100).toFixed(2)} ${currency || ''}`.trim();
+    return `${(Number(cents) / 100).toFixed(2)} ${currency || SHOP_CURRENCY}`.trim();
   }
 }
 
@@ -108,7 +139,15 @@ export function buildWhatsappUrl({ settings, product } = {}) {
 
   const parts = [base];
   if (product?.title) parts.push(`\n\nProduct: ${product.title}`);
-  if (product?.slug) parts.push(`${SITE_URL}${SHOP_PATH}/${product.slug}`);
+  // The product URL carries its category segment. A product whose category is
+  // missing (unpublished, or never set) falls back to the catalogue root
+  // rather than to a /shop/undefined/… link pasted into a customer's chat.
+  if (product?.slug) {
+    const cat = product.category?.slug || product.category_slug;
+    parts.push(cat
+      ? `${SITE_URL}${productPath(cat, product.slug)}`
+      : `${SITE_URL}${SHOP_PATH}`);
+  }
 
   return `https://wa.me/${number}?text=${encodeURIComponent(parts.join('\n'))}`;
 }

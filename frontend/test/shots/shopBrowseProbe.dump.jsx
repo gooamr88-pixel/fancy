@@ -1,0 +1,133 @@
+/* Renders /shop's browse surface so it can be LOOKED AT rather than assumed.
+   Staged output + per-width frames land in .visual/shop/.
+     npx vitest run --config vitest.shots.config.mjs test/shots/shopBrowseProbe.dump.jsx */
+import React from 'react';
+import { describe, it, vi } from 'vitest';
+import { render, act } from '@testing-library/react';
+import fs from 'node:fs';
+import path from 'node:path';
+
+vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(''), usePathname: () => '/shop' }));
+
+import ShopBrowse from '../../src/app/shop/ShopBrowse';
+
+const ROOT = process.cwd();
+const OUT = path.join(ROOT, '..', '.visual', 'shop');
+const GLOBALS = fs.readFileSync(path.join(ROOT, 'src/app/globals.css'), 'utf8');
+
+/* The REAL typefaces. next/font self-hosts into .next/static/media and writes
+   the @font-face src relative to the chunks folder, so a staged page has to
+   rewrite those URLs — without this the page renders in a fallback and any
+   judgement made from the screenshot is about type the product does not use. */
+function fontFaces() {
+  const dir = path.join(ROOT, '.next/static/chunks');
+  if (!fs.existsSync(dir)) throw new Error('No .next build. Run `npx next build` first.');
+  const css = fs.readdirSync(dir).filter((f) => f.endsWith('.css'))
+    .map((f) => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n');
+  const media = encodeURI(path.join(ROOT, '.next/static/media').split(path.sep).join('/'));
+  const withFonts = css.replace(/url\(\.\.\/media\//g, `url(file:///${media}/`);
+  if (!/@font-face\{font-family:Aboreto;/.test(withFonts)) {
+    throw new Error('No Aboreto @font-face in the built CSS — the font pipeline moved.');
+  }
+  return withFonts.match(/@font-face\{[^}]*\}/g).join('\n');
+}
+
+/* next/font puts the family names on a class on <html>; the staged page has no
+   such class, and an invalid var() inside a font-family list invalidates the
+   WHOLE declaration. Declared verbatim from the built CSS. */
+const VARS = `
+  :root {
+    --font-heading: "Aboreto", "Aboreto Fallback";
+    --font-body: "Google Sans";
+    --font-cormorant: "Cormorant Garamond", "Cormorant Garamond Fallback";
+  }
+  html, body { margin: 0; padding: 0; }
+`;
+
+const CATS = [
+  { id: 'c1', name: 'Wedding cards', slug: 'wedding-cards', description: 'Foiled, letterpressed and embossed.', sort_order: 10 },
+  { id: 'c2', name: 'Screens & displays', slug: 'screens-displays', description: 'Welcome screens and seating displays.', sort_order: 20 },
+  { id: 'c3', name: 'Scanners & door kit', slug: 'scanners-door', description: 'Handheld scanners and tablet kits.', sort_order: 30 },
+  { id: 'c4', name: 'Printed materials', slug: 'printed-materials', description: 'Menus, place cards, table numbers.', sort_order: 40 },
+  { id: 'c5', name: 'Signage', slug: 'signage', description: 'Seating charts and welcome signs.', sort_order: 50 },
+  { id: 'c6', name: 'Envelopes & extras', slug: 'envelopes-extras', description: 'Envelopes, seals, ribbon.', sort_order: 60 },
+];
+
+const B_NEW = { id: 'b1', label: 'New', bg_color: '#F6F2E9', text_color: '#8A6D34', is_filterable: true, sort_order: 0 };
+const B_BEST = { id: 'b2', label: 'Bestseller', bg_color: '#F6F2E9', text_color: '#8A6D34', is_filterable: true, sort_order: 1 };
+
+/* Long titles and a quoted price on purpose: the shapes that break a dense
+   grid are a two-line name and a missing number, not the tidy case. */
+const P = (id, title, cat, cents, unit, over = {}) => ({
+  id,
+  title,
+  slug: title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+  tagline: over.tagline || '320gsm cotton · Gold foil',
+  category_id: cat,
+  price_cents: cents,
+  compare_at_cents: over.was || null,
+  currency: 'USD',
+  price_unit: unit,
+  min_order_qty: over.moq ?? 100,
+  lead_time_text: over.lead || '5 days',
+  is_featured: over.featured || false,
+  is_sold_out: over.sold || false,
+  sort_order: over.sort ?? 0,
+  images: [],
+  badges: over.badges || [],
+});
+
+const PRODUCTS = [
+  P('p1', 'Velvet Ring — foiled card', 'c1', 185, 'card', { was: 220, badges: [B_BEST], featured: true }),
+  P('p2', 'Swan Lake — letterpress', 'c1', 240, 'card', { lead: '7 days' }),
+  P('p3', 'Door of Joy — gold foil', 'c1', 210, 'card', {}),
+  P('p4', 'Carved-door invitation box with a deliberately long name', 'c1', 640, 'box', { lead: '12 days' }),
+  P('p5', 'Save-the-date card', 'c1', 95, 'card', { badges: [B_NEW] }),
+  P('p6', 'Olive wax-sealed envelope', 'c6', 95, 'envelope', {}),
+  P('p7', '43" welcome screen', 'c2', 78000, 'unit', { moq: 1, lead: '10 days' }),
+  P('p8', 'Handheld QR scanner', 'c3', 21000, 'unit', { moq: 1, badges: [B_NEW] }),
+  P('p9', 'Bespoke foil plate', 'c1', null, null, { tagline: 'Made to your monogram' }),
+  P('p10', 'Menu cards — cotton stock', 'c4', 90, 'card', {}),
+  P('p11', 'Seating chart poster', 'c5', 4800, 'poster', { moq: 1, sold: true }),
+  P('p12', 'Place cards — folded', 'c4', 65, 'card', {}),
+];
+
+const SETTINGS = { enabled: true, whatsapp_number: '19055550134', hero_title: 'Shop' };
+
+describe('shop browse probe', () => {
+  it('stages the shop home and one category at both widths', async () => {
+    fs.mkdirSync(OUT, { recursive: true });
+
+    const stage = (name, node) => {
+      let r;
+      act(() => { r = render(node); });
+      fs.writeFileSync(path.join(OUT, `${name}.html`),
+        `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<style>${fontFaces()}</style><style>${GLOBALS}</style><style>${VARS}</style></head>
+<body>${r.container.innerHTML}</body></html>`, 'utf8');
+      r.unmount();
+    };
+
+    stage('home', (
+      <ShopBrowse products={PRODUCTS} categories={CATS} badges={[B_NEW, B_BEST]} settings={SETTINGS} category={null} />
+    ));
+    stage('category', (
+      <ShopBrowse products={PRODUCTS} categories={CATS} badges={[B_NEW, B_BEST]} settings={SETTINGS} category="wedding-cards" />
+    ));
+
+    /* Shot through an IFRAME: Chrome on Windows will not open a window under
+       ~500px, so --window-size=390 lays out at 500 and crops, which looks
+       exactly like horizontal overflow and is not. 440 is the iPhone 16 Pro
+       Max, the width the pricing page shipped broken at because nothing ever
+       rendered between 390 and 768. */
+    for (const page of ['home', 'category']) {
+      for (const w of [390, 440, 1280]) {
+        fs.writeFileSync(path.join(OUT, `frame-${page}-${w}.html`),
+          `<!doctype html><html><head><meta charset="utf-8"><style>
+  html,body{margin:0;background:#666;}
+  iframe{display:block;width:${w}px;height:4200px;border:0;background:#FCFBF8;}
+</style></head><body><iframe src="${page}.html" scrolling="no"></iframe></body></html>`, 'utf8');
+      }
+    }
+  });
+});

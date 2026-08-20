@@ -217,6 +217,28 @@ const getPublicProductBySlug = async (req, res, next) => {
     const others = pool.filter((p) => !sameCategory.includes(p));
     const related = await attachRelations([...sameCategory, ...others].slice(0, 3));
 
+    // The shelf this piece sits on.
+    //
+    // The row carries category_id and nothing else, which was enough while the
+    // catalogue was one flat list at /printed-invitations. The product URL is
+    // now /shop/<category>/<slug>, so the page needs the SLUG to build its own
+    // canonical and its breadcrumb — without it every product would resolve to
+    // a generic segment and the canonical would disagree with the links
+    // pointing at it.
+    //
+    // Only published categories are attached: a category an admin unpublishes
+    // must stop naming itself on the pieces inside it.
+    let category = null;
+    if (data.category_id) {
+      const { data: cat } = await supabase
+        .from('shop_categories')
+        .select('id, name, slug')
+        .eq('id', data.category_id)
+        .eq('is_published', true)
+        .maybeSingle();
+      category = cat || null;
+    }
+
     // Fire-and-forget: a view counter must never delay or fail the page.
     supabase.rpc('increment_shop_product_view', { p_product_id: data.id }).then(
       () => {},
@@ -224,7 +246,7 @@ const getPublicProductBySlug = async (req, res, next) => {
     );
 
     res.set('Cache-Control', 'public, max-age=60, s-maxage=60');
-    return res.json({ success: true, product, related, settings });
+    return res.json({ success: true, product: { ...product, category }, related, settings });
   } catch (err) {
     next(err);
   }

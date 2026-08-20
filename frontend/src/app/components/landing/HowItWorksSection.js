@@ -82,7 +82,7 @@ export default function HowItWorksSection() {
           </span>
           {/* The roman numeral is the editorial device that says the page was
               composed rather than assembled. Decorative, so it is hidden. */}
-          <span className="hiw-numeral" aria-hidden="true">IV</span>
+          <span className="hiw-numeral" aria-hidden="true">II</span>
           <h2 id="hiw-title" className="hiw-h2">
             Three steps, and you never open a spreadsheet.
           </h2>

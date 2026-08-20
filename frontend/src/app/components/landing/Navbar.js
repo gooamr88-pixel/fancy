@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "../../hooks/useAuth";
 import { useModalA11y } from "../../hooks/useModalA11y";
+import { SHOP_LABEL, SHOP_PATH } from "../../utils/shopLinks";
 
 /* ═══════════════════════════════════════════════════════════
    Navbar — Fancy RSVP (Page 09 Brand Guide)
@@ -53,7 +54,10 @@ import { useModalA11y } from "../../hooks/useModalA11y";
 const NAV_LINKS = [
   { label: "Features", href: "/features" },
   { label: "Pricing", href: "/pricing" },
-  { label: "Printed Cards", href: "/printed-invitations" },
+  // Was "Printed Cards" → /printed-invitations. The catalogue now sells
+  // screens, scanners and signage too, and nobody hunting for a door scanner
+  // opens a menu item that promises cards.
+  { label: SHOP_LABEL, href: SHOP_PATH },
   { label: "Door App", href: "/checkin-app" },
   { label: "Solutions", href: "/solutions" },
   { label: "Blog", href: "/blog" },

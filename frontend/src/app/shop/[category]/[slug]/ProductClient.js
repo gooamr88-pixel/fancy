@@ -6,8 +6,8 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   SHOP_PATH, SHOP_LABEL, formatPrice, isShopLive, buildWhatsappUrl, recordShopInquiry, coverImage,
-} from '../../utils/shopLinks';
-import { C, PI_BASE_CSS, WhatsappGlyph } from '../piStyles';
+} from '../../../utils/shopLinks';
+import { C, PI_BASE_CSS, WhatsappGlyph } from '../../piStyles';
 
 /**
  * PRINTED INVITATIONS — one piece.

@@ -10,8 +10,14 @@ import path from 'node:path';
 
 vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(''), usePathname: () => '/printed-invitations' }));
 
-import ShopClient from '../../src/app/printed-invitations/ShopClient';
-import ProductClient from '../../src/app/printed-invitations/[slug]/ProductClient';
+/* The catalogue half of this probe is gone: ShopClient was deleted in the
+   /shop rebuild, and its successor is staged by shopBrowseProbe.dump.jsx.
+   What remains here is the PRODUCT page, which still has its own component.
+
+   This file broke silently when that happened — the shots probes run under
+   vitest.shots.config.mjs, which the ordinary `npx vitest run` does not
+   include, so a suite reporting 467 green said nothing about it. */
+import ProductClient from '../../src/app/shop/[category]/[slug]/ProductClient';
 
 const ROOT = process.cwd();
 const OUT = path.join(ROOT, '..', '.visual', 'printed');
@@ -52,7 +58,7 @@ const PRODUCTS = [
   {
     id: 'p1', title: 'Velvet & Gold Wedding Suite', slug: 'velvet-gold-wedding-suite',
     tagline: 'Gold foil on 350gsm cotton board, with a hand-tied silk ribbon',
-    category_id: 'c1', price_cents: 899, currency: 'CAD', price_unit: 'per card',
+    category_id: 'c1', price_cents: 899, currency: 'USD', price_unit: 'per card',
     min_order_qty: 50, is_featured: true, is_sold_out: false, sort_order: 0,
     published_at: '2026-08-10T00:00:00Z',
     images: [{ id: 'i1', url: photo('#F3ECDD', '#8A6D34', 'Velvet &amp; Gold'), alt: 'Front' }],
@@ -62,7 +68,7 @@ const PRODUCTS = [
     id: 'p2', title: 'Personalised Acrylic Graduation Plaque with Engraved Monogram',
     slug: 'acrylic-graduation-plaque',
     tagline: 'Laser-engraved acrylic, presented in a velvet box',
-    category_id: 'c2', price_cents: 2499, compare_at_cents: 3200, currency: 'CAD', price_unit: 'each',
+    category_id: 'c2', price_cents: 2499, compare_at_cents: 3200, currency: 'USD', price_unit: 'each',
     min_order_qty: null, is_featured: false, is_sold_out: false, sort_order: 1,
     published_at: '2026-08-05T00:00:00Z',
     images: [{ id: 'i2', url: photo('#EDEDF2', '#2E2E38', 'Acrylic') }],
@@ -71,7 +77,7 @@ const PRODUCTS = [
   {
     id: 'p3', title: 'Door of Joy Letterpress Card', slug: 'door-of-joy-letterpress',
     tagline: 'Deep-impression letterpress, hand-fed one at a time',
-    category_id: 'c1', price_cents: null, currency: 'CAD', price_unit: null,
+    category_id: 'c1', price_cents: null, currency: 'USD', price_unit: null,
     min_order_qty: 100, is_featured: false, is_sold_out: false, sort_order: 2,
     published_at: '2026-07-28T00:00:00Z',
     images: [{ id: 'i3', url: photo('#E8E0D2', '#6B4E2A', 'Door of Joy') }],
@@ -80,7 +86,7 @@ const PRODUCTS = [
   {
     id: 'p4', title: 'Swan Lake Vellum Overlay', slug: 'swan-lake-vellum',
     tagline: 'Translucent vellum over a pressed cotton base',
-    category_id: 'c1', price_cents: 1250, currency: 'CAD', price_unit: 'per card',
+    category_id: 'c1', price_cents: 1250, currency: 'USD', price_unit: 'per card',
     min_order_qty: 25, is_featured: false, is_sold_out: true, sort_order: 3,
     published_at: '2026-07-20T00:00:00Z',
     images: [{ id: 'i4', url: photo('#F7F4EF', '#9A8E7A', 'Swan Lake') }],
@@ -89,7 +95,7 @@ const PRODUCTS = [
   {
     id: 'p5', title: 'Corporate Gala Menu Card', slug: 'corporate-gala-menu',
     tagline: 'Foil-blocked menus and place cards to match',
-    category_id: 'c3', price_cents: 450, currency: 'CAD', price_unit: 'per card',
+    category_id: 'c3', price_cents: 450, currency: 'USD', price_unit: 'per card',
     min_order_qty: 200, is_featured: false, is_sold_out: false, sort_order: 4,
     published_at: '2026-07-10T00:00:00Z',
     images: [], // no photograph — the placeholder monogram path
@@ -197,22 +203,8 @@ document.getElementById('f').addEventListener('load', function () {
 }
 
 describe('printed invitations probe', () => {
-  it('stages the catalogue and a product page', async () => {
+  it('stages a product page', async () => {
     fs.mkdirSync(OUT, { recursive: true });
-
-    let cat;
-    await act(async () => {
-      cat = render(
-        <ShopClient
-          products={PRODUCTS}
-          categories={CATEGORIES}
-          badges={[BADGE_NEW, BADGE_BEST, BADGE_LTD]}
-          settings={SETTINGS}
-        />,
-      );
-    });
-    await act(async () => { await new Promise((r) => setTimeout(r, 60)); });
-    stage('catalogue', cat.container.innerHTML);
 
     let det;
     await act(async () => {
@@ -223,10 +215,11 @@ describe('printed invitations probe', () => {
     await act(async () => { await new Promise((r) => setTimeout(r, 60)); });
     stage('product', det.container.innerHTML);
 
-    [['catalogue', 390], ['catalogue', 1280], ['product', 390], ['product', 1280]]
-      .forEach(([n, w]) => probe(n, w));
+    // 440 is the iPhone 16 Pro Max — the width the pricing page shipped broken
+    // at, because nothing ever rendered between 390 and 768.
+    [['product', 390], ['product', 440], ['product', 1280]].forEach(([n, w]) => probe(n, w));
 
     // eslint-disable-next-line no-console
-    console.log('DUMP-LEN catalogue', cat.container.innerHTML.length, 'product', det.container.innerHTML.length);
+    console.log('DUMP-LEN product', det.container.innerHTML.length);
   });
 });

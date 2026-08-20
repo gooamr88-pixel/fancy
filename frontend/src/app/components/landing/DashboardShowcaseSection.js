@@ -97,7 +97,7 @@ export default function DashboardShowcaseSection() {
             Your side of it
             <span aria-hidden="true" className="dash-kicker__rule" />
           </span>
-          <span className="dash-numeral" aria-hidden="true">V</span>
+          <span className="dash-numeral" aria-hidden="true">III</span>
           <h2 id="dash-title" className="dash-h2">
             The part your guests never see.
           </h2>

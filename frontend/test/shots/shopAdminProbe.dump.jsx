@@ -11,14 +11,14 @@ import path from 'node:path';
 const PRODUCTS = [
   {
     id: 'p1', title: 'Velvet & Gold Wedding Suite', slug: 'velvet-gold-wedding-suite',
-    category_id: 'c1', price_cents: 899, currency: 'CAD', is_published: true, is_featured: true,
+    category_id: 'c1', price_cents: 899, currency: 'USD', is_published: true, is_featured: true,
     is_sold_out: false, sort_order: 0, view_count: 412, inquiry_count: 18,
     images: [{ id: 'i1', image_url: '', alt_text: '' }],
     badges: [{ id: 'b1', label: 'New', bg_color: '#8A6D34', text_color: '#FFFFFF' }],
   },
   {
     id: 'p2', title: 'Personalised Acrylic Graduation Plaque', slug: 'acrylic-graduation-plaque',
-    category_id: 'c2', price_cents: 2499, currency: 'CAD', is_published: true, is_featured: false,
+    category_id: 'c2', price_cents: 2499, currency: 'USD', is_published: true, is_featured: false,
     is_sold_out: false, sort_order: 1, view_count: 233, inquiry_count: 31,
     images: [], badges: [
       { id: 'b2', label: 'Best seller', bg_color: '#191B1E', text_color: '#F8F4EC' },
@@ -27,13 +27,13 @@ const PRODUCTS = [
   },
   {
     id: 'p3', title: 'Door of Joy Letterpress Card', slug: 'door-of-joy-letterpress',
-    category_id: 'c1', price_cents: null, currency: 'CAD', is_published: false, is_featured: false,
+    category_id: 'c1', price_cents: null, currency: 'USD', is_published: false, is_featured: false,
     is_sold_out: false, sort_order: 2, view_count: 0, inquiry_count: 0,
     images: [], badges: [],
   },
   {
     id: 'p4', title: 'Swan Lake Vellum Overlay', slug: 'swan-lake-vellum',
-    category_id: 'c1', price_cents: 1250, currency: 'CAD', is_published: true, is_featured: false,
+    category_id: 'c1', price_cents: 1250, currency: 'USD', is_published: true, is_featured: false,
     is_sold_out: true, sort_order: 3, view_count: 88, inquiry_count: 4,
     images: [], badges: [],
   },

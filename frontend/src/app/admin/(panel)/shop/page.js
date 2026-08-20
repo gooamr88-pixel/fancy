@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import adminApi from '../../_lib/adminApi';
+import { SHOP_CURRENCY, SHOP_MIN_ORDER_QTY, SHOP_PATH } from '../../../utils/shopLinks';
 import usePermissions from '../../_hooks/usePermissions';
 import DataTable from '../../_components/DataTable';
 import { PageLoading } from '../../_components/Spinner';
@@ -9,7 +10,7 @@ import Modal, { Button } from '../../_components/Modal';
 import { T, card } from '../../_components/theme';
 import { useAlert } from '../../_components/AlertContext';
 import { Field } from '../../_components/Field';
-import { makeImageUploadHandler } from '../../_lib/uploadImage';
+import { makeMultiImageUploadHandler } from '../../_lib/uploadImage';
 
 /**
  * PRINTED INVITATIONS — the super-admin control centre.
@@ -40,7 +41,7 @@ import { makeImageUploadHandler } from '../../_lib/uploadImage';
 
 const EMPTY_PRODUCT = {
   title: '', slug: '', tagline: '', description: '', categoryId: '',
-  priceDollars: '', compareAtDollars: '', currency: 'CAD', priceUnit: 'per card',
+  priceDollars: '', compareAtDollars: '', currency: SHOP_CURRENCY, priceUnit: 'per card',
   minOrderQty: '', leadTimeText: '', whatsappMessage: '',
   metaTitle: '', metaDescription: '',
   isPublished: false, isFeatured: false, isSoldOut: false,
@@ -96,10 +97,11 @@ export default function ShopAdminPage() {
     <div>
       <header style={{ marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 800, color: T.text900, margin: 0, fontFamily: 'var(--font-serif)', letterSpacing: '-0.02em' }}>
-          Printed Invitations
+          Shop
         </h1>
         <p style={{ fontSize: 13, color: T.text500, margin: '4px 0 0' }}>
-          The physical, hand-finished cards sold at /printed-invitations — ordered over WhatsApp, not checkout.
+          Everything sold at {SHOP_PATH} — cards, envelopes, signage, screens and
+          door hardware, ordered over WhatsApp rather than checkout.
         </p>
       </header>
 
@@ -209,7 +211,7 @@ function ProductsTab() {
       categoryId: row.category_id || '',
       priceDollars: centsToDollars(row.price_cents),
       compareAtDollars: centsToDollars(row.compare_at_cents),
-      currency: row.currency || 'CAD',
+      currency: row.currency || SHOP_CURRENCY,
       priceUnit: row.price_unit || '',
       minOrderQty: row.min_order_qty == null ? '' : String(row.min_order_qty),
       leadTimeText: row.lead_time_text || '',
@@ -484,11 +486,21 @@ function ProductEditor({ open, onClose, form, setForm, categories, badges, editi
 
   const set = (patch) => setForm({ ...form, ...patch });
 
-  const addImage = makeImageUploadHandler({
+  const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0 });
+
+  /* MANY photos at once.
+     This used to be the single-file handler, which reads files[0] and drops
+     the rest — so a six-photo product meant six trips through the picker.
+
+     The appender is a FUNCTIONAL update on purpose: uploads land one after
+     another, and `setForm({ ...form, ... })` would close over a stale `form`
+     and leave each photo overwriting the one before it. */
+  const addImages = makeMultiImageUploadHandler({
     pathPrefix: 'shop',
-    setField: (url) => setForm((f) => ({ ...f, images: [...f.images, { url, alt: '' }] })),
+    onImage: (url) => setForm((f) => ({ ...f, images: [...f.images, { url, alt: '' }] })),
     setUploading,
     showAlert,
+    setProgress: (done, total) => setUploadProgress({ done, total }),
   });
 
   const moveImage = (index, delta) => {
@@ -572,8 +584,22 @@ function ProductEditor({ open, onClose, form, setForm, categories, badges, editi
       </div>
       {manage && (
         <label style={{ ...inputStyle, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: uploading ? 'wait' : 'pointer', width: 'auto', padding: '9px 16px', fontWeight: 700 }}>
-          {uploading ? 'Uploading…' : '+ Add photograph'}
-          <input type="file" accept="image/*" onChange={addImage} style={{ display: 'none' }} disabled={uploading} />
+          {uploading
+            ? (uploadProgress.total > 1
+              ? `Uploading ${uploadProgress.done} of ${uploadProgress.total}…`
+              : 'Uploading…')
+            : '+ Add photographs'}
+          {/* `multiple`: pick a whole set in one go. The count in the label is
+              why the uploads are sequential — a parallel batch has no
+              meaningful "3 of 6". */}
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={addImages}
+            style={{ display: 'none' }}
+            disabled={uploading}
+          />
         </label>
       )}
 
@@ -592,15 +618,30 @@ function ProductEditor({ open, onClose, form, setForm, categories, badges, editi
       </TwoUp>
       <TwoUp>
         <Field label="Currency">
-          <input value={form.currency} onChange={(e) => set({ currency: e.target.value })} style={inputStyle} placeholder="CAD" maxLength={3} />
+          <input value={form.currency} onChange={(e) => set({ currency: e.target.value })} style={inputStyle} placeholder={SHOP_CURRENCY} maxLength={3} />
         </Field>
         <Field label="Unit">
           <input value={form.priceUnit} onChange={(e) => set({ priceUnit: e.target.value })} style={inputStyle} placeholder="per card" />
         </Field>
       </TwoUp>
       <TwoUp>
-        <Field label="Minimum order (cards)">
-          <input type="number" value={form.minOrderQty} onChange={(e) => set({ minOrderQty: e.target.value })} style={inputStyle} placeholder="50" />
+        {/* "units", not "cards": the catalogue sells scanners and screens too,
+            and a label that says cards makes the field look inapplicable on
+            two thirds of the shelves.
+
+            The placeholder is the real floor now. It used to read 50, which
+            was never the floor and — being only a placeholder — was never
+            stored either, so a piece saved without touching this field had no
+            minimum at all. The server now falls back to the same constant. */}
+        <Field label="Minimum order (units)">
+          <input
+            type="number"
+            min={1}
+            value={form.minOrderQty}
+            onChange={(e) => set({ minOrderQty: e.target.value })}
+            style={inputStyle}
+            placeholder={String(SHOP_MIN_ORDER_QTY)}
+          />
         </Field>
         <Field label="Lead time (blank uses the section default)">
           <input value={form.leadTimeText} onChange={(e) => set({ leadTimeText: e.target.value })} style={inputStyle} placeholder="Standard production lead time: 3–4 weeks" />
@@ -1063,7 +1104,7 @@ function SettingsTab() {
     <div style={{ ...card, padding: 'clamp(16px, 3vw, 26px)', maxWidth: 760 }}>
       <SectionLabel>Where it appears</SectionLabel>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 8 }}>
-        <Check label="Section enabled — turning this off makes /printed-invitations return Not Found" checked={form.enabled !== false} onChange={(v) => set({ enabled: v })} />
+        <Check label={`Section enabled — turning this off makes ${SHOP_PATH} return Not Found`} checked={form.enabled !== false} onChange={(v) => set({ enabled: v })} />
         <Check label="Show the teaser band on the homepage" checked={form.show_on_homepage !== false} onChange={(v) => set({ show_on_homepage: v })} />
         <Check label="Show the offer card in the organizer dashboard" checked={form.show_in_dashboard !== false} onChange={(v) => set({ show_in_dashboard: v })} />
       </div>

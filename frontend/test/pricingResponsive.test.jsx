@@ -97,7 +97,9 @@ describe('the comparison table stays readable while it scrolls', () => {
 
        So: between `.fx-scroll-x` and the cells there must be no overflow at
        all, and the corners must be rounded by the header and last row. */
-    const port = PAGE.indexOf('className="fx-scroll-x"');
+    // The port also carries .cmp-wide since the phone list replaced it below
+    // 768 — match the class it starts with rather than the whole attribute.
+    const port = PAGE.indexOf('className="fx-scroll-x cmp-wide"');
     expect(port, 'the scroll port moved').toBeGreaterThan(-1);
     const table = PAGE.slice(port, PAGE.indexOf('{/* Table Rows */}'));
     expect(table).not.toMatch(/overflow: *["']hidden["']/);
@@ -120,14 +122,33 @@ describe('the comparison table stays readable while it scrolls', () => {
     });
   });
 
-  it('tells the visitor it scrolls, at the widths where it does', () => {
-    /* MEASURED: the port is 280px of a 600px table at 320, and 346 of 600 at
-       390 — it OVERFLOWS. At 768 it is 702 of 702 and at 1280 860 of 860 — it
-       FITS. So the hint has to disappear at exactly 768, or it starts
-       promising a swipe that does nothing. Without it, a header cut off
-       mid-word ("SIGNA…") reads as a broken page. */
-    expect(dom.querySelector('.cmp-swipe')).toBeTruthy();
-    expect(PAGE).toMatch(/@media \(min-width: 768px\)[\s\S]{0,120}\.cmp-swipe \{[\s\S]{0,60}display: none/);
+  it('does not show the table, or its swipe hint, on a phone', () => {
+    /* THE HINT USED TO POINT AT THE PROBLEM RATHER THAN FIXING IT.
+
+       Measured at 390 the port was 346px of a 600px table — 1.8 of 5 columns,
+       the third plan's name cut mid-word — so reading one row meant swiping
+       out and back, per row, for twenty-five rows. Telling somebody to swipe
+       is not the same as giving them a comparison they can make.
+
+       Below 768 the table and the hint are both hidden and a per-feature list
+       renders instead; at 768 and up the table returns, and so does the hint,
+       because with four plans it still overflows until roughly 1100. */
+    expect(PAGE).toMatch(/\.cmp-swipe,\s*\n\s*\.cmp-wide \{\s*\n\s*display: none/);
+    expect(PAGE).toMatch(/@media \(min-width: 768px\)[\s\S]{0,400}\.cmp-wide \{[\s\S]{0,40}display: block/);
+    expect(PAGE).toMatch(/@media \(min-width: 768px\)[\s\S]{0,600}\.cmp-swipe \{[\s\S]{0,60}display: block/);
+    // And it goes away again once the table genuinely fits.
+    expect(PAGE).toMatch(/@media \(min-width: 1280px\)[\s\S]{0,120}\.cmp-swipe \{[\s\S]{0,60}display: none/);
+  });
+
+  it('replaces the table with a readable list on a phone', () => {
+    const list = dom.querySelector('.cmp-mobile');
+    expect(list, 'no phone comparison rendered').toBeTruthy();
+    expect(PAGE).toMatch(/@media \(min-width: 768px\)[\s\S]{0,200}\.cmp-mobile \{[\s\S]{0,40}display: none/);
+
+    // Every row names its feature, so the list needs no header row to decode —
+    // which is what made the scrolling table unreadable one column at a time.
+    const rows = [...list.querySelectorAll('.cmp-m-row')];
+    expect(rows.length, 'the phone comparison has no rows').toBeGreaterThan(1);
   });
 });
 

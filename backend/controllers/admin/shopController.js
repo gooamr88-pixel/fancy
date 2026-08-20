@@ -3,21 +3,35 @@ const { logAdminAction } = require('../../middleware/adminAudit');
 const { CONFIG_ID, invalidate: invalidateConfigCache } = require('../../utils/configCache');
 
 /**
- * PRINTED INVITATIONS — admin CRUD.
+ * THE SHOP — admin CRUD.
  *
- * The catalogue of physical, handcrafted cards sold by WhatsApp conversation
- * rather than checkout (see 20260825000000_printed_invitations.sql for why
- * there is no cart or order table). Public read path lives in
- * controllers/shopController.js; this file is everything an admin can change.
+ * The catalogue of physical goods sold by WhatsApp conversation rather than
+ * checkout (see 20260825000000_printed_invitations.sql for why there is no
+ * cart or order table). Public read path lives in controllers/shopController.js;
+ * this file is everything an admin can change.
  *
  * Modelled directly on controllers/admin/blogController.js — same slug
  * strategy, same 23505 → 409 mapping, same logAdminAction on every mutation —
  * because this is the same shape of problem and a second, subtly different
  * house style in the same folder helps nobody.
  *
- * "shop_" is the identifier prefix; "Printed Invitations" is the customer-
- * facing name. Both are deliberate; see the migration header.
+ * "shop_" is the identifier prefix and, since 20260826000000, "Shop" is also
+ * the customer-facing name. It began as "Printed Invitations" when the
+ * catalogue was only cards; it now sells scanners, screens, signage and print,
+ * so a name that promises only invitations describes a sixth of it.
  */
+
+/**
+ * The catalogue defaults, matching the column defaults in
+ * 20260826000000_shop_usd_and_moq.sql.
+ *
+ * Kept as named constants rather than inline literals because the previous
+ * 'CAD' appeared twice in this file and six more times across the frontend,
+ * and they drifted: the create path and the update path could disagree about
+ * what an omitted currency meant.
+ */
+const DEFAULT_CURRENCY = 'USD';
+const DEFAULT_MIN_ORDER_QTY = 100;
 
 /* ═══════════════════════════════════════════════════════════════════════
    Shared helpers
@@ -220,9 +234,17 @@ const createProduct = async (req, res, next) => {
         // "Price on request" and 0 is a card that costs nothing.
         price_cents: toIntOrNull(b.priceCents),
         compare_at_cents: toIntOrNull(b.compareAtCents),
-        currency: b.currency ? String(b.currency).trim().toUpperCase().slice(0, 3) : 'CAD',
+        // USD, matching the column default set in 20260826000000. This used to
+        // say CAD, which came from the corporate address rather than from how
+        // anything is priced — and it is not only a label: the public product
+        // page feeds it to Schema.org priceCurrency, so the wrong default was
+        // a wrong price published to search engines.
+        currency: b.currency ? String(b.currency).trim().toUpperCase().slice(0, 3) : DEFAULT_CURRENCY,
         price_unit: b.priceUnit ? String(b.priceUnit).trim() : null,
-        min_order_qty: toIntOrNull(b.minOrderQty),
+        // The catalogue floor. Left as an explicit value rather than relying on
+        // the column default, because `toIntOrNull` sends an explicit NULL for
+        // an empty field and NULL would override the default.
+        min_order_qty: toIntOrNull(b.minOrderQty) ?? DEFAULT_MIN_ORDER_QTY,
         lead_time_text: b.leadTimeText ? String(b.leadTimeText).trim() : null,
         specs: normalizeSpecs(b.specs),
         highlights: normalizeHighlights(b.highlights),
@@ -286,9 +308,12 @@ const updateProduct = async (req, res, next) => {
       updates.price_cents = price;
     }
     if (b.compareAtCents !== undefined) updates.compare_at_cents = toIntOrNull(b.compareAtCents);
-    if (b.currency !== undefined) updates.currency = String(b.currency || 'CAD').trim().toUpperCase().slice(0, 3);
+    if (b.currency !== undefined) updates.currency = String(b.currency || DEFAULT_CURRENCY).trim().toUpperCase().slice(0, 3);
     if (b.priceUnit !== undefined) updates.price_unit = b.priceUnit ? String(b.priceUnit).trim() : null;
-    if (b.minOrderQty !== undefined) updates.min_order_qty = toIntOrNull(b.minOrderQty);
+    // Clearing the field falls back to the catalogue floor rather than to NULL:
+    // a product with no minimum is a product a customer can order one of, and
+    // nothing here is priced for a run of one.
+    if (b.minOrderQty !== undefined) updates.min_order_qty = toIntOrNull(b.minOrderQty) ?? DEFAULT_MIN_ORDER_QTY;
     if (b.leadTimeText !== undefined) updates.lead_time_text = b.leadTimeText ? String(b.leadTimeText).trim() : null;
     if (b.specs !== undefined) updates.specs = normalizeSpecs(b.specs);
     if (b.highlights !== undefined) updates.highlights = normalizeHighlights(b.highlights);

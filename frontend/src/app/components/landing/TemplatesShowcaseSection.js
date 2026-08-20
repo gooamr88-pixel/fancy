@@ -100,7 +100,7 @@ export default function TemplatesShowcaseSection() {
             The invitations
             <span aria-hidden="true" className="tss-kicker__rule" />
           </span>
-          <span className="tss-secnum" aria-hidden="true">II</span>
+          <span className="tss-secnum" aria-hidden="true">I</span>
           <h2 id="tss-title" className="tss-title">Three ways to open a door.</h2>
           <p className="tss-sub">
             Each one is filmed, not animated — and every one of them is yours to
