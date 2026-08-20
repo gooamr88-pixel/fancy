@@ -205,7 +205,7 @@ export default function ProofSection() {
           font-weight: 700;
           letter-spacing: 0.16em;
           text-transform: uppercase;
-          color: ${C.stoneSoft};
+          color: ${C.inkSoft};
           flex-shrink: 0;
         }
         .proof-press__logos {
@@ -230,11 +230,11 @@ export default function ProofSection() {
         }
         .proof-press__img { height: 24px; max-width: 124px; object-fit: contain; }
         .proof-press__word {
-          font-family: var(--font-serif);
+          font-family: var(--font-cormorant), Georgia, serif;
           font-size: 16px;
           font-weight: 700;
           letter-spacing: 0.3px;
-          color: ${C.charcoal};
+          color: ${C.ink};
         }
 
         .rev {
@@ -243,7 +243,7 @@ export default function ProofSection() {
           flex-direction: column;
           gap: 14px;
           padding: 28px 26px 26px;
-          background: ${C.white};
+          background: ${C.paper};
           border: 1px solid ${C.border};
           border-radius: var(--fx-r-md);
           transition: transform 0.25s ease, box-shadow 0.25s ease;
@@ -274,7 +274,7 @@ export default function ProofSection() {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          background: ${C.ivory};
+          background: ${C.paper2};
           border: 1px solid ${C.border};
           font-family: var(--font-sans);
           font-size: 13px;
@@ -287,13 +287,13 @@ export default function ProofSection() {
           font-family: var(--font-sans);
           font-size: 14px;
           font-weight: 600;
-          color: ${C.charcoal};
+          color: ${C.ink};
         }
         .rev__names em {
           font-family: var(--font-sans);
           font-size: 12.5px;
           font-style: normal;
-          color: ${C.stoneSoft};
+          color: ${C.inkSoft};
         }
         .rev__verify {
           display: inline-flex;
@@ -312,7 +312,7 @@ export default function ProofSection() {
 
         .proof {
           width: 100%;
-          background: ${C.ivory};
+          background: ${C.paper3};
           padding-block: var(--fx-pad-y-sm);
         }
         .proof-head { max-width: 620px; margin-bottom: clamp(26px, 3vw, 40px); }
@@ -325,12 +325,12 @@ export default function ProofSection() {
           color: ${C.goldInk};
         }
         .proof-h2 {
-          font-family: var(--font-serif);
+          font-family: var(--font-cormorant), Georgia, serif;
           font-size: clamp(27px, 1.417rem + 2.083vw, 42px);
           font-weight: 500;
           line-height: 1.16;
           letter-spacing: -0.4px;
-          color: ${C.charcoal};
+          color: ${C.ink};
           margin: 14px 0 0;
         }
         .proof-sub {
@@ -338,7 +338,7 @@ export default function ProofSection() {
           font-size: 15.5px;
           font-weight: 300;
           line-height: 1.65;
-          color: ${C.stone};
+          color: ${C.inkSoft};
           margin: 12px 0 0;
         }
         .proof-grid { list-style: none; margin: 0; padding: 0; }

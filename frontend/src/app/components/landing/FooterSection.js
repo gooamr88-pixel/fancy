@@ -6,7 +6,7 @@
    is invisible in production and throws the moment a test renders the footer. */
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { C, ON_DARK } from './landingTokens';
+import { C, T } from './landingTokens';
 import { SHOP_PATH, SHOP_LABEL } from '../../utils/shopLinks';
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -101,7 +101,7 @@ function FooterLink({ text, href }) {
           lineHeight: 1.6,
           display: 'inline-block',
           paddingBlock: '5px',
-          color: active ? C.goldSoft : 'rgba(255, 255, 255, 0.62)',
+          color: active ? C.goldInk : '#5C574E',
           transition: 'color 0.22s ease',
         }}
       >
@@ -195,9 +195,9 @@ function Newsletter() {
             minWidth: 0,
             padding: '12px 14px',
             borderRadius: '8px',
-            border: `1px solid ${emailFocused ? C.gold : 'rgba(255,255,255,0.14)'}`,
-            background: 'rgba(255, 255, 255, 0.05)',
-            color: '#FFFFFF',
+            border: `1px solid ${emailFocused ? C.gold : C.border}`,
+            background: '#FCFBF8',
+            color: '#191815',
             fontFamily: 'var(--font-sans)',
             // 16px, not 13px. Anything under 16px makes iOS Safari ZOOM the
             // whole page on focus and leave it zoomed — the single worst
@@ -342,25 +342,25 @@ export default function FooterSection() {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          border: 1px solid ${ON_DARK.hairline};
+          border: 1px solid ${C.border};
           background: transparent;
-          color: rgba(255, 255, 255, 0.5);
+          color: rgba(92, 87, 78, 0.8);
           transition: color 0.22s ease, border-color 0.22s ease, background 0.22s ease;
         }
         .foot-social:hover,
         .foot-social:focus-visible {
-          color: ${C.goldSoft};
+          color: ${C.goldInk};
           border-color: ${C.gold};
-          background: rgba(184, 148, 79, 0.12);
+          background: rgba(169, 138, 78, 0.10);
         }
 
         .foot-news { min-width: 0; }
         .foot-news__title {
-          font-family: var(--font-serif);
+          font-family: ${T.display};
           font-size: clamp(19px, 1.083rem + 0.42vw, 23px);
           font-weight: 500;
           line-height: 1.3;
-          color: ${ON_DARK.title};
+          color: ${C.ink};
           margin: 0;
         }
         .foot-news__body {
@@ -368,7 +368,7 @@ export default function FooterSection() {
           font-size: 14px;
           font-weight: 300;
           line-height: 1.65;
-          color: ${ON_DARK.body};
+          color: ${C.inkSoft};
           margin: 10px 0 0;
           max-width: 44ch;
         }
@@ -388,13 +388,13 @@ export default function FooterSection() {
           padding: 12px 22px;
           border-radius: 8px;
           border: none;
-          color: #191b1e;
+          color: ${C.paper};
           font-family: var(--font-sans);
           font-size: 14px;
           font-weight: 700;
           white-space: nowrap;
           cursor: pointer;
-          background: linear-gradient(135deg, #d7be80 0%, #b8944f 100%);
+          background: ${C.ink};
           transition: box-shadow 0.22s ease, background 0.22s ease;
         }
         .foot-news__btn:disabled { cursor: default; opacity: 0.85; }
@@ -403,13 +403,13 @@ export default function FooterSection() {
           box-shadow: 0 6px 18px rgba(184, 148, 79, 0.38);
         }
         .foot-news__btn--done {
-          background: linear-gradient(135deg, #2e7d32 0%, #4caf50 100%);
+          background: #2E6B33;
           color: #ffffff;
         }
         .foot-news__err {
           font-family: var(--font-sans);
           font-size: 12.5px;
-          color: #e88f8f;
+          color: #A33A3A;
           margin: 10px 0 0;
         }
         /* SCOPED to the newsletter row, not a bare "input::placeholder".
@@ -419,10 +419,10 @@ export default function FooterSection() {
            form, the RSVP form, the search box. This is the one selector in
            this block that does not start with a class, and it is why the
            rest of them do. */
-        .foot-news__row input::placeholder { color: rgba(255, 255, 255, 0.4); }
+        .foot-news__row input::placeholder { color: rgba(92, 87, 78, 0.6); }
 
         .foot {
-          background: ${C.charcoal};
+          background: ${C.paper3};
           padding: 0;
         }
         .foot-inner { padding-top: clamp(48px, 5vw, 72px); }
@@ -432,7 +432,7 @@ export default function FooterSection() {
           display: grid;
           gap: clamp(32px, 4vw, 56px);
           padding-bottom: clamp(36px, 4vw, 52px);
-          border-bottom: 1px solid ${ON_DARK.hairline};
+          border-bottom: 1px solid ${C.border};
         }
         /* Two columns from md up. The arithmetic at the tight end, 768px:
            the --4xl container is unconstrained there, so the row is
@@ -453,7 +453,7 @@ export default function FooterSection() {
           font-size: 14px;
           font-weight: 300;
           line-height: 1.7;
-          color: ${ON_DARK.body};
+          color: ${C.inkSoft};
           margin: 16px 0 0;
           max-width: 40ch;
         }
@@ -467,7 +467,7 @@ export default function FooterSection() {
           font-weight: 700;
           letter-spacing: 2px;
           text-transform: uppercase;
-          color: rgba(255, 255, 255, 0.72);
+          color: ${C.ink};
           margin: 0 0 12px;
         }
         .foot-col__list { list-style: none; margin: 0; padding: 0; }
@@ -480,29 +480,29 @@ export default function FooterSection() {
           justify-content: space-between;
           gap: 20px;
           padding-block: 26px 32px;
-          border-top: 1px solid ${ON_DARK.hairline};
+          border-top: 1px solid ${C.border};
         }
         .foot-legal { min-width: 0; flex: 1 1 320px; }
         .foot-legal__line {
           font-family: var(--font-sans);
           font-size: 13px;
-          color: rgba(255, 255, 255, 0.68);
+          color: ${C.inkSoft};
           margin: 0 0 6px;
         }
         .foot-legal__fine {
           font-family: var(--font-sans);
           font-size: 12px;
           line-height: 1.6;
-          color: ${ON_DARK.muted};
+          color: rgba(92, 87, 78, 0.75);
           margin: 0;
           max-width: 62ch;
         }
         .foot-legal__fine a {
-          color: rgba(255, 255, 255, 0.62);
+          color: ${C.inkSoft};
           text-decoration: underline;
           text-underline-offset: 2px;
         }
-        .foot-legal__fine a:hover { color: ${C.goldSoft}; }
+        .foot-legal__fine a:hover { color: ${C.goldInk}; }
         .foot-social-row { display: flex; gap: 10px; flex-shrink: 0; }
 
         .foot-logo {
@@ -516,12 +516,12 @@ export default function FooterSection() {
           display: inline-flex;
           align-items: baseline;
           gap: 5px;
-          font-family: var(--font-serif);
+          font-family: ${T.display};
           font-size: 23px;
           font-weight: 600;
         }
-        .foot-logo__fancy { color: #b8944f; font-family: var(--font-script); font-weight: 400; }
-        .foot-logo__rsvp { color: #ffffff; }
+        .foot-logo__fancy { color: ${C.gold}; font-family: var(--font-script); font-weight: 400; }
+        .foot-logo__rsvp { color: #191815; }
         .foot-mail {
           display: inline-flex;
           align-items: center;
@@ -531,11 +531,11 @@ export default function FooterSection() {
           font-family: var(--font-sans);
           font-size: 14px;
           font-weight: 500;
-          color: rgba(255, 255, 255, 0.72);
+          color: ${C.ink};
           text-decoration: none;
           transition: color 0.22s ease;
         }
-        .foot-mail:hover, .foot-mail:focus-visible { color: #d7be80; }
+        .foot-mail:hover, .foot-mail:focus-visible { color: ${C.goldInk}; }
       `}</style>
     </footer>
   );

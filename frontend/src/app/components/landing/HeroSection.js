@@ -4,49 +4,57 @@ import React from "react";
 import Link from "next/link";
 import { useAuth } from "../../hooks/useAuth";
 import { useLandingStats, formatStatValue } from "../../utils/useLandingStats";
-import { C, SHADOW } from "./landingTokens";
+import { C, T, SHADOW, BEZEL } from "./landingTokens";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    THE HERO.
 
-   WHAT CHANGED AND WHY
+   ── The 2026-08-20 pass ───────────────────────────────────────────────────
 
-   1. It now says what the product IS. The old headline was "Elegant RSVPs.
-      Effortless Planning." — a mood, not a sentence you could repeat to a
-      friend. Nothing above the fold indicated that this thing holds a guest
-      list, seats people, or runs a door. A visitor's first job is to decide
-      "is this the category of thing I need", and the old hero did not answer
-      it.
+   The previous hero put a pale admin dashboard screenshot on a flat ground
+   with a phone overlapping it. Three things were wrong with that picture, and
+   all three are why it read as a template:
 
-   2. The art is the PRODUCT, not a drawing of it. The right column used to be
-      `HeroEnvelope` — a hand-built envelope animation that imitated the
-      cinematic reveal without being it. It is now two real screenshots: the
-      actual Velvet Ring invitation as a guest sees it on a phone, in front of
-      the actual organizer dashboard. Both come out of the screenshot pipeline
-      in test/shots, so a redesign of either cannot leave a stale picture on
-      the front page.
+   1. THE ART HAD NO EDGES. A raw crop bled into the background, so it looked
+      like a screengrab someone had pasted in rather than a thing you could
+      pick up. Both invitations now sit in a dark bezel with a long shadow and
+      a contact shadow on the ground beneath them — they are OBJECTS.
 
-   3. It absorbed SocialProofBar. Three animated counters used to occupy an
-      entire 310px band of their own, four screens down, where they proved
-      nothing to anyone who had already decided to leave. The same three
-      numbers are now a single line under the buttons — read from the same
-      `useLandingStats` hook, still real COUNT(*) values from the backend, but
-      costing one line instead of a section. That is one whole band deleted.
+   2. IT LED WITH THE DASHBOARD. The least aspirational asset we own was the
+      first thing a visitor saw, on the one screen where the product has to
+      look desirable. The dashboard now appears in its own band further down,
+      where "what do I get" is the question actually being asked. The hero
+      shows what the GUEST gets.
 
-   The counters do not animate any more, deliberately: an entrance animation on
-   a number that is already visible on first paint reads as a gimmick, and it
-   was the only reason this needed an IntersectionObserver.
+   3. THE HEADLINE WAS SET IN A CAPITALS-ONLY FACE. `--font-serif` is Aboreto.
+      A nine-word sentence in it is a nine-word sentence in capitals, at a
+      weight the font does not ship. See landingTokens.js — the display face
+      is now Cormorant Garamond, which has a lowercase and an italic.
+
+   The two invitations are the SAME invitation, sealed and open, which says
+   what the product does in one glance and needs no caption to explain — though
+   it gets one anyway, because naming the template is worth a line.
+
+   MOBILE FIRST. The base rules here are the phone; the only media query steps
+   UP at 768. The previous version was written at desktop with a phone override
+   bolted on, and every button label wrapped onto two lines at 390px.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/** The two screenshots. Produced by test/shots/landingShots.dump.jsx. */
+/** Both are real screenshots of the shipping Swan Lake template, produced by
+ *  test/shots/landingShots.dump.jsx — so a redesign of the template cannot
+ *  leave a stale picture on the front page. */
 const ART = {
-  invitation: "/images/landing/hero-ring.webp",
-  dashboard: "/images/landing/dash-overview.webp",
+  sealed: "/images/landing/cover-swans.webp",
+  opened: "/images/landing/hero-swans.webp",
 };
 
 function TrustLine() {
   const { stats } = useLandingStats();
 
+  /* A GRID of three equal tracks, not a wrapping flex row. The old flex row
+     wrapped 2 + 1 at 390px and left "99.9% uptime" orphaned on its own line,
+     which reads as a mistake rather than as a third statistic. Three equal
+     tracks cannot do that at any width. */
   return (
     <ul className="hero-trust">
       {stats.map((s) => (
@@ -55,49 +63,50 @@ function TrustLine() {
           <span>{s.label}</span>
         </li>
       ))}
-
     </ul>
   );
 }
 
 /**
- * The product, photographed.
+ * The invitation, sealed and open.
  *
- * The dashboard sits behind and to the side; the phone overlaps its lower-left
- * corner. That specific arrangement is the point of the picture — it says "the
- * guest gets that, you get this" in one glance, which is the sentence the old
- * page took two invented mockup sections and 1,918 lines to fail to say.
- *
- * `aspect-ratio` is declared on both images so the box reserves its height
- * before either file arrives — without it the headline jumps on load, and the
+ * `width`/`height` are declared on both images so the box reserves its height
+ * before either file arrives. Without it the headline jumps on load, and the
  * hero is the one place on the site where that is guaranteed to be noticed.
  */
 function HeroArt() {
   return (
-    <div className="hero-art">
-      <figure className="hero-art__screen">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={ART.dashboard}
-          alt="The Fancy RSVP organizer dashboard, showing live totals for guests invited, accepted, declined and still to reply."
-          width={1120}
-          height={860}
-          fetchPriority="high"
-        />
-      </figure>
+    <figure className="hero-art">
+      <div className="hero-art__row">
+        {/* The ground the objects stand on. Without a contact shadow two
+            floating rectangles read as stickers. */}
+        <span aria-hidden="true" className="hero-art__ground" />
 
-      <figure className="hero-art__phone">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={ART.invitation}
-          alt="A wedding invitation from Fancy RSVP as a guest sees it on their phone."
-          width={468}
-          height={1013}
-          fetchPriority="high"
-        />
-      </figure>
+        <span className="hero-art__obj hero-art__obj--sealed">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={ART.sealed}
+            alt="A Fancy RSVP invitation before it is opened: an olive envelope closed with an ivory wax seal."
+            width={468}
+            height={1013}
+            fetchPriority="high"
+          />
+        </span>
 
-    </div>
+        <span className="hero-art__obj hero-art__obj--opened">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={ART.opened}
+            alt="The same invitation open on a phone, showing the couple's names, the date and a button to save the invitation."
+            width={468}
+            height={1013}
+            fetchPriority="high"
+          />
+        </span>
+      </div>
+
+      <figcaption>Swan Lake — sealed, and opened</figcaption>
+    </figure>
   );
 }
 
@@ -107,41 +116,43 @@ export default function HeroSection() {
 
   return (
     <section id="hero" className="hero">
-      <div
-        className="hero-grid fx-container fx-container--5xl fx-gutter fx-grid"
-        style={{
-          "--fx-col": "400px",
-          "--fx-gap": "clamp(36px, 1.667rem + 2.5vw, 60px)",
-        }}
-      >
-        {/* ─── The claim ─── */}
-        <div className="hero-copy animate-fade-in-up">
-          <span className="hero-eyebrow">RSVPs · Seating · Door check-in</span>
+      {/* The warm light behind the objects. Decorative, so it is hidden from
+          assistive tech and sits under everything. */}
+      <span aria-hidden="true" className="hero__glow" />
 
-          {/* No <br>. It was there to force "Every guest, from the / invitation
-              to the door." — but the copy column is about 560px at 1280, so
-              the browser wrapped each of those halves AGAIN and the headline
-              came out as four ragged lines. A max-width in ch lets it break
-              where it actually fits at every width instead. */}
+      <div className="hero-grid fx-container fx-container--5xl fx-gutter">
+        <div className="hero-copy">
+          <span className="hero-eyebrow">
+            Invitations · RSVPs · Seating
+            <span aria-hidden="true" className="hero-eyebrow__rule" />
+          </span>
+
+          {/* No <br>. A max-width in ch lets the line break where it actually
+              fits at every width, instead of forcing a break that the browser
+              then breaks again into four ragged lines. */}
           <h1 className="hero-headline">
-            Every guest, from the invitation to the door.
+            Your guests don&rsquo;t get a link. They get an <em>arrival</em>.
           </h1>
 
           <p className="hero-sub">
-            Send an invitation your guests actually open, collect their replies,
-            seat them, and scan them in on the night — all from one place.
+            Every invitation opens on film before it becomes a page — then
+            quietly collects the replies, seats the room, and runs the door.
           </p>
 
           <div className="hero-buttons">
             <Link
               href={signedIn ? "/dashboard" : "/register"}
-              className="hero-btn hero-btn--gold"
+              className="hero-btn hero-btn--ink"
               id="hero-cta-get-started"
             >
               {signedIn ? "Go to dashboard" : "Create your event"}
             </Link>
-            <Link href="/pricing" className="hero-btn hero-btn--ghost" id="hero-cta-pricing">
-              See pricing
+            <Link
+              href="/#invitations"
+              className="hero-btn hero-btn--ghost"
+              id="hero-cta-invitations"
+            >
+              See the invitations
             </Link>
           </div>
 
@@ -152,10 +163,8 @@ export default function HeroSection() {
           <TrustLine />
         </div>
 
-        {/* ─── The product ─── */}
         <HeroArt />
       </div>
-
 
       {/* ONE PLAIN STYLE ELEMENT, for the whole component.
 
@@ -165,281 +174,270 @@ export default function HeroSection() {
              does not reliably compile in this build. AGENTS.md names the two
              cases that proved it (FooterLink, PrintPreviewModal) and both had
              to be moved out. TrustLine and HeroArt in this file are exactly
-             that pattern, and their CSS used to live inside them.
+             that pattern.
 
           2. styled-jsx stamps its hash class only onto lowercase intrinsic
              elements, so a scoped rule aimed at a class on a next/link
              compiles to .foo.jsx-hash and matches NOTHING. That is the bug
-             that made every alert on this platform invisible, and the one
-             that made the footer links unreadable in production.
+             that made every alert on this platform invisible.
 
           A plain <style> has neither failure mode. The scoping it gives up is
-          replaced by a prefix on every class name, which is what
-          PrintedInvitationsSection already does. */}
+          replaced by a prefix on every class name. */}
       <style>{`
-        .hero-trust {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: baseline;
-          gap: 10px 28px;
-          margin: 4px 0 0;
-          padding: 0;
-          list-style: none;
-        }
-        .hero-trust li {
-          display: flex;
-          align-items: baseline;
-          gap: 7px;
-        }
-        .hero-trust strong {
-          font-family: var(--font-serif);
-          font-size: 20px;
-          font-weight: 600;
-          color: ${C.charcoal};
-          line-height: 1;
-        }
-        .hero-trust span {
-          font-family: var(--font-sans);
-          font-size: 12.5px;
-          font-weight: 500;
-          letter-spacing: 0.04em;
-          color: ${C.stone};
-        }
-
-        .hero-art {
-          position: relative;
-          /* Reserves the composition's height at every width, so nothing
-             below it moves when the two images decode. */
-          aspect-ratio: 5 / 4;
-          width: 100%;
-          max-width: 620px;
-          margin-inline: auto;
-        }
-        .hero-art__screen {
-          position: absolute;
-          inset-block-start: 0;
-          inset-inline-end: 0;
-          width: 88%;
-          margin: 0;
-          border-radius: 12px;
-          overflow: hidden;
-          background: ${C.white};
-          box-shadow: ${SHADOW.device};
-        }
-        .hero-art__phone {
-          position: absolute;
-          inset-block-end: 0;
-          inset-inline-start: 0;
-          width: 30%;
-          margin: 0;
-          padding: 5px;
-          border-radius: 18px;
-          background: linear-gradient(150deg, #33363b, #191b1e 55%, #101214);
-          box-shadow: 0 30px 60px -22px rgba(0, 0, 0, 0.55);
-        }
-        .hero-art figure img {
-          display: block;
-          width: 100%;
-          height: auto;
-        }
-        /* The source file is 1120x860 — the same one the dashboard band shows
-           in full. Cropped to 1120/700 from the TOP here, deliberately: at
-           hero size this card is about 550px wide, where the lower half of
-           that screenshot (the events list and the activity feed) is too
-           small to read and only makes the top half smaller. */
-        .hero-art__screen img {
-          aspect-ratio: 1120 / 700;
-          object-fit: cover;
-          object-position: top center;
-        }
-        .hero-art__phone img {
-          aspect-ratio: 390 / 844;
-          object-fit: cover;
-          border-radius: 14px;
-        }
-
-        /* Below the two-column breakpoint the overlap gets cramped and the
-           phone starts covering the dashboard's own numbers, so the pair
-           becomes a simple side-by-side row with no absolute positioning at
-           all. Reset every offset explicitly: a leftover inset-inline-start on
-           a static element is inert, but a leftover position:absolute
-           collapses the parent.
-           (No backticks in here. One inside a styled-jsx CSS comment ends the
-           template literal and the file stops parsing — this exact line cost
-           a build.) */
-        @media (max-width: 1023.98px) {
-          .hero-art {
-            aspect-ratio: auto;
-            display: flex;
-            align-items: flex-end;
-            justify-content: center;
-            gap: 16px;
-            max-width: 560px;
-          }
-          .hero-art__screen,
-          .hero-art__phone {
-            position: static;
-            width: auto;
-            flex: 0 1 auto;
-          }
-          .hero-art__screen { flex-basis: 68%; min-width: 0; }
-          .hero-art__phone { flex-basis: 26%; min-width: 0; }
-        }
-
-        /* On a PHONE the dashboard is dropped entirely and the invitation
-           stands alone.
-
-           Not a space saving — a legibility one. At 390px the row gave the
-           dashboard 238px to render a 1120px-wide screenshot, which is not a
-           picture of a dashboard, it is a grey rectangle with specks in it. A
-           thumbnail nobody can read argues for nothing, and it made the hero
-           look cheap, which is the one thing this page cannot afford.
-
-           Nothing is lost: the dashboard gets a full-width, legible band of
-           its own four screens down. And leading a phone with the thing a
-           GUEST sees is the better story on the device guests actually use. */
-        @media (max-width: 639.98px) {
-          .hero-art__screen { display: none; }
-          .hero-art { max-width: 240px; }
-          .hero-art__phone { flex-basis: 100%; }
-        }
-
         .hero {
-          width: 100%;
-          background: ${C.white};
           position: relative;
           overflow: hidden;
+          background: ${C.paper};
+          padding: 62px 0 76px;
         }
-        /* One warm wash bleeding up out of the next band, so the white hero
-           and the ivory section under it read as one surface rather than two
-           stacked rectangles. */
-        .hero::after {
-          content: "";
+        .hero__glow {
           position: absolute;
-          inset-inline: 0;
-          bottom: 0;
-          height: 180px;
-          background: linear-gradient(to bottom, transparent, ${C.ivory});
+          top: 38%;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 160%;
+          height: 56%;
+          background: radial-gradient(ellipse at 50% 50%,
+            rgba(169, 138, 78, 0.17), rgba(169, 138, 78, 0.05) 46%, transparent 72%);
           pointer-events: none;
-          z-index: 1;
         }
         .hero-grid {
           position: relative;
           z-index: 2;
-          align-items: center;
-          padding-top: var(--fx-pad-y-sm);
-          padding-bottom: var(--fx-pad-y-sm);
-        }
-        .hero-copy {
           display: flex;
           flex-direction: column;
-          gap: 22px;
-          /* An .fx-grid track sizes to its content's min-content width unless
-             told otherwise, and a long unbroken headline word would push this
-             column past its share. */
-          min-width: 0;
+          gap: 52px;
         }
 
+        /* ── the claim ─────────────────────────────────────────────────── */
         .hero-eyebrow {
-          font-family: var(--font-sans);
-          font-size: 11px;
-          font-weight: 700;
-          letter-spacing: 2.4px;
-          text-transform: uppercase;
-          /* goldInk, not gold: this is small text on white, where #B8944F
-             measures about 2.9:1 and fails AA. */
-          color: ${C.goldInk};
-        }
-        .hero-headline {
-          font-family: var(--font-serif);
-          /* 60px at the top end, not 72. The copy column is about 560px wide
-             at 1280, and 72px serif put four ragged lines in it. */
-          font-size: clamp(34px, 1.583rem + 2.708vw, 60px);
-          font-weight: 500;
-          line-height: 1.08;
-          letter-spacing: -0.8px;
-          color: ${C.charcoal};
-          /* A measure, so it breaks into two or three even lines instead of
-             filling whatever width the grid happens to give it. */
-          max-width: 15ch;
-          margin: 0;
-        }
-        .hero-sub {
-          font-family: var(--font-sans);
-          font-size: 17px;
-          font-weight: 300;
-          line-height: 1.65;
-          color: ${C.stone};
-          max-width: 46ch;
-          margin: 0;
-        }
-        .hero-buttons {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          gap: 14px;
-          margin-top: 2px;
-        }
-        .hero-reassure {
-          margin: -8px 0 0;
-          font-family: var(--font-sans);
-          font-size: 12.5px;
-          color: ${C.stoneSoft};
-        }
-
-        /* The stacked layout is a typographic decision, not a consequence of
-           the grid — .fx-grid has already collapsed to one column by here on
-           its own — so it keeps its breakpoint. 1023.98px is where the two
-           columns actually become one. */
-        @media (max-width: 1023.98px) {
-          .hero-grid { text-align: center; }
-          .hero-copy { align-items: center; }
-          .hero-sub { max-width: 52ch; }
-          .hero-buttons { justify-content: center; }
-        }
-        /* 639.98, not 479.98. AGENTS.md allows exactly four breakpoint values
-           and a fifth is never to be introduced — anything that wants to
-           change at 480px folds into the < sm rule and has to be acceptable
-           at 639px too. Full-width stacked buttons at 639px are: they are the
-           only two actions on the screen. */
-        @media (max-width: 639.98px) {
-          .hero-buttons { flex-direction: column; align-items: stretch; width: 100%; }
-        }
-
-        .hero-btn {
           display: inline-flex;
           align-items: center;
-          justify-content: center;
-          /* --fx-touch, so the tap target clears 44px on a phone even though
-             the padding alone would give 46px — it survives a font change. */
-          min-height: var(--fx-touch);
-          padding: 15px 32px;
-          border-radius: 8px;
-          font-family: var(--font-sans);
-          font-size: 15px;
-          font-weight: 600;
-          text-decoration: none;
+          gap: 12px;
+          font-family: ${T.label};
+          font-size: 10px;
+          letter-spacing: 0.30em;
+          text-transform: uppercase;
+          color: ${C.goldInk};
+          /* A two-word label must never wrap onto a second line. */
           white-space: nowrap;
-          transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
         }
-        .hero-btn--gold {
-          background: linear-gradient(135deg, #d7be80 0%, #b8944f 100%);
-          color: #191b1e;
-          border: 1px solid #b8944f;
-          box-shadow: 0 10px 26px -10px rgba(184, 148, 79, 0.7);
+        .hero-eyebrow__rule {
+          display: block;
+          flex: none;
+          width: 28px;
+          height: 1px;
+          background: ${C.gold};
+          opacity: 0.55;
         }
-        .hero-btn--gold:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 14px 30px -10px rgba(184, 148, 79, 0.8);
+        .hero-headline {
+          font-family: ${T.display};
+          font-weight: 300;
+          font-size: 47px;
+          line-height: 1.02;
+          letter-spacing: -0.02em;
+          color: ${C.ink};
+          margin: 18px 0 0;
         }
+        .hero-headline em {
+          font-style: italic;
+          color: ${C.gold};
+        }
+        .hero-sub {
+          font-size: 15.5px;
+          font-weight: 300;
+          line-height: 1.85;
+          color: ${C.inkSoft};
+          margin: 14px 0 0;
+          max-width: 46ch;
+        }
+
+        /* ── buttons ───────────────────────────────────────────────────────
+           Full width and stacked on a phone, and "nowrap" so a label can never
+           break across two lines. Two side-by-side buttons with 0.2em tracking
+           do not fit in 342px, and the previous version silently wrapped both
+           of them.
+
+           NOTE the quotes above: this whole block is a template literal, so a
+           backtick anywhere inside it — including inside a CSS comment —
+           terminates the string and produces a parse error, not a style bug. */
+        .hero-buttons {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          margin-top: 30px;
+        }
+        .hero-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 56px;
+          font-family: ${T.body};
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.2em;
+          text-transform: uppercase;
+          white-space: nowrap;
+          text-decoration: none;
+          border-radius: 0;
+          transition: background 0.35s ease, color 0.35s ease, border-color 0.35s ease;
+        }
+        .hero-btn--ink {
+          background: ${C.ink};
+          color: ${C.paper};
+          border: 1px solid ${C.ink};
+        }
+        .hero-btn--ink:hover { background: transparent; color: ${C.ink}; }
         .hero-btn--ghost {
           background: transparent;
-          color: #191b1e;
-          border: 1px solid #d9d3c6;
+          color: ${C.ink};
+          border: 1px solid ${C.border};
         }
-        .hero-btn--ghost:hover { background: #f8f4ec; border-color: #b8944f; }
+        .hero-btn--ghost:hover { background: ${C.ink}; border-color: ${C.ink}; color: ${C.paper}; }
+
+        .hero-reassure {
+          font-size: 11.5px;
+          line-height: 1.7;
+          color: ${C.inkSoft};
+          opacity: 0.75;
+          margin: 18px 0 0;
+        }
+
+        /* ── the numbers ───────────────────────────────────────────────── */
+        .hero-trust {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          margin: 32px 0 0;
+          padding: 0;
+          list-style: none;
+          border-top: 1px solid ${C.border};
+        }
+        .hero-trust li {
+          padding: 18px 10px 0 0;
+          min-width: 0;
+        }
+        .hero-trust li + li {
+          border-left: 1px solid ${C.border};
+          padding-left: 14px;
+        }
+        .hero-trust strong {
+          display: block;
+          font-family: ${T.display};
+          /* FLUID, and nowrap. Three equal tracks inside a 320px viewport are
+             about 93px each, and "50,000+" set at a flat 28px is wider than
+             that — so it wrapped to "50,00 / 0+", which reads as a different
+             number rather than as a tight fit. A number may shrink; it may
+             never break. */
+          font-size: clamp(20px, 7.2vw, 28px);
+          white-space: nowrap;
+          font-weight: 400;
+          line-height: 1;
+          letter-spacing: -0.01em;
+          color: ${C.ink};
+        }
+        .hero-trust span {
+          display: block;
+          margin-top: 8px;
+          font-size: 9px;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+          line-height: 1.5;
+          color: ${C.inkSoft};
+          opacity: 0.8;
+        }
+
+        /* ── the objects ───────────────────────────────────────────────── */
+        .hero-art { margin: 0; }
+        .hero-art__row {
+          position: relative;
+          display: flex;
+          justify-content: center;
+          align-items: flex-end;
+          gap: 16px;
+        }
+        .hero-art__ground {
+          position: absolute;
+          left: 6%;
+          right: 6%;
+          bottom: -10px;
+          height: 26px;
+          background: radial-gradient(ellipse at 50% 50%, rgba(25, 24, 21, 0.22), transparent 70%);
+          filter: blur(6px);
+          pointer-events: none;
+        }
+        .hero-art__obj {
+          display: block;
+          border-radius: 22px;
+          padding: 5px;
+          background: ${BEZEL};
+          box-shadow: ${SHADOW.device};
+        }
+        .hero-art__obj img {
+          display: block;
+          width: 100%;
+          height: auto;
+          border-radius: 17px;
+        }
+        .hero-art__obj--sealed {
+          position: relative;
+          z-index: 1;
+          width: 36%;
+          transform: rotate(-3.5deg) translateY(-16px);
+        }
+        .hero-art__obj--opened {
+          position: relative;
+          z-index: 2;
+          width: 55%;
+        }
+        .hero-art figcaption {
+          margin-top: 22px;
+          text-align: center;
+          font-size: 10px;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+          color: ${C.inkSoft};
+          opacity: 0.72;
+        }
+
+        /* ── 768 and up ────────────────────────────────────────────────── */
+        @media (min-width: 768px) {
+          .hero { padding: 128px 0; }
+          .hero__glow {
+            top: -20%;
+            left: auto;
+            right: -6%;
+            transform: none;
+            width: 66%;
+            height: 124%;
+          }
+          .hero-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr);
+            gap: 80px;
+            align-items: center;
+          }
+          .hero-eyebrow { font-size: 11px; letter-spacing: 0.38em; gap: 16px; }
+          .hero-eyebrow__rule { width: 44px; }
+          .hero-headline { font-size: 78px; margin-top: 24px; max-width: 12.5ch; }
+          .hero-sub { font-size: 18px; margin-top: 18px; }
+          .hero-buttons { flex-direction: row; gap: 14px; margin-top: 36px; }
+          .hero-btn { min-height: 60px; padding: 0 40px; }
+          .hero-trust { margin-top: 40px; max-width: 530px; }
+          .hero-trust li { padding: 20px 18px 0 0; }
+          .hero-trust li + li { padding-left: 22px; }
+          .hero-trust strong { font-size: clamp(28px, 2.6vw, 34px); }
+          .hero-trust span { font-size: 9.5px; }
+          .hero-art__row { gap: 26px; }
+          .hero-art__ground { bottom: -16px; height: 40px; }
+          .hero-art__obj { border-radius: 30px; padding: 7px; }
+          .hero-art__obj img { border-radius: 24px; }
+          .hero-art__obj--sealed { width: 38%; transform: rotate(-3.5deg) translateY(-34px); }
+          .hero-art__obj--opened { width: 58%; }
+          .hero-art figcaption { margin-top: 30px; font-size: 10.5px; }
+        }
+
         @media (prefers-reduced-motion: reduce) {
-          .hero-btn:hover { transform: none; }
+          .hero-btn { transition: none; }
         }
       `}</style>
     </section>

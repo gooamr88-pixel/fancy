@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Navbar from "./components/landing/Navbar";
 import HeroSection from "./components/landing/HeroSection";
 import HowItWorksSection from "./components/landing/HowItWorksSection";
+import StatementSection from "./components/landing/StatementSection";
 import TemplatesShowcaseSection from "./components/landing/TemplatesShowcaseSection";
 import CapabilitiesSection from "./components/landing/CapabilitiesSection";
 import DashboardShowcaseSection from "./components/landing/DashboardShowcaseSection";
@@ -31,23 +32,42 @@ import { safeJsonLdHtml } from "./utils/jsonLdSafe.mjs";
    real capabilities exist and it named none of them.
 
    ── What it is now ───────────────────────────────────────────────────────
-   Nine bands, in a declared rhythm (see BAND_ORDER in landingTokens.js), each
+   Ten bands, in a declared rhythm (see BAND_ORDER in landingTokens.js), each
    answering one question in the order a stranger asks them:
 
      1  hero          what is this, and what does it look like
-     2  how it works  what would I actually do
-     3  invitations   what does my guest get
-     4  capabilities  what else is in it
+     2  invitations   what does my guest get
+     3  statement     why should I care
+     4  how it works  what would I actually do
      5  dashboard     what do I get
-     6  printed       what else do you make
-     7  proof         has anyone else done this
-     8  faq + cta     my remaining objection, then the button
-     9  footer        everything else
+     6  capabilities  what else is in it
+     7  printed       what else do you make
+     8  proof         has anyone else done this
+     9  faq + cta     my remaining objection, then the button
+    10  footer        everything else
 
    Every screenshot is a photograph of the real component, produced by
-   test/shots. Bands 6 and 7 render NOTHING until there is real data behind
+   test/shots. Bands 7 and 8 render NOTHING until there is real data behind
    them, which is why the sequence has to read correctly with them absent —
-   it does: 5 (warm) → 8 (dark) is still an alternation.
+   it does: 6 (warm) → 9 (light) → footer (deep) still alternates.
+
+   ── The 2026-08-20 pass ──────────────────────────────────────────────────
+   The page was correct and read as a template. Three things were behind that,
+   and all three were structural rather than a matter of taste:
+
+   • EVERY HEADING WAS SET IN A CAPITALS-ONLY FACE. `--font-serif` is Aboreto,
+     which ships one weight and has no lowercase, so each headline was a whole
+     sentence SHOUTED at a weight the browser had to fake. The display face is
+     now Cormorant Garamond — already in the bundle, previously unused here.
+   • TWO FULL DARK BANDS fought the invitation photography for attention. The
+     page is now a warm paper scale with ONE ink block, the closing call to
+     action, so the pictures carry all the colour.
+   • THE SCREENSHOTS WERE PLACED, NOT PRESENTED — raw crops with a 1px border.
+     They now sit in a browser window, a plate and a tablet body respectively.
+
+   The invitations band also moved from third to second: the hero has just
+   shown one invitation, so "what else is there" is the question actually
+   being asked at that point in the scroll.
 
    ── Three things removed on purpose ──────────────────────────────────────
    • The "Perfect for Any Occasion" cards, which restated the occasion badges
@@ -131,7 +151,7 @@ const faqLd = {
 
 export default function Home() {
   return (
-    <div style={{ minHeight: "100dvh", background: "#FFFFFF" }}>
+    <div style={{ minHeight: "100dvh", background: "#FCFBF8" }}>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLdHtml(organizationLd) }}
@@ -155,35 +175,43 @@ export default function Home() {
         {/* 1 · light — what is this */}
         <HeroSection />
 
-        {/* 2 · warm — what would I do */}
-        <HowItWorksSection />
-
-        {/* 3 · dark — what my guest gets. Placed third rather than last
-            because it is the most differentiated thing here, and on the old
-            page it appeared nowhere at all. */}
+        {/* 2 · warm — what my guest gets. Placed second rather than later
+            because it is the most differentiated thing here, and because the
+            hero has just shown one invitation: the question a reader has at
+            that exact moment is "what else is there". */}
         <TemplatesShowcaseSection />
 
-        {/* 4 · light — what else is in it */}
-        <CapabilitiesSection />
+        {/* 3 · light — one line, alone. The only band that argues rather than
+            describes, and the reader's one place to stop between the pictures
+            above and the instructions below. */}
+        <StatementSection />
 
-        {/* 5 · warm — what I get, in real screenshots */}
+        {/* 4 · warm — what would I actually do */}
+        <HowItWorksSection />
+
+        {/* 5 · light — what I get, in real screenshots */}
         <DashboardShowcaseSection />
 
-        {/* 6 · light — the physical cards the same studio makes by hand, sold
+        {/* 6 · warm — what else is in it */}
+        <CapabilitiesSection />
+
+        {/* 7 · light — the physical cards the same studio makes by hand, sold
             over WhatsApp rather than checkout. Renders nothing until an admin
             publishes a piece and leaves the homepage placement switched on. */}
         <PrintedInvitationsSection />
 
-        {/* 7 · warm — press mentions and real reviews, both admin-managed.
+        {/* 8 · deep — press mentions and real reviews, both admin-managed.
             Renders nothing while both are empty, which is the state of a
-            fresh install. */}
+            fresh install — so the sequence has to read correctly with it
+            absent, and it does: 7 (light) → 9 (light) still alternates against
+            the deep footer below. */}
         <ProofSection />
 
-        {/* 8 · dark — the last objection, then the button */}
+        {/* 9 · light band holding the one ink block on the page */}
         <FaqCtaSection />
       </main>
 
-      {/* 9 · dark */}
+      {/* 10 · deep */}
       <FooterSection />
     </div>
   );

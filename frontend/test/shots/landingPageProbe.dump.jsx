@@ -46,11 +46,13 @@ globalThis.React = React;
 
 import HeroSection from '../../src/app/components/landing/HeroSection';
 import HowItWorksSection from '../../src/app/components/landing/HowItWorksSection';
+import StatementSection from '../../src/app/components/landing/StatementSection';
 import TemplatesShowcaseSection from '../../src/app/components/landing/TemplatesShowcaseSection';
 import CapabilitiesSection from '../../src/app/components/landing/CapabilitiesSection';
 import DashboardShowcaseSection from '../../src/app/components/landing/DashboardShowcaseSection';
 import FaqCtaSection from '../../src/app/components/landing/FaqCtaSection';
 import FooterSection from '../../src/app/components/landing/FooterSection';
+import { BAND_ORDER } from '../../src/app/components/landing/landingTokens';
 
 const ROOT = process.cwd();
 const OUT = path.join(ROOT, '..', '.visual', 'landing');
@@ -63,16 +65,58 @@ function appCss() {
   const css = fs.readdirSync(dir).filter((f) => f.endsWith('.css'))
     .map((f) => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n');
   if (!css.includes('.fx-grid')) throw new Error('Built CSS has no .fx-grid — stale build.');
-  return css;
+
+  /* THE FONTS, WHICH I HAD BEEN RENDERING WITHOUT.
+
+     next/font self-hosts every face into .next/static/media and writes each
+     @font-face src as `url(../media/...)`, relative to the chunks folder.
+     Under our <base href=".../public/"> that resolved to nothing, so every
+     capture silently fell back to Georgia — the page was being judged in a
+     typeface it does not use. --font-serif is Aboreto, which looks nothing
+     like Georgia and ships a SINGLE weight.
+
+     Rewritten to absolute file: URLs so the staged page uses the real faces.
+     The assert is the point: a missing font is invisible in a screenshot,
+     which is exactly how this went unnoticed. */
+  /* URL-ENCODED. This repo lives under "C:/Users/yousef amr/", and a raw space
+     inside an unquoted CSS url() ends the token — the rule parses as garbage
+     and the font falls back silently, which is the exact failure this block
+     exists to remove. */
+  const media = encodeURI(path.join(ROOT, '.next/static/media').split(path.sep).join('/'));
+  const withFonts = css.replace(/url\(\.\.\/media\//g, 'url(file:///' + media + '/');
+  if (!/@font-face\{font-family:Aboreto;/.test(withFonts)) {
+    throw new Error('No Aboreto @font-face in the built CSS — the font pipeline moved.');
+  }
+  return withFonts;
 }
+
+/* Reset ONLY. It used to redeclare --font-sans/--font-serif as Segoe UI and
+   Georgia "because next/font is unavailable offline" — but next/font
+   SELF-HOSTS, so the real faces were there all along and this was overriding
+   them with the wrong ones. globals.css now supplies the type. */
+/* next/font emits the family names onto a generated class that layout.js puts
+   on <html> (`${aboreto.variable} ${googleSans.variable} …`). The staged page
+   has no such class, so `var(--font-heading)` was UNDEFINED — and an invalid
+   var() inside a font-family list invalidates the whole declaration, so every
+   heading fell back to the body sans. The page was therefore being reviewed
+   with its display face missing entirely.
+
+   Declared here verbatim from the built CSS. Emitted AFTER globals so it wins,
+   and asserted on below so a rename fails loudly instead of silently
+   restyling the page. */
+const FONT_VARS = `
+  :root {
+    --font-heading: "Aboreto", "Aboreto Fallback";
+    --font-body: "Google Sans";
+    --font-playfair: "Playfair Display", "Playfair Display Fallback";
+    --font-cormorant: "Cormorant Garamond", "Cormorant Garamond Fallback";
+    --font-montserrat: "Montserrat", "Montserrat Fallback";
+    --font-script: "Great Vibes", "Great Vibes Fallback";
+  }
+`;
 
 const FONTS = `
   *,*::before,*::after { box-sizing: border-box; }
-  :root {
-    --font-sans:'Segoe UI',system-ui,sans-serif;
-    --font-serif:Georgia,'Times New Roman',serif;
-    --font-script:'Segoe Script','Brush Script MT',cursive;
-  }
   html,body { margin:0; padding:0; background:#fff; }
 `;
 
@@ -87,17 +131,61 @@ beforeEach(() => {
   };
 });
 
+/* THE PROBE'S ORDER IS NOT ITS OWN.
+
+   This list used to be hand-written here, and on 2026-08-20 it silently went
+   stale: page.js had moved the invitations band from third to second and
+   inserted the statement band, and the probe was still rendering the old
+   sequence. Every screenshot taken to review that redesign was therefore of a
+   page arrangement that production does not have — the section numerals came
+   out IV before II and nothing failed.
+
+   A staging harness that can disagree with the page it stages is worse than no
+   harness, so the order now comes from BAND_ORDER, the same declaration page.js
+   is asserted against, and the assertion below fails if a band is added there
+   without a component here.
+
+   PrintedInvitationsSection and ProofSection are deliberately absent: both
+   render null until an admin has published data, so on a fresh tree they would
+   contribute nothing but would still have to be mocked. They are covered by
+   landingHomepage.test.jsx instead. */
+const PROBE_SECTIONS = {
+  hero: HeroSection,
+  invitations: TemplatesShowcaseSection,
+  statement: StatementSection,
+  'how-it-works': HowItWorksSection,
+  dashboard: DashboardShowcaseSection,
+  capabilities: CapabilitiesSection,
+  'faq-cta': FaqCtaSection,
+  footer: FooterSection,
+};
+
+const DATA_DRIVEN = ['printed', 'proof'];
+
 describe('landing — whole-page probe', () => {
+  it('stages the homepage in the order page.js actually renders', () => {
+    const declared = BAND_ORDER.map((b) => b.split(':')[0]);
+    const missing = declared.filter(
+      (name) => !PROBE_SECTIONS[name] && !DATA_DRIVEN.includes(name),
+    );
+    expect(
+      missing,
+      `BAND_ORDER declares ${missing.join(', ')}, which this probe does not stage — `
+      + 'the screenshots would not be of the real page',
+    ).toEqual([]);
+  });
+
   it('stages the rebuilt homepage at both widths', async () => {
+    const order = BAND_ORDER
+      .map((b) => b.split(':')[0])
+      .filter((name) => PROBE_SECTIONS[name]);
+
     const { container } = render(
       <>
-        <HeroSection />
-        <HowItWorksSection />
-        <TemplatesShowcaseSection />
-        <CapabilitiesSection />
-        <DashboardShowcaseSection />
-        <FaqCtaSection />
-        <FooterSection />
+        {order.map((name) => {
+          const Section = PROBE_SECTIONS[name];
+          return <Section key={name} />;
+        })}
       </>,
     );
     await act(async () => { await new Promise((r) => setTimeout(r, 400)); });
@@ -112,7 +200,7 @@ describe('landing — whole-page probe', () => {
     fs.writeFileSync(path.join(STAGE, 'page.html'),
       `<!doctype html><html lang="en" dir="ltr"><head><meta charset="utf-8">
 <base href="file:///${PUBLIC}/">
-<style>${FONTS}</style><style>${appCss()}</style><style>${head}</style>
+<style>${FONTS}</style><style>${appCss()}</style><style>${FONT_VARS}</style><style>${head}</style>
 <style>
   /* Entrance animations run to their end state: this is a still. */
   *,*::before,*::after { animation-duration: 1ms !important; animation-delay: 0s !important; }

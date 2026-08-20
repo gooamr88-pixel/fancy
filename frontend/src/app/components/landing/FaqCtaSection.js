@@ -1,49 +1,44 @@
 'use client';
 
-/* See FooterSection: the test runner's classic JSX transform needs React in
-   scope even though Next's automatic runtime would inject it. */
 import React from 'react';
 import Link from 'next/link';
 import { useAuth } from '../../hooks/useAuth';
-import { C, ON_DARK } from './landingTokens';
+import { C, T, ON_INK } from './landingTokens';
 import { FAQS } from './faqContent';
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   THE LAST BAND — answers, then the ask.
+   THE LAST OBJECTION, THEN THE BUTTON.
 
-   WHAT THIS REPLACED
+   This replaced `FAQSection.js` (~800px) followed by `CTASection.js` (~500px)
+   as two separate bands. A visitor who has read eight bands does not need a
+   band break between "here is the answer to your worry" and "here is the
+   button" — they are one move.
 
-   `FAQSection.js` (light, ~800px) followed by `CTASection.js` (dark, ~500px):
-   two full bands, ~1,300px, for what is one moment in the page — the point
-   where a reader has stopped learning and is deciding. Splitting them put a
-   background change between the last objection and the button that answers
-   it.
+   The accordion is `<details>`/`<summary>`, not React state. The previous
+   version held an openIndex in useState and rebuilt aria-expanded by hand;
+   the native element is keyboard-accessible, announces its own state, and
+   works before hydration.
 
-   TWO REAL CHANGES BEYOND MERGING
+   FAQS is imported from faqContent.js rather than declared here. page.js is a
+   Server Component, and importing a value from a 'use client' module gives it
+   a client reference instead of the array — the production build then dies at
+   page-data collection with "FAQS.map is not a function".
 
-   1. The accordion is `<details>` / `<summary>`, not React state. The old one
-      held an `openIndex` in `useState` and rebuilt aria-expanded by hand.
-      Native disclosure gives the same behaviour with correct semantics, works
-      before hydration and without JavaScript at all, and is what a search
-      crawler reads. The only thing lost is "exactly one open at a time",
-      which nobody asked for and which hides the answer you just opened when
-      you open another.
+   ── 2026-08-20 ────────────────────────────────────────────────────────────
 
-   2. The questions live in `faqContent.js`, so page.js can emit FAQPage
-      structured data from the SAME array that renders here. A hand-written
-      JSON-LD block beside a hand-written accordion is two copies of six
-      answers, and they drift. They are in a separate module rather than
-      exported from this one because this one is a Client Component — see the
-      note above the re-export below, and faqContent.js itself.
+   1. THE RIGHT THIRD WAS EMPTY. The questions column was capped at a reading
+      measure and nothing sat beside it, so the band read as a page that had
+      run out of things to say. There is now a real panel there — the one place
+      on the page that offers a human instead of a signup — which also gives
+      the section a second, softer conversion path for someone not ready to
+      register.
 
+   2. THE CALL TO ACTION IS THE ONLY DARK SURFACE ON THE PAGE. It used to be a
+      full dark band, one of two. As a single ink BLOCK inside a paper band it
+      reads as punctuation rather than as a theme switch, which is what lets
+      the rest of the page stay light.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* The questions live in faqContent.js, a module with no 'use client'.
-   They were exported from HERE, and page.js — a Server Component — imported
-   them to build the FAQPage JSON-LD. That fails the production build outright
-   ("FAQS.map is not a function"): a Server Component importing from a client
-   module receives client REFERENCES, not values. Re-exported so existing
-   importers of this file keep working. */
 export { FAQS } from './faqContent';
 
 function Faq({ item, index }) {
@@ -59,8 +54,6 @@ function Faq({ item, index }) {
           <Link href={item.link.href} className="faq-a-link">{item.link.label}</Link>
         )}
       </div>
-
-
     </details>
   );
 }
@@ -71,320 +64,375 @@ export default function FaqCtaSection() {
 
   return (
     <section className="fc" aria-labelledby="fc-faq-title">
-      <div aria-hidden="true" className="fc-shimmer" />
-      <div aria-hidden="true" className="fc-glow" />
+      <div className="fx-container fx-container--5xl fx-gutter">
+        <div className="fc-inner">
+          {/* ── Answers ── */}
+          <div className="fc-faq">
+            <span className="fc-kicker">
+              Before you ask
+              <span aria-hidden="true" className="fc-kicker__rule" />
+            </span>
+            <span className="fc-numeral" aria-hidden="true">IX</span>
+            <h2 id="fc-faq-title" className="fc-h2">Questions we get.</h2>
 
-      <div className="fx-container fx-container--4xl fx-gutter fc-inner">
-        {/* ── Answers ── */}
-        <div className="fc-faq">
-          <span className="fc-kicker">Before you ask</span>
-          <h2 id="fc-faq-title" className="fc-h2">Questions we get.</h2>
+            <div className="fc-list">
+              {FAQS.map((item, i) => <Faq key={item.q} item={item} index={i} />)}
+            </div>
 
-          <div className="fc-list">
-            {FAQS.map((item, i) => <Faq key={item.q} item={item} index={i} />)}
+            <p className="fc-more">
+              Something not covered?{' '}
+              <Link href="/help" className="fc-inline-link">Help centre</Link>
+              {' · '}
+              <Link href="/contact" className="fc-inline-link">Talk to us</Link>
+            </p>
           </div>
 
-          <p className="fc-more">
-            Something not covered?{' '}
-            <Link href="/help" className="fc-inline-link">Help centre</Link>
-            {' · '}
-            <Link href="/contact" className="fc-inline-link">Talk to us</Link>
-          </p>
+          {/* ── A person, for anyone the answers did not settle ── */}
+          <aside className="fc-aside">
+            <span className="fc-aside__label">Still deciding</span>
+            <h3 className="fc-aside__title">
+              Talk to someone who has run the night before.
+            </h3>
+            <p className="fc-aside__body">
+              We will look at your guest count, your venue and your dates, and
+              tell you plainly which plan fits — or that you do not need one yet.
+            </p>
+            <div className="fc-aside__actions">
+              <Link href="/contact" className="fc-btn fc-btn--ink">Talk to us</Link>
+              <a href="mailto:info@fancyrsvp.com" className="fc-btn fc-btn--ghost">Email instead</a>
+            </div>
+            <p className="fc-aside__note">Typically answered the same working day.</p>
+          </aside>
         </div>
 
         {/* ── The ask ── */}
-        <aside className="fc-cta">
-          <span className="fc-orn" aria-hidden="true">
-            <svg width="34" height="34" viewBox="0 0 38 32" fill="none">
-              <rect x="2" y="8" width="34" height="22" rx="2" stroke={C.goldSoft} strokeWidth="1.6" />
-              <path d="M2 10L19 22L36 10" stroke={C.goldSoft} strokeWidth="1.6" strokeLinejoin="round" />
-              <path d="M4 8L19 0L34 8" stroke={C.goldSoft} strokeWidth="1.6" strokeLinejoin="round" />
-            </svg>
-          </span>
+        <div className="fc-cta">
+          <span aria-hidden="true" className="fc-cta__glow" />
+          <div className="fc-cta__inner">
+            <span className="fc-orn" aria-hidden="true">
+              <svg width="34" height="29" viewBox="0 0 38 32" fill="none">
+                <rect x="2" y="8" width="34" height="22" stroke={C.gold} strokeWidth="1.3" />
+                <path d="M2 10L19 22L36 10" stroke={C.gold} strokeWidth="1.3" strokeLinejoin="round" />
+                <path d="M4 8L19 0L34 8" stroke={C.gold} strokeWidth="1.3" strokeLinejoin="round" />
+              </svg>
+            </span>
 
-          <h2 className="fc-cta-title">Start with your first event.</h2>
-          <p className="fc-cta-body">
-            Build it, see exactly how it will look to a guest, and only pay when
-            you are ready to send it.
-          </p>
+            <h2 className="fc-cta__title">Start with your first event.</h2>
+            <p className="fc-cta__body">
+              Build it, see exactly how it will look to a guest, and only pay
+              when you are ready to send it.
+            </p>
 
-          <div className="fc-cta-actions">
-            <Link href={signedIn ? '/dashboard' : '/register'} className="fc-btn">
-              {signedIn ? 'Go to dashboard' : 'Create your event'}
-            </Link>
-            <Link href="/pricing" className="fc-btn fc-btn--ghost">See pricing</Link>
+            <div className="fc-cta__actions">
+              <Link href={signedIn ? '/dashboard' : '/register'} className="fc-btn fc-btn--ivory">
+                {signedIn ? 'Go to dashboard' : 'Create your event'}
+              </Link>
+              <Link href="/pricing" className="fc-btn fc-btn--onInk">See pricing</Link>
+            </div>
+
+            <ul className="fc-assure">
+              <li>Free plan to start</li>
+              <li>No credit card</li>
+              <li>One-off price per event</li>
+            </ul>
           </div>
-
-          <ul className="fc-assure">
-            <li>Free plan to start</li>
-            <li>No credit card</li>
-            <li>One-off price per event</li>
-          </ul>
-        </aside>
+        </div>
       </div>
 
+      {/* A PLAIN style element, not <style jsx>.
 
-      {/* ONE PLAIN STYLE ELEMENT, for the whole component.
+          styled-jsx stamps its hash class only onto lowercase intrinsic
+          elements, so every rule aimed at a class on a next/link here would
+          compile to .fc-btn.jsx-hash and match nothing — which is the bug that
+          made this platform's alerts invisible in production. Classes are
+          prefixed "fc-" and "faq-" instead.
 
-          Two separate reasons, both of which this repo has already paid for:
-
-          1. A <style jsx> block inside a NESTED, non-default-export component
-             does not reliably compile in this build. AGENTS.md names the two
-             cases that proved it (FooterLink, PrintPreviewModal) and both had
-             to be moved out. The nested Faq component is exactly that
-             pattern, and its CSS used to live inside it.
-
-          2. styled-jsx stamps its hash class only onto lowercase intrinsic
-             elements, so a scoped rule aimed at a class on a next/link
-             compiles to .foo.jsx-hash and matches NOTHING. That is the bug
-             that made every alert on this platform invisible, and the one
-             that made the footer links unreadable in production.
-
-          A plain <style> has neither failure mode. The scoping it gives up is
-          replaced by a prefix on every class name, which is what
-          PrintedInvitationsSection already does. */}
+          No backticks inside these CSS comments: one would end the template
+          literal and produce a parse error. */}
       <style>{`
-        .faq-item {
-          border-bottom: 1px solid ${ON_DARK.hairline};
+        .fc {
+          position: relative;
+          width: 100%;
+          background: ${C.paper};
+          padding: 76px 0;
         }
+        .fc-inner {
+          display: flex;
+          flex-direction: column;
+          gap: 44px;
+        }
+
+        .fc-kicker {
+          display: inline-flex;
+          align-items: center;
+          gap: 12px;
+          font-family: ${T.label};
+          font-size: 10px;
+          letter-spacing: 0.30em;
+          text-transform: uppercase;
+          color: ${C.goldInk};
+          white-space: nowrap;
+        }
+        .fc-kicker__rule {
+          display: block;
+          flex: none;
+          width: 28px;
+          height: 1px;
+          background: ${C.gold};
+          opacity: 0.55;
+        }
+        .fc-numeral {
+          font-family: ${T.display};
+          font-style: italic;
+          font-size: 13px;
+          color: ${C.goldInk};
+          opacity: 0.75;
+          float: right;
+        }
+        .fc-h2 {
+          font-family: ${T.display};
+          font-weight: 300;
+          font-size: 37px;
+          line-height: 1.07;
+          letter-spacing: -0.015em;
+          color: ${C.ink};
+          margin: 18px 0 0;
+        }
+
+        /* ── the accordion ─────────────────────────────────────────────── */
+        .fc-list { margin-top: 30px; }
+        .faq-item { border-top: 1px solid ${C.border}; }
+        .faq-item:last-child { border-bottom: 1px solid ${C.border}; }
         .faq-item summary {
           display: flex;
-          align-items: center;
+          align-items: flex-start;
           justify-content: space-between;
           gap: 20px;
-          /* --fx-touch guarantees the row stays tappable even if the question
-             wraps to one short line at 320px. */
-          min-height: var(--fx-touch);
           padding: 20px 0;
           cursor: pointer;
           list-style: none;
         }
-        /* Safari draws its own disclosure triangle through a pseudo-element
-           that list-style:none alone does not remove. */
         .faq-item summary::-webkit-details-marker { display: none; }
-        .faq-item summary:focus-visible {
-          outline: 2px solid ${C.goldSoft};
-          outline-offset: 3px;
-          border-radius: 4px;
-        }
         .faq-q {
-          font-family: var(--font-serif);
-          font-size: clamp(16.5px, 0.958rem + 0.26vw, 19px);
-          font-weight: 500;
-          line-height: 1.4;
-          color: ${ON_DARK.title};
+          font-family: ${T.display};
+          font-size: 21px;
+          font-weight: 400;
+          line-height: 1.3;
+          color: ${C.ink};
           min-width: 0;
         }
-        /* A plus that becomes a minus. Two bars, one rotated; the open state
-           un-rotates it. Cheaper than swapping two icons and it animates. */
+        /* The plus/minus is drawn with two spans rather than an icon font so it
+           can animate to a minus without swapping any markup. */
         .faq-mark {
           position: relative;
-          flex-shrink: 0;
-          width: 16px;
-          height: 16px;
+          flex: none;
+          width: 14px;
+          height: 14px;
+          margin-top: 7px;
         }
-        .faq-mark::before,
-        .faq-mark::after {
+        .faq-mark::before, .faq-mark::after {
           content: "";
           position: absolute;
-          inset-inline: 0;
-          top: 50%;
-          height: 1.5px;
-          background: ${C.goldSoft};
-          transition: transform 0.22s ease;
+          background: ${C.gold};
         }
-        .faq-mark::after { transform: rotate(90deg); }
-        .faq-item[open] .faq-mark::after { transform: rotate(0deg); }
+        .faq-mark::before { left: 0; top: 6.5px; width: 14px; height: 1px; }
+        .faq-mark::after {
+          left: 6.5px; top: 0; width: 1px; height: 14px;
+          transition: opacity 0.25s ease, transform 0.25s ease;
+        }
+        .faq-item[open] .faq-mark::after { opacity: 0; transform: rotate(90deg); }
 
-        .faq-a { padding: 0 0 22px; max-width: 68ch; }
+        .faq-a { padding: 0 0 20px; }
         .faq-a p {
-          font-family: var(--font-sans);
-          font-size: 15px;
+          font-size: 13.5px;
           font-weight: 300;
-          line-height: 1.78;
-          color: ${ON_DARK.body};
+          line-height: 1.8;
+          color: ${C.inkSoft};
           margin: 0;
+          max-width: 66ch;
         }
-        @media (prefers-reduced-motion: reduce) {
-          .faq-mark::before, .faq-mark::after { transition: none; }
-        }
-
         .faq-a-link {
           display: inline-block;
-          margin-top: 10px;
-          font-family: var(--font-sans);
-          font-size: 13.5px;
+          margin-top: 12px;
+          font-size: 10.5px;
           font-weight: 600;
-          color: #e4ce9b;
-          text-decoration: underline;
-          text-underline-offset: 3px;
-        }
-        .faq-a-link:hover { color: #ffffff; }
-
-        .fc {
-          position: relative;
-          width: 100%;
-          overflow: hidden;
-          background: linear-gradient(178deg, #14171a 0%, ${C.charcoal} 45%, #211e1a 100%);
-          padding-block: var(--fx-pad-y-sm);
-        }
-        .fc-shimmer {
-          position: absolute;
-          inset-inline: 0;
-          top: 0;
-          height: 1px;
-          background: linear-gradient(90deg, transparent, ${C.goldSoft}, ${C.gold}, ${C.goldSoft}, transparent);
-        }
-        .fc-glow {
-          position: absolute;
-          inset-block: -25%;
-          inset-inline-end: -10%;
-          width: 55%;
-          pointer-events: none;
-          background: radial-gradient(ellipse at 60% 50%, rgba(184, 148, 79, 0.14), transparent 64%);
-        }
-        .fc-inner {
-          position: relative;
-          z-index: 1;
-          display: grid;
-          gap: clamp(40px, 5vw, 72px);
-          align-items: start;
-        }
-        /* Answers get the wider track; the ask is a panel, not a column of
-           reading. Two columns from lg up only: at 768px the 1.35fr track is
-           about 400px, which wraps most of these questions onto three lines.
-           1024px is one of the four allowed breakpoints; 900px, which is what
-           this wanted, is not, and AGENTS.md is explicit that a fifth value is
-           never introduced. */
-        @media (min-width: 1024px) {
-          .fc-inner { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); }
-        }
-        .fc-faq { min-width: 0; }
-
-        .fc-kicker {
-          font-family: var(--font-sans);
-          font-size: 11px;
-          font-weight: 700;
-          letter-spacing: 2.4px;
+          letter-spacing: 0.18em;
           text-transform: uppercase;
-          color: ${C.goldSoft};
+          color: ${C.ink};
+          text-decoration: none;
+          border-bottom: 1px solid ${C.gold};
+          padding-bottom: 5px;
         }
-        .fc-h2 {
-          font-family: var(--font-serif);
-          font-size: clamp(27px, 1.417rem + 2.083vw, 42px);
-          font-weight: 500;
-          line-height: 1.16;
-          letter-spacing: -0.4px;
-          color: ${ON_DARK.title};
-          margin: 14px 0 22px;
-        }
-        .fc-list { border-top: 1px solid ${ON_DARK.hairline}; }
         .fc-more {
-          margin: 22px 0 0;
-          font-family: var(--font-sans);
-          font-size: 14px;
-          color: ${ON_DARK.muted};
+          margin: 24px 0 0;
+          font-size: 13px;
+          font-weight: 300;
+          color: ${C.inkSoft};
+        }
+        .fc-inline-link {
+          color: ${C.ink};
+          text-decoration: none;
+          border-bottom: 1px solid ${C.gold};
+          padding-bottom: 2px;
         }
 
-        /* ── The panel ── */
-        .fc-cta {
-          min-width: 0;
-          padding: clamp(28px, 3.5vw, 40px);
-          border: 1px solid rgba(184, 148, 79, 0.28);
-          border-radius: var(--fx-r-lg);
-          background: linear-gradient(160deg, rgba(184, 148, 79, 0.12), rgba(248, 244, 236, 0.03));
-          /* Sticks alongside the answers on a tall desktop viewport. Safe
-             here because nothing between this and the section root sets
-             overflow — a single overflow:hidden on any ancestor makes
-             position:sticky silently inert, which is exactly how the pricing
-             table lost its pinned column. .fc itself DOES set overflow:hidden
-             for the glow, but it is the containing block's SCROLLPORT that
-             matters, and that is the page. */
-          position: sticky;
-          top: 96px;
+        /* ── the panel ─────────────────────────────────────────────────── */
+        .fc-aside {
+          border: 1px solid ${C.border};
+          background: ${C.paper2};
+          padding: 32px 24px 34px;
         }
-        @media (max-width: 1023.98px) {
-          .fc-cta { position: static; }
+        .fc-aside__label {
+          font-family: ${T.label};
+          font-size: 10px;
+          letter-spacing: 0.3em;
+          text-transform: uppercase;
+          color: ${C.goldInk};
         }
-        .fc-orn { display: block; }
-        .fc-cta-title {
-          font-family: var(--font-serif);
-          font-size: clamp(23px, 1.25rem + 1.04vw, 30px);
-          font-weight: 500;
-          line-height: 1.2;
-          color: ${ON_DARK.title};
-          margin: 18px 0 0;
+        .fc-aside__title {
+          font-family: ${T.display};
+          font-size: 25px;
+          font-weight: 400;
+          line-height: 1.22;
+          color: ${C.ink};
+          margin: 16px 0 0;
         }
-        .fc-cta-body {
-          font-family: var(--font-sans);
-          font-size: 15px;
+        .fc-aside__body {
+          font-size: 13.5px;
           font-weight: 300;
-          line-height: 1.7;
-          color: ${ON_DARK.body};
+          line-height: 1.8;
+          color: ${C.inkSoft};
           margin: 12px 0 0;
         }
-        .fc-cta-actions {
+        .fc-aside__actions {
           display: flex;
-          flex-wrap: wrap;
-          gap: 12px;
-          margin-top: 24px;
+          flex-direction: column;
+          gap: 10px;
+          margin-top: 26px;
+        }
+        .fc-aside__note {
+          margin: 18px 0 0;
+          font-size: 11px;
+          color: ${C.inkSoft};
+          opacity: 0.75;
+        }
+
+        /* ── buttons ───────────────────────────────────────────────────── */
+        .fc-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 56px;
+          font-family: ${T.body};
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.2em;
+          text-transform: uppercase;
+          white-space: nowrap;
+          text-decoration: none;
+          border-radius: 0;
+          transition: background 0.35s ease, color 0.35s ease, border-color 0.35s ease;
+        }
+        .fc-btn--ink { background: ${C.ink}; color: ${C.paper}; border: 1px solid ${C.ink}; }
+        .fc-btn--ink:hover { background: transparent; color: ${C.ink}; }
+        .fc-btn--ghost { background: ${C.paper}; color: ${C.ink}; border: 1px solid ${C.border}; }
+        .fc-btn--ghost:hover { border-color: ${C.ink}; }
+        .fc-btn--ivory { background: ${C.ivory}; color: ${C.ink}; border: 1px solid ${C.ivory}; }
+        .fc-btn--ivory:hover { background: transparent; color: ${C.ivory}; }
+        .fc-btn--onInk { background: transparent; color: ${C.ivory}; border: 1px solid ${ON_INK.hairline}; }
+        .fc-btn--onInk:hover { background: ${C.ivory}; color: ${C.ink}; border-color: ${C.ivory}; }
+
+        /* ── the one dark block on the page ────────────────────────────── */
+        .fc-cta {
+          position: relative;
+          overflow: hidden;
+          background: ${C.ink};
+          color: ${ON_INK.title};
+          margin-top: 62px;
+          padding: 56px 24px 58px;
+          text-align: center;
+        }
+        .fc-cta__glow {
+          position: absolute;
+          top: -40%;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 150%;
+          height: 150%;
+          background: radial-gradient(ellipse at 50% 50%, rgba(169, 138, 78, 0.22), transparent 62%);
+          pointer-events: none;
+        }
+        .fc-cta__inner { position: relative; z-index: 2; }
+        .fc-orn { display: block; }
+        .fc-orn svg { margin: 0 auto; }
+        .fc-cta__title {
+          font-family: ${T.display};
+          font-weight: 300;
+          font-size: 35px;
+          line-height: 1.08;
+          letter-spacing: -0.015em;
+          color: ${ON_INK.title};
+          margin: 22px 0 0;
+        }
+        .fc-cta__body {
+          font-size: 14.5px;
+          font-weight: 300;
+          line-height: 1.82;
+          color: ${ON_INK.body};
+          margin: 14px auto 0;
+          max-width: 48ch;
+        }
+        .fc-cta__actions {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          margin-top: 30px;
         }
         .fc-assure {
           display: flex;
           flex-wrap: wrap;
-          gap: 6px 16px;
-          margin: 20px 0 0;
+          justify-content: center;
+          gap: 8px 22px;
+          margin: 24px 0 0;
           padding: 0;
           list-style: none;
-        }
-        .fc-assure li {
-          font-family: var(--font-sans);
-          font-size: 12.5px;
-          color: ${ON_DARK.muted};
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
-        .fc-assure li::before {
-          content: "";
-          width: 4px;
-          height: 4px;
-          border-radius: 50%;
-          background: ${C.gold};
-          flex-shrink: 0;
+          font-size: 10.5px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: ${ON_INK.muted};
         }
 
-        .fc-inline-link {
-          color: #e4ce9b;
-          text-decoration: underline;
-          text-underline-offset: 3px;
+        /* ── 768 and up ────────────────────────────────────────────────── */
+        @media (min-width: 768px) {
+          .fc { padding: 128px 0; }
+          .fc-inner {
+            display: grid;
+            grid-template-columns: minmax(0, 1.42fr) minmax(0, 0.58fr);
+            gap: 80px;
+            align-items: start;
+          }
+          .fc-kicker { font-size: 11px; letter-spacing: 0.38em; gap: 16px; }
+          .fc-kicker__rule { width: 44px; }
+          .fc-numeral { font-size: 15px; }
+          .fc-h2 { font-size: 58px; margin-top: 22px; }
+          .fc-list { margin-top: 40px; }
+          .faq-item summary { padding: 24px 0; }
+          .faq-q { font-size: 24px; }
+          .faq-a { padding-bottom: 24px; }
+          .faq-a p { font-size: 14.5px; }
+          .fc-aside { padding: 40px 36px 42px; }
+          .fc-aside__title { font-size: 28px; }
+          .fc-aside__body { font-size: 14.5px; }
+          .fc-cta { margin-top: 96px; padding: 96px 72px; }
+          .fc-cta__title { font-size: 52px; margin-top: 28px; }
+          .fc-cta__body { font-size: 17px; margin-top: 18px; }
+          .fc-cta__actions { flex-direction: row; justify-content: center; gap: 14px; margin-top: 38px; }
+          .fc-btn { min-height: 60px; padding: 0 40px; }
+          .fc-aside__actions .fc-btn { padding: 0 24px; }
         }
-        .fc-inline-link:hover { color: #ffffff; }
-        .fc-btn {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          min-height: var(--fx-touch);
-          padding: 13px 26px;
-          border-radius: 8px;
-          font-family: var(--font-sans);
-          font-size: 14.5px;
-          font-weight: 600;
-          text-decoration: none;
-          background: linear-gradient(135deg, #d7be80, #b8944f);
-          color: #191b1e;
-          border: 1px solid #b8944f;
-          transition: transform 0.18s ease, background 0.18s ease;
-        }
-        .fc-btn:hover { transform: translateY(-1px); }
-        .fc-btn--ghost {
-          background: rgba(248, 244, 236, 0.06);
-          color: #f8f4ec;
-          border: 1px solid rgba(248, 244, 236, 0.28);
-        }
-        .fc-btn--ghost:hover { background: rgba(248, 244, 236, 0.12); }
+
         @media (prefers-reduced-motion: reduce) {
-          .fc-btn:hover { transform: none; }
+          .fc-btn, .faq-mark::after { transition: none; }
         }
       `}</style>
     </section>

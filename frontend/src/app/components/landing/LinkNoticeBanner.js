@@ -33,12 +33,22 @@ import { useSearchParams } from 'next/navigation';
  * to whoever sent the message.
  */
 
+/* The FOURTH private copy of the brand colours in this folder, and the last
+   one left. It is kept local rather than imported for one specific reason:
+   this banner renders above the navbar on a query parameter, in front of a
+   page whose palette it must sit on top of but never match — a notice that
+   blends into the band behind it is not a notice.
+
+   The values still come from the shared scale, one step warmer, so it reads as
+   a raised surface rather than as a colour nobody chose. Before 2026-08-20
+   these were the pre-redesign hexes (#B8944F / #191B1E / #77736A / #E8E2D6),
+   which had drifted a full shade off the page around them. */
 const C = {
-  gold: '#B8944F',
-  charcoal: '#191B1E',
-  stone: '#77736A',
-  border: '#E8E2D6',
-  cream: '#FFF9EE',
+  gold: '#A98A4E',
+  charcoal: '#191815',
+  stone: '#5C574E',
+  border: '#E3DBCB',
+  cream: '#FBF4E6',
 };
 
 export default function LinkNoticeBanner() {

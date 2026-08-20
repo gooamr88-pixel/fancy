@@ -169,7 +169,29 @@ function appCss() {
   if (!css.includes('.fx-grid')) {
     throw new Error('The built CSS has no .fx-grid — the build is stale or the chunks moved.');
   }
-  return css;
+
+  /* THE FONTS, WHICH I HAD BEEN RENDERING WITHOUT.
+
+     next/font self-hosts every face into .next/static/media and writes each
+     @font-face src as `url(../media/...)`, relative to the chunks folder.
+     Under our <base href=".../public/"> that resolved to nothing, so every
+     capture silently fell back to Georgia — the page was being judged in a
+     typeface it does not use. --font-serif is Aboreto, which looks nothing
+     like Georgia and ships a SINGLE weight.
+
+     Rewritten to absolute file: URLs so the staged page uses the real faces.
+     The assert is the point: a missing font is invisible in a screenshot,
+     which is exactly how this went unnoticed. */
+  /* URL-ENCODED. This repo lives under "C:/Users/yousef amr/", and a raw space
+     inside an unquoted CSS url() ends the token — the rule parses as garbage
+     and the font falls back silently, which is the exact failure this block
+     exists to remove. */
+  const media = encodeURI(path.join(ROOT, '.next/static/media').split(path.sep).join('/'));
+  const withFonts = css.replace(/url\(\.\.\/media\//g, 'url(file:///' + media + '/');
+  if (!/@font-face\{font-family:Aboreto;/.test(withFonts)) {
+    throw new Error('No Aboreto @font-face in the built CSS — the font pipeline moved.');
+  }
+  return withFonts;
 }
 
 /* next/font is unavailable offline; the nearest local faces keep the type at

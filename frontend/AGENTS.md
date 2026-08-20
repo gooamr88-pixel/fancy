@@ -164,6 +164,36 @@ A check with a 100% false-positive rate and a blind spot over the guest page is
 worse than no check: it teaches you the output is noise, and that is where a
 real finding goes to die.
 
+### Backticks in CSS comments
+
+```bash
+cd frontend
+node scripts/backtickInCssComment.js   # exits non-zero on any finding
+```
+
+A backtick inside a CSS comment in a `<style>{` … `}</style>` block ends the
+template literal and is a **parse error**, not a style bug. It has now cost
+four build failures here.
+
+The note further down says to run the build instead of grepping for this, and
+that remains true *of a grep* — a grep cannot tell a CSS comment from a JSDoc
+one and fires on every `/* … `fn` … */`. This is not a grep: it extracts the
+style blocks first and looks only inside CSS comments within them, so it has no
+opinion about JSDoc anywhere else in the file. It runs in milliseconds; the
+build takes ten minutes. Run both.
+
+### Unreferenced landing code
+
+```bash
+cd frontend
+node scripts/deadLandingCode.js
+```
+
+Reports files and exports under `components/landing` that nothing imports. Its
+corpus includes `test/` — scanning only `src/` reported `BAND_ORDER` as dead
+when three tests depend on it, and a dead-code report naming something
+load-bearing invites exactly the wrong next step.
+
 ### The rest
 
 ```bash

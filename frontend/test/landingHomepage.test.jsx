@@ -22,7 +22,7 @@ import {
   HOMEPAGE_CAPABILITIES,
   REMAINING_CAPABILITY_COUNT,
 } from '../src/app/components/landing/platformCapabilities';
-import { BAND_ORDER } from '../src/app/components/landing/landingTokens';
+import { BAND_ORDER, C } from '../src/app/components/landing/landingTokens';
 
 const ROOT = process.cwd();
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
@@ -183,20 +183,21 @@ describe('the page explains the platform', () => {
 });
 
 describe('the page is not longer than it needs to be', () => {
-  it('renders nine bands, in the declared rhythm', () => {
+  it('renders ten bands, in the declared rhythm', () => {
     /* BAND_ORDER is the one place the arrangement is stated. If a section is
        added, removed or moved in page.js without updating it, this fails —
        which is the only way "does this page still alternate?" stays a
-       question you answer by reading nine lines. */
+       question you answer by reading ten lines. */
     const names = BAND_ORDER.map((b) => b.split(':')[0]);
-    expect(names.length).toBe(9);
+    expect(names.length).toBe(10);
 
     const EXPECTED_COMPONENT = {
       hero: 'HeroSection',
-      'how-it-works': 'HowItWorksSection',
       invitations: 'TemplatesShowcaseSection',
-      capabilities: 'CapabilitiesSection',
+      statement: 'StatementSection',
+      'how-it-works': 'HowItWorksSection',
       dashboard: 'DashboardShowcaseSection',
+      capabilities: 'CapabilitiesSection',
       printed: 'PrintedInvitationsSection',
       proof: 'ProofSection',
       'faq-cta': 'FaqCtaSection',
@@ -220,10 +221,58 @@ describe('the page is not longer than it needs to be', () => {
     const tones = BAND_ORDER.map((b) => b.split(':')[1]);
     tones.forEach((tone, i) => {
       if (i === 0) return;
-      // The footer is dark directly under the dark FAQ/CTA band, deliberately
-      // — they read as one closing block rather than two.
+      // The footer sits directly under the FAQ band. Since 2026-08-20 those
+      // are two different tones (light → deep) so this exemption is no longer
+      // load-bearing, but it stays: the footer is the one band whose tone is
+      // chosen to close the page rather than to alternate with its neighbour.
       if (BAND_ORDER[i].startsWith('footer')) return;
       expect(tone === tones[i - 1], `bands ${i - 1} and ${i} are both "${tone}"`).toBe(false);
+    });
+  });
+
+  it('each band actually paints the tone it declares', () => {
+    /* BAND_ORDER was a promise nothing kept. The test above only checks that
+       the DECLARATION is internally consistent — that no two adjacent entries
+       name the same tone. It never opened a component to see whether the CSS
+       agreed, so on 2026-08-20 ProofSection declared "deep" and painted
+       "warm" and the whole suite stayed green.
+
+       This reads the background out of each section's own style block and
+       compares it to BAND, which is where the three tones are defined. */
+    const TONE_HEX = { light: C.paper, warm: C.paper2, deep: C.paper3 };
+
+    const FILE = {
+      hero: 'HeroSection',
+      invitations: 'TemplatesShowcaseSection',
+      statement: 'StatementSection',
+      'how-it-works': 'HowItWorksSection',
+      dashboard: 'DashboardShowcaseSection',
+      capabilities: 'CapabilitiesSection',
+      printed: 'PrintedInvitationsSection',
+      proof: 'ProofSection',
+      'faq-cta': 'FaqCtaSection',
+      footer: 'FooterSection',
+    };
+
+    BAND_ORDER.forEach((entry) => {
+      const [name, tone] = entry.split(':');
+      const src = fs.readFileSync(path.join(LANDING, `${FILE[name]}.js`), 'utf8');
+      const expected = TONE_HEX[tone];
+      expect(expected, `BAND_ORDER names an unknown tone "${tone}"`).toBeTruthy();
+
+      /* The section's own ground is the first `background:` that names one of
+         the three tones — either as the literal hex or as the token that
+         resolves to it. Inner surfaces (cards, the ink block) name other
+         colours and are not matched. */
+      const named = [...src.matchAll(/background:\s*(?:\$\{)?C\.(paper3|paper2|paper)\}?/g)]
+        .map((m) => m[1]);
+      const TOKEN_FOR = { light: 'paper', warm: 'paper2', deep: 'paper3' };
+
+      expect(
+        named.includes(TOKEN_FOR[tone]),
+        `${FILE[name]} is declared "${tone}" (C.${TOKEN_FOR[tone]}) but its `
+        + `backgrounds are: ${named.join(', ') || 'none found'}`,
+      ).toBe(true);
     });
   });
 
@@ -298,6 +347,11 @@ describe('nothing links into a hole', () => {
       [...container.querySelectorAll('a')]
         .map((a) => a.getAttribute('href'))
         .filter((h) => h && h.startsWith('/'))
+        /* Drop the fragment before resolving. "/#invitations" is this page
+           plus an anchor, and asking the filesystem for a route called
+           "#invitations" fails a link that works perfectly. A bare "#foo" is
+           already excluded by the startsWith('/') filter above. */
+        .map((h) => h.split('#')[0] || '/')
         .forEach((h) => expect(routeExists(h), `${h} resolves to no page.js`).toBe(true));
       unmount();
     });

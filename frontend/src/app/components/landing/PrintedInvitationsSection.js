@@ -116,53 +116,58 @@ export default async function PrintedInvitationsSection() {
         /* padding was clamp(64px, 9vw, 108px) — 216px of vertical air on a
            desktop for a three-card teaser. --fx-pad-y-sm is the rhythm the
            rest of the page now keeps. */
-        .pis { background: ${C.white}; padding: var(--fx-pad-y-sm) 0; }
+        .pis { background: ${C.paper}; padding: var(--fx-pad-y-sm) 0; }
         .pis-head {
           display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
           gap: clamp(20px, 4vw, 56px); align-items: end; margin-bottom: 32px;
         }
-        @media (max-width: 800px) { .pis-head { grid-template-columns: minmax(0, 1fr); align-items: start; } }
+        /* 767.98, not the 800 that was here: AGENTS.md allows four breakpoint
+           values and 800 is not one of them. It bought nothing — the two-column
+           head is comfortable down to the md line — and an off-scale value is
+           how a page ends up with a layout that changes at a width nothing else
+           on the site changes at. */
+        @media (max-width: 767.98px) { .pis-head { grid-template-columns: minmax(0, 1fr); align-items: start; } }
         .pis-kicker {
           font-size: 11px; letter-spacing: .24em; text-transform: uppercase;
           color: ${C.goldCta}; margin: 0 0 14px; font-weight: 600;
         }
         .pis-title {
-          font-family: var(--font-serif); font-size: clamp(28px, 4.4vw, 48px);
-          line-height: 1.1; letter-spacing: -.02em; color: ${C.charcoal}; margin: 0;
+          font-family: var(--font-cormorant), Georgia, serif; font-size: clamp(28px, 4.4vw, 48px);
+          line-height: 1.1; letter-spacing: -.02em; color: ${C.ink}; margin: 0;
         }
-        .pis-lede { font-size: 15.5px; line-height: 1.8; color: ${C.stone}; margin: 0; }
+        .pis-lede { font-size: 15.5px; line-height: 1.8; color: ${C.inkSoft}; margin: 0; }
 
         .pis-grid { margin-bottom: 30px; }
         .pis-card { display: block; text-decoration: none; min-width: 0; }
         .pis-art {
           position: relative; aspect-ratio: 4 / 5; overflow: hidden;
-          border: 1px solid ${C.border}; border-radius: 3px; background: ${C.ivory}; margin-bottom: 14px;
+          border: 1px solid ${C.border}; border-radius: 3px; background: ${C.paper}; margin-bottom: 14px;
         }
         .pis-img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .7s cubic-bezier(.16,1,.3,1); }
         .pis-card:hover .pis-img { transform: scale(1.05); }
         .pis-noimg {
           position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-          font-family: var(--font-script); font-size: 38px; color: ${C.goldSoft};
-          background: linear-gradient(135deg, ${C.ivory}, #EFE7D8);
+          font-family: var(--font-script); font-size: 38px; color: ${C.gold};
+          background: linear-gradient(135deg, ${C.paper}, #EFE7D8);
         }
         .pis-badge {
           position: absolute; top: 12px; left: 12px; padding: 5px 10px; border-radius: 2px;
           font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
         }
-        .pis-name { font-family: var(--font-serif); font-size: 19px; color: ${C.charcoal}; margin: 0 0 4px; letter-spacing: -.01em; }
+        .pis-name { font-family: var(--font-cormorant), Georgia, serif; font-size: 19px; color: ${C.ink}; margin: 0 0 4px; letter-spacing: -.01em; }
         .pis-card:hover .pis-name { color: ${C.goldCta}; }
-        .pis-price { font-size: 13.5px; color: ${C.stone}; }
+        .pis-price { font-size: 13.5px; color: ${C.inkSoft}; }
 
         .pis-cta { text-align: center; }
         .pis-btn {
           display: inline-flex; align-items: center; justify-content: center;
-          min-height: 50px; padding: 0 32px; border: 1px solid ${C.charcoal}; border-radius: 2px;
-          background: transparent; color: ${C.charcoal}; text-decoration: none;
+          min-height: 50px; padding: 0 32px; border: 1px solid ${C.ink}; border-radius: 2px;
+          background: transparent; color: ${C.ink}; text-decoration: none;
           font-family: var(--font-sans); font-size: 13px; font-weight: 600;
           letter-spacing: .1em; text-transform: uppercase;
           transition: all .25s cubic-bezier(.16,1,.3,1);
         }
-        .pis-btn:hover { background: ${C.charcoal}; color: ${C.ivory}; }
+        .pis-btn:hover { background: ${C.ink}; color: ${C.paper}; }
       `}</style>
     </section>
   );

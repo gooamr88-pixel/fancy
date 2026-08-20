@@ -89,9 +89,9 @@ export default function Navbar() {
           left: 0,
           right: 0,
           zIndex: 1000,
-          background: scrolled ? "rgba(255, 255, 255, 0.97)" : "#FFFFFF",
+          background: scrolled ? "rgba(255, 255, 255, 0.97)" : "#FCFBF8",
           backdropFilter: scrolled ? "blur(12px)" : "none",
-          borderBottom: scrolled ? "1px solid #E8E2D6" : "1px solid transparent",
+          borderBottom: scrolled ? "1px solid #E3DBCB" : "1px solid transparent",
           transition: "all 0.35s ease",
           boxShadow: scrolled ? "0 1px 20px rgba(0,0,0,0.04)" : "none",
         }}
@@ -147,14 +147,14 @@ export default function Navbar() {
                   width="34"
                   height="22"
                   rx="2"
-                  stroke="#B8944F"
+                  stroke="#A98A4E"
                   strokeWidth="1.5"
                   fill="none"
                 />
                 {/* Envelope flap */}
                 <path
                   d="M2 10L19 22L36 10"
-                  stroke="#B8944F"
+                  stroke="#A98A4E"
                   strokeWidth="1.5"
                   fill="none"
                   strokeLinejoin="round"
@@ -162,7 +162,7 @@ export default function Navbar() {
                 {/* Flap top triangle */}
                 <path
                   d="M4 8L19 0L34 8"
-                  stroke="#B8944F"
+                  stroke="#A98A4E"
                   strokeWidth="1.2"
                   fill="none"
                   strokeLinejoin="round"
@@ -172,7 +172,7 @@ export default function Navbar() {
                   x="19"
                   y="21"
                   textAnchor="middle"
-                  fill="#B8944F"
+                  fill="#A98A4E"
                   fontSize="6.5"
                   fontFamily="serif"
                   fontWeight="600"
@@ -183,7 +183,7 @@ export default function Navbar() {
                 {/* Small decorative diamond on flap */}
                 <path
                   d="M19 3L20.5 5L19 7L17.5 5Z"
-                  fill="#D7BE80"
+                  fill="#8A6D34"
                   opacity="0.7"
                 />
               </svg>
@@ -196,7 +196,7 @@ export default function Navbar() {
                   fontFamily: "var(--font-script)",
                   fontSize: "28px",
                   fontWeight: 400,
-                  color: "#B8944F",
+                  color: "#A98A4E",
                   lineHeight: 1,
                   letterSpacing: "-0.5px",
                 }}
@@ -205,10 +205,10 @@ export default function Navbar() {
               </span>
               <span
                 style={{
-                  fontFamily: "var(--font-serif)",
+                  fontFamily: "var(--font-cormorant), Georgia, serif",
                   fontSize: "22px",
                   fontWeight: 600,
-                  color: "#191B1E",
+                  color: "#191815",
                   letterSpacing: "3px",
                   textTransform: "uppercase",
                   lineHeight: 1,
@@ -343,7 +343,7 @@ export default function Navbar() {
               height="24"
               viewBox="0 0 24 24"
               fill="none"
-              stroke="#191B1E"
+              stroke="#191815"
               strokeWidth="2"
               strokeLinecap="round"
             >
@@ -410,10 +410,10 @@ export default function Navbar() {
               aria-current={pathname === item.href ? "page" : undefined}
               onClick={() => setMobileMenuOpen(false)}
               style={{
-                fontFamily: "var(--font-serif)",
+                fontFamily: "var(--font-cormorant), Georgia, serif",
                 fontSize: "24px",
                 fontWeight: 700,
-                color: pathname === item.href ? "#B8944F" : "#191B1E",
+                color: pathname === item.href ? "#A98A4E" : "#191815",
                 textDecoration: "none",
                 cursor: "pointer",
                 letterSpacing: "1px",
@@ -430,7 +430,7 @@ export default function Navbar() {
                 fontFamily: "var(--font-sans)",
                 fontSize: "16px",
                 fontWeight: 600,
-                color: "#77736A",
+                color: "#5C574E",
                 textDecoration: "none",
               }}
             >
@@ -446,7 +446,7 @@ export default function Navbar() {
                 fontFamily: "var(--font-sans)",
                 fontSize: "16px",
                 fontWeight: 600,
-                color: "#77736A",
+                color: "#5C574E",
                 cursor: "pointer",
               }}
             >
@@ -481,13 +481,13 @@ export default function Navbar() {
 
       <style jsx>{`
         :global(.desktop-nav-link) {
-          color: #191B1E;
+          color: #191815;
           transition: color 0.25s ease;
         }
         .desktop-nav-link:hover,
         .desktop-nav-link:focus-visible,
         :global(.desktop-nav-link-active) {
-          color: #B8944F;
+          color: #A98A4E;
         }
 
         /* Fluid link spacing: 16px at 1024px, 28px at 1280px and above.

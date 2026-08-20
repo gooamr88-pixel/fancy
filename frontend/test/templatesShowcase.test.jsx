@@ -58,15 +58,29 @@ describe('the invitations are shown, and they are real', () => {
     });
   });
 
-  it('shows a cover AND an opened page for each', () => {
-    // The whole claim is "it opens on film before it becomes a page". One
-    // image cannot make that point.
+  it('shows the opened page for each', () => {
     const { container } = render(<TemplatesShowcaseSection />);
     const srcs = [...container.querySelectorAll('img')].map((i) => i.getAttribute('src'));
     CINEMATIC_KEYS.forEach((key) => {
-      expect(srcs, `${key} has no cover`).toContain(`/images/landing/cover-${key}.webp`);
       expect(srcs, `${key} has no opened page`).toContain(`/images/landing/hero-${key}.webp`);
     });
+  });
+
+  it('the sealed-and-opened pair is still made, in the hero', () => {
+    /* The claim is "it opens on film before it becomes a page", and one image
+       cannot make that point. This band used to carry the pair for all three
+       templates — six tall photographs in a row, which showed the same idea
+       three times. Since 2026-08-20 the HERO makes the argument once, with
+       Swan Lake sealed beside Swan Lake open, and this band shows what each
+       one becomes.
+
+       So the guarantee did not go away, it moved: assert it where it now
+       lives, or the page can quietly lose the pair entirely. */
+    const hero = read('src/app/components/landing/HeroSection.js');
+    expect(hero, 'the hero no longer shows a sealed invitation')
+      .toContain('/images/landing/cover-swans.webp');
+    expect(hero, 'the hero no longer shows an opened invitation')
+      .toContain('/images/landing/hero-swans.webp');
   });
 
   it('every image it names is actually shipped', () => {
@@ -102,11 +116,18 @@ describe('the invitations are shown, and they are real', () => {
 });
 
 describe('the words come from the product, not a second copy', () => {
-  it('takes name, tagline, description and palettes from the template registry', () => {
+  it('takes name and description from the template registry', () => {
+    /* The tagline is no longer printed here. Each plate carried FOUR lines of
+       prose — tagline, arrival, description, badge — under a photograph that
+       is already doing most of the talking, and the tagline was the one that
+       overlapped the description in meaning.
+
+       What matters is unchanged and still asserted: the name and description a
+       visitor reads are the registry's, so they cannot drift from what the
+       wizard shows. */
     render(<TemplatesShowcaseSection />);
     TEMPLATES.filter((t) => CINEMATIC_KEYS.includes(t.key)).forEach((t) => {
       expect(screen.getByText(t.label)).toBeTruthy();
-      expect(screen.getByText(t.tagline)).toBeTruthy();
       expect(screen.getByText(t.desc)).toBeTruthy();
     });
     expect(SECTION).toContain('TEMPLATES');
@@ -138,8 +159,9 @@ describe('the words come from the product, not a second copy', () => {
 describe('it survives a phone', () => {
   it('releases the grid minimum the invitation images would otherwise set', () => {
     // A grid item's automatic minimum is its content's min-content size, and
-    // these images are 468px wide intrinsically.
-    expect(SECTION).toMatch(/\.tss-row > \* \{ min-width: 0; \}/);
+    // these images are 468px wide intrinsically — so without this the band
+    // sets a floor no phone can meet and the page scrolls sideways.
+    expect(SECTION).toMatch(/\.tss-plate \{ min-width: 0; \}/);
   });
 
   it('uses only breakpoints on the four-value scale', () => {
@@ -148,16 +170,27 @@ describe('it survives a phone', () => {
     widths.forEach((w) => expect(ALLOWED.has(w), `${w}px is off the scale`).toBe(true));
   });
 
-  it('styles its links globally, since next/link never gets the scoped hash', () => {
-    expect(SECTION).toContain('style jsx global');
+  it('uses a plain style element, so next/link cannot lose its rules', () => {
+    /* This used to need a SEPARATE "style jsx global" block, because
+       styled-jsx stamps its hash only onto lowercase intrinsic elements and a
+       scoped rule aimed at a class on a next/link matches nothing — the bug
+       that once made every footer link invisible in production only.
+
+       A plain <style> has no scoped/global distinction to get wrong, so the
+       stronger assertion is that styled-jsx is not here at all. Scoping is
+       replaced by the "tss-" prefix on every class. */
+    expect(SECTION, 'styled-jsx is back, and next/link will silently lose its rules')
+      .not.toContain('style jsx');
+    expect(SECTION).toMatch(/<style>\{`/);
     expect(SECTION).toMatch(/\.tss-btn \{/);
   });
 
-  it('has no backtick inside either style block', () => {
+  it('has no backtick inside its style block', () => {
     // One backtick in a CSS comment ends the template literal and the file
-    // stops parsing. It has cost three build failures across this codebase.
-    const blocks = [...SECTION.matchAll(/<style jsx(?: global)?>\{`([\s\S]*?)`\}<\/style>/g)];
-    expect(blocks.length, 'the style blocks moved').toBe(2);
+    // stops parsing. It has cost three build failures across this codebase —
+    // scripts/backtickInCssComment.js now checks the whole tree for it.
+    const blocks = [...SECTION.matchAll(/<style>\{`([\s\S]*?)`\}<\/style>/g)];
+    expect(blocks.length, 'the style block moved').toBe(1);
     blocks.forEach(([, css], i) => {
       expect(css.includes('`'), `a backtick is inside style block ${i}`).toBe(false);
     });

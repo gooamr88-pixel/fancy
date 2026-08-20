@@ -5,99 +5,168 @@
 
    Before this, every marketing section re-declared the SAME six hex values at
    the top of its own file — `const GOLD = "#B8944F"` appeared in six separate
-   components, `IVORY`/`CHARCOAL`/`STONE` in five, and RSVPFlowSection kept a
-   private seventh copy under different names. Nudging the brand meant a
+   components, `IVORY`/`CHARCOAL`/`STONE` in five. Nudging the brand meant a
    find-and-replace across ~5,700 lines and a real chance of missing one, which
    is exactly how a section ends up half a shade off.
 
-   Two things live here and nothing else:
+   ── The 2026-08-20 pass: what changed and why ─────────────────────────────
 
-   1. `C` — the palette, as plain JS, because these values are interpolated
-      into `<style jsx>` template literals where a CSS custom property read
-      from :root would work too but reads worse at the call site.
+   TYPE.  The page used `--font-serif` for every heading. That variable is
+   ABORETO — a capitals-only display face that ships a single weight. So every
+   headline on the page was a full sentence in caps ("EVERY GUEST, FROM THE
+   INVITATION TO THE DOOR."), at weights the font does not have, which the
+   browser faked. That one fact accounted for most of why the page read cheap.
 
-   2. `BAND` — the page's background rhythm, as an ordered list. The old page
-      alternated white/ivory/dark by accident (white, ivory, dark, ivory,
-      white, ivory, white, dark) with two consecutive ivory bands and no rule
-      anyone could state. Now the rhythm is declared once, here, and page.js
-      is the only place that reads it — so "does this page alternate properly"
-      is a question you answer by reading nine lines, not by scrolling.
+   Aboreto is not the problem; using it for sentences was. It is kept here as
+   `T.label` for the tracked micro-labels it is genuinely good at, and
+   CORMORANT GARAMOND — already loaded by layout.js as `--font-cormorant`,
+   300–700, with a real lowercase and a real italic — becomes `T.display`.
+   Nothing new is downloaded; the face was already in the bundle and unused on
+   this page.
 
-   NOT here: spacing, radii, containers and type scale. Those are already
-   `--fx-*` in globals.css and duplicating them would create the second source
-   of truth this file exists to remove.
+   COLOUR.  The palette was charcoal-and-ivory with two full-dark bands. It is
+   now a warm paper scale with ONE ink block (the closing call to action), so
+   the invitation photography carries all the colour on the page rather than
+   competing with a black background.
+
+   Two things live here and nothing else — the palette and the page's band
+   rhythm. NOT here: spacing, radii, containers and type scale. Those are
+   already `--fx-*` in globals.css and duplicating them would create the second
+   source of truth this file exists to remove.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/** The brand palette. Matches the values already baked into globals.css's
- *  `--admin-*` tokens and the btn-gold gradient; these are the marketing-side
- *  names for the same colours. */
+/** The brand palette — a warm paper scale, ink, and one gold.
+ *
+ *  The gold appears TWICE on purpose. `gold` is for fills, hairlines and
+ *  ornament; `goldInk` is the darkened one that clears 4.5:1 against paper and
+ *  is the only one allowed under text a person has to read. Getting this wrong
+ *  is invisible to the author and illegible to the reader. */
 export const C = {
-  /** Near-black. Page text, and the two dark bands. */
-  charcoal: '#191B1E',
-  /** The lighter charcoal the dark gradients resolve to. */
-  charcoalSoft: '#2A2D32',
-  /** Warm off-white. The alternating band background. */
-  ivory: '#F8F4EC',
-  /** Barely-there ivory, for cards sitting ON ivory. */
-  ivoryLift: '#FDFCF9',
-  white: '#FFFFFF',
-  /** The brand gold. Buttons, eyebrows, ornament. */
-  gold: '#B8944F',
-  /** Lighter gold — gradients, and gold text on DARK backgrounds, where
-   *  `gold` itself measures ~3.4:1 against #191B1E and fails AA for body. */
-  goldSoft: '#D7BE80',
-  goldLight: '#E4CE9B',
-  /** Darkened gold that clears 4.5:1 as text on white/ivory. Use this for
-   *  any gold that a person actually has to READ on a light band; `gold` is
-   *  for fills, borders and ornament. */
-  goldInk: '#8A6D34',
-  /** Warm grey. Secondary copy on light bands. */
-  stone: '#5E5A52',
-  /** The lighter stone the old sections used. Only safe at 14px+. */
-  stoneSoft: '#77736A',
-  /** Hairlines on light bands. */
-  border: '#E8E2D6',
+  /** The page. A warm off-white, not #FFF — a pure white ground makes the
+   *  invitation photography look blue by comparison. */
+  paper: '#FCFBF8',
+  /** The alternating band. */
+  paper2: '#F5F0E6',
+  /** Strips, the footer, and anything that needs to sit a step deeper. */
+  paper3: '#EFE8DA',
+  /** Hairlines. Every rule on the page is 1px of this and nothing else. */
+  border: '#E3DBCB',
+
+  /** Headings and primary text. Near-black, warmed — pure #000 on warm paper
+   *  reads as a hole. */
+  ink: '#191815',
+  /** Body copy and captions on paper. */
+  inkSoft: '#5C574E',
+
+  /** Ornament, hairlines, and display-size type only — the italic accent word
+   *  in the hero is 47–78px, where 3:1 is the standard and this clears it at
+   *  3.15. At body size it does NOT pass; use `goldInk`. */
+  gold: '#A98A4E',
+  /** The readable gold. Labels, numerals, links, anything at text size.
+   *
+   *  #8A6D34 until 2026-08-20, chosen when the light bands were white. Against
+   *  the warm papers this page now uses it measured 4.28:1 on `paper2` and
+   *  3.99:1 on `paper3` — both below AA, and invisible to anyone checking by
+   *  eye, because a gold that looks fine on white looks equally fine on ivory.
+   *
+   *  Solved against the DEEPEST paper so one value is safe on all three:
+   *  5.45 / 4.97 / 4.63 on paper / paper2 / paper3.
+   *  Verified by scripts/landingContrast.js. */
+  goldInk: '#7B6438',
+
+  /** Type sitting ON the ink block. */
+  ivory: '#F6F2E9',
+
+  /* ── Retained for the invitation/device chrome, which is genuinely dark ──
+     These are the bezel gradient stops, not page colours. */
+  bezelHi: '#45464C',
+  bezelMid: '#1D1D20',
+  bezelLo: '#0B0B0C',
 };
 
-/** Text colours for copy sitting on a DARK band, pre-mixed so no section has
- *  to invent its own rgba(248,244,236,0.6X) and land on a different one. */
-export const ON_DARK = {
+/** Type roles. Import these rather than reaching for `--font-serif`, which is
+ *  Aboreto and will set your sentence in capitals at a weight it does not own.
+ *
+ *  `display` and `label` both resolve to faces layout.js already loads, so
+ *  neither adds a request. */
+export const T = {
+  /** Headings, numerals, pull quotes. Cormorant Garamond — has a true
+   *  lowercase and italic, which is where all of its elegance lives.
+   *  Weights available: 300 400 500 600 700. */
+  display: 'var(--font-cormorant), Georgia, "Noto Naskh Arabic", serif',
+  /** Tracked micro-labels ONLY — two or three words, uppercase, wide letter
+   *  spacing. This is Aboreto, which has NO lowercase: never put a sentence
+   *  in it. */
+  label: 'var(--font-heading), "Aboreto", Georgia, serif',
+  /** Body, buttons, captions. */
+  body: 'var(--font-sans)',
+};
+
+/** Text colours for copy sitting on the INK block, pre-mixed so the one dark
+ *  surface on the page does not grow three different greys. */
+export const ON_INK = {
   title: C.ivory,
-  body: 'rgba(248, 244, 236, 0.66)',
-  muted: 'rgba(248, 244, 236, 0.45)',
-  hairline: 'rgba(248, 244, 236, 0.12)',
-  lift: 'rgba(248, 244, 236, 0.06)',
+  body: 'rgba(246, 242, 233, 0.66)',
+  muted: 'rgba(246, 242, 233, 0.44)',
+  hairline: 'rgba(246, 242, 233, 0.20)',
 };
 
-/** The three band backgrounds, so a section never hand-writes a gradient that
- *  is one stop different from the section two screens above it. */
-export const BAND = {
-  light: C.white,
-  warm: C.ivory,
-  dark: `linear-gradient(178deg, #14171a 0%, ${C.charcoal} 45%, #211e1a 100%)`,
-};
+/* THERE IS NO `BAND` EXPORT, AND THAT IS DELIBERATE.
+
+   One existed until 2026-08-20: `{ light: C.paper, warm: C.paper2, deep:
+   C.paper3 }`. Nothing ever imported it — every section reaches for C.paper /
+   C.paper2 / C.paper3 directly — so it was a second set of names for three
+   values that already had names, in the one file whose whole purpose is to
+   stop exactly that. It is the thing this docstring warns about, sitting
+   inside the file that warns about it.
+
+   The mapping it encoded (which BAND_ORDER tone means which token) now lives
+   in the ONE place that consumes it: the "each band actually paints the tone
+   it declares" test in landingHomepage.test.jsx.
+
+   The single dark surface on the page — the closing call to action — is
+   `C.ink`, used as a BLOCK inside a light band rather than as a full-bleed
+   band, which is what keeps it reading as punctuation and not a theme switch.
+*/
 
 /** The page's declared rhythm, top to bottom. page.js asserts against this so
- *  a section cannot be reordered into two consecutive bands of one colour
+ *  a section cannot be reordered into two consecutive bands of one tone
  *  without the arrangement being visible in one place.
  *
- *  light → warm → DARK → light → warm → light → warm → DARK → footer(dark) */
+ *  The order answers a stranger's questions in the order they ask them:
+ *  what is this → what does my guest get → why should I care → what would I
+ *  do → what do I get → what else is in it → what else do you make → has
+ *  anyone else done this → my last objection, then the button. */
 export const BAND_ORDER = [
   'hero:light',
+  'invitations:warm',
+  'statement:light',
   'how-it-works:warm',
-  'invitations:dark',
-  'capabilities:light',
-  'dashboard:warm',
+  'dashboard:light',
+  'capabilities:warm',
   'printed:light',
-  'proof:warm',
-  'faq-cta:dark',
-  'footer:dark',
+  'proof:deep',
+  'faq-cta:light',
+  'footer:deep',
 ];
 
-/** Shared shadow ramp. Three steps, not eleven improvised ones. */
+/** Shared shadow ramp. Three steps, not eleven improvised ones.
+ *
+ *  `device` and `window` are the two that matter: a product screenshot with a
+ *  1px border reads as a screengrab somebody pasted in, and the same pixels
+ *  under a long, low shadow read as software. */
 export const SHADOW = {
-  card: '0 1px 2px rgba(25, 27, 30, 0.04), 0 8px 24px -12px rgba(25, 27, 30, 0.10)',
-  lift: '0 2px 6px rgba(25, 27, 30, 0.05), 0 20px 44px -20px rgba(25, 27, 30, 0.18)',
-  device: '0 36px 70px -26px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(25, 27, 30, 0.06)',
-  deviceDark: '0 36px 70px -26px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(248, 244, 236, 0.07)',
+  card: '0 1px 2px rgba(25, 24, 21, 0.04), 0 8px 24px -12px rgba(25, 24, 21, 0.10)',
+  lift: '0 2px 6px rgba(25, 24, 21, 0.05), 0 20px 44px -20px rgba(25, 24, 21, 0.18)',
+  /** An invitation held as an object — long, soft, and with a faint edge so it
+   *  does not look like a pasted rectangle. */
+  device:
+    '0 46px 92px -26px rgba(25, 24, 21, 0.50), 0 10px 24px -10px rgba(25, 24, 21, 0.22), 0 0 0 1px rgba(25, 24, 21, 0.06)',
+  /** A browser window holding a screenshot. */
+  window:
+    '0 54px 110px -34px rgba(25, 24, 21, 0.45), 0 14px 34px -14px rgba(25, 24, 21, 0.18)',
 };
+
+/** The dark bezel a phone/tablet screenshot sits in. One definition, because
+ *  three sections draw one and they were drifting apart. */
+export const BEZEL = `linear-gradient(155deg, ${C.bezelHi}, ${C.bezelMid} 55%, ${C.bezelLo})`;

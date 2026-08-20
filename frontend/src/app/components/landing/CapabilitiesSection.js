@@ -1,42 +1,48 @@
 import React from "react";
 import Link from "next/link";
-import { C, SHADOW } from "./landingTokens";
+import { C, T } from "./landingTokens";
 import {
   HOMEPAGE_CAPABILITIES,
   REMAINING_CAPABILITY_COUNT,
 } from "./platformCapabilities";
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   WHAT'S IN THE BOX.
+   WHAT IS ACTUALLY IN IT.
 
-   WHY THIS SECTION IS NEW
+   The homepage had no section like this at all: thirteen real capabilities
+   exist and the old page named none of them. The list is read from
+   platformCapabilities.js, the SAME array the /features page renders, so a
+   capability can never be on one page and missing from the other.
 
-   The homepage had no section like this at all. Thirteen real capabilities
-   ship — seating charts, a door app that works offline, SMS with per-message
-   refunds, right-to-left Arabic invitations, automatic reminders — and the
-   front page named exactly none of them. It went from a hero, to occasion
-   cards, to a hand-drawn dashboard, to testimonials. A visitor could read the
-   whole thing and still not know whether this product does seating.
+   ── 2026-08-20: two changes, both about how it reads ──────────────────────
 
-   The eight shown here are not typed out again: they come from
-   platformCapabilities.js, the SAME array the /features page renders. Adding a
-   capability puts it in front of visitors instead of only in the deep page
-   nobody clicks, and retiring one takes it off the front page in the same
-   commit rather than three months later.
+   1. NO MORE CARDS. It was eight boxes with a 1px border and an icon in each,
+      which is the single most generic pattern on the marketing web. It is now
+      an editorial list: a hairline above each row, the number in the display
+      face's italic, and nothing enclosing anything. The icons went with the
+      boxes — eight small glyphs in a list this dense is visual noise, and the
+      titles are already the fastest thing to scan.
 
-   The "and N more" count is computed, not written, so it cannot go stale — a
-   hardcoded "and 5 more" is wrong the first time anyone adds a feature, and
-   wrong in the direction that makes the page look neglected.
+   2. THE HEADING MOVED BESIDE THE LIST. Left-aligned heading over a full-width
+      grid left the right third of the section empty at desktop, which is what
+      made the lower half of the page feel like it was running out. Heading and
+      argument now sit in their own column and the list fills the rest.
 
-   Server Component. No state, no effects, no client JavaScript.
+   A Server Component: no state, no client JavaScript.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function CapabilityCard({ capability }) {
+function Capability({ capability, index }) {
   return (
-    <li className="cap-card">
-      <span className="cap-icon" aria-hidden="true">{capability.icon}</span>
-      <h3 className="cap-title">{capability.title}</h3>
-      <p className="cap-short">{capability.short}</p>
+    <li className="cap-row">
+      {/* The numeral is positional, not part of the capability's identity, so
+          it is generated here rather than stored in platformCapabilities. */}
+      <span className="cap-n" aria-hidden="true">
+        {String(index + 1).padStart(2, "0")}
+      </span>
+      <div className="cap-min0">
+        <h3 className="cap-title">{capability.title}</h3>
+        <p className="cap-short">{capability.short}</p>
+      </div>
     </li>
   );
 }
@@ -44,164 +50,194 @@ function CapabilityCard({ capability }) {
 export default function CapabilitiesSection() {
   return (
     <section className="cap" aria-labelledby="cap-title">
-      <div className="fx-container fx-container--4xl fx-gutter">
+      <div className="fx-container fx-container--5xl fx-gutter cap-split">
         <header className="cap-head">
-          <span className="cap-kicker">Everything in one place</span>
+          <span className="cap-kicker">
+            Everything in one place
+            <span aria-hidden="true" className="cap-kicker__rule" />
+          </span>
+          <span className="cap-numeral" aria-hidden="true">VI</span>
+
           <h2 id="cap-title" className="cap-h2">
             The parts you would otherwise stitch together yourself.
           </h2>
+
           <p className="cap-sub">
-            A form builder, a guest list, a seating plan, a messaging system and a
-            door scanner — built to know about each other, so a name you type once
-            reaches all of them.
+            A form builder, a guest list, a seating plan, a messaging system and
+            a door scanner — built to know about each other, so a name you type
+            once reaches all of them.
           </p>
+
+          {REMAINING_CAPABILITY_COUNT > 0 && (
+            <Link href="/features" className="cap-more-link">
+              And {REMAINING_CAPABILITY_COUNT} more
+              <svg width="16" height="8" viewBox="0 0 16 8" fill="none" aria-hidden="true">
+                <path d="M0 4h14M11 1l3 3-3 3" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </Link>
+          )}
         </header>
 
-        {/* --fx-col 250px, arrived at by MEASURING rather than by dividing
-            1200 by four. .fx-gutter sits on the same element as
-            .fx-container--4xl, so the 48px desktop gutter comes OUT of the
-            1200px, leaving 1104px of content: floor((1104 + 20) / (250 + 20))
-            = 4 tracks. At 268px it worked out to 3, which left the eight
-            cards as 3 + 3 + 2 with an orphan row. Below 1280 it steps
-            4 → 3 → 2 → 1 on its own, no breakpoints. */}
-        <ul className="cap-grid fx-grid" style={{ "--fx-col": "250px", "--fx-gap": "20px" }}>
-          {HOMEPAGE_CAPABILITIES.map((c) => (
-            <CapabilityCard key={c.key} capability={c} />
+        {/* .fx-grid walks the columns down on its own from --fx-col, so this
+            needs no breakpoint of its own. A FIXED two-column grid here would
+            not fit a phone — see AGENTS.md on min-content width. */}
+        <ul className="cap-list fx-grid" style={{ "--fx-col": "260px", "--fx-gap": "0 56px" }}>
+          {HOMEPAGE_CAPABILITIES.map((c, i) => (
+            <Capability key={c.title} capability={c} index={i} />
           ))}
         </ul>
-
-        <div className="cap-more">
-          <Link href="/features" className="cap-more-link">
-            {REMAINING_CAPABILITY_COUNT > 0
-              ? `And ${REMAINING_CAPABILITY_COUNT} more — see every feature`
-              : "See every feature in detail"}
-            <svg width="15" height="15" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-              <path d="M3 7h8M7.5 3.5L11 7l-3.5 3.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </Link>
-        </div>
       </div>
 
-      {/* A PLAIN style element — styled-jsx cannot be imported from a Server
-          Component, and this section has no interactivity to justify making it
-          a Client one. Every class is prefixed `cap-`.
+      {/* A plain style element — styled-jsx cannot be imported from a Server
+          Component, and a scoped rule would never reach the next/link above.
+          Classes are prefixed "cap-" instead.
 
-          Note what that also fixed: the icon rule was written `.cap-icon
-          :global(svg)`, because styled-jsx would otherwise refuse to reach an
-          SVG it did not itself render. In plain CSS a descendant selector is
-          just a descendant selector. */}
+          No backticks in these CSS comments: one would end the template
+          literal and produce a parse error. */}
       <style>{`
         .cap {
           width: 100%;
-          background: ${C.white};
-          padding-block: var(--fx-pad-y-sm);
+          background: ${C.paper2};
+          padding: 76px 0;
         }
-        .cap-card {
-          min-width: 0;
-          padding: 26px 24px 28px;
-          border: 1px solid ${C.border};
-          border-radius: var(--fx-r-md);
-          background: ${C.white};
-          transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+        .cap-split {
+          display: flex;
+          flex-direction: column;
+          gap: 30px;
         }
-        .cap-card:hover {
-          border-color: ${C.goldSoft};
-          box-shadow: ${SHADOW.card};
-          transform: translateY(-2px);
+
+        .cap-head {
+          display: grid;
+          grid-template-columns: 1fr auto;
+          align-items: center;
+          column-gap: 20px;
         }
-        /* The icons are 48x48 SVGs; scaling them down here keeps the card
-           compact without regenerating thirteen pieces of artwork. */
-        .cap-icon { display: block; width: 38px; height: 38px; }
-        .cap-icon svg { width: 100%; height: 100%; display: block; }
-        .cap-title {
-          font-family: var(--font-serif);
-          font-size: 18px;
-          font-weight: 600;
-          line-height: 1.3;
-          color: ${C.charcoal};
-          margin: 16px 0 0;
-        }
-        .cap-short {
-          font-family: var(--font-sans);
-          font-size: 14px;
-          font-weight: 300;
-          line-height: 1.62;
-          color: ${C.stone};
-          margin: 8px 0 0;
-        }
-        .cap-head { max-width: 660px; margin-bottom: clamp(30px, 3.5vw, 46px); }
         .cap-kicker {
-          font-family: var(--font-sans);
-          font-size: 11px;
-          font-weight: 700;
-          letter-spacing: 2.4px;
-          text-transform: uppercase;
-          color: ${C.goldInk};
-        }
-        .cap-h2 {
-          font-family: var(--font-serif);
-          font-size: clamp(27px, 1.417rem + 2.083vw, 42px);
-          font-weight: 500;
-          line-height: 1.16;
-          letter-spacing: -0.4px;
-          color: ${C.charcoal};
-          margin: 14px 0 0;
-        }
-        .cap-sub {
-          font-family: var(--font-sans);
-          font-size: 16px;
-          font-weight: 300;
-          line-height: 1.7;
-          color: ${C.stone};
-          margin: 14px 0 0;
-        }
-        .cap-grid { list-style: none; margin: 0; padding: 0; }
-        .cap-more { margin-top: 28px; }
-        .cap-more-link {
           display: inline-flex;
           align-items: center;
-          gap: 7px;
-          min-height: var(--fx-touch);
-          font-family: var(--font-sans);
-          font-size: 14.5px;
-          font-weight: 600;
-          text-decoration: none;
+          gap: 12px;
+          font-family: ${T.label};
+          font-size: 10px;
+          letter-spacing: 0.30em;
+          text-transform: uppercase;
           color: ${C.goldInk};
-          transition: gap 0.18s ease;
+          white-space: nowrap;
         }
-        .cap-more-link:hover { gap: 11px; }
-        /* On a PHONE the eight cards become eight compact ROWS — icon beside
-           the words instead of above them.
+        .cap-kicker__rule {
+          display: block;
+          flex: none;
+          width: 28px;
+          height: 1px;
+          background: ${C.gold};
+          opacity: 0.55;
+        }
+        .cap-numeral {
+          font-family: ${T.display};
+          font-style: italic;
+          font-size: 13px;
+          color: ${C.goldInk};
+          opacity: 0.75;
+        }
+        .cap-h2 {
+          grid-column: 1 / -1;
+          font-family: ${T.display};
+          font-weight: 300;
+          font-size: 37px;
+          line-height: 1.07;
+          letter-spacing: -0.015em;
+          color: ${C.ink};
+          margin: 18px 0 0;
+        }
+        .cap-sub {
+          grid-column: 1 / -1;
+          font-size: 15.5px;
+          font-weight: 300;
+          line-height: 1.85;
+          color: ${C.inkSoft};
+          margin: 14px 0 0;
+          max-width: 52ch;
+        }
+        .cap-more-link {
+          grid-column: 1 / -1;
+          justify-self: start;
+          display: inline-flex;
+          align-items: center;
+          gap: 12px;
+          margin-top: 26px;
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.2em;
+          text-transform: uppercase;
+          color: ${C.ink};
+          text-decoration: none;
+          border-bottom: 1px solid ${C.gold};
+          padding-bottom: 8px;
+          transition: color 0.3s ease, border-color 0.3s ease;
+        }
+        .cap-more-link:hover { color: ${C.goldInk}; border-color: ${C.goldInk}; }
 
-           Stacked as tall cards they ran about 1,040px, which is two and a
-           half phone screens for what is meant to be a scannable list, and
-           "the page is too long" was the brief. Laid out this way the same
-           eight take roughly 700px and read faster, because the eye follows
-           one left edge instead of eight.
+        .cap-list {
+          margin: 0;
+          padding: 0;
+          list-style: none;
+        }
+        .cap-row {
+          display: grid;
+          grid-template-columns: auto minmax(0, 1fr);
+          column-gap: 16px;
+          padding: 19px 0;
+          border-top: 1px solid ${C.border};
+        }
+        /* A grid child sizes to max-content unless told otherwise, so without
+           this a long capability title would push the row wider than the
+           column and the whole band would scroll sideways on a phone. */
+        .cap-min0 { min-width: 0; }
+        .cap-n {
+          font-family: ${T.display};
+          font-style: italic;
+          font-size: 13px;
+          color: ${C.goldInk};
+          padding-top: 6px;
+        }
+        .cap-title {
+          font-family: ${T.display};
+          font-size: 22px;
+          font-weight: 400;
+          line-height: 1.2;
+          letter-spacing: -0.005em;
+          color: ${C.ink};
+          margin: 0;
+        }
+        .cap-short {
+          font-size: 13px;
+          font-weight: 300;
+          line-height: 1.7;
+          color: ${C.inkSoft};
+          margin: 5px 0 0;
+        }
 
-           Done in CSS on the existing markup, with no second component and no
-           duplicated JSX for the two shapes. */
-        @media (max-width: 639.98px) {
-          .cap-card {
+        @media (min-width: 768px) {
+          .cap { padding: 128px 0; }
+          .cap-split {
             display: grid;
-            grid-template-columns: 34px minmax(0, 1fr);
-            column-gap: 14px;
+            grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
+            gap: 88px;
             align-items: start;
-            padding: 18px 16px 20px;
           }
-          .cap-icon {
-            grid-row: 1 / span 2;
-            width: 34px;
-            height: 34px;
-            margin-top: 2px;
-          }
-          .cap-title { margin: 0; font-size: 17px; }
-          .cap-short { margin: 5px 0 0; }
+          .cap-kicker { font-size: 11px; letter-spacing: 0.38em; gap: 16px; }
+          .cap-kicker__rule { width: 44px; }
+          .cap-numeral { font-size: 15px; }
+          .cap-h2 { font-size: 58px; margin-top: 22px; }
+          .cap-sub { font-size: 18px; margin-top: 18px; max-width: 38ch; }
+          .cap-more-link { margin-top: 34px; }
+          .cap-row { padding: 22px 0; column-gap: 20px; }
+          .cap-n { font-size: 14px; }
+          .cap-title { font-size: 23px; }
+          .cap-short { font-size: 13.5px; }
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .cap-card:hover { transform: none; }
-          .cap-more-link:hover { gap: 7px; }
+          .cap-more-link { transition: none; }
         }
       `}</style>
     </section>
