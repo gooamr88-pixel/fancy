@@ -263,14 +263,28 @@ export default function PlanRecommender({ tiers }) {
               <h3 style={{ fontFamily: T.display, fontSize: "24px", fontWeight: 700, color: "#191B1E", marginBottom: "4px" }}>
                 {recommended.name}
               </h3>
-              <div style={{ display: "flex", alignItems: "baseline", gap: "4px", marginBottom: "14px" }}>
-                <span style={{ fontFamily: T.display, fontSize: "30px", fontWeight: 700, color: "#191B1E" }}>
-                  {formatTierPrice(recommended).price}
-                </span>
-                <span style={{ fontFamily: "var(--font-sans)", fontSize: "13px", color: "#5E5A52" }}>
-                  {formatTierPrice(recommended).period}
-                </span>
-              </div>
+              {/* A free tier is usually NAMED "Free" and PRICED "Free", and
+                  this printed both — two near-identical serif lines, 24px
+                  above 30px, which reads as a rendering fault rather than as a
+                  name above a price. When they say the same thing, the name
+                  has already said it. */}
+              {/* String() on BOTH sides. formatTierPrice returns
+                  `tier.price_label` verbatim when one is set, and price_label
+                  comes out of the admin-editable pricing_tiers JSONB with no
+                  type enforcement — a numeric label would reach .trim() as a
+                  number and take the whole pricing page down with a
+                  TypeError. */}
+              {String(formatTierPrice(recommended).price ?? '').trim().toLowerCase()
+                !== String(recommended.name ?? '').trim().toLowerCase() && (
+                <div style={{ display: "flex", alignItems: "baseline", gap: "4px", marginBottom: "14px" }}>
+                  <span style={{ fontFamily: T.display, fontSize: "30px", fontWeight: 700, color: "#191B1E" }}>
+                    {formatTierPrice(recommended).price}
+                  </span>
+                  <span style={{ fontFamily: "var(--font-sans)", fontSize: "13px", color: "#5E5A52" }}>
+                    {formatTierPrice(recommended).period}
+                  </span>
+                </div>
+              )}
               <p style={{ fontFamily: "var(--font-sans)", fontSize: "13.5px", color: "#5E5A52", marginBottom: "18px", lineHeight: 1.6 }}>
                 {tierGuestLine(recommended)}
                 {fallback && " — our largest fixed plan."}

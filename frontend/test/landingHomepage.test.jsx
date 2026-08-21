@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -17,6 +17,7 @@ import DashboardShowcaseSection from '../src/app/components/landing/DashboardSho
 import FaqCtaSection, { FAQS } from '../src/app/components/landing/FaqCtaSection';
 import FooterSection from '../src/app/components/landing/FooterSection';
 import ProofSection from '../src/app/components/landing/ProofSection';
+import ShopRail from '../src/app/components/landing/ShopRail';
 import {
   CAPABILITIES,
   HOMEPAGE_CAPABILITIES,
@@ -285,10 +286,44 @@ describe('the page is not longer than it needs to be', () => {
     expect(fs.existsSync(path.join(LANDING, 'ScrollReveal.js'))).toBe(false);
   });
 
-  it('keeps the primary nav to six items', () => {
+  it('keeps the primary nav short enough to read as navigation', () => {
+    /* The bar once carried ELEVEN targets — nine links plus Log In and a gold
+       Get Started — which is not a navigation bar, it is a list, and all nine
+       had to fit beside the logo before the mobile menu takes over.
+       Seven now, deliberately: Home and Contact Us were both added back on
+       2026-08-21 at the owner's direction. The ceiling exists to catch drift,
+       not to overrule a decision, so it moves with the decision and stays
+       tight enough to keep catching one. */
     const block = NAVBAR.slice(NAVBAR.indexOf('const NAV_LINKS'), NAVBAR.indexOf('export default function Navbar'));
-    const items = [...block.matchAll(/label:\s*"/g)];
-    expect(items.length, 'the nav is growing back toward a list').toBeLessThanOrEqual(6);
+    // SHOP_LABEL is a constant, not a quoted literal, so it is counted here.
+    const items = [...block.matchAll(/href:\s*(?:"|SHOP_PATH)/g)];
+    expect(items.length, 'the nav is growing back toward a list').toBeLessThanOrEqual(7);
+  });
+
+  it('offers the way home from the menu, not only from the logo', () => {
+    const block = NAVBAR.slice(NAVBAR.indexOf('const NAV_LINKS'), NAVBAR.indexOf('export default function Navbar'));
+    expect(block).toMatch(/label:\s*"Home",\s*href:\s*"\/"/);
+  });
+
+  it('offers a way to reach a person from the menu, and does not offer the blog', () => {
+    /* 2026-08-21, at the owner's direction. Blog is still in the footer's
+       Company column; Contact was only in the footer and the FAQ band, which
+       means somebody who wants to talk to a human had to first scroll to the
+       bottom or find the right band. */
+    const block = NAVBAR.slice(NAVBAR.indexOf('const NAV_LINKS'), NAVBAR.indexOf('export default function Navbar'));
+    expect(block).toMatch(/href:\s*"\/contact"/);
+    expect(block).not.toMatch(/href:\s*"\/blog"/);
+    expect(FOOTER, 'the blog is now unreachable from the chrome entirely').toMatch(/'\/blog'/);
+  });
+
+  it('sets the menu in the interface face, not the display serif', () => {
+    /* The phone menu's links were var(--font-cormorant) at 24px while the
+       desktop bar above them and "Log In" directly below them were both
+       var(--font-sans). One menu, two typographic systems, three lines apart. */
+    const menu = NAVBAR.slice(NAVBAR.indexOf('{NAV_LINKS.map', NAVBAR.indexOf('mobileMenuOpen')));
+    const firstLink = menu.slice(0, menu.indexOf('</Link>'));
+    expect(firstLink).toMatch(/fontFamily:\s*"var\(--font-sans\)"/);
+    expect(firstLink).not.toMatch(/font-cormorant/);
   });
 });
 
@@ -409,6 +444,117 @@ describe('the FAQ and its structured data cannot disagree', () => {
     const refund = FAQS.find((f) => /refund/i.test(f.q));
     expect(refund, 'the refund question is gone').toBeTruthy();
     expect(refund.link?.href).toBe('/terms');
+  });
+});
+
+describe('the shop band', () => {
+  const SHOP_BAND = read('src/app/components/landing/PrintedInvitationsSection.js');
+  const RAIL = read('src/app/components/landing/ShopRail.js');
+
+  it('sits above the software explanation, not below it', () => {
+    /* Moved from seventh to third on 2026-08-21 at the owner's direction: the
+       highest-value order on the page was sitting behind four bands of
+       feature copy. It trades places with the statement band, so the
+       light/warm alternation the tests above check is untouched. */
+    const names = BAND_ORDER.map((b) => b.split(':')[0]);
+    expect(names.indexOf('printed')).toBeLessThan(names.indexOf('how-it-works'));
+    expect(names.indexOf('printed')).toBe(names.indexOf('invitations') + 1);
+  });
+
+  it('links each piece at a URL that exists', () => {
+    /* A piece lives at /shop/<category>/<slug>. This band built /shop/<slug>
+       — one segment — which the router hands to the category route, where an
+       unknown category slug is a 404. Every card in the teaser was dead, the
+       same defect the product page's related links carried. */
+    expect(code(SHOP_BAND)).not.toMatch(/\$\{SHOP_PATH\}\/\$\{p\.slug\}/);
+    expect(code(SHOP_BAND)).toMatch(/productPath\(/);
+  });
+
+  it('shows more than a shelf-end of a catalogue that sells six categories', () => {
+    expect(code(SHOP_BAND)).toMatch(/\.slice\(0,\s*12\)/);
+  });
+
+  it('keeps the fetch on the server and ships only the arrows', () => {
+    // The band must stay an async Server Component: a client fetch here
+    // flashes an empty band, and an unpublished piece could reach the page.
+    expect(SHOP_BAND).not.toMatch(/^'use client'/m);
+    expect(SHOP_BAND).toMatch(/export default async function/);
+    expect(RAIL).toMatch(/^'use client'/m);
+  });
+
+  /* THE ARROWS ARE THE ONE THING A SCREENSHOT CANNOT CHECK.
+     The page probe stages static HTML with no React runtime, so an effect that
+     measures the rail never runs there and the arrows never appear in a shot.
+     jsdom does no layout either — scrollWidth and clientWidth are both 0 — so
+     the measurement is fed here explicitly, which is also the only way to
+     assert the "nothing to scroll, no controls" case at all. */
+  const ITEMS = (n) => Array.from({ length: n }, (_, i) => ({
+    id: `p${i}`, title: `Piece ${i}`, price: '$1.85 card', cover: null, badge: null,
+    href: `/shop/wedding-cards/piece-${i}`,
+  }));
+
+  const railWith = ({ scrollWidth, clientWidth }) => {
+    const { container } = render(<ShopRail items={ITEMS(6)} />);
+    const rail = container.querySelector('.pis-rail');
+    Object.defineProperty(rail, 'scrollWidth', { value: scrollWidth, configurable: true });
+    Object.defineProperty(rail, 'clientWidth', { value: clientWidth, configurable: true });
+    // act(): the listener calls setState, and without a flush the assertion
+    // reads the tree from before the measurement landed.
+    act(() => { rail.dispatchEvent(new Event('scroll')); });
+    return container;
+  };
+
+  it('shows no controls when there is nothing to scroll', () => {
+    const container = railWith({ scrollWidth: 600, clientWidth: 600 });
+    expect(container.querySelectorAll('.pis-arrow').length).toBe(0);
+  });
+
+  it('offers a way forward once the rail overflows, and no way back at the start', () => {
+    const container = railWith({ scrollWidth: 2400, clientWidth: 800 });
+    const arrows = container.querySelectorAll('.pis-arrow');
+    expect(arrows.length).toBe(2);
+    // scrollLeft is 0, so "previous" is present for layout but cannot act.
+    expect(arrows[0].disabled).toBe(true);
+    expect(arrows[1].disabled).toBe(false);
+  });
+
+  it('actually scrolls the rail when an arrow is clicked', () => {
+    /* The arrows are the one part of this band no screenshot can check — the
+       page probe stages static HTML with no React runtime — so the wiring is
+       asserted here instead of assumed. jsdom implements no scrolling at all:
+       Element.scrollBy does not exist, so a handler that calls it would throw
+       "not a function" in this test and silently do nothing in a browser that
+       had the same gap. Stubbed, then asserted on. */
+    const { container } = render(<ShopRail items={ITEMS(6)} />);
+    const rail = container.querySelector('.pis-rail');
+    Object.defineProperty(rail, 'scrollWidth', { value: 2400, configurable: true });
+    Object.defineProperty(rail, 'clientWidth', { value: 800, configurable: true });
+    const scrollBy = vi.fn();
+    rail.scrollBy = scrollBy;
+    act(() => { rail.dispatchEvent(new Event('scroll')); });
+
+    const next = container.querySelectorAll('.pis-arrow')[1];
+    act(() => { next.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+
+    expect(scrollBy, 'the forward arrow does nothing').toHaveBeenCalledTimes(1);
+    const [arg] = scrollBy.mock.calls[0];
+    expect(arg.left, 'it scrolls backwards, or not at all').toBeGreaterThan(0);
+    expect(arg.left, 'one nudge jumps further than the rail is wide').toBeLessThanOrEqual(800);
+  });
+
+  it('renders every piece as a link at its category-scoped URL', () => {
+    const { container } = render(<ShopRail items={ITEMS(6)} />);
+    const hrefs = [...container.querySelectorAll('.pis-card')].map((a) => a.getAttribute('href'));
+    expect(hrefs.length).toBe(6);
+    hrefs.forEach((h) => expect(h.split('/').filter(Boolean).length).toBe(3));
+  });
+
+  it('puts no CSS inside the client child', () => {
+    // A <style jsx> in a nested component does not reliably compile in this
+    // build, and a scoped rule would never attach to the next/link cards.
+    // Comments stripped: the file's own docstring says where its CSS lives,
+    // and naming the thing you forbid must not fail the test that forbids it.
+    expect(code(RAIL)).not.toMatch(/<style/);
   });
 });
 

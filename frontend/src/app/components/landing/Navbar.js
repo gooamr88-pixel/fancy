@@ -33,11 +33,23 @@ import { SHOP_LABEL, SHOP_PATH } from "../../utils/shopLinks";
    small in the first place.
 
    What went, and where it went instead:
-     • "Home" — the logo to its left already links there. A Home item beside
-       a home-linking logo is one of two things doing the same job.
-     • "About" and "Contact" — both are in the footer's Company column, and
-       Contact is also linked from the FAQ band ("Talk to us"), which is
-       where somebody actually forms the intention to ask something.
+     • "About" — in the footer's Company column.
+
+   HOME IS BACK (2026-08-21, at the owner's direction). The argument for
+   dropping it was that the logo to its left already links there — true, and
+   still true. It is also a convention people do not all know: a visitor deep
+   in /shop/wedding-cards looking for the way back scans the MENU, and the
+   logo-as-home is learned behaviour rather than a labelled affordance. The
+   duplication is the point of it.
+
+   CONTACT IS BACK, AND BLOG IS OUT (2026-08-21, at the owner's direction).
+   The argument below for keeping Blog was that it was real content behind a
+   URL nobody was given; the argument for dropping Contact was that the FAQ
+   band already links it. Weighed against each other, a visitor who wants to
+   TALK TO SOMEONE should not have to read to the bottom of the page or find
+   the right band first — that intention arrives at any scroll position, and
+   the menu is the only thing on screen at all of them. The blog is still
+   linked from the footer.
 
    What stayed, and why each earns a slot:
      • Features and Pricing — the two questions every visitor has.
@@ -48,10 +60,10 @@ import { SHOP_LABEL, SHOP_PATH } from "../../utils/shopLinks";
      • Door App — the hardware story, and the one feature with a page of its
        own.
      • Solutions — the segment pages (planners / venues / corporate).
-     • Blog — real admin-authored content (admin/(panel)/cms) that sat behind
-       a URL nobody was ever given. Removing it from here would put it back
-       in that state for anyone who does not read footers. */
+     • Contact — the one item that is not about reading more, but about
+       reaching a person. */
 const NAV_LINKS = [
+  { label: "Home", href: "/" },
   { label: "Features", href: "/features" },
   { label: "Pricing", href: "/pricing" },
   // Was "Printed Cards" → /printed-invitations. The catalogue now sells
@@ -60,7 +72,7 @@ const NAV_LINKS = [
   { label: SHOP_LABEL, href: SHOP_PATH },
   { label: "Door App", href: "/checkin-app" },
   { label: "Solutions", href: "/solutions" },
-  { label: "Blog", href: "/blog" },
+  { label: "Contact Us", href: "/contact" },
 ];
 
 export default function Navbar() {
@@ -392,7 +404,7 @@ export default function Navbar() {
             gap: "28px",
             animation: "fadeIn 0.25s ease",
             outline: "none",
-            // This menu is ~560px tall (7 links at 24px serif + Log In + the
+            // This menu is ~460px tall (6 links at 18px sans + Log In + the
             // CTA, with 28px gaps). A phone in LANDSCAPE has roughly 297px
             // below the 78px header — and useModalA11y locks body scroll,
             // so without this the bottom of the list was simply unreachable.
@@ -414,13 +426,19 @@ export default function Navbar() {
               aria-current={pathname === item.href ? "page" : undefined}
               onClick={() => setMobileMenuOpen(false)}
               style={{
-                fontFamily: "var(--font-cormorant), Georgia, serif",
-                fontSize: "24px",
-                fontWeight: 700,
+                // THE PLATFORM SANS, like the desktop bar directly above and
+                // like "Log In" directly below. These were Cormorant at 24px
+                // with 1px of tracking — the display serif, used for
+                // navigation, in the one place the two treatments sit three
+                // lines apart from each other. A menu is interface, not
+                // editorial: it takes the interface face.
+                fontFamily: "var(--font-sans)",
+                fontSize: "18px",
+                fontWeight: 600,
                 color: pathname === item.href ? "#A98A4E" : "#191815",
                 textDecoration: "none",
                 cursor: "pointer",
-                letterSpacing: "1px",
+                letterSpacing: "0.2px",
               }}
             >
               {item.label}

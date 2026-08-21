@@ -56,6 +56,20 @@ const CATS = [
 const B_NEW = { id: 'b1', label: 'New', bg_color: '#F6F2E9', text_color: '#8A6D34', is_filterable: true, sort_order: 0 };
 const B_BEST = { id: 'b2', label: 'Bestseller', bg_color: '#F6F2E9', text_color: '#8A6D34', is_filterable: true, sort_order: 1 };
 
+/* A stand-in photograph, so the category plate's PHOTOGRAPH face renders here
+   too. The catalogue in this repo has no uploaded images, and a probe that can
+   only ever show the drawn face proves nothing about the one a real shop sees:
+   the scrim, the inverted ink and the frame over an image are exactly where
+   that face can go wrong. */
+const PHOTO = (a, b) => `data:image/svg+xml;utf8,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">`
+  + `<defs><linearGradient id="g" x1="0" y1="0" x2="0.8" y2="1">`
+  + `<stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs>`
+  + `<rect width="400" height="400" fill="url(#g)"/>`
+  + `<rect x="130" y="70" width="140" height="230" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="3"/>`
+  + `</svg>`,
+)}`;
+
 /* Long titles and a quoted price on purpose: the shapes that break a dense
    grid are a two-line name and a missing number, not the tidy case. */
 const P = (id, title, cat, cents, unit, over = {}) => ({
@@ -73,17 +87,19 @@ const P = (id, title, cat, cents, unit, over = {}) => ({
   is_featured: over.featured || false,
   is_sold_out: over.sold || false,
   sort_order: over.sort ?? 0,
-  images: [],
+  images: over.photo ? [{ id: `${id}-img`, url: over.photo, alt: null }] : [],
   badges: over.badges || [],
 });
 
 const PRODUCTS = [
-  P('p1', 'Velvet Ring — foiled card', 'c1', 185, 'card', { was: 220, badges: [B_BEST], featured: true }),
+  P('p1', 'Velvet Ring — foiled card', 'c1', 185, 'card', {
+    was: 220, badges: [B_BEST], featured: true, photo: PHOTO('#E7DBC6', '#8C7A5E'),
+  }),
   P('p2', 'Swan Lake — letterpress', 'c1', 240, 'card', { lead: '7 days' }),
   P('p3', 'Door of Joy — gold foil', 'c1', 210, 'card', {}),
   P('p4', 'Carved-door invitation box with a deliberately long name', 'c1', 640, 'box', { lead: '12 days' }),
   P('p5', 'Save-the-date card', 'c1', 95, 'card', { badges: [B_NEW] }),
-  P('p6', 'Olive wax-sealed envelope', 'c6', 95, 'envelope', {}),
+  P('p6', 'Olive wax-sealed envelope', 'c6', 95, 'envelope', { photo: PHOTO('#DCD8C4', '#6E7358') }),
   P('p7', '43" welcome screen', 'c2', 78000, 'unit', { moq: 1, lead: '10 days' }),
   P('p8', 'Handheld QR scanner', 'c3', 21000, 'unit', { moq: 1, badges: [B_NEW] }),
   P('p9', 'Bespoke foil plate', 'c1', null, null, { tagline: 'Made to your monogram' }),
@@ -121,7 +137,10 @@ describe('shop browse probe', () => {
        Max, the width the pricing page shipped broken at because nothing ever
        rendered between 390 and 768. */
     for (const page of ['home', 'category']) {
-      for (const w of [390, 440, 1280]) {
+      /* 1024 is not decoration: it is the exact width the plate row switches
+         from a scrolling strip to a six-up grid, and the width where a
+         --fx-col chosen for 1280 quietly drops to five and orphans a shelf. */
+      for (const w of [390, 440, 1024, 1280]) {
         fs.writeFileSync(path.join(OUT, `frame-${page}-${w}.html`),
           `<!doctype html><html><head><meta charset="utf-8"><style>
   html,body{margin:0;background:#666;}

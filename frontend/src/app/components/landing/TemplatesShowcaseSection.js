@@ -3,6 +3,7 @@ import Link from "next/link";
 import { TEMPLATES } from "../../utils/curatedTemplates";
 import { CINEMATIC_KEYS } from "../templates/cinematic/cinematicThemes";
 import { occasionPolicyFor } from "../../utils/eventOccasion";
+import { buildWhatsappUrl } from "../../utils/shopLinks";
 import { C, T, SHADOW, BEZEL } from "./landingTokens";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -85,10 +86,45 @@ function TemplatePlate({ template, index }) {
   );
 }
 
-export default function TemplatesShowcaseSection() {
+/* THE STUDIO'S NUMBER, FROM THE ONE PLACE THAT OWNS IT.
+
+   Same endpoint and same revalidate as PrintedInvitationsSection, so Next
+   dedupes the two into ONE request per render rather than fetching the
+   catalogue twice for one page. The number lives in
+   super_admin_config.shop_settings and is served through the public
+   allowlist — there is no second place to put a WhatsApp number, and adding
+   one is how a business ends up answering two. */
+const API_URL = process.env.INTERNAL_API_URL
+  || process.env.NEXT_PUBLIC_API_URL
+  || 'http://localhost:5000/api/v1';
+
+async function fetchShopSettings() {
+  try {
+    const res = await fetch(`${API_URL}/public/shop`, { next: { revalidate: 300 } });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.settings || null;
+  } catch {
+    // The band must render with or without it — the three invitations are the
+    // point, and the commission strip simply does not appear.
+    return null;
+  }
+}
+
+/** Pre-typed so whoever answers is not starting from "hi". */
+const COMMISSION_MESSAGE = 'Hello! I would like to talk about a custom invitation design for my event.';
+
+export default async function TemplatesShowcaseSection() {
   // The cinematic ones only. Custom Canvas has no photography by definition —
   // it is the organizer's own colours — so it has nothing to show here.
   const shown = TEMPLATES.filter((t) => CINEMATIC_KEYS.includes(t.key));
+
+  /* Gated on a real NUMBER, not on whether the shop is switched on: the shop
+     switch is about selling printed goods, and commissioning an invitation is
+     a different conversation on the same phone. No number, no strip — a CTA
+     that opens "wa.me/" and nothing else is worse than no CTA. */
+  const settings = await fetchShopSettings();
+  const commissionHref = buildWhatsappUrl({ settings, message: COMMISSION_MESSAGE });
 
   return (
     <section id="invitations" className="tss" aria-labelledby="tss-title">
@@ -117,6 +153,56 @@ export default function TemplatesShowcaseSection() {
           ))}
         </ul>
 
+        {/* ── THE COMMISSION ──
+            Three invitations on a page read as a menu, and a visitor whose
+            event is not on that menu concludes the product cannot do it. It
+            can: the studio designs one. This says so where the assumption is
+            formed, rather than in a FAQ four bands down. */}
+        {commissionHref && (
+          <aside className="tss-comm" aria-labelledby="tss-comm-title">
+            <span className="tss-comm__frame" aria-hidden="true" />
+            <div className="tss-comm__copy">
+              <span className="tss-comm__kicker">
+                Commissions
+                <span aria-hidden="true" className="tss-comm__rule" />
+              </span>
+              <h3 id="tss-comm-title" className="tss-comm__title">
+                These three are where we start, not where we stop.
+              </h3>
+              <p className="tss-comm__body">
+                If what you are imagining is not here — your own artwork, another
+                language, a ritual that belongs to your family — the studio designs
+                it with you and builds it into the platform as your own.
+              </p>
+            </div>
+
+            <div className="tss-comm__act">
+              {/* rel="noopener": a target=_blank link hands the opened page a
+                  window.opener reference to this one without it. */}
+              <a
+                className="tss-comm__btn"
+                href={commissionHref}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {/* BOTH paths. The outer bubble alone is a generic speech
+                    bubble, not the WhatsApp mark — the handset inside it is
+                    what makes it recognisable at 16px. Same two paths as the
+                    shop's WhatsappGlyph, copied rather than imported: that
+                    lives in shop/piStyles.js, a 'use client' module whose
+                    other exports are a whole stylesheet the landing page has
+                    no business pulling in. */}
+                <svg className="tss-comm__wa" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">
+                  <path d="M17.47 14.38c-.3-.15-1.75-.86-2.02-.96-.27-.1-.47-.15-.67.15-.2.3-.77.96-.94 1.16-.17.2-.35.22-.64.07-.3-.15-1.25-.46-2.38-1.47-.88-.78-1.47-1.75-1.64-2.05-.17-.3-.02-.46.13-.6.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.67-1.6-.92-2.2-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.8.37-.27.3-1.04 1.02-1.04 2.48s1.07 2.88 1.22 3.08c.15.2 2.1 3.2 5.08 4.49.71.3 1.26.49 1.7.63.71.23 1.36.2 1.87.12.57-.09 1.75-.72 2-1.41.25-.7.25-1.29.17-1.41-.07-.13-.27-.2-.57-.35z" />
+                  <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.86 9.86 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91C21.96 6.45 17.5 2 12.04 2zm0 18.02h-.01a8.2 8.2 0 0 1-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.19 8.19 0 0 1-1.26-4.37c0-4.54 3.7-8.23 8.24-8.23a8.24 8.24 0 0 1 0 16.46z" />
+                </svg>
+                Design mine with you
+              </a>
+              <span className="tss-comm__note">Opens a WhatsApp chat with the studio</span>
+            </div>
+          </aside>
+        )}
+
         <div className="tss-cta">
           {/* /templates does not exist. The place a visitor actually sees and
               picks these is step one of the wizard. */}
@@ -134,7 +220,7 @@ export default function TemplatesShowcaseSection() {
         .tss {
           width: 100%;
           background: ${C.paper2};
-          padding: 76px 0;
+          padding: 60px 0;
         }
         .tss-head {
           display: grid;
@@ -193,7 +279,23 @@ export default function TemplatesShowcaseSection() {
           padding: 0;
           list-style: none;
         }
-        .tss-plate { min-width: 0; }
+        /* CAPPED, and this is the whole point of the 2026-08-21 pass.
+           .fx-grid is auto-fit, so three items in a 1184px container stretch
+           to ~372px tracks whatever --fx-col says — and the shot is a whole
+           phone screen at 468x1013, so each plate rendered about 365 wide and
+           790 TALL. Three of those is most of a desktop screen for one band,
+           and on a phone it was ~2,400px of scrolling past three enormous
+           handsets.
+           The cap sits on the PLATE, not on the image, so the name, the rule
+           under it and the description all narrow with the picture instead of
+           running out past it. The tracks stay where they are, so plate one
+           still lines up with the heading above. */
+        /* Centred while there is ONE per row, left-aligned once there are
+           three. A capped plate in a full-width phone track sits against the
+           left edge with 86px of nothing beside it, which reads as a layout
+           fault; three capped plates across a desktop row do not, because the
+           first still lines up with the heading. */
+        .tss-plate { min-width: 0; max-width: 244px; margin-inline: auto; }
 
         /* The invitation as an object: a dark bezel, a long shadow, and a faint
            edge so it does not read as a pasted rectangle. */
@@ -221,7 +323,7 @@ export default function TemplatesShowcaseSection() {
         }
         .tss-name {
           font-family: ${T.display};
-          font-size: 29px;
+          font-size: 24px;
           font-weight: 400;
           line-height: 1.12;
           letter-spacing: -0.01em;
@@ -239,18 +341,18 @@ export default function TemplatesShowcaseSection() {
         }
         .tss-arrival {
           font-family: ${T.display};
-          font-size: 18.5px;
+          font-size: 16.5px;
           font-style: italic;
           line-height: 1.4;
           color: ${C.goldInk};
-          margin: 14px 0 0;
+          margin: 12px 0 0;
         }
         .tss-desc {
-          font-size: 13.5px;
+          font-size: 13px;
           font-weight: 300;
-          line-height: 1.78;
+          line-height: 1.72;
           color: ${C.inkSoft};
-          margin: 10px 0 0;
+          margin: 9px 0 0;
         }
         .tss-badge {
           display: inline-block;
@@ -260,6 +362,106 @@ export default function TemplatesShowcaseSection() {
           text-transform: uppercase;
           color: ${C.inkSoft};
           opacity: 0.7;
+        }
+
+        /* ── the commission strip ──
+           The engraved-plate vocabulary the shop's category tiles use: paper,
+           a double gold rule set in from the edge, display serif over a
+           tracked micro-label. It reads as a card of the house rather than as
+           a banner bolted onto the band. */
+        .tss-comm {
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          gap: 22px;
+          margin-top: 44px;
+          padding: 30px 24px;
+          background: linear-gradient(158deg, ${C.paper} 0%, #F6EFE2 100%);
+          border: 1px solid #DED4C1;
+        }
+        .tss-comm__frame {
+          position: absolute;
+          inset: 7px;
+          border: 1px solid rgba(169, 138, 78, 0.30);
+          pointer-events: none;
+        }
+        .tss-comm__frame::after {
+          content: "";
+          position: absolute;
+          inset: 3px;
+          border: 1px solid rgba(169, 138, 78, 0.10);
+        }
+        .tss-comm__copy { position: relative; min-width: 0; }
+        .tss-comm__kicker {
+          display: inline-flex;
+          align-items: center;
+          gap: 11px;
+          font-family: ${T.label};
+          font-size: 9.5px;
+          letter-spacing: 0.28em;
+          text-transform: uppercase;
+          color: ${C.goldInk};
+          white-space: nowrap;
+        }
+        .tss-comm__rule {
+          display: block;
+          flex: none;
+          width: 26px;
+          height: 1px;
+          background: ${C.gold};
+          opacity: 0.55;
+        }
+        .tss-comm__title {
+          font-family: ${T.display};
+          font-weight: 300;
+          font-size: 24px;
+          line-height: 1.18;
+          letter-spacing: -0.012em;
+          color: ${C.ink};
+          margin: 12px 0 0;
+        }
+        .tss-comm__body {
+          font-size: 14px;
+          font-weight: 300;
+          line-height: 1.8;
+          color: ${C.inkSoft};
+          margin: 10px 0 0;
+          max-width: 54ch;
+        }
+        .tss-comm__act {
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 9px;
+          flex: none;
+        }
+        .tss-comm__btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          min-height: 52px;
+          padding: 0 26px;
+          background: ${C.ink};
+          color: ${C.paper};
+          border: 1px solid ${C.ink};
+          font-family: ${T.body};
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+          white-space: nowrap;
+          text-decoration: none;
+          transition: background 0.3s ease, color 0.3s ease;
+        }
+        .tss-comm__btn:hover { background: ${C.goldInk}; border-color: ${C.goldInk}; color: ${C.paper}; }
+        .tss-comm__wa { width: 16px; height: 16px; flex: none; }
+        .tss-comm__note {
+          font-size: 10.5px;
+          letter-spacing: 0.04em;
+          color: ${C.inkSoft};
+          opacity: 0.75;
         }
 
         .tss-cta {
@@ -291,27 +493,43 @@ export default function TemplatesShowcaseSection() {
         .tss-btn--ghost:hover { background: ${C.ink}; border-color: ${C.ink}; color: ${C.paper}; }
 
         @media (min-width: 768px) {
-          .tss { padding: 128px 0; }
+          .tss { padding: 92px 0; }
           .tss-kicker { font-size: 11px; letter-spacing: 0.38em; gap: 16px; }
           .tss-kicker__rule { width: 44px; }
           .tss-secnum { font-size: 15px; }
-          .tss-title { font-size: 58px; margin-top: 22px; }
-          .tss-sub { font-size: 18px; margin-top: 18px; }
-          .tss-plates { margin-top: 64px; }
-          .tss-device { border-radius: 26px; padding: 6px; }
-          .tss-device img { border-radius: 21px; }
-          .tss-namerow { margin-top: 28px; padding-bottom: 14px; }
-          .tss-name { font-size: 33px; }
-          .tss-numeral { font-size: 15px; }
-          .tss-arrival { font-size: 20px; margin-top: 16px; }
-          .tss-desc { font-size: 14px; }
-          .tss-badge { margin-top: 16px; }
-          .tss-cta { flex-direction: row; margin-top: 56px; }
-          .tss-btn { min-height: 60px; padding: 0 40px; }
+          .tss-title { font-size: 48px; margin-top: 20px; }
+          .tss-sub { font-size: 17px; margin-top: 16px; }
+          .tss-plates { margin-top: 48px; }
+          .tss-plate { max-width: 260px; margin-inline: 0; }
+          .tss-device { border-radius: 24px; padding: 6px; }
+          .tss-device img { border-radius: 19px; }
+          .tss-namerow { margin-top: 22px; padding-bottom: 12px; }
+          .tss-name { font-size: 26px; }
+          .tss-numeral { font-size: 14px; }
+          .tss-arrival { font-size: 17.5px; margin-top: 13px; }
+          .tss-desc { font-size: 13.5px; }
+          .tss-badge { margin-top: 14px; }
+          .tss-cta { flex-direction: row; margin-top: 48px; }
+          .tss-btn { min-height: 56px; padding: 0 40px; }
+
+          /* Copy and action side by side, with the action holding its own
+             width — a nowrap button in a shrinking track is the second-largest
+             source of overflow in this codebase. */
+          .tss-comm {
+            flex-direction: row;
+            align-items: center;
+            justify-content: space-between;
+            gap: 44px;
+            padding: 34px 38px;
+            margin-top: 52px;
+          }
+          .tss-comm__act { align-items: flex-end; }
+          .tss-comm__title { font-size: 27px; }
+          .tss-comm__body { font-size: 14.5px; }
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .tss-btn { transition: none; }
+          .tss-btn, .tss-comm__btn { transition: none; }
         }
       `}</style>
     </section>

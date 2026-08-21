@@ -1,5 +1,5 @@
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -36,6 +36,30 @@ function routeExists(href) {
   return walk(path.join(ROOT, 'src/app'), segments);
 }
 
+/* THE BAND IS AN ASYNC SERVER COMPONENT (since 2026-08-21).
+   It fetches the studio's WhatsApp number for the commission strip, so it
+   cannot be handed to the client renderer as an element — it is CALLED, and
+   the element it returns is what renders. Same shape the page probe uses.
+
+   `settings` is answered here rather than left to the network: unmocked, the
+   fetch reaches for localhost:5000, fails, is caught, and the strip silently
+   does not render — which would make every assertion about it vacuous. */
+const SHOP_SETTINGS = {
+  enabled: true,
+  whatsapp_number: '19055550134',
+  whatsapp_greeting: 'Hello! I would like to order printed invitations.',
+};
+
+beforeEach(() => {
+  global.fetch = vi.fn(() => Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve({ success: true, enabled: true, settings: SHOP_SETTINGS, products: [], categories: [] }),
+  }));
+});
+
+/** Renders the awaited band. Every case below needs it, so it is one helper. */
+const renderBand = async () => render(await TemplatesShowcaseSection());
+
 /* ═══════════════════════════════════════════════════════════════════════════
    THE HOMEPAGE SHOWS THE ACTUAL INVITATIONS.
 
@@ -49,8 +73,8 @@ function routeExists(href) {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 describe('the invitations are shown, and they are real', () => {
-  it('shows every cinematic template', () => {
-    render(<TemplatesShowcaseSection />);
+  it('shows every cinematic template', async () => {
+    await renderBand();
     CINEMATIC_KEYS.forEach((key) => {
       const tpl = TEMPLATES.find((t) => t.key === key);
       expect(tpl, `${key} is not in the picker`).toBeTruthy();
@@ -58,15 +82,15 @@ describe('the invitations are shown, and they are real', () => {
     });
   });
 
-  it('shows the opened page for each', () => {
-    const { container } = render(<TemplatesShowcaseSection />);
+  it('shows the opened page for each', async () => {
+    const { container } = await renderBand();
     const srcs = [...container.querySelectorAll('img')].map((i) => i.getAttribute('src'));
     CINEMATIC_KEYS.forEach((key) => {
       expect(srcs, `${key} has no opened page`).toContain(`/images/landing/hero-${key}.webp`);
     });
   });
 
-  it('the sealed-and-opened pair is still made, in the hero', () => {
+  it('the sealed-and-opened pair is still made, in the hero', async () => {
     /* The claim is "it opens on film before it becomes a page", and one image
        cannot make that point. This band used to carry the pair for all three
        templates — six tall photographs in a row, which showed the same idea
@@ -83,8 +107,8 @@ describe('the invitations are shown, and they are real', () => {
       .toContain('/images/landing/hero-swans.webp');
   });
 
-  it('every image it names is actually shipped', () => {
-    const { container } = render(<TemplatesShowcaseSection />);
+  it('every image it names is actually shipped', async () => {
+    const { container } = await renderBand();
     [...container.querySelectorAll('img')].forEach((img) => {
       const src = img.getAttribute('src');
       const file = path.join(ROOT, 'public', src.replace(/^\//, ''));
@@ -92,7 +116,7 @@ describe('the invitations are shown, and they are real', () => {
     });
   });
 
-  it('keeps the whole set inside a sane page budget', () => {
+  it('keeps the whole set inside a sane page budget', async () => {
     /* Six full-bleed invitation photographs sit below the fold on the
        homepage. They are lazy, but they are still the page's weight. */
     const dir = path.join(ROOT, 'public/images/landing');
@@ -102,8 +126,8 @@ describe('the invitations are shown, and they are real', () => {
       .toBeLessThan(320);
   });
 
-  it('declares dimensions and defers loading', () => {
-    const { container } = render(<TemplatesShowcaseSection />);
+  it('declares dimensions and defers loading', async () => {
+    const { container } = await renderBand();
     [...container.querySelectorAll('img')].forEach((img) => {
       // Without both, six tall images below the fold are a layout shift and a
       // blocking download.
@@ -116,7 +140,7 @@ describe('the invitations are shown, and they are real', () => {
 });
 
 describe('the words come from the product, not a second copy', () => {
-  it('takes name and description from the template registry', () => {
+  it('takes name and description from the template registry', async () => {
     /* The tagline is no longer printed here. Each plate carried FOUR lines of
        prose — tagline, arrival, description, badge — under a photograph that
        is already doing most of the talking, and the tagline was the one that
@@ -125,7 +149,7 @@ describe('the words come from the product, not a second copy', () => {
        What matters is unchanged and still asserted: the name and description a
        visitor reads are the registry's, so they cannot drift from what the
        wizard shows. */
-    render(<TemplatesShowcaseSection />);
+    await renderBand();
     TEMPLATES.filter((t) => CINEMATIC_KEYS.includes(t.key)).forEach((t) => {
       expect(screen.getByText(t.label)).toBeTruthy();
       expect(screen.getByText(t.desc)).toBeTruthy();
@@ -134,43 +158,122 @@ describe('the words come from the product, not a second copy', () => {
     expect(SECTION).toContain('CINEMATIC_KEYS');
   });
 
-  it('takes the occasion badge from the same policy the picker offers from', () => {
+  it('takes the occasion badge from the same policy the picker offers from', async () => {
     /* Otherwise the homepage can advertise "any occasion" on a template the
        wizard then refuses — Velvet Ring is engagements only. */
-    render(<TemplatesShowcaseSection />);
+    await renderBand();
     expect(SECTION).toContain('occasionPolicyFor');
     expect(screen.getAllByText(occasionPolicyFor('ring').label).length).toBeGreaterThan(0);
     expect(screen.getAllByText(occasionPolicyFor('bab').label).length).toBeGreaterThan(0);
   });
 
-  it('does not link anywhere that does not exist', () => {
+  it('does not link anywhere that does not exist', async () => {
     // There is no /templates route; the place a visitor actually picks one is
     // step 1 of the wizard.
     expect(SECTION).not.toMatch(/href="\/templates"/);
-    const { container } = render(<TemplatesShowcaseSection />);
+    const { container } = await renderBand();
     const hrefs = [...container.querySelectorAll('a')].map((a) => a.getAttribute('href'));
     expect(hrefs.length).toBeGreaterThan(0);
-    hrefs.forEach((h) => {
+    /* INTERNAL only. Since 2026-08-21 the band also carries an outbound
+       wa.me link, and routeExists() answers "is there a page.js for this
+       path" — the honest answer for an external URL is that the question does
+       not apply, not that the link is broken. The commission strip's own
+       describe block checks that one. */
+    const internal = hrefs.filter((h) => h && h.startsWith('/'));
+    expect(internal.length, 'the band has stopped linking into the product').toBeGreaterThan(0);
+    internal.forEach((h) => {
       expect(routeExists(h), `${h} resolves to no page.js`).toBe(true);
     });
   });
 });
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   THREE INVITATIONS READ AS A MENU
+
+   A visitor whose event is not one of the three concludes the product cannot
+   do it. It can — the studio designs one — and that was said nowhere on the
+   page. The strip says it where the assumption is formed.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+describe('the commission strip', () => {
+  const commissionLink = (container) => container.querySelector('.tss-comm__btn');
+
+  it('offers a custom invitation on the studio WhatsApp number', async () => {
+    const { container } = await renderBand();
+    const a = commissionLink(container);
+    expect(a, 'the band says these three are all there is').toBeTruthy();
+    expect(a.getAttribute('href')).toContain('wa.me/19055550134');
+  });
+
+  it('opens the right conversation, not the printed-goods one', async () => {
+    /* buildWhatsappUrl falls back to settings.whatsapp_greeting, which is
+       "I would like to order printed invitations" — the wrong conversation
+       from a band about designing one, and it reads as a mis-wired link. */
+    const { container } = await renderBand();
+    const text = decodeURIComponent(commissionLink(container).getAttribute('href'));
+    expect(text).toMatch(/custom invitation design/i);
+    expect(text).not.toMatch(/order printed invitations/i);
+  });
+
+  it('does not open a new tab without cutting the opener reference', async () => {
+    const { container } = await renderBand();
+    const a = commissionLink(container);
+    expect(a.getAttribute('target')).toBe('_blank');
+    expect(a.getAttribute('rel')).toContain('noopener');
+  });
+
+  it('says nothing at all when no number is configured', async () => {
+    /* A CTA that opens "wa.me/" and nothing else is worse than no CTA — the
+       same rule isShopLive states for the catalogue. */
+    global.fetch = vi.fn(() => Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve({ settings: { enabled: true, whatsapp_number: '' } }),
+    }));
+    const { container } = await renderBand();
+    expect(commissionLink(container)).toBeNull();
+  });
+
+  it('still shows the three invitations when the settings call fails', async () => {
+    // The band's reason to exist is the photography; the strip is an extra.
+    global.fetch = vi.fn(() => Promise.reject(new Error('down')));
+    const { container } = await renderBand();
+    expect(commissionLink(container)).toBeNull();
+    expect(container.querySelectorAll('.tss-plate').length).toBe(CINEMATIC_KEYS.length);
+  });
+});
+
 describe('it survives a phone', () => {
-  it('releases the grid minimum the invitation images would otherwise set', () => {
+  it('releases the grid minimum the invitation images would otherwise set', async () => {
     // A grid item's automatic minimum is its content's min-content size, and
     // these images are 468px wide intrinsically — so without this the band
     // sets a floor no phone can meet and the page scrolls sideways.
-    expect(SECTION).toMatch(/\.tss-plate \{ min-width: 0; \}/);
+    //
+    // Matched as a PROPERTY inside the rule rather than as one exact line: the
+    // rule grew a max-width when the plates were capped on 2026-08-21, and a
+    // test that pins formatting fails on a change that does not touch what it
+    // is protecting.
+    const rule = SECTION.slice(SECTION.indexOf('.tss-plate {'));
+    expect(rule.slice(0, rule.indexOf('}'))).toMatch(/min-width:\s*0/);
   });
 
-  it('uses only breakpoints on the four-value scale', () => {
+  it('caps the plate so the invitation shots do not fill the band', async () => {
+    /* .fx-grid is auto-fit: three items in a 1184px container stretch to
+       ~372px tracks whatever --fx-col says, and the shot is a whole phone
+       screen at 468x1013 — so each plate rendered about 365 wide and 790 TALL,
+       and a phone scrolled ~2,400px past three giant handsets.
+       The cap is on the PLATE, not the image, so the name and the rule under
+       it narrow with the picture instead of running out past it. */
+    const rule = SECTION.slice(SECTION.indexOf('.tss-plate {'));
+    expect(rule.slice(0, rule.indexOf('}'))).toMatch(/max-width:\s*\d/);
+  });
+
+  it('uses only breakpoints on the four-value scale', async () => {
     const widths = [...SECTION.matchAll(/\((?:max|min)-width: *([\d.]+)px\)/g)].map((m) => m[1]);
     const ALLOWED = new Set(['639.98', '640', '767.98', '768', '1023.98', '1024', '1279.98', '1280', '44']);
     widths.forEach((w) => expect(ALLOWED.has(w), `${w}px is off the scale`).toBe(true));
   });
 
-  it('uses a plain style element, so next/link cannot lose its rules', () => {
+  it('uses a plain style element, so next/link cannot lose its rules', async () => {
     /* This used to need a SEPARATE "style jsx global" block, because
        styled-jsx stamps its hash only onto lowercase intrinsic elements and a
        scoped rule aimed at a class on a next/link matches nothing — the bug
@@ -185,7 +288,7 @@ describe('it survives a phone', () => {
     expect(SECTION).toMatch(/\.tss-btn \{/);
   });
 
-  it('has no backtick inside its style block', () => {
+  it('has no backtick inside its style block', async () => {
     // One backtick in a CSS comment ends the template literal and the file
     // stops parsing. It has cost three build failures across this codebase —
     // scripts/backtickInCssComment.js now checks the whole tree for it.
@@ -198,7 +301,7 @@ describe('it survives a phone', () => {
 });
 
 describe('the imagery can be regenerated', () => {
-  it('the shots harness exists and is kept out of the test suite', () => {
+  it('the shots harness exists and is kept out of the test suite', async () => {
     /* If the only way to regenerate these is to remember how, they go stale
        the first time a template changes. */
     const dump = read('test/shots/templateShots.dump.jsx');

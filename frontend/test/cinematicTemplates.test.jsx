@@ -413,6 +413,21 @@ describe('rewired modules still load', () => {
    6. The retired hero-video upload leaves nothing behind
    ════════════════════════════════════════════════════════════════════ */
 describe('organizer hero-video upload — fully retired', () => {
+  /* GIVEN ITS OWN BUDGET, and the reason is worth writing down.
+
+     This case reads EVERY .js/.jsx/.css file under src/ — the only test in the
+     suite that walks the whole tree — against the file-wide 15s ceiling
+     vitest.config.mjs sets. Run alone it takes a couple of seconds; inside a
+     full `vitest run`, with every other file's jsdom environment competing for
+     the same disk, it crossed 15s and failed on two consecutive runs while
+     the thing it asserts stayed true (a direct grep for all four identifiers
+     returns nothing).
+
+     That is the worst failure mode a test has: red on a green tree, on a
+     schedule nobody can predict, which teaches everyone to re-run it instead
+     of read it — the argument responsiveCheck.test.js makes in its own header.
+     The fix is the budget, not the assertion: the walk is honest work and it
+     needs more than 15s under load. */
   it('no source file still references it', () => {
     function walk(dir) {
       return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -426,5 +441,5 @@ describe('organizer hero-video upload — fully retired', () => {
       return /HeroVideoBackground|ha_hero_video_url|heroVideoUploading|HERO_VIDEO_MAX/.test(text);
     });
     expect(offenders.map((f) => path.relative(process.cwd(), f))).toEqual([]);
-  });
+  }, 60000);
 });

@@ -378,6 +378,269 @@ describe('catalogue', () => {
 });
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   Getting between shelves
+
+   The reported bug, in the organizer's words: "if I go into any category the
+   rest disappear and I can't go to or come back to another category". It was
+   literally true — the category band rendered under `!shelf`, so opening a
+   shelf removed every route out of it except the breadcrumb, and there was no
+   route ACROSS at all. A dead end is invisible to every other test in this
+   file, because each one renders one surface and asks what is on it.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+describe('moving between shelves', () => {
+  const CAT_THIRD = { id: 'c3', name: 'Signage', slug: 'signage', description: null, sort_order: 30 };
+  const all = [CAT_WEDDING, CAT_GRAD, CAT_THIRD];
+
+  const inShelf = (slug) => render(
+    <ShopBrowse
+      products={[product(), product({ id: 'p2', slug: 'door-of-joy', title: 'Door of Joy Card', category_id: CAT_GRAD.id })]}
+      categories={all}
+      badges={[]}
+      settings={SETTINGS}
+      category={slug}
+    />,
+  );
+
+  /** Every href the shelf index offers, in order. */
+  const shelfLinks = () => [...document.querySelectorAll('.shop-index a')].map((a) => a.getAttribute('href'));
+
+  it('keeps every OTHER shelf reachable from inside a shelf', () => {
+    inShelf(CAT_WEDDING.slug);
+    const hrefs = shelfLinks();
+    for (const c of all) expect(hrefs).toContain(`/shop/${c.slug}`);
+  });
+
+  it('offers the way back out to the whole catalogue', () => {
+    inShelf(CAT_WEDDING.slug);
+    expect(shelfLinks()[0]).toBe('/shop');
+  });
+
+  it('marks the shelf being read, and only that one', () => {
+    inShelf(CAT_GRAD.slug);
+    const current = [...document.querySelectorAll('.shop-index a[aria-current="page"]')];
+    expect(current.length).toBe(1);
+    expect(current[0].getAttribute('href')).toBe(`/shop/${CAT_GRAD.slug}`);
+  });
+
+  it('opens the index scrolled to the shelf being read', () => {
+    /* The index is a horizontal scroll port that starts at 0, so on a phone a
+       shelf far down the list left you looking at a strip with nothing marked
+       — on the one control that exists to say where you are. jsdom reports 0
+       for every offset, so this asserts the MECHANISM is wired (a ref on the
+       active link, and scrollLeft written rather than scrollIntoView, which
+       would also scroll the page vertically). */
+    const raw = fs.readFileSync(
+      path.join(process.cwd(), 'src/app/shop/ShopBrowse.js'), 'utf8',
+    );
+    /* COMMENTS STRIPPED. The code's own note explains why scrollIntoView is
+       the wrong call here, so asserting against raw text failed on the
+       documentation for the rule — punishing writing the reason down. */
+    const src = raw
+      .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
+      .replace(/^[ \t]*\/\/.*$/gm, '');
+    expect(src).toMatch(/ref=\{on \? activeShelfRef : undefined\}/);
+    expect(src).toMatch(/port\.scrollLeft = /);
+    expect(src, 'scrollIntoView also scrolls the nearest vertical ancestor')
+      .not.toMatch(/scrollIntoView/);
+  });
+
+  it('still offers the way out when there is only one shelf', () => {
+    render(
+      <ShopBrowse
+        products={[product()]}
+        categories={[CAT_WEDDING]}
+        badges={[]}
+        settings={SETTINGS}
+        category={CAT_WEDDING.slug}
+      />,
+    );
+    const index = document.querySelector('.shop-index');
+    expect(index, 'a single-shelf catalogue has no index at all').toBeTruthy();
+    expect(within(index).getByRole('link', { name: /All pieces/i }).getAttribute('href')).toBe('/shop');
+  });
+
+  it('counts each shelf against the whole catalogue, not the shelf being read', () => {
+    // A count that only ever showed the current shelf's pieces would make
+    // every other entry read "0" and look empty.
+    inShelf(CAT_WEDDING.slug);
+    const index = document.querySelector('.shop-index');
+    expect(within(index).getAllByText('1').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('shows the square plates on the shop home and the index inside a shelf, never both', () => {
+    // They are two answers to the same question; showing both would repeat
+    // the whole category list twice on one screen.
+    const home = render(
+      <ShopBrowse products={[product()]} categories={all} badges={[]} settings={SETTINGS} category={null} />,
+    );
+    expect(home.container.querySelector('.shop-plates')).toBeTruthy();
+    expect(home.container.querySelector('.shop-index')).toBeNull();
+    home.unmount();
+
+    inShelf(CAT_WEDDING.slug);
+    expect(document.querySelector('.shop-plates')).toBeNull();
+    expect(document.querySelector('.shop-index')).toBeTruthy();
+  });
+});
+
+describe('finding the way out of a product page', () => {
+  const onShelf = { id: CAT_WEDDING.id, name: CAT_WEDDING.name, slug: CAT_WEDDING.slug };
+
+  const renderProduct = (over = {}) => render(
+    <ProductClient
+      product={{ ...product(), category: onShelf, description: 'A card.', specs: [], highlights: [] }}
+      related={[]}
+      settings={SETTINGS}
+      {...over}
+    />,
+  );
+
+  it('puts the shelf in the breadcrumb, linked', () => {
+    renderProduct();
+    const crumbs = document.querySelector('.pi-crumbs');
+    const link = within(crumbs).getByRole('link', { name: CAT_WEDDING.name });
+    expect(link.getAttribute('href')).toBe(`/shop/${CAT_WEDDING.slug}`);
+  });
+
+  it('still renders a trail for a piece on no shelf at all', () => {
+    // category_id is nullable, and a crumb that throws takes the whole page.
+    renderProduct({ product: { ...product(), category: null, specs: [], highlights: [] } });
+    expect(document.querySelector('.pi-crumbs')).toBeTruthy();
+  });
+
+  it('links related pieces at a URL that exists', () => {
+    // /shop/<slug> is ONE segment: the router reads it as a category, and an
+    // unknown category slug is a 404. Every related link was dead.
+    renderProduct({
+      related: [product({ id: 'r1', slug: 'door-of-joy', title: 'Door of Joy', category_id: CAT_WEDDING.id })],
+    });
+    const rel = document.querySelector('.pi-rel');
+    expect(rel.getAttribute('href')).toBe(`/shop/${CAT_WEDDING.slug}/door-of-joy`);
+  });
+
+  it('does not file a related piece from another shelf under this one', () => {
+    renderProduct({
+      related: [product({ id: 'r2', slug: 'cap-card', title: 'Cap Card', category_id: CAT_GRAD.id })],
+    });
+    // "all" is the route's own redirect path to the piece's real category —
+    // guessing THIS shelf would publish a link that is simply wrong.
+    expect(document.querySelector('.pi-rel').getAttribute('href')).toBe('/shop/all/cap-card');
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   STEPPING THROUGH A PIECE'S PHOTOGRAPHS
+
+   Reported as "the right and left arrows of scrolling between images of an
+   element of the shop are not working". They were not working because there
+   were none: the gallery could only be changed from the thumbnail strip, and
+   the lightbox opened on one image and did nothing but close.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+describe('the product gallery arrows', () => {
+  const shot = (n) => ({ id: `i${n}`, url: `https://cdn.example/${n}.jpg`, alt: `Angle ${n}` });
+  const threeShots = { ...product({ images: [shot(1), shot(2), shot(3)] }), specs: [], highlights: [] };
+
+  const renderProduct = (over) => render(
+    <ProductClient product={over || threeShots} related={[]} settings={SETTINGS} />,
+  );
+  const mainSrc = () => document.querySelector('.pi-gallery-img').getAttribute('src');
+
+  it('walks forward through the images', async () => {
+    const user = userEvent.setup();
+    renderProduct();
+    expect(mainSrc()).toContain('/1.jpg');
+    await user.click(screen.getByRole('button', { name: /next image/i }));
+    expect(mainSrc()).toContain('/2.jpg');
+  });
+
+  it('wraps at both ends instead of dead-ending', async () => {
+    // Neither arrow is ever disabled, so neither has a dead state to explain.
+    const user = userEvent.setup();
+    renderProduct();
+    await user.click(screen.getByRole('button', { name: /previous image/i }));
+    expect(mainSrc(), 'going back from the first image did not wrap').toContain('/3.jpg');
+  });
+
+  it('does not offer arrows for a piece with one photograph', () => {
+    renderProduct({ ...product({ images: [shot(1)] }), specs: [], highlights: [] });
+    expect(screen.queryByRole('button', { name: /next image/i })).toBeNull();
+  });
+
+  it('steps the image without also opening the lightbox', async () => {
+    /* The arrows sit over the zoom button. Nested inside it rather than
+       beside it, every click would bubble into "open the lightbox" and a
+       visitor stepping through the gallery would get a full-screen overlay
+       they did not ask for. */
+    const user = userEvent.setup();
+    renderProduct();
+    await user.click(screen.getByRole('button', { name: /next image/i }));
+    expect(document.querySelector('.pi-lightbox')).toBeNull();
+  });
+
+  it('steps inside the lightbox without closing it', async () => {
+    /* The overlay closes on click, so an arrow that lets the event through
+       would shut the lightbox instead of advancing — present and broken. */
+    const user = userEvent.setup();
+    renderProduct();
+    await user.click(screen.getByRole('button', { name: /view larger image/i }));
+    expect(document.querySelector('.pi-lightbox')).toBeTruthy();
+
+    const next = [...document.querySelectorAll('.pi-lnav')][1];
+    await user.click(next);
+    expect(document.querySelector('.pi-lightbox'), 'the lightbox closed instead of advancing').toBeTruthy();
+    expect(document.querySelector('.pi-lightbox-img').getAttribute('src')).toContain('/2.jpg');
+  });
+
+  it('walks the lightbox from the keyboard', async () => {
+    const user = userEvent.setup();
+    renderProduct();
+    await user.click(screen.getByRole('button', { name: /view larger image/i }));
+    await user.keyboard('{ArrowRight}');
+    expect(document.querySelector('.pi-lightbox-img').getAttribute('src')).toContain('/2.jpg');
+    await user.keyboard('{Escape}');
+    expect(document.querySelector('.pi-lightbox')).toBeNull();
+  });
+});
+
+describe('the category plate', () => {
+  const all = [CAT_WEDDING, CAT_GRAD];
+
+  const home = (products) => render(
+    <ShopBrowse products={products} categories={all} badges={[]} settings={SETTINGS} category={null} />,
+  );
+
+  it('wears the photograph of its own featured piece', () => {
+    const { container } = home([
+      product({ id: 'a', slug: 'a', category_id: CAT_WEDDING.id, sort_order: 0, images: [{ id: 'i1', url: '/plain.jpg', alt: null }] }),
+      product({ id: 'b', slug: 'b', category_id: CAT_WEDDING.id, sort_order: 9, is_featured: true, images: [{ id: 'i2', url: '/featured.jpg', alt: null }] }),
+    ]);
+    const img = container.querySelector('.shop-plates .plate__img');
+    // Featured beats sort_order — otherwise the shelf is fronted by whichever
+    // piece happens to sit first, which is not a choice anyone made.
+    expect(img.getAttribute('src')).toBe('/featured.jpg');
+  });
+
+  it('falls back to the drawing when nothing on the shelf has a photograph', () => {
+    const { container } = home([product({ category_id: CAT_WEDDING.id, images: [] })]);
+    const plate = container.querySelector('.shop-plates .plate');
+    expect(plate.querySelector('.plate__img')).toBeNull();
+    expect(plate.querySelector('.plate__art svg')).toBeTruthy();
+  });
+
+  it('does not lend one shelf a photograph from another', () => {
+    const { container } = home([
+      product({ id: 'a', slug: 'a', category_id: CAT_WEDDING.id, images: [{ id: 'i1', url: '/wedding.jpg', alt: null }] }),
+      product({ id: 'b', slug: 'b', category_id: CAT_GRAD.id, images: [] }),
+    ]);
+    const plates = [...container.querySelectorAll('.shop-plates .plate')];
+    expect(plates[0].querySelector('.plate__img').getAttribute('src')).toBe('/wedding.jpg');
+    expect(plates[1].querySelector('.plate__img')).toBeNull();
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
    The product page
    ═══════════════════════════════════════════════════════════════════════════ */
 

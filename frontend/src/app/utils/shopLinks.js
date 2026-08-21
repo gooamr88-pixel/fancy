@@ -128,12 +128,19 @@ export function isShopLive(settings) {
  * with no context at all otherwise: "Hello, I'd like to order" tells whoever
  * answers nothing about which of forty cards is meant.
  */
-export function buildWhatsappUrl({ settings, product } = {}) {
+export function buildWhatsappUrl({ settings, product, message } = {}) {
   const number = String(settings?.whatsapp_number || '').replace(/\D/g, '');
   if (!number) return null;
 
+  /* `message` is for a surface that is not selling a catalogue piece — the
+     homepage's commission invitation is the first. Without it that button
+     opened a chat pre-typed "I would like to order printed invitations",
+     which is the wrong conversation and reads as a mis-wired link.
+     It sits BELOW a product's own override (that is more specific still) and
+     ABOVE the platform greeting (which is the printed-goods default). */
   const base =
     (product?.whatsapp_message && product.whatsapp_message.trim())
+    || (message && message.trim())
     || (settings?.whatsapp_greeting && settings.whatsapp_greeting.trim())
     || 'Hello! I would like to order printed invitations.';
 

@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { S, ST, SHADOW, artFor } from './shopTheme';
+import { S, ST, SHADOW, artFor, markFor, ALL_MARK, ART_VIEWBOX } from './shopTheme';
 import { formatPrice, SHOP_MIN_ORDER_QTY } from '../utils/shopLinks';
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -74,10 +74,50 @@ function quotedLast(a, b) {
 function PlaceholderArt({ slug }) {
   return (
     <span className="sp-art" aria-hidden="true">
-      <svg viewBox="0 0 100 92" fill="none" stroke={S.gold} strokeWidth="2"
-        strokeLinecap="round" strokeLinejoin="round" opacity="0.55"
+      <svg viewBox={ART_VIEWBOX} fill="none" stroke={S.gold} strokeWidth="1.4"
+        strokeLinecap="round" strokeLinejoin="round" opacity="0.65"
         dangerouslySetInnerHTML={{ __html: artFor(slug) }} />
     </span>
+  );
+}
+
+/**
+ * The square plate one category gets on the shop home.
+ *
+ * Two faces, ONE frame. With a photograph it is the photograph under a scrim;
+ * without one it is the drawing on paper — and in both the double gold rule,
+ * the index numeral and the name sit in exactly the same place, so a shelf
+ * that has been photographed and one that has not still read as one set.
+ * (The old row of text bars had neither face: a 36px grey square and a name.)
+ */
+function CategoryPlate({ category, index, count, cover }) {
+  return (
+    <Link
+      href={`/shop/${category.slug}`}
+      className={`plate${cover ? ' plate--photo' : ''}`}
+    >
+      {cover && (
+        <>
+          {/* alt="" deliberately: the shelf name is right there in the plate,
+              and a second reading of it is noise in a screen reader. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="plate__img" src={cover.url} alt="" loading="lazy" />
+          <span className="plate__scrim" aria-hidden="true" />
+        </>
+      )}
+      <span className="plate__frame" aria-hidden="true" />
+      <span className="plate__ix" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+      <span className="plate__art" aria-hidden="true">
+        {!cover && (
+          <svg viewBox={ART_VIEWBOX} fill="none" stroke={S.goldInk} strokeWidth="1.3"
+            strokeLinecap="round" strokeLinejoin="round"
+            dangerouslySetInnerHTML={{ __html: artFor(category.slug) }} />
+        )}
+      </span>
+      <span className="plate__rule" aria-hidden="true" />
+      <span className="plate__name">{category.name}</span>
+      <span className="plate__count">{count} {count === 1 ? 'piece' : 'pieces'}</span>
+    </Link>
   );
 }
 
@@ -156,6 +196,45 @@ export default function ShopBrowse({ products, categories, badges, settings, cat
     [badges],
   );
 
+  /** How many pieces sit on each shelf. Computed once against the WHOLE
+   *  catalogue, not against `inShelf` — the plates and the index name every
+   *  shelf, including the ones the current filter or category excludes. */
+  const countByCategory = useMemo(() => {
+    const counts = new Map();
+    for (const p of products || []) {
+      if (!p.category_id) continue;
+      counts.set(p.category_id, (counts.get(p.category_id) || 0) + 1);
+    }
+    return counts;
+  }, [products]);
+
+  /**
+   * A photograph for each shelf, taken from the shelf's own pieces.
+   *
+   * There is no image column on shop_categories, and adding one would mean a
+   * migration plus six uploads before a single plate stopped being a drawing.
+   * The catalogue already holds the photographs — this picks the one the admin
+   * has already said is the best of that shelf: featured first, then their own
+   * sort order. A shelf whose pieces have no photographs keeps the drawing,
+   * which is a designed state rather than a hole.
+   */
+  const coverByCategory = useMemo(() => {
+    const covers = new Map();
+    for (const p of products || []) {
+      const img = p.images?.[0];
+      if (!p.category_id || !img?.url) continue;
+      const held = covers.get(p.category_id);
+      if (!held) { covers.set(p.category_id, { url: img.url, product: p }); continue; }
+      const bidFeatured = p.is_featured ? 0 : 1;
+      const heldFeatured = held.product.is_featured ? 0 : 1;
+      const wins = bidFeatured !== heldFeatured
+        ? bidFeatured < heldFeatured
+        : (p.sort_order ?? 0) < (held.product.sort_order ?? 0);
+      if (wins) covers.set(p.category_id, { url: img.url, product: p });
+    }
+    return covers;
+  }, [products]);
+
   const shown = useMemo(() => {
     let list = inShelf;
 
@@ -199,6 +278,27 @@ export default function ShopBrowse({ products, categories, badges, settings, cat
   const bandCount = (band) => inShelf.filter((p) => band.test(p.price_cents)).length;
 
   const appliedCount = activeBadges.size + activeBands.size + (hideSoldOut ? 1 : 0);
+
+  /* THE INDEX HAS TO OPEN ON THE SHELF YOU ARE READING.
+   *
+   * It is a horizontal scroll port that starts at scrollLeft 0, so on a phone
+   * anyone deep in the list — Envelopes & extras is sixth — landed on a strip
+   * showing the first two shelves with nothing marked, on the one control that
+   * exists to say where you are and what else there is.
+   *
+   * scrollLeft is set directly rather than with scrollIntoView(): that also
+   * scrolls the nearest VERTICAL ancestor, so arriving on a category page
+   * would jump you past the heading you just clicked. It is also unimplemented
+   * in jsdom, which would make this untestable.
+   */
+  const activeShelfRef = useRef(null);
+  useEffect(() => {
+    const link = activeShelfRef.current;
+    const port = link?.closest('.shop-index__list');
+    if (!link || !port) return;
+    const centred = link.offsetLeft - (port.clientWidth - link.offsetWidth) / 2;
+    port.scrollLeft = Math.max(0, centred);
+  }, [shelf?.id]);
 
   const toggle = (setter) => (value) => setter((prev) => {
     const next = new Set(prev);
@@ -299,34 +399,81 @@ export default function ShopBrowse({ products, categories, badges, settings, cat
         </div>
       </section>
 
-      {/* ── the shelves, on the shop home only ── */}
+      {/* ── the shelves, on the shop home ──
+          A swipeable strip of plates under 1024 and a single row of six above
+          it. The strip is what fixes the phone: the old stacked bars took
+          about 400px of screen before a single product appeared. */}
       {!shelf && categories?.length > 0 && (
         <section className="shop-cats">
           <div className="fx-container fx-container--5xl fx-gutter">
             <span className="shop-kicker">Browse by category
               <span aria-hidden="true" className="shop-kicker__rule" /></span>
-            <ul className="shop-cat-grid fx-grid" style={{ '--fx-col': '210px', '--fx-gap': '12px' }}>
-              {categories.map((c) => {
-                const n = (products || []).filter((p) => p.category_id === c.id).length;
-                return (
-                  <li key={c.id}>
-                    <Link href={`/shop/${c.slug}`} className="shop-cat">
-                      <span className="shop-cat__art" aria-hidden="true">
-                        <svg viewBox="0 0 100 92" fill="none" stroke={S.gold} strokeWidth="2.6"
-                          strokeLinecap="round" strokeLinejoin="round" opacity="0.75"
-                          dangerouslySetInnerHTML={{ __html: artFor(c.slug) }} />
-                      </span>
-                      <span className="shop-cat__text">
-                        <span className="shop-cat__name">{c.name}</span>
-                        <span className="shop-cat__count">{n} {n === 1 ? 'piece' : 'pieces'}</span>
-                      </span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
           </div>
+          {/* The gutter is on the LIST, not on a wrapper: it is also the scroll
+              port, so the padding keeps the first plate aligned with the
+              heading while the rest still run off the edge of the screen.
+              No `padding: 0` reset here — that would beat .fx-gutter, since
+              this style element comes after globals.css in the document. */}
+          <ul className="shop-plates fx-container fx-container--5xl fx-gutter">
+            {categories.map((c, i) => (
+              <li key={c.id}>
+                <CategoryPlate
+                  category={c}
+                  index={i}
+                  count={countByCategory.get(c.id) || 0}
+                  cover={coverByCategory.get(c.id)}
+                />
+              </li>
+            ))}
+          </ul>
         </section>
+      )}
+
+      {/* ── the shelf index, inside a shelf ──
+          Opening a category used to remove every other category from the page:
+          the only ways on were the breadcrumb and the back button, and there
+          was no way ACROSS at all. This strip stays put, names every shelf
+          with its count, and marks the one being read. */}
+      {/* >= 1, not > 1: with a single shelf the index is still the only way
+          back out to the whole catalogue that is not the breadcrumb. */}
+      {shelf && categories?.length >= 1 && (
+        <nav className="shop-index" aria-label="Shop categories">
+          <ul className="shop-index__list fx-container fx-container--5xl fx-gutter">
+            <li>
+              <Link href="/shop" className="shelf">
+                <span className="shelf__mark" aria-hidden="true">
+                  <svg viewBox={ART_VIEWBOX} fill="none" stroke={S.gold} strokeWidth="1.7"
+                    strokeLinecap="round" strokeLinejoin="round" opacity="0.75"
+                    dangerouslySetInnerHTML={{ __html: ALL_MARK }} />
+                </span>
+                <span className="shelf__name">All pieces</span>
+                <span className="shelf__count">{(products || []).length}</span>
+              </Link>
+            </li>
+            {categories.map((c) => {
+              const on = c.id === shelf.id;
+              return (
+                <li key={c.id}>
+                  <Link
+                    href={`/shop/${c.slug}`}
+                    className={`shelf${on ? ' shelf--on' : ''}`}
+                    aria-current={on ? 'page' : undefined}
+                    ref={on ? activeShelfRef : undefined}
+                  >
+                    <span className="shelf__mark" aria-hidden="true">
+                      <svg viewBox={ART_VIEWBOX} fill="none" stroke={on ? S.goldInk : S.gold}
+                        strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"
+                        opacity={on ? 1 : 0.75}
+                        dangerouslySetInnerHTML={{ __html: markFor(c.slug) }} />
+                    </span>
+                    <span className="shelf__name">{c.name}</span>
+                    <span className="shelf__count">{countByCategory.get(c.id) || 0}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
       )}
 
       {/* ── the grid ── */}
@@ -379,7 +526,11 @@ export default function ShopBrowse({ products, categories, badges, settings, cat
                 </p>
               )
             ) : (
-              <ul className="shop-grid fx-grid" style={{ '--fx-col': '158px', '--fx-gap': '12px' }}>
+              // --fx-col lives in the style block below, NOT inline. An inline
+              // custom property is still an inline declaration, so the desktop
+              // rule that shrinks these cards could never have reached it —
+              // the exact trap test/inlineStyleTraps.test.js exists to catch.
+              <ul className="shop-grid fx-grid">
                 {shown.map((p) => (
                   <li key={p.id}>
                     <ProductCard
@@ -442,39 +593,215 @@ export default function ShopBrowse({ products, categories, badges, settings, cat
         .shop-kicker__rule { display: block; flex: none; width: 24px; height: 1px; background: ${S.gold}; opacity: 0.55; }
 
         .shop-cats { padding: 30px 0 0; }
-        .shop-cat-grid { list-style: none; margin: 16px 0 0; padding: 0; }
-        .shop-cat {
+
+        /* ── the plates ──
+           Under 1024 this list IS a scroll port: a strip of fixed-width
+           squares that runs off the edge of the screen. min-width on the port
+           is inherited from .fx-container (0), which is what lets it scroll
+           instead of widening the page. */
+        .shop-plates {
+          list-style: none;
+          margin: 14px auto 0;
           display: flex;
-          align-items: center;
           gap: 10px;
-          padding: 10px;
-          background: ${S.paper};
-          border: 1px solid ${S.border};
-          text-decoration: none;
-          transition: border-color 0.25s ease, background 0.25s ease;
+          overflow-x: auto;
+          overscroll-behavior-x: contain;
+          -webkit-overflow-scrolling: touch;
+          scroll-snap-type: x proximity;
+          /* The snapport otherwise starts at the scroll box's PADDING EDGE,
+             so the browser snap-scrolls plate 01 to x=0 on load and eats the
+             gutter: the strip sat a full gutter left of the heading above it,
+             with no scrolling and nothing in the CSS to explain it. */
+          scroll-padding-inline-start: max(var(--fx-pad-x), var(--fx-safe-l));
+          scrollbar-width: none;
         }
-        .shop-cat:hover { border-color: ${S.borderLift}; background: ${S.paper2}; }
-        .shop-cat__art {
-          flex: none;
+        .shop-plates::-webkit-scrollbar { display: none; }
+        .shop-plates > li { flex: 0 0 auto; scroll-snap-align: start; min-width: 0; }
+
+        .plate {
+          position: relative;
+          box-sizing: border-box;
+          display: flex;
+          flex-direction: column;
+          width: 152px;
+          aspect-ratio: 1 / 1;
+          padding: 15px;
+          overflow: hidden;
+          text-decoration: none;
+          background: linear-gradient(158deg, #FCF8F0 0%, #F2E9D7 55%, #E9DECA 100%);
+          border: 1px solid #DED4C1;
+          transition: border-color 0.25s ease, box-shadow 0.3s ease;
+        }
+        .plate:hover { border-color: ${S.borderLift}; box-shadow: ${SHADOW.cardHover}; }
+        /* The double rule is a real element, not .plate::before, because the
+           photograph has to paint UNDER it: a parent's ::before is painted as
+           its first child, which would put the rule behind the image. This
+           span sits after the image in the markup, so it lands on top. */
+        .plate__frame {
+          position: absolute;
+          inset: 7px;
+          border: 1px solid rgba(169, 138, 78, 0.32);
+          pointer-events: none;
+          transition: border-color 0.25s ease;
+        }
+        .plate__frame::after {
+          content: "";
+          position: absolute;
+          inset: 3px;
+          border: 1px solid rgba(169, 138, 78, 0.11);
+        }
+        .plate:hover .plate__frame { border-color: rgba(169, 138, 78, 0.6); }
+        .plate__img {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          object-position: center 42%;
+          transition: transform 0.6s cubic-bezier(0.2, 0.7, 0.3, 1);
+        }
+        .plate:hover .plate__img { transform: scale(1.06); }
+        .plate__scrim {
+          position: absolute;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          height: 66%;
+          background: linear-gradient(180deg, rgba(20, 18, 15, 0) 0%, rgba(20, 18, 15, 0.55) 62%, rgba(20, 18, 15, 0.8) 100%);
+          pointer-events: none;
+        }
+        .plate__ix {
+          position: relative;
+          font-family: ${ST.label};
+          font-size: 7.5px;
+          letter-spacing: 0.24em;
+          color: #B49A63;
+        }
+        .plate__art {
+          position: relative;
+          /* min-height: 0 is what lets the DRAWING give way when a long shelf
+             name wraps. Without it the flex item floors at the svg's own
+             height, the column grows past the square, and overflow:hidden
+             cuts the count off the bottom — which is what every plate did at
+             1024 before this line. */
+          flex: 1 1 auto;
+          min-height: 0;
           display: flex;
           align-items: center;
           justify-content: center;
-          width: 36px;
-          height: 36px;
-          background: ${S.paper2};
+          padding: 2px 0 6px;
         }
-        .shop-cat__art svg { width: 58%; }
-        .shop-cat__text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-        .shop-cat__name {
+        .plate__art svg {
+          width: 58%;
+          max-width: 88px;
+          max-height: 100%;
+          transition: transform 0.3s ease;
+        }
+        .plate:hover .plate__art svg { transform: scale(1.07); }
+        .plate__rule {
+          position: relative;
+          display: block;
+          height: 1px;
+          margin-bottom: 6px;
+          background: rgba(169, 138, 78, 0.45);
+          transition: background 0.25s ease;
+        }
+        .plate:hover .plate__rule { background: ${S.gold}; }
+        /* Two lines, hard. An admin can name a shelf anything, and a third
+           line has nowhere to go inside a square. */
+        .plate__name {
+          position: relative;
           font-family: ${ST.display};
           font-size: 15px;
-          line-height: 1.2;
+          line-height: 1.14;
           color: ${S.ink};
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
           overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
         }
-        .shop-cat__count { font-size: 9.5px; letter-spacing: 0.1em; color: ${S.inkSoft}; opacity: 0.8; }
+        .plate__count {
+          position: relative;
+          display: block;
+          margin-top: 3px;
+          font-family: ${ST.label};
+          font-size: 7px;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+          color: ${S.goldInk};
+        }
+        /* The photographed face. Same frame, same places, inverted ink. */
+        .plate--photo { background: ${S.paper3}; border-color: #C9BCA4; }
+        .plate--photo .plate__frame { border-color: rgba(246, 242, 233, 0.32); }
+        .plate--photo .plate__frame::after { border-color: rgba(246, 242, 233, 0.12); }
+        .plate--photo:hover .plate__frame { border-color: rgba(246, 242, 233, 0.6); }
+        .plate--photo .plate__ix { color: rgba(246, 242, 233, 0.7); }
+        .plate--photo .plate__rule { background: rgba(216, 190, 134, 0.75); }
+        .plate--photo:hover .plate__rule { background: #D8BE86; }
+        .plate--photo .plate__name { color: ${S.ivory}; }
+        .plate--photo .plate__count { color: #DCC391; }
+
+        /* ── the shelf index ── */
+        .shop-index { margin-top: 26px; border-top: 1px solid ${S.border}; border-bottom: 1px solid ${S.border}; }
+        .shop-index__list {
+          list-style: none;
+          margin: 0 auto;
+          display: flex;
+          align-items: center;
+          overflow-x: auto;
+          overscroll-behavior-x: contain;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: none;
+        }
+        .shop-index__list::-webkit-scrollbar { display: none; }
+        .shop-index__list > li { flex: 0 0 auto; position: relative; }
+        /* A short hairline between entries, not a full-height divider — a
+           border-left on the item would draw the whole 48px. */
+        .shop-index__list > li + li::before {
+          content: "";
+          position: absolute;
+          left: 0;
+          top: 50%;
+          width: 1px;
+          height: 17px;
+          margin-top: -8px;
+          background: ${S.border};
+        }
+        .shelf {
+          position: relative;
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+          /* 48, not 34: this is the only navigation on a category page and it
+             is used with a thumb. */
+          min-height: 48px;
+          padding: 0 14px;
+          white-space: nowrap;
+          text-decoration: none;
+        }
+        .shelf__mark { flex: none; display: flex; width: 16px; height: 16px; }
+        .shelf__mark svg { width: 100%; height: 100%; }
+        .shelf__name { font-family: ${ST.display}; font-size: 15px; color: ${S.inkSoft}; }
+        .shelf__count {
+          align-self: flex-start;
+          margin-top: 13px;
+          font-family: ${ST.label};
+          font-size: 7.5px;
+          letter-spacing: 0.14em;
+          color: ${S.gold};
+        }
+        .shelf:hover .shelf__name { color: ${S.ink}; }
+        .shelf--on .shelf__name { color: ${S.ink}; }
+        .shelf--on .shelf__count { color: ${S.goldInk}; }
+        .shelf--on::after {
+          content: "";
+          position: absolute;
+          left: 14px;
+          right: 14px;
+          bottom: 0;
+          height: 2px;
+          background: ${S.gold};
+        }
 
         .shop-body { padding: 26px 0 60px; }
         .shop-split { display: block; }
@@ -575,8 +902,17 @@ export default function ShopBrowse({ products, categories, badges, settings, cat
         }
         .sf-count { flex: none; font-size: 11px; color: ${S.inkSoft}; opacity: 0.7; }
 
-        /* ── the grid ── */
-        .shop-grid { list-style: none; margin: 16px 0 0; padding: 0; }
+        /* ── the grid ──
+           --fx-col is declared HERE and never inline, so the desktop step
+           below can actually reach it. Two cards across a 390px phone at
+           150px, unchanged; the 1024 rule is what shrinks the desktop card. */
+        .shop-grid {
+          list-style: none;
+          margin: 16px 0 0;
+          padding: 0;
+          --fx-col: 150px;
+          --fx-gap: 12px;
+        }
         .shop-empty { margin: 26px 0 0; font-size: 14px; color: ${S.inkSoft}; }
         .shop-empty__clear {
           background: none;
@@ -698,27 +1034,60 @@ export default function ShopBrowse({ products, categories, badges, settings, cat
           .shop-kicker { font-size: 10.5px; letter-spacing: 0.34em; gap: 14px; }
           .shop-kicker__rule { width: 38px; }
           .shop-cats { padding-top: 40px; }
-          .shop-cat-grid { margin-top: 20px; }
-          .shop-cat { padding: 13px; gap: 13px; }
-          .shop-cat__art { width: 42px; height: 42px; }
-          .shop-cat__name { font-size: 17px; }
+          .shop-plates { margin-top: 18px; gap: 12px; }
+          .plate { width: 168px; padding: 17px; }
+          .plate__name { font-size: 16px; }
+          .shop-index { margin-top: 30px; }
+          .shelf { min-height: 52px; padding: 0 18px; }
+          .shelf--on::after { left: 18px; right: 18px; }
+          .shelf__name { font-size: 16px; }
+          .shelf__mark { width: 17px; height: 17px; }
+          .shelf__count { font-size: 8px; margin-top: 15px; }
 
           .shop-body { padding: 34px 0 84px; }
           .shop-split {
             display: grid;
-            grid-template-columns: 216px minmax(0, 1fr);
-            gap: 40px;
+            /* 200/32, down from 216/40: the 48px it frees is a sixth column
+               in the grid beside it. */
+            grid-template-columns: 200px minmax(0, 1fr);
+            gap: 32px;
             align-items: start;
           }
           /* The panel is always visible beside the grid at this width, so the
              button that toggles it has nothing to do. */
           .shop-aside { display: block; }
           .shop-filterbtn { display: none; }
-          .shop-grid { margin-top: 20px; }
+          .shop-grid { margin-top: 20px; --fx-col: 140px; --fx-gap: 14px; }
+        }
+
+        /* ── 1024 and up ──
+           The plates stop scrolling and become the row. 140px is chosen so
+           six of them fit from 1024 all the way up: at 1024 the container
+           offers ~943px, which is 6 x 143 + 5 gaps, and at 1280 it offers
+           1184, which is 6 x 184. A wider minimum would drop to five and
+           leave the sixth shelf alone on a second row, which is what the old
+           band did at every desktop width. */
+        @media (min-width: 1024px) {
+          .shop-plates {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
+            gap: 16px;
+            overflow: visible;
+          }
+          /* Fluid rather than a third breakpoint: a plate is 143px wide at
+             1024 and 184px at 1280, and a name set for the wide end wraps to
+             two lines at the narrow one. The clamps land on 14px/14px of
+             padding at 1024 and 17px/18px at 1280, which keeps every shelf
+             name in this catalogue on one line at both ends. */
+          .plate { width: auto; padding: clamp(14px, 1.4vw, 19px); }
+          .plate__ix { font-size: 8px; }
+          .plate__name { font-size: clamp(14px, 1.32vw, 17px); }
+          .plate__count { font-size: 8px; letter-spacing: 0.2em; }
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .sp, .sp-img, .shop-cat { transition: none; }
+          .sp, .sp-img, .plate, .plate__img, .plate__art svg, .plate__rule, .plate__frame { transition: none; }
+          .plate:hover .plate__img, .plate:hover .plate__art svg { transform: none; }
         }
       `}</style>
     </main>

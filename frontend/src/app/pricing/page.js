@@ -5,6 +5,7 @@ import Navbar from "../components/landing/Navbar";
 import FooterSection from "../components/landing/FooterSection";
 import { usePublicPricing, formatTierPrice, tierCta, tierHref, tierGuestLine } from "../utils/usePublicPricing";
 import PlanRecommender from "./PlanRecommender";
+import { planColumns } from "./planColumns";
 /* The DISPLAY face, shared with the homepage.
    These headings used to be `var(--font-serif)`, which is ABORETO — a
    capitals-only face with a single weight. "Simple, transparent pricing"
@@ -91,6 +92,15 @@ function buildGuestCapFaq(tiers) {
 }
 
 // Comparison features are now built dynamically from the loaded plans.
+
+/* How many feature lines a CARD prints before deferring to the table.
+   Six, because the card's list is already a DELTA over the tier below it and
+   six is the point past which the tallest card starts setting a height the
+   short ones cannot fill: Premium adds nine over Classic while Enterprise+
+   adds one over Enterprise, and equal-height cards turn that gap into white
+   space. Capping shortens the tallest card, which shortens every hole in the
+   row with it. */
+const CARD_FEATURE_CAP = 6;
 
 function PricingCard({ plan }) {
   return (
@@ -215,37 +225,6 @@ function PricingCard({ plan }) {
         {plan.description}
       </p>
 
-      {/* `plan.href` is already computed by tierHref() from is_custom — the
-          property that actually means "this one is quoted by sales". The
-          fallback used to hardcode the NAME "Enterprise", so renaming that
-          plan silently pointed its call-to-action at /register and dropped
-          every enterprise lead into self-serve signup. */}
-      <Link
-        href={plan.href || "/register"}
-        className={plan.highlight ? "btn-gold" : "btn-outline"}
-        style={{
-          display: "block",
-          textAlign: "center",
-          padding: "14px 32px",
-          fontSize: "15px",
-          fontWeight: 700,
-          borderRadius: "10px",
-          marginBottom: "32px",
-          ...(plan.highlight
-            ? {}
-            : {
-                border: "1.5px solid #B8944F",
-                color: "#B8944F",
-                textDecoration: "none",
-                fontFamily: "var(--font-sans)",
-                background: "transparent",
-                transition: "all 0.3s ease",
-              }),
-        }}
-      >
-        {plan.cta}
-      </Link>
-
       {/* Divider */}
       <div
         style={{
@@ -273,8 +252,17 @@ function PricingCard({ plan }) {
         </p>
       )}
 
+      {/* flex: 1 makes this list absorb whatever height the row has spare, so
+          the call to action below it sits on the card's floor in every card of
+          a row. That is the fix for the desktop defect: the cards are equal
+          height by design (a ragged bottom under a price ladder reads as a
+          rendering fault), and the spare height used to fall BELOW the last
+          feature with nothing under it — Enterprise+ adds exactly one feature
+          over Enterprise, so its card was one line of text and ~350px of
+          white. The space is the same; it is now padding above a button
+          rather than a hole at the bottom of a card. */}
       <ul style={{ listStyle: "none", padding: 0, margin: 0, flex: 1 }}>
-        {plan.features.map((feat) => (
+        {plan.features.slice(0, CARD_FEATURE_CAP).map((feat) => (
           <li
             key={feat}
             style={{
@@ -296,6 +284,53 @@ function PricingCard({ plan }) {
           </li>
         ))}
       </ul>
+
+      {/* Nothing is hidden, only deferred: the full matrix is the comparison
+          table directly below, which is what that table is for. Without this
+          line a capped list would quietly under-sell the tier. */}
+      {plan.features.length > CARD_FEATURE_CAP && (
+        <p
+          style={{
+            fontFamily: "var(--font-sans)",
+            fontSize: "13px",
+            color: plan.highlight ? "rgba(255,255,255,0.55)" : "#5E5A52",
+            margin: "10px 0 0",
+          }}
+        >
+          + {plan.features.length - CARD_FEATURE_CAP} more — see the full comparison below
+        </p>
+      )}
+
+      {/* `plan.href` is already computed by tierHref() from is_custom — the
+          property that actually means "this one is quoted by sales". The
+          fallback used to hardcode the NAME "Enterprise", so renaming that
+          plan silently pointed its call-to-action at /register and dropped
+          every enterprise lead into self-serve signup. */}
+      <Link
+        href={plan.href || "/register"}
+        className={plan.highlight ? "btn-gold" : "btn-outline"}
+        style={{
+          display: "block",
+          textAlign: "center",
+          padding: "14px 32px",
+          fontSize: "15px",
+          fontWeight: 700,
+          borderRadius: "10px",
+          marginTop: "28px",
+          ...(plan.highlight
+            ? {}
+            : {
+                border: "1.5px solid #B8944F",
+                color: "#B8944F",
+                textDecoration: "none",
+                fontFamily: "var(--font-sans)",
+                background: "transparent",
+                transition: "all 0.3s ease",
+              }),
+        }}
+      >
+        {plan.cta}
+      </Link>
 
       <style jsx>{`
         .pricing-card:not(.pricing-card-highlight) {
@@ -605,35 +640,40 @@ export default function PricingPage() {
             </p>
           )}
           {plans.length > 0 && (
-            /* THE PLAN GRID, AND WHY A PRESET ALONE WAS NOT ENOUGH.
-               This began as a hard repeat(plans.length, 1fr) with no fallback,
-               which on a phone squeezed every tier into a sliver narrower than
-               its own padding. .fx-grid fixed that: auto-fit reflows to fewer
-               columns purely from available width, with no breakpoint to keep
-               in sync with however many tiers pricing has this month. The
-               modifier is still chosen from the live plan count and clamped to
-               [2,6], the range globals.css defines presets for.
-               What it did NOT fix, and the margin is 32 pixels. Measured at a
-               1280px viewport: this section is fx-container--4xl (max-width
-               1200) with fx-section's 48px of padding a side, so the grid's
-               content box is 1104px, and the desktop column-gap resolves to
-               32px. Four .fx-grid--4 columns need 4x260 + 3x32 = 1136. It
-               misses by 32, auto-fit drops to three, and the fourth plan lands
-               alone on a second row beside an empty two-thirds of the page —
-               on every desktop, for every four-tier price list.
-               So from 1024px up, where there is definitely room, the count is
-               stated outright instead of inferred. minmax(0, 1fr) rather than
-               1fr: a track's automatic minimum is its content's min-content
-               width, and one long feature line would otherwise push the row
-               wide again. Only up to four — five equal columns inside 1104px
-               would be ~200px each, and below that auto-fit's judgement beats
-               mine.
+            /* THE PLAN GRID — STATED AT EVERY WIDTH, NOT INFERRED.
+               Every layout on this grid is now written down, because the two
+               that were left to auto-fit were both wrong, and both were wrong
+               in a way that depended on how many tiers an admin happened to
+               have configured that month.
+               1. THE PHONE. The class used to carry an .fx-grid--N preset
+                  picked from plans.length, and each preset sets a different
+                  --fx-col: four plans give 260px, six give 160px. Inside a
+                  390px phone's 346px of content that is one card per row at
+                  four plans and TWO at six — about 155px each, where "Get
+                  Started Free" takes three lines and the word ENTERPRISE
+                  breaks across two. The screenshot harness was written with
+                  four tiers and production runs six, so nothing here had ever
+                  rendered what the organizer was looking at.
+               2. THE DESKTOP. Measured at 1280: this section is
+                  fx-container--4xl (max-width 1200) with fx-section's 48px a
+                  side, so the grid box is 1104px and the column-gap resolves
+                  to 32. Four .fx-grid--4 columns need 4x260 + 3x32 = 1136 and
+                  miss by 32, which orphaned the fourth plan on its own row.
+                  That was fixed for four tiers by stating the count from 1024
+                  up — but the fix was gated on plans.length <= 4, so at six
+                  tiers the same page laid out five across and orphaned
+                  Bespoke exactly as before.
+               planColumns() below decides the desktop row; the phone and the
+               tablet no longer get a vote. minmax(0, 1fr) rather than 1fr
+               throughout: a track's automatic minimum is its content's
+               min-content width, and one long feature line would otherwise
+               push the row wide again.
                `alignItems: start` is also gone. It left four cards of four
                different heights ending at four different points, which on a
                price list reads as a rendering fault rather than as content. */
             <div
-              className={`fx-grid fx-grid--${Math.min(Math.max(plans.length, 2), 6)}${plans.length <= 4 ? " pricing-plan-grid" : ""}`}
-              style={{ "--plan-count": plans.length }}
+              className="fx-grid pricing-plan-grid"
+              style={{ "--plan-cols": planColumns(plans.length) }}
             >
               {plans.map((plan) => (
                 <PricingCard key={plan.name} plan={plan} />
@@ -955,12 +995,30 @@ export default function PricingPage() {
       <FooterSection />
 
       <style jsx>{`
-        /* See the note at the grid: auto-fit misses four columns by 32px in
-           this container, so the count is stated from 1024 up. Below that,
-           .fx-grid's own auto-fit does the reflowing. */
+        /* THE PLAN ROW AT EVERY WIDTH — see the long note at the grid itself.
+           .fx-grid's auto-fit is overridden here from the phone up, because
+           what it chose depended on the .fx-grid--N preset, which depended on
+           how many tiers pricing has this month. A price list is the one grid
+           on this site whose column count must not be an accident.
+
+           ONE card per row on a phone. Two ~155px columns is what six tiers
+           produced, and at that width the plan NAME breaks mid-word. Full
+           width also puts every feature line and both call-to-action labels on
+           a single line, which no amount of type-shrinking would have achieved
+           inside half a 390px screen. */
+        .pricing-plan-grid {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        /* 640: two cards are 300px+ here, wider than the 260px the card was
+           drawn against. */
+        @media (min-width: 640px) {
+          .pricing-plan-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+        }
         @media (min-width: 1024px) {
           .pricing-plan-grid {
-            grid-template-columns: repeat(var(--plan-count), minmax(0, 1fr));
+            grid-template-columns: repeat(var(--plan-cols), minmax(0, 1fr));
           }
         }
 

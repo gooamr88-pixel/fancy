@@ -5,7 +5,8 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
-  SHOP_PATH, SHOP_LABEL, formatPrice, isShopLive, buildWhatsappUrl, recordShopInquiry, coverImage,
+  SHOP_PATH, SHOP_LABEL, categoryPath, productPath,
+  formatPrice, isShopLive, buildWhatsappUrl, recordShopInquiry, coverImage,
 } from '../../../utils/shopLinks';
 import { C, PI_BASE_CSS, WhatsappGlyph } from '../../piStyles';
 
@@ -33,6 +34,17 @@ import { C, PI_BASE_CSS, WhatsappGlyph } from '../../piStyles';
  * "Order on WhatsApp" button once rendered as a bare blue link here.
  */
 
+/** One chevron, drawn once, so the gallery's arrows and the lightbox's cannot
+ *  drift into two different shapes. */
+function GalleryChevron({ dir }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      <path d={dir === 'prev' ? 'M15 5l-7 7 7 7' : 'M9 5l7 7-7 7'} />
+    </svg>
+  );
+}
+
 export default function ProductClient({ product, related = [], settings = {} }) {
   const images = product.images || [];
   const [active, setActive] = useState(0);
@@ -49,24 +61,54 @@ export default function ProductClient({ product, related = [], settings = {} }) 
   // not window.location — see the note on SITE_URL in utils/shopLinks.js.
   const waUrl = live ? buildWhatsappUrl({ settings, product }) : null;
 
-  // Escape closes the lightbox. Bound on document because the overlay is not
-  // guaranteed to hold focus, and a full-screen image with no visible way out
-  // is a trap on a keyboard.
+  /* Step through the gallery, wrapping at both ends.
+   *
+   * Wrapping rather than clamping because this is a handful of photographs of
+   * one object, not a paginated list: someone at the last image who wants the
+   * first one should not have to work out which arrow is still live. It also
+   * means neither arrow is ever disabled, so neither has a dead state to
+   * explain. */
+  const go = (dir) => {
+    if (images.length < 2) return;
+    setActive((i) => (i + dir + images.length) % images.length);
+  };
+
+  // Escape closes the lightbox; the arrow keys walk it. Bound on document
+  // because the overlay is not guaranteed to hold focus, and a full-screen
+  // image with no visible way out is a trap on a keyboard.
   useEffect(() => {
     if (!lightbox) return undefined;
-    const onKey = (e) => { if (e.key === 'Escape') setLightbox(false); };
+    const onKey = (e) => {
+      if (e.key === 'Escape') setLightbox(false);
+      if (e.key === 'ArrowRight') go(1);
+      if (e.key === 'ArrowLeft') go(-1);
+    };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [lightbox]);
+    // `go` is stable enough here: it only closes over images.length.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lightbox, images.length]);
 
   const onOrder = () => recordShopInquiry(product.id, 'whatsapp');
 
   return (
     <main className="pi-main pi-detail">
       <div className="fx-container fx-container--4xl fx-gutter">
+        {/* Shop / <shelf> / <piece>. The shelf was missing, so the URL said
+            /shop/wedding-cards/… while the trail said the piece hung off the
+            shop root: from a product there was no way back to the shelf you
+            were browsing, only out to the whole catalogue. */}
         <nav className="pi-crumbs" aria-label="Breadcrumb">
           <Link href={SHOP_PATH} className="pi-crumb">{SHOP_LABEL}</Link>
           <span className="pi-crumb-sep" aria-hidden="true">/</span>
+          {product.category?.slug && (
+            <>
+              <Link href={categoryPath(product.category.slug)} className="pi-crumb">
+                {product.category.name}
+              </Link>
+              <span className="pi-crumb-sep" aria-hidden="true">/</span>
+            </>
+          )}
           <span className="pi-crumb pi-crumb--now">{product.title}</span>
         </nav>
 
@@ -82,6 +124,22 @@ export default function ProductClient({ product, related = [], settings = {} }) 
                 </button>
               ) : (
                 <div className="pi-gallery-noimg" aria-hidden="true"><span>Fancy</span></div>
+              )}
+
+              {/* SIBLINGS of the zoom button, not children of it. Nested,
+                  every arrow click would also bubble into "open the
+                  lightbox" — you would step one image forward and get a
+                  full-screen overlay you did not ask for. */}
+              {images.length > 1 && (
+                <>
+                  <button type="button" className="pi-gnav pi-gnav--prev" onClick={() => go(-1)} aria-label="Previous image">
+                    <GalleryChevron dir="prev" />
+                  </button>
+                  <button type="button" className="pi-gnav pi-gnav--next" onClick={() => go(1)} aria-label="Next image">
+                    <GalleryChevron dir="next" />
+                  </button>
+                  <span className="pi-gcount" aria-hidden="true">{active + 1} / {images.length}</span>
+                </>
               )}
 
               {(product.badges?.length > 0 || product.is_sold_out) && (
@@ -227,8 +285,21 @@ export default function ProductClient({ product, related = [], settings = {} }) 
               {related.map((r) => {
                 const cover = coverImage(r);
                 const rPrice = formatPrice(r.price_cents, r.currency);
+                /* A piece lives at /shop/<category>/<slug>. This built
+                   /shop/<slug> — ONE segment — which the router hands to the
+                   category route, where an unknown category slug is a 404.
+                   Every "You may also like" link on the shop was dead.
+
+                   Related rows carry category_id and no slug, so the shelf
+                   name is only known for pieces from THIS shelf (which is
+                   most of them — related is same-category-first). Anything
+                   else goes out under "all" and the product route redirects
+                   it to its real category, which is a hop rather than a wall. */
+                const relCategory = r.category_id && r.category_id === product.category?.id
+                  ? product.category.slug
+                  : null;
                 return (
-                  <Link key={r.id} href={`${SHOP_PATH}/${r.slug}`} className="pi-rel">
+                  <Link key={r.id} href={productPath(relCategory, r.slug)} className="pi-rel">
                     <div className="pi-rel-art">
                       {cover ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -277,6 +348,32 @@ export default function ProductClient({ product, related = [], settings = {} }) 
           onClick={() => setLightbox(false)}
         >
           <button type="button" className="pi-lightbox-close" onClick={() => setLightbox(false)} aria-label="Close">×</button>
+
+          {/* stopPropagation on both: the overlay itself closes on click, so
+              without it every attempt to reach the next image would shut the
+              lightbox instead — the arrows would look present and broken. */}
+          {images.length > 1 && (
+            <>
+              <button
+                type="button"
+                className="pi-lnav pi-lnav--prev"
+                onClick={(e) => { e.stopPropagation(); go(-1); }}
+                aria-label="Previous image"
+              >
+                <GalleryChevron dir="prev" />
+              </button>
+              <button
+                type="button"
+                className="pi-lnav pi-lnav--next"
+                onClick={(e) => { e.stopPropagation(); go(1); }}
+                aria-label="Next image"
+              >
+                <GalleryChevron dir="next" />
+              </button>
+              <span className="pi-lcount" aria-hidden="true">{active + 1} / {images.length}</span>
+            </>
+          )}
+
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={images[active].url} alt={images[active].alt || product.title} className="pi-lightbox-img" />
         </div>
@@ -311,6 +408,34 @@ function ProductStyles() {
       .pi-gallery-main { position: relative; aspect-ratio: 4 / 5; border: 1px solid ${C.border}; border-radius: 3px; overflow: hidden; background: ${C.ivory}; }
       .pi-gallery-zoom { display: block; width: 100%; height: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; }
       .pi-gallery-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+      /* ── Stepping through a piece's photographs ──
+         There was no way to do it but the thumbnail strip, and once the
+         lightbox was open there was no way at all: it opened on one image and
+         only closed. */
+      .pi-gnav {
+        position: absolute; top: 50%; transform: translateY(-50%);
+        display: inline-flex; align-items: center; justify-content: center;
+        /* 44: this sits over a photograph and is used with a thumb. */
+        width: 44px; height: 44px; padding: 0; z-index: 2;
+        border: 1px solid rgba(25,27,30,.10); border-radius: 50%;
+        background: rgba(255,255,255,.86); color: ${C.charcoal};
+        backdrop-filter: blur(3px);
+        cursor: pointer; transition: background .2s ease, color .2s ease;
+      }
+      .pi-gnav svg { width: 20px; height: 20px; }
+      .pi-gnav:hover { background: ${C.charcoal}; color: ${C.ivory}; }
+      .pi-gnav--prev { inset-inline-start: 10px; }
+      .pi-gnav--next { inset-inline-end: 10px; }
+      /* The chevrons are direction-of-travel, not direction-of-text: in RTL
+         the strip still runs the way the arrows point. */
+      [dir="rtl"] .pi-gnav svg { transform: scaleX(-1); }
+      .pi-gcount {
+        position: absolute; bottom: 10px; inset-inline-end: 10px; z-index: 2;
+        padding: 3px 9px; border-radius: 100px;
+        background: rgba(25,27,30,.62); color: ${C.ivory};
+        font-family: var(--font-sans); font-size: 11px; letter-spacing: .04em;
+      }
       .pi-gallery-noimg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--font-script); font-size: 46px; color: ${C.goldSoft}; background: linear-gradient(135deg, ${C.ivory}, #EFE7D8); }
 
       .pi-thumbs { display: flex; gap: 10px; margin-top: 12px; min-width: 0; }
@@ -383,6 +508,30 @@ function ProductStyles() {
       .pi-lightbox-img { max-width: 100%; max-height: 100%; object-fit: contain; }
       .pi-lightbox-close { position: absolute; top: 16px; right: 20px; width: 44px; height: 44px; border: 0; border-radius: 50%; background: rgba(248,244,236,.12); color: ${C.ivory}; font-size: 26px; line-height: 1; cursor: pointer; }
       .pi-lightbox-close:hover { background: rgba(248,244,236,.22); }
+      .pi-lnav {
+        position: absolute; top: 50%; transform: translateY(-50%);
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 52px; height: 52px; padding: 0; z-index: 2;
+        border: 0; border-radius: 50%;
+        background: rgba(248,244,236,.12); color: ${C.ivory};
+        cursor: pointer; transition: background .2s ease;
+      }
+      .pi-lnav svg { width: 24px; height: 24px; }
+      .pi-lnav:hover { background: rgba(248,244,236,.24); }
+      .pi-lnav--prev { inset-inline-start: 16px; }
+      .pi-lnav--next { inset-inline-end: 16px; }
+      [dir="rtl"] .pi-lnav svg { transform: scaleX(-1); }
+      .pi-lcount {
+        position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%);
+        color: rgba(248,244,236,.72); font-family: var(--font-sans); font-size: 12px;
+        letter-spacing: .06em;
+      }
+      /* Under ~560px a 52px control each side eats a third of the image. */
+      @media (max-width: 639.98px) {
+        .pi-lnav { width: 44px; height: 44px; }
+        .pi-lnav--prev { inset-inline-start: 6px; }
+        .pi-lnav--next { inset-inline-end: 6px; }
+      }
     `}</style>
   );
 }

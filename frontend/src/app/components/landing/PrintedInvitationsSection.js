@@ -1,7 +1,8 @@
 import React from 'react';
 import Link from 'next/link';
-import { SHOP_PATH, priceLine, coverImage } from '../../utils/shopLinks';
+import { SHOP_PATH, productPath, priceLine, coverImage } from '../../utils/shopLinks';
 import { C as TOKENS } from './landingTokens';
+import ShopRail from './ShopRail';
 
 /**
  * PRINTED INVITATIONS — the homepage teaser.
@@ -51,11 +52,34 @@ export default async function PrintedInvitationsSection() {
 
   // Featured first, then the admin's own order — the same "make this one show
   // first" control the catalogue uses, not a second ranking invented here.
+  //
+  // TWELVE, up from three. Three was a third of a shelf that also sells
+  // screens, scanners, signage and envelopes, shown to someone with no way of
+  // knowing there was more; the rail below fits twelve in the same band and
+  // says so by moving. Still a cap, not the whole catalogue — this is a
+  // teaser, and /shop is one tap away.
   const all = data.products || [];
+  const byCategory = new Map((data.categories || []).map((c) => [c.id, c.slug]));
+
   const picks = [...all]
     .sort((a, b) => (Number(b.is_featured) - Number(a.is_featured))
       || ((a.sort_order ?? 0) - (b.sort_order ?? 0)))
-    .slice(0, 3);
+    .slice(0, 12)
+    .map((p) => ({
+      id: p.id,
+      title: p.title,
+      price: priceLine(p),
+      cover: coverImage(p),
+      badge: (p.badges || [])[0] || null,
+      /* A piece lives at /shop/<category>/<slug>. This band linked
+         /shop/<slug> — ONE segment — which the router hands to the category
+         route, where an unknown category slug is a 404. Every card in the
+         homepage's shop teaser was a dead link, the same defect the product
+         page's "You may also like" carried. The category slug is in the same
+         payload; productPath falls back to "all", which the product route
+         redirects, so an uncategorised piece is a hop rather than a wall. */
+      href: productPath(byCategory.get(p.category_id), p.slug),
+    }));
 
   if (picks.length === 0) return null;
 
@@ -77,36 +101,16 @@ export default async function PrintedInvitationsSection() {
           </p>
         </div>
 
-        <div className="fx-grid fx-grid--3 pis-grid">
-          {picks.map((p) => {
-            const cover = coverImage(p);
-            return (
-              <Link key={p.id} href={`${SHOP_PATH}/${p.slug}`} className="pis-card">
-                <div className="pis-art">
-                  {cover ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={cover.url}
-                      alt={cover.alt || p.title}
-                      className="pis-img"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <div className="pis-noimg" aria-hidden="true"><span>Fancy</span></div>
-                  )}
-                  {(p.badges || []).slice(0, 1).map((b) => (
-                    <span key={b.id} className="pis-badge" style={{ background: b.bg_color, color: b.text_color }}>
-                      {b.label}
-                    </span>
-                  ))}
-                </div>
-                <h3 className="pis-name">{p.title}</h3>
-                <span className="pis-price">{priceLine(p)}</span>
-              </Link>
-            );
-          })}
-        </div>
+      </div>
 
+      {/* OUTSIDE the container on purpose: the rail is its own scroll port and
+          carries the gutter itself, so the first card lines up with the
+          heading while the rest run off the edge of the screen. That edge is
+          the whole affordance — a strip that stops neatly at the margin looks
+          like a grid that happens to be cut off. */}
+      <ShopRail items={picks} />
+
+      <div className="fx-container fx-container--4xl fx-gutter">
         <div className="pis-cta">
           <Link href={SHOP_PATH} className="pis-btn">See the printed collection</Link>
         </div>
@@ -137,9 +141,61 @@ export default async function PrintedInvitationsSection() {
         }
         .pis-lede { font-size: 15.5px; line-height: 1.8; color: ${C.inkSoft}; margin: 0; }
 
-        .pis-grid { margin-bottom: 30px; }
+        /* ── THE RAIL ──
+           A scroll port rather than a grid, because the band now carries up to
+           twelve pieces and a grid of twelve is a page, not a teaser.
+           position: relative is what the arrows are positioned against. */
+        .pis-railwrap { position: relative; margin-bottom: 30px; }
+        .pis-rail {
+          display: flex;
+          gap: 14px;
+          margin: 0;
+          list-style: none;
+          overflow-x: auto;
+          overscroll-behavior-x: contain;
+          -webkit-overflow-scrolling: touch;
+          scroll-snap-type: x proximity;
+          /* The gutter is padding on the SCROLL PORT, so the strip starts in
+             line with the heading and still reaches the screen edge. And
+             scroll-padding, or snapping would align card one to the padding
+             EDGE on load and silently eat that gutter. */
+          padding-inline: max(var(--fx-pad-x), var(--fx-safe-l));
+          padding-block: 4px;
+          scroll-padding-inline-start: max(var(--fx-pad-x), var(--fx-safe-l));
+          scrollbar-width: none;
+          max-width: var(--fx-w-4xl);
+          margin-inline: auto;
+        }
+        .pis-rail::-webkit-scrollbar { display: none; }
+        .pis-slide { flex: 0 0 auto; width: 190px; min-width: 0; scroll-snap-align: start; }
+
+        /* A cluster above the strip's right edge — in the flow, covering
+           nothing, so it works at every width. Same gutter and measure as the
+           rail below it, or the buttons would not line up with the last card. */
+        .pis-arrows {
+          display: flex;
+          justify-content: flex-end;
+          gap: 8px;
+          margin: 0 auto 12px;
+          max-width: var(--fx-w-4xl);
+          padding-inline: max(var(--fx-pad-x), var(--fx-safe-l));
+        }
+        .pis-arrow {
+          display: inline-flex; align-items: center; justify-content: center;
+          width: 44px; height: 44px; padding: 0;
+          border: 1px solid ${C.border}; border-radius: 999px;
+          background: ${C.paper}; color: ${C.ink}; cursor: pointer;
+          transition: background .25s ease, color .25s ease, opacity .25s ease;
+        }
+        .pis-arrow svg { width: 20px; height: 20px; }
+        .pis-arrow:hover:not(:disabled) { background: ${C.ink}; color: ${C.paper}; }
+        /* Dimmed, not removed: a lone arrow that appears and disappears as you
+           scroll reads as a glitch, and 0.3 still says "this way is closed". */
+        .pis-arrow:disabled { opacity: 0.3; cursor: default; }
+
         .pis-card { display: block; text-decoration: none; min-width: 0; }
         .pis-art {
+          display: block;
           position: relative; aspect-ratio: 4 / 5; overflow: hidden;
           border: 1px solid ${C.border}; border-radius: 3px; background: ${C.paper}; margin-bottom: 14px;
         }
@@ -147,16 +203,22 @@ export default async function PrintedInvitationsSection() {
         .pis-card:hover .pis-img { transform: scale(1.05); }
         .pis-noimg {
           position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-          font-family: var(--font-script); font-size: 38px; color: ${C.gold};
+          font-family: var(--font-script); font-size: 30px; color: ${C.gold};
           background: linear-gradient(135deg, ${C.paper}, #EFE7D8);
         }
         .pis-badge {
           position: absolute; top: 12px; left: 12px; padding: 5px 10px; border-radius: 2px;
           font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
         }
-        .pis-name { font-family: var(--font-cormorant), Georgia, serif; font-size: 19px; color: ${C.ink}; margin: 0 0 4px; letter-spacing: -.01em; }
+        /* Two lines with a floor, so a long piece name cannot make its card
+           taller than the one beside it and knock the prices out of line. */
+        .pis-name {
+          display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+          font-family: var(--font-cormorant), Georgia, serif; font-size: 17px; line-height: 1.22;
+          color: ${C.ink}; margin: 0 0 4px; letter-spacing: -.01em; min-height: 41px;
+        }
         .pis-card:hover .pis-name { color: ${C.goldCta}; }
-        .pis-price { font-size: 13.5px; color: ${C.inkSoft}; }
+        .pis-price { display: block; font-size: 13px; color: ${C.inkSoft}; }
 
         .pis-cta { text-align: center; }
         .pis-btn {
@@ -168,6 +230,20 @@ export default async function PrintedInvitationsSection() {
           transition: all .25s cubic-bezier(.16,1,.3,1);
         }
         .pis-btn:hover { background: ${C.ink}; color: ${C.paper}; }
+
+        /* Arrows from 1024 up only. Below that the rail is swiped, and a pair
+           of floating buttons over a 190px card is chrome on top of the thing
+           it is meant to reveal. */
+        @media (min-width: 1024px) {
+          .pis-slide { width: 224px; }
+          .pis-name { font-size: 18px; min-height: 44px; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .pis-img, .pis-arrow, .pis-btn { transition: none; }
+          .pis-card:hover .pis-img { transform: none; }
+          .pis-rail { scroll-behavior: auto; }
+        }
       `}</style>
     </section>
   );

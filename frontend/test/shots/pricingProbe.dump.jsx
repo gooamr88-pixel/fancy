@@ -80,7 +80,7 @@ const SIGNATURE = [...ESSENTIAL, F.customFields, F.csvIn, F.csvOut, F.seating, F
 const ENTERPRISE = [...SIGNATURE, F.qr, F.manualCheckin, F.checkinApp, F.excel, F.watermark, F.analyticsPro, F.priority];
 const BESPOKE = [...ENTERPRISE, F.whiteLabel, F.dedicated, F.integrations, F.api, F.sso, F.security];
 
-const TIERS = [
+const FOUR = [
   { name: 'Essential', price_cents: 9900, currency: 'USD', max_guests: 100, is_custom: false, description: 'For an intimate celebration', features: ESSENTIAL },
   /* `recommended`, not `popular` — that is the field the page reads to
      highlight a card and print its "Most Popular" badge. Mocking the wrong
@@ -89,6 +89,31 @@ const TIERS = [
   { name: 'Enterprise', price_cents: 59900, currency: 'USD', max_guests: 1000, is_custom: false, description: 'For a large or multi-day event', features: ENTERPRISE },
   { name: 'Bespoke', price_cents: null, currency: 'USD', max_guests: null, is_custom: true, description: 'Built around your event', features: BESPOKE },
 ];
+
+/* SIX TIERS, WHICH IS WHAT THE LIVE SITE ACTUALLY HAS.
+   `pricing_tiers` is a JSONB column an admin edits — the schema seeds three,
+   this probe was written with four, and production is running six (Free and
+   Classic are the first two on fancyrsvp.com today). That difference is not
+   cosmetic: the phone layout is derived from the plan COUNT, because the grid
+   picks an .fx-grid--N preset from plans.length and each preset carries a
+   different --fx-col. Four plans give --fx-col 260px and one card per row on a
+   phone; six give 160px and TWO, at about 155px each, where every label wraps
+   to three lines.
+   So the four-tier probe could not have shown the defect a six-tier shop was
+   looking at, and every pricing screenshot ever taken here was of a page the
+   organizer does not have. Both counts are staged from here on. */
+const SIX = [
+  { name: 'Free', price_cents: 0, currency: 'USD', max_guests: 100, is_custom: false, description: 'Try it on a small list', features: ESSENTIAL.slice(0, 3) },
+  { name: 'Classic', price_cents: 7500, currency: 'USD', max_guests: 150, is_custom: false, description: 'For an intimate celebration', features: ESSENTIAL },
+  { name: 'Premium', price_cents: 14900, currency: 'USD', max_guests: 300, is_custom: false, recommended: true, description: 'The one most couples choose', features: SIGNATURE },
+  { name: 'Enterprise', price_cents: 29900, currency: 'USD', max_guests: 1000, is_custom: false, description: 'For a large or multi-day event', features: ENTERPRISE },
+  { name: 'Enterprise+', price_cents: 59900, currency: 'USD', max_guests: 3000, is_custom: false, description: 'Several thousand guests', features: ENTERPRISE },
+  { name: 'Bespoke', price_cents: null, currency: 'USD', max_guests: null, is_custom: true, description: 'Built around your event', features: BESPOKE },
+];
+
+/* Reassigned between renders; the mock reads the binding when the hook is
+   called, so staging a different count needs no second mock. */
+let TIERS = FOUR;
 
 vi.mock('../../src/app/utils/usePublicPricing', async (importOriginal) => {
   const actual = await importOriginal();
@@ -161,15 +186,22 @@ const FX = `
 
 describe('pricing probe', () => {
   it('stages the page and a frame per width', async () => {
-    let r;
-    await act(async () => { r = render(<PricingPage />); });
-    await act(async () => { await new Promise((res) => setTimeout(res, 80)); });
-
     fs.mkdirSync(OUT, { recursive: true });
-    fs.writeFileSync(path.join(OUT, 'page.html'),
-      `<!doctype html><html lang="en"><head><meta charset="utf-8">
+
+    const stage = async (file, tiers) => {
+      TIERS = tiers;
+      let r;
+      await act(async () => { r = render(<PricingPage />); });
+      await act(async () => { await new Promise((res) => setTimeout(res, 80)); });
+      fs.writeFileSync(path.join(OUT, file),
+        `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <style>${fontFaces()}</style><style>${REAL}</style><style>${FX}</style></head>
 <body>${r.container.innerHTML}</body></html>`, 'utf8');
+      r.unmount();
+    };
+
+    await stage('page.html', FOUR);
+    await stage('page-6.html', SIX);
 
     /* Widths are shot through an IFRAME. Chrome on Windows will not open a
        window under ~500px, so --window-size=320 lays out at 500 and crops —
@@ -178,11 +210,13 @@ describe('pricing probe', () => {
        page shipped broken at that width: 390 and 768 both looked fine and
        nothing ever laid out in between them. 430 covers the 15/16 Plus. */
     for (const w of [320, 390, 430, 440, 768, 1280]) {
-      fs.writeFileSync(path.join(OUT, `frame-${w}.html`),
-        `<!doctype html><html><head><meta charset="utf-8"><style>
+      for (const [suffix, page] of [['', 'page.html'], ['-6', 'page-6.html']]) {
+        fs.writeFileSync(path.join(OUT, `frame-${w}${suffix}.html`),
+          `<!doctype html><html><head><meta charset="utf-8"><style>
   html,body{margin:0;background:#666;}
   iframe{display:block;width:${w}px;height:5200px;border:0;background:#fff;}
-</style></head><body><iframe src="page.html" scrolling="no"></iframe></body></html>`, 'utf8');
+</style></head><body><iframe src="${page}" scrolling="no"></iframe></body></html>`, 'utf8');
+      }
     }
 
     // The measuring rig: reports anything crossing its viewport, plus the
@@ -228,6 +262,7 @@ document.getElementById('f').addEventListener('load', function () {
 </script></body></html>`, 'utf8');
 
     // eslint-disable-next-line no-console
-    console.log('DUMP-LEN', r.container.innerHTML.length);
+    console.log('DUMP-LEN', fs.statSync(path.join(OUT, 'page.html')).size,
+      'SIX', fs.statSync(path.join(OUT, 'page-6.html')).size);
   });
 });

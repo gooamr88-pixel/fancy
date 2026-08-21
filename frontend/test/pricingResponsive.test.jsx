@@ -35,6 +35,7 @@ vi.mock('../src/app/utils/usePublicPricing', async (importOriginal) => {
 });
 
 import PricingPage from '../src/app/pricing/page';
+import { planColumns } from '../src/app/pricing/planColumns';
 
 const ROOT = process.cwd();
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
@@ -58,15 +59,91 @@ beforeAll(() => { dom = render(<PricingPage />).container.cloneNode(true); });
    the comments so a future change can tell what the number is protecting.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-describe('the plan cards form one row of equal cards', () => {
+describe('the plan row is stated, not inferred, at every width', () => {
+  /* THE DEFECT, IN THE ORGANIZER'S WORDS: "this mode of pricing page is very
+     terrible", with a photo of fancyrsvp.com on a phone.
+
+     Measured by staging the page at SIX tiers (what production runs) rather
+     than the four this harness was written with. The grid carried an
+     .fx-grid--N preset picked from plans.length, and each preset sets a
+     different --fx-col — 260px at four plans, 160px at six. In a 390px
+     phone's 346px of content that is one card per row at four and TWO at six,
+     about 155px each: "Get Started Free" took three lines and the plan name
+     ENTERPRISE broke across two as "ENTERPRI / SE".
+
+     The same count also broke the desktop. The 1024 rule that stops the last
+     plan being orphaned was gated on `plans.length <= 4`, so six tiers laid
+     out five across at 1280 and put Bespoke alone on a second row — the exact
+     bug that rule was added to fix, still live one tier count over. */
+
+  it('gives a phone one card per row, whatever the tier count is', () => {
+    expect(PAGE).toMatch(/\.pricing-plan-grid \{\s*grid-template-columns: minmax\(0, 1fr\);/);
+  });
+
+  it('does not let the plan count decide the phone layout', () => {
+    // An .fx-grid--N modifier here means the phone is once again reading a
+    // column width off however many tiers pricing has this month.
+    const grid = PAGE.slice(PAGE.indexOf('className="fx-grid') - 60, PAGE.indexOf('className="fx-grid') + 200);
+    expect(grid).not.toMatch(/fx-grid--/);
+  });
+
   it('states the column count from 1024 up instead of leaving it to auto-fit', () => {
     /* MEASURED at 1280: the grid box is 1104px and --fx-col is 260px, so
        auto-fit needs 4x260 + 3x32 = 1136px and misses by 32px — it laid out
        THREE columns and dropped the fourth plan onto a second row, below the
        fold, on the widest screen we support. */
     expect(PAGE).toMatch(/pricing-plan-grid/);
-    expect(PAGE).toMatch(/"--plan-count": plans\.length/);
-    expect(PAGE).toMatch(/@media \(min-width: 1024px\)[\s\S]{0,120}grid-template-columns: repeat\(var\(--plan-count\), minmax\(0, 1fr\)\)/);
+    expect(PAGE).toMatch(/"--plan-cols": planColumns\(plans\.length\)/);
+    expect(PAGE).toMatch(/@media \(min-width: 1024px\)[\s\S]{0,120}grid-template-columns: repeat\(var\(--plan-cols\), minmax\(0, 1fr\)\)/);
+  });
+
+  it('never orphans one plan on a row of its own, at any tier count', () => {
+    /* 1104px of grid at 1280. Six across would be 157px a card — the width
+       that broke ENTERPRISE in half on the phone — so six wraps to 3+3 rather
+       than running 5+1, which is what shipped. */
+    for (let n = 1; n <= 8; n += 1) {
+      const cols = planColumns(n);
+      const lastRow = n % cols;
+      expect(cols, `${n} tiers`).toBeGreaterThan(0);
+      expect(lastRow === 0 || lastRow > 1 || n === 1, `${n} tiers leaves ${lastRow} card alone in a row of ${cols}`).toBe(true);
+    }
+  });
+
+  it('keeps a four-tier list on one desktop row', () => {
+    // The layout the previous pass measured and fixed; six tiers must not
+    // have been paid for by regressing four.
+    expect(planColumns(4)).toBe(4);
+    expect(planColumns(3)).toBe(3);
+  });
+
+  it('closes every card with its button, so spare height is padding not a hole', () => {
+    /* MEASURED at 1280 with the six tiers production runs. The card list is a
+       DELTA over the tier below, and the deltas are wildly uneven: Premium
+       adds nine over Classic, Enterprise+ adds exactly ONE over Enterprise.
+       Equal-height cards (deliberate — a ragged bottom under a price ladder
+       reads as a rendering fault) turned that into ~350px of white under a
+       single line of text in the Enterprise+ card.
+
+       The fix is order, not height: the feature list carries flex:1 and the
+       call to action follows it, so the spare space lands ABOVE a button
+       sitting on the card's floor instead of below the last feature with
+       nothing under it. If the Link ever moves back above the <ul>, the hole
+       comes back. */
+    const card = PAGE.slice(PAGE.indexOf('function PricingCard'), PAGE.indexOf('export default function PricingPage'));
+    const list = card.indexOf('<ul style={{ listStyle: "none"');
+    const cta = card.indexOf('href={plan.href');
+    expect(list, 'the feature list is gone').toBeGreaterThan(-1);
+    expect(cta, 'the call to action is gone').toBeGreaterThan(-1);
+    expect(cta, 'the CTA is above the feature list again — the spare height goes back to the bottom')
+      .toBeGreaterThan(list);
+    expect(card).toMatch(/<ul style=\{\{ listStyle: "none", padding: 0, margin: 0, flex: 1 \}\}/);
+  });
+
+  it('caps the card list so the tallest card cannot set an unreachable height', () => {
+    expect(PAGE).toMatch(/const CARD_FEATURE_CAP = \d/);
+    expect(PAGE).toMatch(/slice\(0, CARD_FEATURE_CAP\)/);
+    // Capping without saying so would quietly under-sell a tier.
+    expect(PAGE).toMatch(/more — see the full comparison below/);
   });
 
   it('does not pin the cards to the top of their row', () => {
@@ -77,6 +154,26 @@ describe('the plan cards form one row of equal cards', () => {
        so nothing else has to change. */
     const grid = PAGE.slice(PAGE.indexOf('pricing-plan-grid') - 400, PAGE.indexOf('pricing-plan-grid') + 400);
     expect(grid).not.toMatch(/alignItems: *["']start["']/);
+  });
+});
+
+describe('the plan finder does not say the same thing twice', () => {
+  it('prints a free tier once, not as a name above an identical price', () => {
+    /* A free tier is usually NAMED "Free" and PRICED "Free". The panel
+       printed both — 24px serif above 30px serif, two near-identical lines,
+       which reads as a rendering fault rather than a name above a price. */
+    /* Asserted on the whole file rather than a byte window after the heading:
+       a window is measured in characters, so adding the comment that explains
+       the guard moved the guard out of it. */
+    expect(RECOMMENDER).toMatch(
+      /String\(formatTierPrice\(recommended\)\.price[^)]*\)[\s\S]{0,80}!==[\s\S]{0,80}String\(recommended\.name/,
+    );
+  });
+
+  it('still prints the price when it is a number', () => {
+    // The guard must be an equality check, not a blanket removal.
+    expect(RECOMMENDER).toMatch(/\{formatTierPrice\(recommended\)\.price\}/);
+    expect(RECOMMENDER).toMatch(/\{formatTierPrice\(recommended\)\.period\}/);
   });
 });
 

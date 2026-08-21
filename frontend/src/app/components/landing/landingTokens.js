@@ -140,11 +140,15 @@ export const ON_INK = {
 export const BAND_ORDER = [
   'hero:light',
   'invitations:warm',
-  'statement:light',
+  // Third, not seventh: the reader has just been shown three invitations, and
+  // "can I hold one" is the next thought rather than the one after four bands
+  // of software. It swapped places with the statement band, so the light/warm
+  // alternation below is unchanged. See the note on it in page.js.
+  'printed:light',
   'how-it-works:warm',
   'dashboard:light',
   'capabilities:warm',
-  'printed:light',
+  'statement:light',
   'proof:deep',
   'faq-cta:light',
   'footer:deep',

@@ -181,10 +181,24 @@ export default function Home() {
             that exact moment is "what else is there". */}
         <TemplatesShowcaseSection />
 
-        {/* 3 · light — one line, alone. The only band that argues rather than
-            describes, and the reader's one place to stop between the pictures
-            above and the instructions below. */}
-        <StatementSection />
+        {/* 3 · light — the printed pieces the same studio makes by hand, sold
+            over WhatsApp rather than checkout. Renders nothing until an admin
+            publishes a piece and leaves the homepage placement switched on.
+
+            MOVED UP FROM SEVENTH (2026-08-21, at the owner's direction). It
+            sat below four bands of software explanation, which put the
+            highest-value order on the page behind the longest read. Here it
+            answers the question the band above it just created: the reader has
+            been shown three invitations and is looking at them — "can I hold
+            one" is the next thought, not the seventh.
+
+            It trades places with the statement band rather than displacing
+            anything, so the light/warm alternation is untouched. The one cost:
+            with no published products this band is absent, and invitations
+            (warm) then meets how-it-works (warm) with no light band between
+            them. That is a seam on a catalogue-less install, which is the
+            state before anyone has anything to sell. */}
+        <PrintedInvitationsSection />
 
         {/* 4 · warm — what would I actually do */}
         <HowItWorksSection />
@@ -195,10 +209,10 @@ export default function Home() {
         {/* 6 · warm — what else is in it */}
         <CapabilitiesSection />
 
-        {/* 7 · light — the physical cards the same studio makes by hand, sold
-            over WhatsApp rather than checkout. Renders nothing until an admin
-            publishes a piece and leaves the homepage placement switched on. */}
-        <PrintedInvitationsSection />
+        {/* 7 · light — one line, alone. The only band that argues rather than
+            describes, and the reader's one place to stop before the proof and
+            the closing question. */}
+        <StatementSection />
 
         {/* 8 · deep — press mentions and real reviews, both admin-managed.
             Renders nothing while both are empty, which is the state of a

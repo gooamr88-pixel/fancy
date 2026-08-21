@@ -52,6 +52,7 @@ import CapabilitiesSection from '../../src/app/components/landing/CapabilitiesSe
 import DashboardShowcaseSection from '../../src/app/components/landing/DashboardShowcaseSection';
 import FaqCtaSection from '../../src/app/components/landing/FaqCtaSection';
 import FooterSection from '../../src/app/components/landing/FooterSection';
+import PrintedInvitationsSection from '../../src/app/components/landing/PrintedInvitationsSection';
 import { BAND_ORDER } from '../../src/app/components/landing/landingTokens';
 
 const ROOT = process.cwd();
@@ -145,13 +146,21 @@ beforeEach(() => {
    is asserted against, and the assertion below fails if a band is added there
    without a component here.
 
-   PrintedInvitationsSection and ProofSection are deliberately absent: both
-   render null until an admin has published data, so on a fresh tree they would
-   contribute nothing but would still have to be mocked. They are covered by
-   landingHomepage.test.jsx instead. */
+   ProofSection is still absent: it renders null until an admin publishes a
+   review, and a fresh install genuinely has none.
+
+   PRINTED IS NO LONGER ABSENT, and leaving it out was a mistake of the same
+   family this docstring already describes. It is a real band on every install
+   that has a catalogue — the owner's does — and it was redesigned twice
+   (three static cards, then a swiped rail) without ever appearing in a single
+   screenshot of the page it sits in. A band excused from the probe is a band
+   nobody looks at. It is an async Server Component, so it is awaited and its
+   returned element rendered, and its fetch is answered from SHOP_FIXTURE
+   below rather than a network. */
 const PROBE_SECTIONS = {
   hero: HeroSection,
   invitations: TemplatesShowcaseSection,
+  printed: PrintedInvitationsSection,
   statement: StatementSection,
   'how-it-works': HowItWorksSection,
   dashboard: DashboardShowcaseSection,
@@ -160,7 +169,58 @@ const PROBE_SECTIONS = {
   footer: FooterSection,
 };
 
-const DATA_DRIVEN = ['printed', 'proof'];
+const DATA_DRIVEN = ['proof'];
+
+/* A catalogue with the shapes that break a rail: a long two-line name, a
+   quoted price, a badge, and a piece with no photograph at all. Twelve, which
+   is the cap the band slices to. */
+const SHOP_CATEGORIES = [
+  { id: 'c1', name: 'Wedding cards', slug: 'wedding-cards' },
+  { id: 'c2', name: 'Signage', slug: 'signage' },
+  { id: 'c3', name: 'Envelopes & extras', slug: 'envelopes-extras' },
+];
+
+const SHOP_ITEM = (i, over = {}) => ({
+  id: `sp${i}`,
+  title: over.title || `Foiled invitation ${i}`,
+  slug: `piece-${i}`,
+  category_id: over.category_id || 'c1',
+  price_cents: over.price_cents === undefined ? 185 + i * 40 : over.price_cents,
+  currency: 'USD',
+  price_unit: 'card',
+  min_order_qty: 100,
+  is_featured: i === 1,
+  sort_order: i,
+  images: over.images === undefined
+    ? [{ id: `i${i}`, url: `/images/landing/hero-ring.webp`, alt: null }]
+    : over.images,
+  badges: over.badges || [],
+});
+
+const SHOP_FIXTURE = {
+  success: true,
+  enabled: true,
+  /* whatsapp_number is load-bearing, not decoration: the invitations band's
+     commission strip is gated on a real number (a CTA that opens "wa.me/" and
+     nothing else is worse than no CTA), so without it that strip is correctly
+     absent — and absent from every screenshot taken to review it. */
+  settings: {
+    enabled: true,
+    show_on_homepage: true,
+    whatsapp_number: '19055550134',
+    whatsapp_greeting: 'Hello! I would like to order printed invitations.',
+  },
+  categories: SHOP_CATEGORIES,
+  products: [
+    SHOP_ITEM(1, { badges: [{ id: 'b1', label: 'Bestseller', bg_color: '#F6F2E9', text_color: '#8A6D34' }] }),
+    SHOP_ITEM(2, { title: 'Carved-door invitation box with a deliberately long name' }),
+    SHOP_ITEM(3, { category_id: 'c2', title: 'Seating chart poster' }),
+    SHOP_ITEM(4, { category_id: 'c3', title: 'Olive wax-sealed envelope' }),
+    SHOP_ITEM(5, { price_cents: null, title: 'Bespoke foil plate', images: [] }),
+    SHOP_ITEM(6), SHOP_ITEM(7), SHOP_ITEM(8), SHOP_ITEM(9), SHOP_ITEM(10),
+    SHOP_ITEM(11), SHOP_ITEM(12), SHOP_ITEM(13),
+  ],
+};
 
 describe('landing — whole-page probe', () => {
   it('stages the homepage in the order page.js actually renders', () => {
@@ -176,18 +236,31 @@ describe('landing — whole-page probe', () => {
   });
 
   it('stages the rebuilt homepage at both widths', async () => {
+    /* The shop band fetches at render time. Answered here rather than left to
+       the network: a probe that quietly returns null for a band is exactly how
+       that band went unphotographed through two redesigns. */
+    global.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(SHOP_FIXTURE) }));
+
     const order = BAND_ORDER
       .map((b) => b.split(':')[0])
       .filter((name) => PROBE_SECTIONS[name]);
 
-    const { container } = render(
-      <>
-        {order.map((name) => {
-          const Section = PROBE_SECTIONS[name];
-          return <Section key={name} />;
-        })}
-      </>,
-    );
+    /* An async Server Component cannot be handed to the client renderer as an
+       element — it is CALLED, and the element it returns is what renders.
+       Which bands are async is not a fixed list here: it is read off the
+       function itself, so a band that starts fetching something does not
+       silently drop out of every screenshot of the page. */
+    const bands = [];
+    for (const name of order) {
+      const Section = PROBE_SECTIONS[name];
+      const el = Section.constructor.name === 'AsyncFunction'
+        // eslint-disable-next-line no-await-in-loop
+        ? await Section()
+        : <Section />;
+      bands.push(<React.Fragment key={name}>{el}</React.Fragment>);
+    }
+
+    const { container } = render(<>{bands}</>);
     await act(async () => { await new Promise((r) => setTimeout(r, 400)); });
 
     /* An ABSOLUTE src ignores <base>, so every image would render as a broken

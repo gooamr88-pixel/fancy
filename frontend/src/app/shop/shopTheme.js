@@ -56,23 +56,92 @@ export const SHADOW = {
   cardHover: '0 18px 40px -24px rgba(25, 24, 21, 0.45)',
 };
 
-/** Line-art stand-ins, by category slug, for pieces with no photograph yet.
- *  An obviously-drawn placeholder is better than a stretched stock photo: it
- *  cannot be mistaken for the product.
- *
- *  Not exported — `artFor` is the only way in, so a caller cannot index this
- *  directly and get `undefined` for a category an admin has just added. */
+/* ── THE DRAWINGS ──────────────────────────────────────────────────────────
+   Line art, by category slug, for a shelf or a piece with no photograph yet.
+   An obviously-drawn plate is better than a stretched stock photo: it cannot
+   be mistaken for the product.
+
+   TWO SETS, ON PURPOSE, BOTH ON A 48x48 GRID.
+
+   `artFor` is the full drawing — an inner rule on the card, the text lines,
+   the poured wax seal — and is only legible from about 40px up: it is what a
+   category plate and a product placeholder show.
+
+   `markFor` is the same subject reduced to the two or three strokes that
+   survive at 16-20px, for the shelf index inside a category. Shrinking the
+   full drawing there produced a grey smudge — the seal and the inner rule
+   collapse into the outline — which is the opposite of premium.
+
+   Neither map is exported: the `…For` functions are the only way in, so a
+   caller cannot index them directly and get `undefined` for a category an
+   admin added this morning.
+
+   The gold fills come from S so a palette change reaches the drawings too. */
 const CATEGORY_ART = {
-  'wedding-cards': '<rect x="18" y="26" width="64" height="44" rx="2"/><path d="M30 40h40M30 50h40M30 60h24"/>',
-  'screens-displays': '<rect x="14" y="18" width="72" height="46" rx="3"/><path d="M50 64v12M36 76h28"/>',
-  'scanners-door': '<rect x="30" y="14" width="40" height="58" rx="6"/><path d="M40 30h20M40 40h20M40 50h12"/><circle cx="50" cy="66" r="3"/>',
-  'printed-materials': '<rect x="28" y="16" width="44" height="62" rx="2"/><path d="M38 32h24M38 42h24M38 52h16"/>',
-  signage: '<rect x="24" y="14" width="52" height="40" rx="2"/><path d="M50 54v22M38 76h24"/>',
-  'envelopes-extras': '<rect x="16" y="28" width="68" height="42" rx="2"/><path d="M16 30l34 24 34-24"/>',
+  // An invitation: the card, its printed rule, the type, a wax seal below.
+  'wedding-cards':
+    '<rect x="12" y="4" width="24" height="39" rx="1"/>'
+    + '<path d="M16 8.5h16v26H16z" stroke-width="0.9" opacity="0.6"/>'
+    + '<path d="M20 15h8M20 20h8M20 25h5"/>'
+    + `<circle cx="24" cy="38.5" r="3.6" fill="${S.gold}" stroke-width="0.9"/>`,
+  // A welcome screen on its pedestal.
+  'screens-displays':
+    '<rect x="5" y="9" width="38" height="23" rx="2"/>'
+    + '<path d="M13 17h22M13 24h14"/>'
+    + '<path d="M24 32v6M16 42h16"/>',
+  // A code being read: the finder squares, and the beam crossing them.
+  'scanners-door':
+    '<rect x="8" y="8" width="32" height="32" rx="2"/>'
+    + '<rect x="13" y="13" width="8" height="8"/><rect x="27" y="13" width="8" height="8"/>'
+    + '<rect x="13" y="27" width="8" height="8"/>'
+    + '<path d="M27 28h4M31 33h4M27 36h3"/>'
+    + `<path d="M4 24h40" stroke="${S.gold}" stroke-width="1.5"/>`,
+  // A menu standing behind a tented place card.
+  'printed-materials':
+    '<rect x="9" y="4" width="20" height="27"/>'
+    + '<path d="M13.5 11h11M13.5 17h11M13.5 23h7"/>'
+    + '<path d="M22 42l10-9 10 9z"/><path d="M28 39h8"/>',
+  // A board on an easel — splayed legs are what tells it from a screen.
+  signage:
+    '<rect x="9" y="5" width="30" height="23"/>'
+    + '<path d="M15 12h18M15 18h12"/>'
+    + '<path d="M15 28l-4 14M33 28l4 14M13 38h22"/>',
+  // An envelope, sealed.
+  'envelopes-extras':
+    '<rect x="6" y="13" width="36" height="24" rx="1.5"/>'
+    + '<path d="M6.8 14.2L24 27.2 41.2 14.2"/>'
+    + `<circle cx="24" cy="29.5" r="4.4" fill="${S.gold}" stroke-width="0.9"/>`,
 };
 
+const CATEGORY_MARK = {
+  'wedding-cards':
+    '<rect x="12" y="4" width="24" height="39" rx="1"/><path d="M20 16h8M20 23h8"/>'
+    + `<circle cx="24" cy="35" r="3.4" fill="${S.gold}" stroke-width="1.2"/>`,
+  'screens-displays': '<rect x="5" y="9" width="38" height="23" rx="2"/><path d="M24 32v6M16 42h16"/>',
+  'scanners-door':
+    '<rect x="8" y="8" width="32" height="32" rx="2"/><rect x="13" y="13" width="8" height="8"/>'
+    + '<rect x="27" y="13" width="8" height="8"/><rect x="13" y="27" width="8" height="8"/>',
+  'printed-materials': '<rect x="9" y="4" width="20" height="27"/><path d="M13.5 12h11M13.5 19h11"/><path d="M22 42l10-9 10 9z"/>',
+  signage: '<rect x="9" y="5" width="30" height="23"/><path d="M15 28l-4 14M33 28l4 14M13 38h22"/>',
+  'envelopes-extras': '<rect x="6" y="13" width="36" height="24" rx="1.5"/><path d="M6.8 14.2L24 27.2 41.2 14.2"/>',
+};
+
+/** The whole catalogue, for the "All pieces" entry in the shelf index. A
+ *  compass rose rather than a seventh product: it is not a shelf. */
+export const ALL_MARK = '<path d="M24 6l4.6 13.4L42 24l-13.4 4.6L24 42l-4.6-13.4L6 24l13.4-4.6z"/>';
+
+/** Every drawing is authored in this box. Callers must not guess it: the set
+ *  moved from 100x92 to 48x48 once, and a stale viewBox does not error — it
+ *  silently crops the drawing to a corner. */
+export const ART_VIEWBOX = '0 0 48 48';
+
 /** An admin can add a category at any time, and a slug with no drawing must
- *  not render an empty box — it falls back to the generic card glyph. */
+ *  not render an empty box — it falls back to the invitation card. */
 export function artFor(slug) {
   return CATEGORY_ART[slug] || CATEGORY_ART['wedding-cards'];
+}
+
+/** The same subject at index size. Same fallback rule as artFor. */
+export function markFor(slug) {
+  return CATEGORY_MARK[slug] || CATEGORY_MARK['wedding-cards'];
 }
