@@ -6,7 +6,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   SHOP_PATH, SHOP_LABEL, categoryPath, productPath,
-  formatPrice, isShopLive, buildWhatsappUrl, recordShopInquiry, coverImage,
+  formatPrice, isShopLive, buildWhatsappUrl, recordShopInquiry, coverImage, unitFor,
 } from '../../../utils/shopLinks';
 import { C, PI_BASE_CSS, WhatsappGlyph } from '../../piStyles';
 
@@ -183,7 +183,7 @@ export default function ProductClient({ product, related = [], settings = {} }) 
                 <>
                   <span className="pi-price-now">{price}</span>
                   {compareAt && <span className="pi-price-was">{compareAt}</span>}
-                  {product.price_unit && <span className="pi-price-unit">{product.price_unit}</span>}
+                  <span className="pi-price-unit">{unitFor(product)}</span>
                 </>
               ) : (
                 <span className="pi-price-quote">Price on request</span>
@@ -252,7 +252,11 @@ export default function ProductClient({ product, related = [], settings = {} }) 
           <div className="pi-detail-body">
             {product.description && (
               <div className="pi-prose">
-                <h2 className="pi-sub">About this piece</h2>
+                {/* "Description", not "About this piece". The catalogue stopped
+                    being pieces of print some time ago — it sells welcome
+                    screens, handheld scanners and door hardware, and "this
+                    piece" reads oddly over the spec text of a tablet kit. */}
+                <h2 className="pi-sub">Description</h2>
                 {String(product.description).split(/\n{2,}/).map((para, i) => (
                   <p key={i} className="pi-para">{para}</p>
                 ))}
@@ -323,7 +327,7 @@ export default function ProductClient({ product, related = [], settings = {} }) 
         <div className="pi-sticky">
           <div className="pi-sticky-price">
             <span className="pi-sticky-now">{price || 'Price on request'}</span>
-            {product.price_unit && price && <span className="pi-sticky-unit">{product.price_unit}</span>}
+            {price && <span className="pi-sticky-unit">{unitFor(product)}</span>}
           </div>
           <a
             href={waUrl}

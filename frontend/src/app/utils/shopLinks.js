@@ -98,11 +98,39 @@ export function formatPrice(cents, currency = SHOP_CURRENCY) {
   }
 }
 
-/** "$8.99 per card" / "Price on request" — the full line under a title. */
+/**
+ * WHAT ONE UNIT OF THE PRICE IS, IN WORDS.
+ *
+ * `shop_products.price_unit` is free text an admin types, and the schema's own
+ * examples are PHRASES — "per card", "per set of 25". Two things were wrong
+ * with how it reached a customer:
+ *
+ *   · the grid printed it as "/ card" while the product page printed the same
+ *     value as "card", so one piece was priced two different ways depending on
+ *     which page you were reading;
+ *   · a piece with no unit set printed NO unit at all, which on a catalogue
+ *     with a 100-unit order floor reads as a total rather than a unit price —
+ *     the single most expensive misreading available on this page.
+ *
+ * So there is one default, it is "each", and it is used everywhere the price
+ * appears. "each" rather than "per card" because the catalogue stopped being
+ * cards some time ago: it sells screens, scanners, signage and door hardware,
+ * and a screen priced "per card" is nonsense. An admin who needs something
+ * else still types it, and their phrase is printed verbatim.
+ */
+export const SHOP_UNIT_DEFAULT = 'each';
+
+/** The unit phrase for a piece — its own, or the house default. */
+export function unitFor(product) {
+  const own = (product?.price_unit || '').toString().trim();
+  return own || SHOP_UNIT_DEFAULT;
+}
+
+/** "$8.99 each" / "$40.00 per set of 25" / "Price on request". */
 export function priceLine(product) {
   const price = formatPrice(product?.price_cents, product?.currency);
   if (!price) return 'Price on request';
-  return product?.price_unit ? `${price} ${product.price_unit}` : price;
+  return `${price} ${unitFor(product)}`;
 }
 
 /**

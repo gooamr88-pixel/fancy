@@ -98,6 +98,53 @@ const buildGuestRsvpUrl = (slug, partyId) => {
 };
 
 /* ═══ Brand tokens ═══ */
+/* WHO SENDS THIS EMAIL — the same identity the website publishes.
+ *
+ * Duplicated from frontend/src/app/utils/company.js rather than imported: a
+ * Node process cannot import from the Next app. The two are pinned against
+ * each other by frontend/test/companyIdentity.test.js, because a footer that
+ * disagrees with the site is a CAN-SPAM/CASL problem, not a typo — every
+ * commercial email must identify the sender, and "the sender" has to be one
+ * answer.
+ *
+ * ⚠ NO STREET ADDRESS. One was not supplied at the 2026-08-22 rebrand, and
+ * both CAN-SPAM and CASL expect a valid physical mailing address in a
+ * commercial email footer. This prints the location only; a real street
+ * address still needs to be added here. */
+const COMPANY_NAME = 'Fancy RSVP';
+
+/* MIRRORS frontend/src/app/utils/company.js — field for field, because a Node
+ * process cannot import from the Next app. companyIdentity.test.js pins the
+ * two together; if you change one, that test tells you about the other.
+ *
+ * ⚠ CAN-SPAM §7704(a)(5) and CASL both REQUIRE a valid physical mailing
+ * address in every commercial email. Until `line1` and `postalCode` are filled
+ * in, this footer prints the location only and is NOT compliant. A registered
+ * agent's address or a PO box registered to the business both satisfy the rule
+ * — it does not have to be a street anyone sits at. */
+const COMPANY_ADDRESS = {
+  line1: '',
+  line2: '',
+  locality: 'San Diego',
+  region: 'CA',
+  regionName: 'California',
+  postalCode: '',
+  countryName: 'United States',
+};
+
+const ADDRESS_CONFIGURED = Boolean(
+  COMPANY_ADDRESS.line1.trim() && COMPANY_ADDRESS.postalCode.trim(),
+);
+
+const COMPANY_LOCATION = ADDRESS_CONFIGURED
+  ? [
+    COMPANY_ADDRESS.line1,
+    COMPANY_ADDRESS.line2,
+    `${COMPANY_ADDRESS.locality}, ${COMPANY_ADDRESS.region} ${COMPANY_ADDRESS.postalCode}`,
+    COMPANY_ADDRESS.countryName,
+  ].filter(Boolean).join(', ')
+  : `${COMPANY_ADDRESS.locality}, ${COMPANY_ADDRESS.regionName}, ${COMPANY_ADDRESS.countryName}`;
+
 const BRAND = {
   gold: '#B8944F',
   goldDark: '#9A7B3F',
@@ -523,8 +570,8 @@ const emailShell = ({
                 ${pick(lang, CHROME.automated)}
               </p>
               <p class="fr-muted" style="margin:0; font-family:${SANS}; font-size:10px; line-height:1.7; color:${BRAND.muted};" dir="ltr">
-                16941460 Canada Corp. o/a Via Marketing<br>
-                2488 Selord Court, Mississauga, Ontario L5J 1P7, Canada
+                ${COMPANY_NAME}<br>
+                ${COMPANY_LOCATION}
               </p>
             </td>
           </tr>

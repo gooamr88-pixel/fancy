@@ -11,6 +11,7 @@ import ShopBrowse from '../src/app/shop/ShopBrowse';
 import ProductClient from '../src/app/shop/[category]/[slug]/ProductClient';
 import {
   formatPrice, priceLine, isShopLive, buildWhatsappUrl, sortProducts, SHOP_PATH, SITE_URL,
+  unitFor, SHOP_UNIT_DEFAULT,
 } from '../src/app/utils/shopLinks';
 
 const ROOT = process.cwd();
@@ -77,6 +78,18 @@ beforeEach(() => {
 describe('price', () => {
   it('renders a real price with its unit', () => {
     expect(priceLine(product({ price_cents: 899 }))).toBe('$8.99 per card');
+  });
+
+  it('falls back to the house unit when a piece sets none', () => {
+    /* A price with no unit at all, on a catalogue with a 100-piece order
+       floor, reads as the TOTAL rather than the unit price — the most
+       expensive misreading available on this page. "each" rather than "per
+       card" because the shelf stopped being cards: it sells screens,
+       scanners and door hardware, and a scanner priced per card is nonsense. */
+    expect(SHOP_UNIT_DEFAULT).toBe('each');
+    expect(priceLine({ price_cents: 899, price_unit: null })).toBe('$8.99 each');
+    expect(priceLine({ price_cents: 899, price_unit: '   ' })).toBe('$8.99 each');
+    expect(unitFor({ price_unit: 'per set of 25' })).toBe('per set of 25');
   });
 
   it('renders a null price as "Price on request", never as zero', () => {
@@ -223,7 +236,10 @@ describe('catalogue', () => {
     expect(screen.getByText('Velvet & Gold Suite')).toBeTruthy();
     expect(screen.getByText('Door of Joy Card')).toBeTruthy();
     expect(screen.getByText('$8.99')).toBeTruthy();
-    expect(screen.getByText('/ per card')).toBeTruthy();
+    /* No leading "/". It was hardcoded in the grid and nowhere else, so the
+       same piece read "$780.00 / unit" here and "$780.00 unit" on its own
+       page. The unit is a phrase, printed the same way everywhere. */
+    expect(screen.getByText('per card')).toBeTruthy();
     // A null price is a sentence, not a zero.
     expect(within(grid()).getByText('Price on request')).toBeTruthy();
     expect(grid().textContent).not.toMatch(/\$0\.00/);
@@ -604,39 +620,161 @@ describe('the product gallery arrows', () => {
   });
 });
 
-describe('the category plate', () => {
-  const all = [CAT_WEDDING, CAT_GRAD];
+describe('the collection cover', () => {
+  /* THE COVER IS CHOSEN, NOT DERIVED.
 
-  const home = (products) => render(
-    <ShopBrowse products={products} categories={all} badges={[]} settings={SETTINGS} category={null} />,
+     Until 2026-08-21 a plate's picture came from a PRODUCT inside the shelf —
+     the featured piece's first photograph, else the first by sort order. Three
+     things were wrong with that, and the first is the one that matters: a
+     product shot is lit and cropped to sell one object, not to stand for a
+     shelf. Nobody had chosen the image. And which product won changed on its
+     own whenever the catalogue was re-ordered or a different piece was ticked
+     as featured, so a collection's face moved without anyone touching it.
+
+     shop_categories.cover_image_url is now a real column set in Admin → Shop →
+     Collections (migration 20260827000000). These cases pin the property the
+     organizer actually asked for: the cover is the admin's picture, it is the
+     SAME picture on all three public surfaces, and it never silently borrows
+     one from the catalogue. */
+  const withCover = { ...CAT_WEDDING, cover_image_url: '/covers/wedding.jpg', cover_image_alt: 'A set table' };
+  const noCover = CAT_GRAD;
+  const all = [withCover, noCover];
+
+  const home = (products, cats = all) => render(
+    <ShopBrowse products={products} categories={cats} badges={[]} settings={SETTINGS} category={null} />,
   );
 
-  it('wears the photograph of its own featured piece', () => {
-    const { container } = home([
-      product({ id: 'a', slug: 'a', category_id: CAT_WEDDING.id, sort_order: 0, images: [{ id: 'i1', url: '/plain.jpg', alt: null }] }),
-      product({ id: 'b', slug: 'b', category_id: CAT_WEDDING.id, sort_order: 9, is_featured: true, images: [{ id: 'i2', url: '/featured.jpg', alt: null }] }),
-    ]);
+  it('wears the picture an admin set on the collection', () => {
+    const { container } = home([product({ category_id: withCover.id, images: [] })]);
     const img = container.querySelector('.shop-plates .plate__img');
-    // Featured beats sort_order — otherwise the shelf is fronted by whichever
-    // piece happens to sit first, which is not a choice anyone made.
-    expect(img.getAttribute('src')).toBe('/featured.jpg');
+    expect(img.getAttribute('src')).toBe('/covers/wedding.jpg');
+    expect(img.getAttribute('alt')).toBe('A set table');
   });
 
-  it('falls back to the drawing when nothing on the shelf has a photograph', () => {
-    const { container } = home([product({ category_id: CAT_WEDDING.id, images: [] })]);
-    const plate = container.querySelector('.shop-plates .plate');
-    expect(plate.querySelector('.plate__img')).toBeNull();
-    expect(plate.querySelector('.plate__art svg')).toBeTruthy();
-  });
-
-  it('does not lend one shelf a photograph from another', () => {
+  it('never borrows a photograph from a product', () => {
+    /* The exact scenario the old derivation was built for: a shelf with no
+       cover of its own, holding a featured piece with a photograph. It must
+       stay on the drawn plate rather than reach into the catalogue. */
     const { container } = home([
-      product({ id: 'a', slug: 'a', category_id: CAT_WEDDING.id, images: [{ id: 'i1', url: '/wedding.jpg', alt: null }] }),
-      product({ id: 'b', slug: 'b', category_id: CAT_GRAD.id, images: [] }),
+      product({ id: 'g', slug: 'g', category_id: noCover.id, is_featured: true, images: [{ id: 'i1', url: '/product.jpg', alt: null }] }),
     ]);
     const plates = [...container.querySelectorAll('.shop-plates .plate')];
-    expect(plates[0].querySelector('.plate__img').getAttribute('src')).toBe('/wedding.jpg');
-    expect(plates[1].querySelector('.plate__img')).toBeNull();
+    const grad = plates.find((el) => el.textContent.includes('Graduation'));
+    expect(grad.querySelector('.plate__img'), 'a product photo leaked onto the plate').toBeNull();
+    expect(grad.querySelector('.plate__art svg')).toBeTruthy();
+  });
+
+  it('leaves the alt empty when the admin wrote none', () => {
+    // The collection name is printed in type beside the picture, so an alt
+    // that repeats it is read out twice.
+    const { container } = home([], [{ ...CAT_WEDDING, cover_image_url: '/c.jpg', cover_image_alt: null }]);
+    expect(container.querySelector('.plate__img').getAttribute('alt')).toBe('');
+  });
+
+  it('keeps a covered collection photographic in the shelf index, selected or not', () => {
+    /* The organizer's complaint: choosing a collection made its picture
+       disappear and a different shape take its place. The index used to draw
+       every entry as line art regardless, so the shelf you had just clicked
+       lost the face you clicked it by. */
+    for (const current of [withCover, noCover]) {
+      const { container, unmount } = render(
+        <ShopBrowse products={[]} categories={all} badges={[]} settings={SETTINGS} category={current.slug} />,
+      );
+      const links = [...container.querySelectorAll('.shop-index .shelf')];
+      const wed = links.find((el) => el.textContent.includes('Wedding'));
+      const img = wed.querySelector('.shelf__mark--photo img');
+      expect(img, `Wedding lost its picture while ${current.name} was open`).toBeTruthy();
+      expect(img.getAttribute('src')).toBe('/covers/wedding.jpg');
+      // and it is the picture, not a drawing swapped in beside it
+      expect(wed.querySelector('.shelf__mark svg')).toBeNull();
+      unmount();
+    }
+  });
+
+  it('keeps an uncovered collection on its drawing, selected or not', () => {
+    // The other half of the same rule: nothing swaps face on selection.
+    for (const current of [withCover, noCover]) {
+      const { container, unmount } = render(
+        <ShopBrowse products={[]} categories={all} badges={[]} settings={SETTINGS} category={current.slug} />,
+      );
+      const links = [...container.querySelectorAll('.shop-index .shelf')];
+      const grad = links.find((el) => el.textContent.includes('Graduation'));
+      expect(grad.querySelector('.shelf__mark--art svg')).toBeTruthy();
+      expect(grad.querySelector('.shelf__mark--photo')).toBeNull();
+      unmount();
+    }
+  });
+});
+
+describe('the filter panel', () => {
+  const withCover = { ...CAT_WEDDING, cover_image_url: '/covers/wedding.jpg', cover_image_alt: '' };
+  const all = [withCover, CAT_GRAD];
+
+  /* `category` is the SLUG, which is what the route hands ShopBrowse — not
+     the category row. Passing the object makes catBySlug.get() miss, and the
+     page then renders as the shop home with no shelf selected at all. */
+  const open = (slug = null) => render(
+    <ShopBrowse products={[product({ category_id: withCover.id })]} categories={all}
+      badges={[]} settings={SETTINGS} category={slug} />,
+  );
+
+  it('lists the collections, which it used to leave out entirely', () => {
+    /* The panel named every way to narrow the list except the main one. */
+    const { container } = open();
+    const names = [...container.querySelectorAll('.sf-cat__name')].map((e) => e.textContent);
+    expect(names).toEqual(['All pieces', 'Wedding', 'Graduation']);
+  });
+
+  it('shows each collection by its cover, and links rather than ticks', () => {
+    /* A collection is a ROUTE with its own page and metadata, not a
+       client-side filter — a tick box here would either lie about that or
+       create a second, conflicting way to narrow the same list. */
+    const { container } = open();
+    const wed = [...container.querySelectorAll('.sf-cat')].find((e) => e.textContent.includes('Wedding'));
+    expect(wed.tagName).toBe('A');
+    expect(wed.getAttribute('href')).toBe('/shop/wedding');
+    expect(wed.querySelector('.sf-cat__art--photo img').getAttribute('src')).toBe('/covers/wedding.jpg');
+  });
+
+  it('marks the collection being read', () => {
+    const { container } = open(withCover.slug);
+    const on = container.querySelector('.sf-cat.is-on');
+    expect(on.textContent).toContain('Wedding');
+    expect(on.getAttribute('aria-current')).toBe('page');
+    // exactly one, and "All pieces" is not it
+    expect(container.querySelectorAll('.sf-cat.is-on')).toHaveLength(1);
+  });
+
+  it('marks All pieces on the shop home', () => {
+    const { container } = open(null);
+    const on = container.querySelector('.sf-cat.is-on');
+    expect(on.textContent).toContain('All pieces');
+  });
+
+  it('draws its own tick box without disabling the real control', () => {
+    /* accent-color leaves the checkbox's SHAPE and metrics to the platform, so
+       the panel looked like macOS on macOS. The input is visually hidden and
+       still an input — hiding a control must never mean disabling it, which is
+       what pointer-events: none on it would have done. */
+    const { container } = open();
+    const box = container.querySelector('.sf-row .sf-box');
+    expect(box).toBeTruthy();
+    /* Not the FIRST input: a price band nobody's catalogue matches is
+       disabled on purpose, and picking it would prove nothing about the
+       hiding. */
+    const input = container.querySelector('.sf-row:not(.sf-row--empty) input');
+    expect(input, 'every filter row is disabled — wrong fixture').toBeTruthy();
+    expect(input.disabled).toBe(false);
+    /* Comments stripped first. The rule is documented in place, and its note
+       explains why pointer-events is absent — reading that prose as code makes
+       the record of the fix fail the test that keeps the fix. */
+    const css = [...container.querySelectorAll('style')]
+      .map((n) => n.textContent)
+      .join('\n')
+      .replace(/\/\*[\s\S]*?\*\//g, ' ');
+    const rule = css.match(/\.sf-row input \{[^}]*\}/);
+    expect(rule[0]).not.toMatch(/pointer-events/);
+    expect(rule[0]).not.toMatch(/display:\s*none/);
   });
 });
 

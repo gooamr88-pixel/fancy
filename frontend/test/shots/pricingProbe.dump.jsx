@@ -111,16 +111,13 @@ const SIX = [
   { name: 'Bespoke', price_cents: null, currency: 'USD', max_guests: null, is_custom: true, description: 'Built around your event', features: BESPOKE },
 ];
 
-/* Reassigned between renders; the mock reads the binding when the hook is
-   called, so staging a different count needs no second mock. */
-let TIERS = FOUR;
+/* The event allowance, the cap that was enforced on the payment path and
+   printed on no public surface. Staged on the free tier because that is where
+   an admin most often sets one. */
+const withEvents = (tiers) => tiers.map((t, i) => ({ ...t, max_events: i === 0 ? 1 : 0 }));
 
-vi.mock('../../src/app/utils/usePublicPricing', async (importOriginal) => {
-  const actual = await importOriginal();
-  return { ...actual, usePublicPricing: () => ({ tiers: TIERS, error: null }) };
-});
-
-import PricingPage from '../../src/app/pricing/page';
+import PricingClient from '../../src/app/pricing/PricingClient';
+import { buildFaqs } from '../../src/app/pricing/pricingData';
 
 const ROOT = process.cwd();
 const OUT = path.join(ROOT, '..', '.visual', 'pricing');
@@ -188,10 +185,18 @@ describe('pricing probe', () => {
   it('stages the page and a frame per width', async () => {
     fs.mkdirSync(OUT, { recursive: true });
 
-    const stage = async (file, tiers) => {
-      TIERS = tiers;
+    const stage = async (file, rawTiers) => {
+      const tiers = withEvents(rawTiers);
       let r;
-      await act(async () => { r = render(<PricingPage />); });
+      await act(async () => {
+        r = render(
+          <PricingClient
+            tiers={tiers}
+            faqs={buildFaqs(tiers, { stripeEnabled: true })}
+            unavailable={false}
+          />,
+        );
+      });
       await act(async () => { await new Promise((res) => setTimeout(res, 80)); });
       fs.writeFileSync(path.join(OUT, file),
         `<!doctype html><html lang="en"><head><meta charset="utf-8">

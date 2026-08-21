@@ -17,6 +17,9 @@ import { FAQS } from "./components/landing/faqContent";
 import FooterSection from "./components/landing/FooterSection";
 import LinkNoticeBanner from "./components/landing/LinkNoticeBanner";
 import { safeJsonLdHtml } from "./utils/jsonLdSafe.mjs";
+import {
+  COMPANY_NAME, COMPANY_SITE, COMPANY_EMAIL, SOCIAL_PROFILES, postalAddressLd,
+} from "./utils/company";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    THE HOMEPAGE.
@@ -112,27 +115,19 @@ export const metadata = {
 const organizationLd = {
   '@context': 'https://schema.org',
   '@type': 'Organization',
-  name: 'Fancy RSVP',
-  legalName: '16941460 Canada Corp.',
-  alternateName: 'Via Marketing',
-  url: 'https://fancyrsvp.com',
-  logo: 'https://fancyrsvp.com/logo.png',
-  email: 'info@fancyrsvp.com',
+  name: COMPANY_NAME,
+  url: COMPANY_SITE,
+  logo: `${COMPANY_SITE}/logo.png`,
+  email: COMPANY_EMAIL,
   description:
-    'The all-in-one RSVP and guest management platform for weddings and special events. Owned and operated by 16941460 Canada Corp. o/a Via Marketing.',
-  address: {
-    '@type': 'PostalAddress',
-    streetAddress: '2488 Selord Court',
-    addressLocality: 'Mississauga',
-    addressRegion: 'ON',
-    postalCode: 'L5J 1P7',
-    addressCountry: 'CA',
-  },
-  sameAs: [
-    'https://viamarketing.ca',
-    'https://www.instagram.com/viamarketing.ca/',
-    'https://www.facebook.com/viamarketing.ca',
-  ],
+    'The all-in-one RSVP and guest management platform for weddings and special events.',
+  /* Built by postalAddressLd(), which omits streetAddress and postalCode
+     entirely until they are filled in rather than emitting them empty — an
+     empty string in structured data is a published claim that the value IS
+     empty, not that it is unknown. Fill the two fields in utils/company.js and
+     this upgrades on its own. */
+  address: postalAddressLd(),
+  sameAs: SOCIAL_PROFILES,
 };
 
 /* Built from the SAME array the accordion renders, not typed out again. A

@@ -7,6 +7,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { C, T } from './landingTokens';
+import { COMPANY_NAME, COMPANY_EMAIL, SOCIAL_INSTAGRAM, SOCIAL_FACEBOOK, addressOneLine } from '../../utils/company';
 import { SHOP_PATH, SHOP_LABEL } from '../../utils/shopLinks';
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -52,7 +53,10 @@ import { SHOP_PATH, SHOP_LABEL } from '../../utils/shopLinks';
      from applying and left six fixed columns on a 320px phone.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-const CONTACT_EMAIL = 'info@fancyrsvp.com';
+/* The shared constant, not a fourth copy of the address. This literal sat two
+   lines above a legal block that carried the company identity written out by
+   hand, which is how the identity ended up needing a repo-wide grep to change. */
+const CONTACT_EMAIL = COMPANY_EMAIL;
 
 const footerLinks = {
   Product: [
@@ -291,23 +295,21 @@ export default function FooterSection() {
         <div className="foot-bottom">
           <div className="foot-legal">
             <p className="foot-legal__line">
-              © {new Date().getFullYear()} 16941460 Canada Corp. o/a Via Marketing.
-              All rights reserved.
+              © {new Date().getFullYear()} {COMPANY_NAME}. All rights reserved.
             </p>
             <p className="foot-legal__fine">
-              Fancy RSVP is owned and operated by 16941460 Canada Corp., operating as{' '}
-              <a href="https://viamarketing.ca" target="_blank" rel="noopener noreferrer">Via Marketing</a>
-              {' '}· 2488 Selord Court, Mississauga, Ontario L5J 1P7, Canada
+              {COMPANY_NAME} · {addressOneLine()} ·{' '}
+              <a href={`mailto:${COMPANY_EMAIL}`}>{COMPANY_EMAIL}</a>
             </p>
           </div>
 
           <div className="foot-social-row">
-            <SocialIcon label="Fancy RSVP on Instagram" href="https://www.instagram.com/viamarketing.ca/">
+            <SocialIcon label={`${COMPANY_NAME} on Instagram`} href={SOCIAL_INSTAGRAM}>
               <rect x="2" y="2" width="20" height="20" rx="5" />
               <circle cx="12" cy="12" r="5" />
               <circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" stroke="none" />
             </SocialIcon>
-            <SocialIcon label="Fancy RSVP on Facebook" href="https://www.facebook.com/viamarketing.ca">
+            <SocialIcon label={`${COMPANY_NAME} on Facebook`} href={SOCIAL_FACEBOOK}>
               <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3Z" />
             </SocialIcon>
           </div>

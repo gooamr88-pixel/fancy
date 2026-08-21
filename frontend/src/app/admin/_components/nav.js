@@ -5,6 +5,8 @@
  * their phase lands — keeping the full information architecture visible without
  * dead links. Icons are rendered by Sidebar.js's own SVG map, keyed on `key`.
  */
+import { SHOP_LABEL } from '../../utils/shopLinks';
+
 export const NAV_GROUPS = [
   {
     heading: 'Overview',
@@ -48,10 +50,18 @@ export const NAV_GROUPS = [
     heading: 'Platform',
     items: [
       { key: 'cms', label: 'Landing CMS', href: '/admin/cms', perm: 'cms.view', ready: true },
-      // The physical printed-card catalogue at /printed-invitations. Same
-      // cms.view / cms.manage pair as the Landing CMS above — it is the same
-      // job (public marketing content), on a different surface.
-      { key: 'shop', label: 'Printed Invitations', href: '/admin/shop', perm: 'cms.view', ready: true },
+      /* The catalogue at /shop. Same cms.view / cms.manage pair as the
+         Landing CMS above — it is the same job (public marketing content) on a
+         different surface.
+
+         The label is SHOP_LABEL, not a literal. It read "Printed Invitations"
+         here long after the public side stopped saying that: the catalogue
+         sells screens, scanners, signage and door hardware as well, so the old
+         name described about a sixth of it, and an admin looking for the door
+         scanner would not open a menu item promising invitations. The public
+         nav, the footer and the page header were all renamed on 2026-08-20 and
+         this one was missed, which is exactly what the shared constant is for. */
+      { key: 'shop', label: SHOP_LABEL, href: '/admin/shop', perm: 'cms.view', ready: true },
       { key: 'config', label: 'Configuration', href: '/admin/config', perm: 'config.view', ready: true },
       { key: 'feature-flags', label: 'Feature Flags', href: '/admin/feature-flags', perm: 'flags.view', ready: false },
       { key: 'auth-config', label: 'Auth Settings', href: '/admin/auth-config', perm: 'authconfig.view', ready: false },

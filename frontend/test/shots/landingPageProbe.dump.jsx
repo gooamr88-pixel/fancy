@@ -187,7 +187,7 @@ const SHOP_ITEM = (i, over = {}) => ({
   category_id: over.category_id || 'c1',
   price_cents: over.price_cents === undefined ? 185 + i * 40 : over.price_cents,
   currency: 'USD',
-  price_unit: 'card',
+  price_unit: '',
   min_order_qty: 100,
   is_featured: i === 1,
   sort_order: i,

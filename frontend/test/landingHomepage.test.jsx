@@ -382,11 +382,19 @@ describe('nothing links into a hole', () => {
       [...container.querySelectorAll('a')]
         .map((a) => a.getAttribute('href'))
         .filter((h) => h && h.startsWith('/'))
-        /* Drop the fragment before resolving. "/#invitations" is this page
-           plus an anchor, and asking the filesystem for a route called
-           "#invitations" fails a link that works perfectly. A bare "#foo" is
-           already excluded by the startsWith('/') filter above. */
-        .map((h) => h.split('#')[0] || '/')
+        /* Drop the QUERY and the FRAGMENT before resolving. Both are part of
+           a URL that the filesystem knows nothing about: "/#invitations" is
+           this page plus an anchor, and "/contact?subject=refund" is
+           /contact with the form pre-filled. Asking for a route literally
+           named "contact?subject=refund" fails a link that works perfectly.
+
+           The query half was missing until 2026-08-22 and this case caught
+           the first homepage link to use one, which is the checker working —
+           but a checker that rejects a valid URL shape trains people to
+           ignore it, so it learns the shape rather than the link being
+           changed to suit it. A bare "#foo" or "?foo" is already excluded by
+           the startsWith('/') filter above. */
+        .map((h) => h.split(/[?#]/)[0] || '/')
         .forEach((h) => expect(routeExists(h), `${h} resolves to no page.js`).toBe(true));
       unmount();
     });
@@ -440,10 +448,16 @@ describe('the FAQ and its structured data cannot disagree', () => {
     });
   });
 
-  it('points the refund answer at the terms rather than restating them', () => {
+  it('points the refund answer at the request, and says how to make one', () => {
+    /* The link was /terms until 2026-08-22. Someone reading this answer has
+       already decided they want a refund, so a legal document is the wrong
+       next step — the form is. /pricing still links the terms, because its
+       reader is deciding whether to buy rather than asking for money back.
+       Pinned across both surfaces in test/refundPolicy.test.js. */
     const refund = FAQS.find((f) => /refund/i.test(f.q));
     expect(refund, 'the refund question is gone').toBeTruthy();
-    expect(refund.link?.href).toBe('/terms');
+    expect(refund.link?.href).toBe('/contact?subject=refund');
+    expect(refund.a, 'the answer states a rule but no route').toMatch(/refund request/i);
   });
 });
 

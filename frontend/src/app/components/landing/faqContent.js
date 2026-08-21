@@ -31,6 +31,9 @@
    disagreeing.
    ═══════════════════════════════════════════════════════════════════════════ */
 
+import { REFUND_SUMMARY, REFUND_HOW } from '../../utils/refundPolicy';
+import { REFUND_REQUEST_HREF } from '../../utils/company';
+
 /** Plain strings, no JSX — so this module has nothing that needs a runtime. */
 export const FAQS = [
   {
@@ -55,9 +58,16 @@ export const FAQS = [
   },
   {
     q: 'Do you offer refunds if I cancel my event?',
-    a: "Yes — a full refund within 14 days of purchase, as long as the event has not gone live. For an event that is already active, we issue pro-rated credit you can put toward a future event.",
-    // Only this answer carries a link: it is the one that summarises a legal
-    // document, and the summary must not become the authority.
-    link: { href: '/terms', label: 'Read the full terms' },
+    /* REFUND_SUMMARY, not a paraphrase. This answer used to be written out
+       here, /pricing said something different, and /terms described refunds
+       on monthly and annual subscriptions this product does not sell — three
+       answers to one question, in three documents a customer can open in
+       three tabs. One string now, imported by every surface. */
+    a: `Yes. ${REFUND_SUMMARY} ${REFUND_HOW}`,
+    // The link is the REQUEST, not the terms. Someone reading this answer has
+    // already decided they want a refund; handing them a legal document to
+    // read instead of a form to fill in is the wrong next step. The terms are
+    // still the authority and are linked from the answer on /pricing.
+    link: { href: REFUND_REQUEST_HREF, label: 'Request a refund' },
   },
 ];

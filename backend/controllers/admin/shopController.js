@@ -530,6 +530,12 @@ const createCategory = async (req, res, next) => {
         name: String(b.name).trim(),
         slug,
         description: b.description ? String(b.description).trim() : null,
+        /* The collection's own cover photograph — NOT one of its product
+           shots. See the migration 20260827000000 for why the derivation it
+           replaces was wrong. Either a storage URL or a base64 data: URI from
+           the admin uploader's fallback, so no length or format check here. */
+        cover_image_url: b.coverImageUrl ? String(b.coverImageUrl).trim() : null,
+        cover_image_alt: b.coverImageAlt ? String(b.coverImageAlt).trim() : null,
         sort_order: toIntOrNull(b.sortOrder) ?? 0,
         is_published: b.isPublished !== false,
         created_by: req.user.id,
@@ -569,6 +575,16 @@ const updateCategory = async (req, res, next) => {
       updates.slug = await findUniqueSlug('shop_categories', base, 'collection', categoryId);
     }
     if (b.description !== undefined) updates.description = b.description ? String(b.description).trim() : null;
+    /* Sending an empty string CLEARS the cover — that is how the editor's
+       "Remove" button works. Distinguishing it from `undefined` (leave alone)
+       is the whole contract of this PATCH, so it must not be collapsed into a
+       truthiness check on the value alone. */
+    if (b.coverImageUrl !== undefined) {
+      updates.cover_image_url = b.coverImageUrl ? String(b.coverImageUrl).trim() : null;
+    }
+    if (b.coverImageAlt !== undefined) {
+      updates.cover_image_alt = b.coverImageAlt ? String(b.coverImageAlt).trim() : null;
+    }
     if (b.sortOrder !== undefined) updates.sort_order = toIntOrNull(b.sortOrder) ?? 0;
     if (b.isPublished !== undefined) updates.is_published = b.isPublished === true;
     updates.updated_by = req.user.id;

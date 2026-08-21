@@ -35,7 +35,16 @@ export async function generateMetadata({ params }) {
       url: `${SITE}/shop/${shelf.slug}`,
       siteName: 'Fancy RSVP',
       type: 'website',
-      images: [{ url: `${SITE}/og-image.png`, width: 1200, height: 630, alt: 'Fancy RSVP' }],
+      /* The collection's own cover when it has one. A shared link to a
+         collection previewed as the generic site card, which is the least
+         useful of the three pictures we hold for it. A data: URI is skipped —
+         the admin uploader falls back to one when the storage bucket is
+         missing, and no scraper will fetch it. */
+      images: [
+        shelf.cover_image_url && !shelf.cover_image_url.startsWith('data:')
+          ? { url: shelf.cover_image_url, alt: shelf.cover_image_alt || shelf.name }
+          : { url: `${SITE}/og-image.png`, width: 1200, height: 630, alt: 'Fancy RSVP' },
+      ],
     },
     twitter: { card: 'summary_large_image', title, description },
     alternates: { canonical: `${SITE}/shop/${shelf.slug}` },

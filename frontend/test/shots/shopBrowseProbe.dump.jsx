@@ -44,18 +44,6 @@ const VARS = `
   html, body { margin: 0; padding: 0; }
 `;
 
-const CATS = [
-  { id: 'c1', name: 'Wedding cards', slug: 'wedding-cards', description: 'Foiled, letterpressed and embossed.', sort_order: 10 },
-  { id: 'c2', name: 'Screens & displays', slug: 'screens-displays', description: 'Welcome screens and seating displays.', sort_order: 20 },
-  { id: 'c3', name: 'Scanners & door kit', slug: 'scanners-door', description: 'Handheld scanners and tablet kits.', sort_order: 30 },
-  { id: 'c4', name: 'Printed materials', slug: 'printed-materials', description: 'Menus, place cards, table numbers.', sort_order: 40 },
-  { id: 'c5', name: 'Signage', slug: 'signage', description: 'Seating charts and welcome signs.', sort_order: 50 },
-  { id: 'c6', name: 'Envelopes & extras', slug: 'envelopes-extras', description: 'Envelopes, seals, ribbon.', sort_order: 60 },
-];
-
-const B_NEW = { id: 'b1', label: 'New', bg_color: '#F6F2E9', text_color: '#8A6D34', is_filterable: true, sort_order: 0 };
-const B_BEST = { id: 'b2', label: 'Bestseller', bg_color: '#F6F2E9', text_color: '#8A6D34', is_filterable: true, sort_order: 1 };
-
 /* A stand-in photograph, so the category plate's PHOTOGRAPH face renders here
    too. The catalogue in this repo has no uploaded images, and a probe that can
    only ever show the drawn face proves nothing about the one a real shop sees:
@@ -69,6 +57,26 @@ const PHOTO = (a, b) => `data:image/svg+xml;utf8,${encodeURIComponent(
   + `<rect x="130" y="70" width="140" height="230" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="3"/>`
   + `</svg>`,
 )}`;
+
+/* FOUR OF SIX CARRY A COVER, DELIBERATELY.
+
+   `shop_categories.cover_image_url` is set by an admin, so a real shop will
+   always be part-way through photographing its shelves — and the two faces
+   have to read as one set while that is true. A probe where every plate is a
+   photograph, or none is, cannot show that. It also has to show BOTH faces in
+   the shelf index and in the filter's Collections group, which is where the
+   old design swapped a photograph for a drawing on selection. */
+const CATS = [
+  { id: 'c1', name: 'Wedding cards', slug: 'wedding-cards', description: 'Foiled, letterpressed and embossed.', sort_order: 10, cover_image_url: PHOTO('#B99A63', '#5C4A2C'), cover_image_alt: '' },
+  { id: 'c2', name: 'Screens & displays', slug: 'screens-displays', description: 'Welcome screens and seating displays.', sort_order: 20, cover_image_url: PHOTO('#6E7B72', '#2C332F'), cover_image_alt: '' },
+  { id: 'c3', name: 'Scanners & door kit', slug: 'scanners-door', description: 'Handheld scanners and tablet kits.', sort_order: 30 },
+  { id: 'c4', name: 'Printed materials', slug: 'printed-materials', description: 'Menus, place cards, table numbers.', sort_order: 40, cover_image_url: PHOTO('#A98A4E', '#3B2F1C'), cover_image_alt: '' },
+  { id: 'c5', name: 'Signage', slug: 'signage', description: 'Seating charts and welcome signs.', sort_order: 50 },
+  { id: 'c6', name: 'Envelopes & extras', slug: 'envelopes-extras', description: 'Envelopes, seals, ribbon.', sort_order: 60, cover_image_url: PHOTO('#8E7A66', '#33291F'), cover_image_alt: '' },
+];
+
+const B_NEW = { id: 'b1', label: 'New', bg_color: '#F6F2E9', text_color: '#8A6D34', is_filterable: true, sort_order: 0 };
+const B_BEST = { id: 'b2', label: 'Bestseller', bg_color: '#F6F2E9', text_color: '#8A6D34', is_filterable: true, sort_order: 1 };
 
 /* Long titles and a quoted price on purpose: the shapes that break a dense
    grid are a two-line name and a missing number, not the tidy case. */
@@ -92,20 +100,20 @@ const P = (id, title, cat, cents, unit, over = {}) => ({
 });
 
 const PRODUCTS = [
-  P('p1', 'Velvet Ring — foiled card', 'c1', 185, 'card', {
+  P('p1', 'Velvet Ring — foiled card', 'c1', 185, 'each', {
     was: 220, badges: [B_BEST], featured: true, photo: PHOTO('#E7DBC6', '#8C7A5E'),
   }),
-  P('p2', 'Swan Lake — letterpress', 'c1', 240, 'card', { lead: '7 days' }),
-  P('p3', 'Door of Joy — gold foil', 'c1', 210, 'card', {}),
-  P('p4', 'Carved-door invitation box with a deliberately long name', 'c1', 640, 'box', { lead: '12 days' }),
-  P('p5', 'Save-the-date card', 'c1', 95, 'card', { badges: [B_NEW] }),
-  P('p6', 'Olive wax-sealed envelope', 'c6', 95, 'envelope', { photo: PHOTO('#DCD8C4', '#6E7358') }),
-  P('p7', '43" welcome screen', 'c2', 78000, 'unit', { moq: 1, lead: '10 days' }),
-  P('p8', 'Handheld QR scanner', 'c3', 21000, 'unit', { moq: 1, badges: [B_NEW] }),
+  P('p2', 'Swan Lake — letterpress', 'c1', 240, 'each', { lead: '7 days' }),
+  P('p3', 'Door of Joy — gold foil', 'c1', 210, 'each', {}),
+  P('p4', 'Carved-door invitation box with a deliberately long name', 'c1', 640, 'per box', { lead: '12 days' }),
+  P('p5', 'Save-the-date card', 'c1', 95, 'each', { badges: [B_NEW] }),
+  P('p6', 'Olive wax-sealed envelope', 'c6', 95, 'per envelope', { photo: PHOTO('#DCD8C4', '#6E7358') }),
+  P('p7', '43" welcome screen', 'c2', 78000, 'per unit', { moq: 1, lead: '10 days' }),
+  P('p8', 'Handheld QR scanner', 'c3', 21000, 'per unit', { moq: 1, badges: [B_NEW] }),
   P('p9', 'Bespoke foil plate', 'c1', null, null, { tagline: 'Made to your monogram' }),
-  P('p10', 'Menu cards — cotton stock', 'c4', 90, 'card', {}),
-  P('p11', 'Seating chart poster', 'c5', 4800, 'poster', { moq: 1, sold: true }),
-  P('p12', 'Place cards — folded', 'c4', 65, 'card', {}),
+  P('p10', 'Menu cards — cotton stock', 'c4', 90, 'each', {}),
+  P('p11', 'Seating chart poster', 'c5', 4800, 'per poster', { moq: 1, sold: true }),
+  P('p12', 'Place cards — folded', 'c4', 65, 'each', {}),
 ];
 
 const SETTINGS = { enabled: true, whatsapp_number: '19055550134', hero_title: 'Shop' };

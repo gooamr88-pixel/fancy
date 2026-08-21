@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import adminApi from '../../_lib/adminApi';
-import { SHOP_CURRENCY, SHOP_MIN_ORDER_QTY, SHOP_PATH } from '../../../utils/shopLinks';
+import { SHOP_CURRENCY, SHOP_MIN_ORDER_QTY, SHOP_PATH, SHOP_UNIT_DEFAULT } from '../../../utils/shopLinks';
 import usePermissions from '../../_hooks/usePermissions';
 import DataTable from '../../_components/DataTable';
 import { PageLoading } from '../../_components/Spinner';
@@ -10,7 +10,7 @@ import Modal, { Button } from '../../_components/Modal';
 import { T, card } from '../../_components/theme';
 import { useAlert } from '../../_components/AlertContext';
 import { Field } from '../../_components/Field';
-import { makeMultiImageUploadHandler } from '../../_lib/uploadImage';
+import { makeImageUploadHandler, makeMultiImageUploadHandler } from '../../_lib/uploadImage';
 
 /**
  * PRINTED INVITATIONS — the super-admin control centre.
@@ -41,14 +41,17 @@ import { makeMultiImageUploadHandler } from '../../_lib/uploadImage';
 
 const EMPTY_PRODUCT = {
   title: '', slug: '', tagline: '', description: '', categoryId: '',
-  priceDollars: '', compareAtDollars: '', currency: SHOP_CURRENCY, priceUnit: 'per card',
+  priceDollars: '', compareAtDollars: '', currency: SHOP_CURRENCY, priceUnit: '',
   minOrderQty: '', leadTimeText: '', whatsappMessage: '',
   metaTitle: '', metaDescription: '',
   isPublished: false, isFeatured: false, isSoldOut: false,
   badgeIds: [], highlights: [], specs: [], images: [],
 };
 
-const EMPTY_CATEGORY = { name: '', slug: '', description: '', sortOrder: '0', isPublished: true };
+const EMPTY_CATEGORY = {
+  name: '', slug: '', description: '', sortOrder: '0', isPublished: true,
+  coverImageUrl: '', coverImageAlt: '',
+};
 const EMPTY_BADGE = { label: '', bgColor: '#8A6D34', textColor: '#FFFFFF', isFilterable: true, sortOrder: '0', isPublished: true };
 
 const TABS = [
@@ -621,7 +624,7 @@ function ProductEditor({ open, onClose, form, setForm, categories, badges, editi
           <input value={form.currency} onChange={(e) => set({ currency: e.target.value })} style={inputStyle} placeholder={SHOP_CURRENCY} maxLength={3} />
         </Field>
         <Field label="Unit">
-          <input value={form.priceUnit} onChange={(e) => set({ priceUnit: e.target.value })} style={inputStyle} placeholder="per card" />
+          <input value={form.priceUnit} onChange={(e) => set({ priceUnit: e.target.value })} style={inputStyle} placeholder={SHOP_UNIT_DEFAULT} />
         </Field>
       </TwoUp>
       <TwoUp>
@@ -767,6 +770,11 @@ function CategoriesTab() {
         name: form.name,
         slug: form.slug || undefined,
         description: form.description,
+        /* Sent even when empty, and that is the point: '' is how "Remove
+           cover" reaches the PATCH, which clears the column. Omitting the key
+           would mean "leave it alone" and the removal would silently no-op. */
+        coverImageUrl: form.coverImageUrl,
+        coverImageAlt: form.coverImageAlt,
         sortOrder: form.sortOrder,
         isPublished: form.isPublished,
       };
@@ -800,8 +808,14 @@ function CategoriesTab() {
   return (
     <>
       <div style={{ ...card, padding: '14px 18px', marginBottom: 16, fontSize: 12.5, color: T.text500, lineHeight: 1.7 }}>
-        Collections are the filter chips across the top of the public catalogue. A collection with no
-        published piece in it is hidden automatically, so an empty chip can never appear.
+        Collections are how the public catalogue is browsed — the plates on /shop, the index inside a
+        collection, and the Collections group in the filter. A collection with no published piece in it
+        is hidden automatically, so an empty one can never appear.
+        <br />
+        <strong style={{ color: T.text700 }}>Give each one a cover photograph.</strong> It is the picture
+        that stands for the whole shelf in all three places, so use an editorial shot — a styled scene,
+        a texture, a table set — not a photo of a single product. A collection with no cover falls back
+        to a drawn plate rather than borrowing one of its product photos.
       </div>
 
       <DataTable
@@ -816,9 +830,18 @@ function CategoriesTab() {
             key: 'name',
             header: 'Collection',
             render: (r) => (
-              <div>
-                <div style={{ fontWeight: 700, color: T.text900, fontSize: 13 }}>{r.name}</div>
-                <div style={{ fontSize: 11.5, color: T.text500 }}>/{r.slug}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {/* The cover, at the size it is judged: a collection with none
+                    shows the placeholder here, which is the fastest way to see
+                    which shelves are still unstyled. */}
+                <Thumb src={r.cover_image_url} size={44} />
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, color: T.text900, fontSize: 13 }}>{r.name}</div>
+                  <div style={{ fontSize: 11.5, color: T.text500 }}>/{r.slug}</div>
+                  {!r.cover_image_url && (
+                    <div style={{ fontSize: 11, color: T.text400, marginTop: 2 }}>No cover — shows the drawn plate</div>
+                  )}
+                </div>
               </div>
             ),
           },
@@ -842,6 +865,7 @@ function CategoriesTab() {
                   setEditing(r);
                   setForm({
                     name: r.name || '', slug: r.slug || '', description: r.description || '',
+                    coverImageUrl: r.cover_image_url || '', coverImageAlt: r.cover_image_alt || '',
                     sortOrder: String(r.sort_order ?? 0), isPublished: !!r.is_published,
                   });
                   setOpen(true);
@@ -867,10 +891,110 @@ function CategoriesTab() {
         <Field label="Name"><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={inputStyle} placeholder="e.g. Wedding" /></Field>
         <Field label="URL slug (optional)"><input value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} style={inputStyle} placeholder="wedding" /></Field>
         <Field label="Description (internal)"><input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} style={inputStyle} /></Field>
+
+        <CategoryCoverField form={form} setForm={setForm} disabled={!manage} />
+
         <Field label="Sort order"><input type="number" value={form.sortOrder} onChange={(e) => setForm({ ...form, sortOrder: e.target.value })} style={inputStyle} /></Field>
         <Check label="Published" checked={form.isPublished} onChange={(v) => setForm({ ...form, isPublished: v })} />
       </Modal>
     </>
+  );
+}
+
+
+/**
+ * The collection's cover photograph.
+ *
+ * Deliberately its own control rather than a row in the product image list:
+ * this picture is not one of the pieces. It stands for the whole shelf on
+ * three public surfaces — the plates on /shop, the index strip inside a
+ * collection, and the Collections group in the filter — so it is judged at
+ * three sizes at once, and the preview here is the widest of them.
+ *
+ * It reuses makeImageUploadHandler for the same reason every other admin
+ * upload does: the fallback. When the 'event-assets' bucket is unreachable the
+ * file is embedded as a base64 data: URI instead of failing, and a second copy
+ * of that logic would fail differently on this screen than on the others.
+ */
+function CategoryCoverField({ form, setForm, disabled }) {
+  const { showAlert } = useAlert();
+  const [uploading, setUploading] = useState(false);
+
+  const upload = makeImageUploadHandler({
+    pathPrefix: 'shop-categories',
+    setField: (url) => setForm((f) => ({ ...f, coverImageUrl: url })),
+    setUploading,
+    showAlert,
+  });
+
+  return (
+    <Field label="Cover photograph">
+      <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+        {/* 16:10, which is the plate's own crop. A square preview here made a
+            landscape shot look safe and then cut its subject out on /shop. */}
+        <div
+          style={{
+            width: 168, height: 105, flexShrink: 0, borderRadius: 8, overflow: 'hidden',
+            border: `1px solid ${T.border}`, background: T.surfaceAlt,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: T.text400, fontSize: 11.5, textAlign: 'center', padding: 8,
+          }}
+        >
+          {form.coverImageUrl
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={form.coverImageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : <span>No cover yet —<br />the drawn plate is used</span>}
+        </div>
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <label
+              style={{
+                ...inputStyle, width: 'auto', padding: '9px 16px', fontWeight: 700,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                cursor: disabled || uploading ? 'not-allowed' : 'pointer',
+                opacity: disabled ? 0.5 : 1,
+              }}
+            >
+              {uploading ? 'Uploading…' : form.coverImageUrl ? 'Replace' : 'Upload cover'}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={upload}
+                disabled={disabled || uploading}
+                style={{ display: 'none' }}
+              />
+            </label>
+            {form.coverImageUrl && !disabled && (
+              <Button
+                variant="ghost"
+                style={{ padding: '9px 14px', fontSize: 12 }}
+                onClick={() => setForm((f) => ({ ...f, coverImageUrl: '', coverImageAlt: '' }))}
+              >
+                Remove
+              </Button>
+            )}
+          </div>
+
+          <input
+            value={form.coverImageAlt}
+            onChange={(e) => setForm((f) => ({ ...f, coverImageAlt: e.target.value }))}
+            disabled={disabled}
+            style={{ ...inputStyle, marginTop: 8 }}
+            placeholder="Alt text (optional) — describe the picture, not the collection"
+          />
+          <div style={{ fontSize: 11.5, color: T.text500, marginTop: 6, lineHeight: 1.6 }}>
+            {/* The name is printed in type right beside the photograph on every
+                surface, so an alt that repeats it is read twice. Leaving this
+                blank marks the image decorative, which is the correct answer
+                for most covers. */}
+            An editorial shot, not a product photo. Landscape, at least 1200px wide.
+            Leave the alt blank if the picture is decorative — the collection name is
+            already read out next to it.
+          </div>
+        </div>
+      </div>
+    </Field>
   );
 }
 

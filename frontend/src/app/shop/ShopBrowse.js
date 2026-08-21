@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { S, ST, SHADOW, artFor, markFor, ALL_MARK, ART_VIEWBOX } from './shopTheme';
-import { formatPrice, SHOP_MIN_ORDER_QTY } from '../utils/shopLinks';
+import { formatPrice, unitFor, SHOP_MIN_ORDER_QTY } from '../utils/shopLinks';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    THE SHOP — browse.
@@ -98,10 +98,11 @@ function CategoryPlate({ category, index, count, cover }) {
     >
       {cover && (
         <>
-          {/* alt="" deliberately: the shelf name is right there in the plate,
-              and a second reading of it is noise in a screen reader. */}
+          {/* alt defaults to "" deliberately: the shelf name is printed in the
+              plate right beside the picture, so an alt that repeats it is read
+              twice. An admin who writes one is describing the PHOTOGRAPH. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className="plate__img" src={cover.url} alt="" loading="lazy" />
+          <img className="plate__img" src={cover.url} alt={cover.alt || ''} loading="lazy" />
           <span className="plate__scrim" aria-hidden="true" />
         </>
       )}
@@ -153,7 +154,11 @@ function ProductCard({ product, categorySlug, href }) {
         <span className="sp-price">
           {price
             ? <><span className="sp-amount">{price}</span>
-              {product.price_unit && <span className="sp-unit"> / {product.price_unit}</span>}</>
+              {/* No "/" any more. It was hardcoded here and nowhere else, so
+                  the same piece read "$780.00 / unit" in the grid and
+                  "$780.00 unit" on its own page. The unit is a PHRASE and it
+                  is always printed — see unitFor(). */}
+              <span className="sp-unit"> {unitFor(product)}</span></>
             : <span className="sp-amount sp-amount--quote">Price on request</span>}
           {was && <span className="sp-was">{was}</span>}
         </span>
@@ -209,31 +214,26 @@ export default function ShopBrowse({ products, categories, badges, settings, cat
   }, [products]);
 
   /**
-   * A photograph for each shelf, taken from the shelf's own pieces.
+   * The collection's cover photograph, as an admin chose it.
    *
-   * There is no image column on shop_categories, and adding one would mean a
-   * migration plus six uploads before a single plate stopped being a drawing.
-   * The catalogue already holds the photographs — this picks the one the admin
-   * has already said is the best of that shelf: featured first, then their own
-   * sort order. A shelf whose pieces have no photographs keeps the drawing,
-   * which is a designed state rather than a hole.
+   * THIS USED TO BE DERIVED FROM A PRODUCT, and that was the wrong picture.
+   * `coverByCategory` walked each shelf's pieces and took the featured one's
+   * first photograph, else the first by sort order. Three things were wrong
+   * with it: a product shot is lit and cropped to sell one object rather than
+   * to stand for a shelf; nobody ever chose the image; and which product won
+   * changed on its own whenever the catalogue was re-ordered or a different
+   * piece was ticked as featured.
+   *
+   * `shop_categories.cover_image_url` is now a real column, set in
+   * Admin → Shop → Collections (migration 20260827000000). There is no
+   * fallback to a product photograph — a shelf with no cover shows the drawn
+   * plate, which is a designed face rather than a hole, and an accidental
+   * borrowed photo is exactly what this replaced.
    */
-  const coverByCategory = useMemo(() => {
-    const covers = new Map();
-    for (const p of products || []) {
-      const img = p.images?.[0];
-      if (!p.category_id || !img?.url) continue;
-      const held = covers.get(p.category_id);
-      if (!held) { covers.set(p.category_id, { url: img.url, product: p }); continue; }
-      const bidFeatured = p.is_featured ? 0 : 1;
-      const heldFeatured = held.product.is_featured ? 0 : 1;
-      const wins = bidFeatured !== heldFeatured
-        ? bidFeatured < heldFeatured
-        : (p.sort_order ?? 0) < (held.product.sort_order ?? 0);
-      if (wins) covers.set(p.category_id, { url: img.url, product: p });
-    }
-    return covers;
-  }, [products]);
+  const coverFor = useCallback(
+    (c) => (c?.cover_image_url ? { url: c.cover_image_url, alt: c.cover_image_alt || '' } : null),
+    [],
+  );
 
   const shown = useMemo(() => {
     let list = inShelf;
@@ -328,11 +328,67 @@ export default function ShopBrowse({ products, categories, badges, settings, cat
   const filterPanel = (
     <div className="sf">
       <div className="sf-head">
-        <span className="sf-title">Filter</span>
+        <span className="sf-title">Refine</span>
         {appliedCount > 0 && (
           <button type="button" className="sf-clear" onClick={clearAll}>Clear all</button>
         )}
       </div>
+
+      {/* ── Collections ──────────────────────────────────────────────────
+          The one group in this panel that is NOT a checkbox, because a
+          collection is a ROUTE (/shop/<slug>) rather than a client-side
+          filter — it has its own page, its own title and its own metadata.
+          Rendering it as a tick box would either lie about that or quietly
+          create a second, conflicting way to narrow the same list.
+
+          It carries the collection's cover photograph for the same reason
+          the plates and the index strip do: the picture is how a shelf is
+          recognised, and the panel was the one surface that named the
+          collections without ever showing them. */}
+      {categories?.length > 0 && (
+        <div className="sf-group">
+          <span className="sf-legend">Collections</span>
+          <ul className="sf-cats">
+            <li>
+              <Link href="/shop" className={`sf-cat${!shelf ? ' is-on' : ''}`} aria-current={!shelf ? 'page' : undefined}>
+                <span className="sf-cat__art sf-cat__art--all" aria-hidden="true">
+                  <svg viewBox={ART_VIEWBOX} fill="none" stroke={S.gold} strokeWidth="1.7"
+                    strokeLinecap="round" strokeLinejoin="round"
+                    dangerouslySetInnerHTML={{ __html: ALL_MARK }} />
+                </span>
+                <span className="sf-cat__name">All pieces</span>
+                <span className="sf-cat__count">{(products || []).length}</span>
+              </Link>
+            </li>
+            {categories.map((c) => {
+              const on = shelf?.id === c.id;
+              const art = coverFor(c);
+              return (
+                <li key={c.id}>
+                  <Link
+                    href={`/shop/${c.slug}`}
+                    className={`sf-cat${on ? ' is-on' : ''}`}
+                    aria-current={on ? 'page' : undefined}
+                  >
+                    <span className={`sf-cat__art${art ? ' sf-cat__art--photo' : ''}`} aria-hidden="true">
+                      {art
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        ? <img src={art.url} alt="" loading="lazy" />
+                        : (
+                          <svg viewBox={ART_VIEWBOX} fill="none" stroke={S.gold} strokeWidth="1.7"
+                            strokeLinecap="round" strokeLinejoin="round"
+                            dangerouslySetInnerHTML={{ __html: markFor(c.slug) }} />
+                        )}
+                    </span>
+                    <span className="sf-cat__name">{c.name}</span>
+                    <span className="sf-cat__count">{countByCategory.get(c.id) || 0}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
 
       {filterable.length > 0 && (
         <div className="sf-group">
@@ -347,6 +403,7 @@ export default function ShopBrowse({ products, categories, badges, settings, cat
                   onChange={() => toggleBadge(b.id)}
                   disabled={n === 0}
                 />
+                <span className="sf-box" aria-hidden="true" />
                 <span className="sf-label">{b.label}</span>
                 <span className="sf-count">{n}</span>
               </label>
@@ -367,6 +424,7 @@ export default function ShopBrowse({ products, categories, badges, settings, cat
                 onChange={() => toggleBand(band.key)}
                 disabled={n === 0}
               />
+              <span className="sf-box" aria-hidden="true" />
               <span className="sf-label">{band.label}</span>
               <span className="sf-count">{n}</span>
             </label>
@@ -378,6 +436,7 @@ export default function ShopBrowse({ products, categories, badges, settings, cat
         <span className="sf-legend">Availability</span>
         <label className="sf-row">
           <input type="checkbox" checked={hideSoldOut} onChange={() => setHideSoldOut((v) => !v)} />
+          <span className="sf-box" aria-hidden="true" />
           <span className="sf-label">Hide sold out</span>
           <span className="sf-count">{inShelf.filter((p) => p.is_sold_out).length}</span>
         </label>
@@ -421,7 +480,7 @@ export default function ShopBrowse({ products, categories, badges, settings, cat
                   category={c}
                   index={i}
                   count={countByCategory.get(c.id) || 0}
-                  cover={coverByCategory.get(c.id)}
+                  cover={coverFor(c)}
                 />
               </li>
             ))}
@@ -441,7 +500,7 @@ export default function ShopBrowse({ products, categories, badges, settings, cat
           <ul className="shop-index__list fx-container fx-container--5xl fx-gutter">
             <li>
               <Link href="/shop" className="shelf">
-                <span className="shelf__mark" aria-hidden="true">
+                <span className="shelf__mark shelf__mark--art" aria-hidden="true">
                   <svg viewBox={ART_VIEWBOX} fill="none" stroke={S.gold} strokeWidth="1.7"
                     strokeLinecap="round" strokeLinejoin="round" opacity="0.75"
                     dangerouslySetInnerHTML={{ __html: ALL_MARK }} />
@@ -452,6 +511,7 @@ export default function ShopBrowse({ products, categories, badges, settings, cat
             </li>
             {categories.map((c) => {
               const on = c.id === shelf.id;
+              const art = coverFor(c);
               return (
                 <li key={c.id}>
                   <Link
@@ -460,11 +520,24 @@ export default function ShopBrowse({ products, categories, badges, settings, cat
                     aria-current={on ? 'page' : undefined}
                     ref={on ? activeShelfRef : undefined}
                   >
-                    <span className="shelf__mark" aria-hidden="true">
-                      <svg viewBox={ART_VIEWBOX} fill="none" stroke={on ? S.goldInk : S.gold}
-                        strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"
-                        opacity={on ? 1 : 0.75}
-                        dangerouslySetInnerHTML={{ __html: markFor(c.slug) }} />
+                    {/* THE PICTURE STAYS, SELECTED OR NOT.
+                        A collection with a cover shows that cover here at every
+                        state — the mark is the same object the plate on /shop
+                        was, just smaller. Only a collection with NO cover falls
+                        back to the line drawing, and it keeps that drawing when
+                        selected too. Nothing swaps one face for another on
+                        click, which is what made the strip feel like it lost
+                        the shelf you had just chosen. */}
+                    <span className={`shelf__mark${art ? ' shelf__mark--photo' : ' shelf__mark--art'}`} aria-hidden="true">
+                      {art
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        ? <img src={art.url} alt="" loading="lazy" />
+                        : (
+                          <svg viewBox={ART_VIEWBOX} fill="none" stroke={on ? S.goldInk : S.gold}
+                            strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"
+                            opacity={on ? 1 : 0.75}
+                            dangerouslySetInnerHTML={{ __html: markFor(c.slug) }} />
+                        )}
                     </span>
                     <span className="shelf__name">{c.name}</span>
                     <span className="shelf__count">{countByCategory.get(c.id) || 0}</span>
@@ -779,8 +852,28 @@ export default function ShopBrowse({ products, categories, badges, settings, cat
           white-space: nowrap;
           text-decoration: none;
         }
-        .shelf__mark { flex: none; display: flex; width: 16px; height: 16px; }
-        .shelf__mark svg { width: 100%; height: 100%; }
+        /* THE MARK HOLDS EITHER FACE, AT ONE SIZE AND ONE POSITION.
+           A collection with a cover shows the cover; one without keeps its
+           line drawing. Nothing swaps between the two on selection — the
+           strip used to redraw the chosen shelf as a different shape, which
+           read as losing the thing you had just clicked.
+           22px for the photograph and 16 for the drawing: a 16px crop of a
+           photograph is mud, while the drawings were designed at that size
+           (see markFor in shopTheme.js) and grow blunt any larger. */
+        .shelf__mark { flex: none; display: flex; align-items: center; justify-content: center; }
+        .shelf__mark--art { width: 16px; height: 16px; }
+        .shelf__mark--art svg { width: 100%; height: 100%; }
+        .shelf__mark--photo {
+          width: 22px;
+          height: 22px;
+          overflow: hidden;
+          border-radius: 2px;
+          box-shadow: 0 0 0 1px ${S.border};
+        }
+        .shelf__mark--photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        /* The selected shelf's picture gains the gold hairline the rest of the
+           strip only has in type. It stays a photograph either way. */
+        .shelf--on .shelf__mark--photo { box-shadow: 0 0 0 1px ${S.gold}; }
         .shelf__name { font-family: ${ST.display}; font-size: 15px; color: ${S.inkSoft}; }
         .shelf__count {
           align-self: flex-start;
@@ -860,11 +953,44 @@ export default function ShopBrowse({ products, categories, badges, settings, cat
           border-radius: 0;
         }
 
-        /* ── filters ── */
+        /* ── filters ──────────────────────────────────────────────────────
+           Rebuilt 2026-08-21. It was a heading and three stacks of native
+           checkboxes: functional, and indistinguishable from a form. Three
+           things changed, and only the first is decoration.
+
+           1. THE COLLECTIONS ARE IN IT. The panel named the ways to narrow a
+              list and omitted the main one, which lives one strip away at the
+              top of the page. It carries each collection's cover photograph,
+              so a shelf is recognised the same way here as on its plate.
+           2. A DRAWN TICK BOX. accent-color paints a native box in the brand
+              gold and leaves its SHAPE and metrics to the platform, so the
+              panel looked like macOS on macOS and like Windows on Windows.
+              The input is still the input — it is visually hidden, not
+              replaced, so the label, the keyboard and the focus ring are the
+              browser's.
+           3. ROWS THAT ANSWER. Hover, checked and empty are three distinct
+              states; before, an unavailable row differed only by opacity. */
         .shop-aside { display: none; }
         .shop-aside.is-open { display: block; margin: 16px 0 4px; }
-        .sf-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
-        .sf-title { font-family: ${ST.display}; font-size: 19px; color: ${S.ink}; }
+        .sf {
+          border: 1px solid ${S.border};
+          background: ${S.paper};
+          padding: 16px 16px 6px;
+        }
+        .sf-head {
+          display: flex;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 10px;
+          padding-bottom: 12px;
+          border-bottom: 1px solid ${S.ink};
+        }
+        .sf-title {
+          font-family: ${ST.display};
+          font-size: 20px;
+          letter-spacing: -0.01em;
+          color: ${S.ink};
+        }
         .sf-clear {
           background: none;
           border: 0;
@@ -877,20 +1003,152 @@ export default function ShopBrowse({ products, categories, badges, settings, cat
           text-transform: uppercase;
           color: ${S.goldInk};
         }
-        .sf-group { padding: 13px 0; border-top: 1px solid ${S.border}; }
+        .sf-clear:hover { color: ${S.ink}; border-bottom-color: ${S.ink}; }
+
+        .sf-group { padding: 15px 0 13px; border-top: 1px solid ${S.border}; }
         .sf-group:first-of-type { border-top: 0; }
         .sf-legend {
-          display: block;
-          font-size: 9.5px;
-          letter-spacing: 0.18em;
+          display: flex;
+          align-items: center;
+          gap: 9px;
+          font-family: ${ST.label};
+          font-size: 9px;
+          letter-spacing: 0.26em;
           text-transform: uppercase;
-          color: ${S.ink};
-          font-weight: 600;
-          margin-bottom: 6px;
+          color: ${S.goldInk};
+          margin-bottom: 9px;
         }
-        .sf-row { display: flex; align-items: center; gap: 9px; min-height: 34px; cursor: pointer; }
-        .sf-row--empty { opacity: 0.4; cursor: default; }
-        .sf-row input { width: 15px; height: 15px; accent-color: ${S.gold}; flex: none; }
+        .sf-legend::after {
+          content: "";
+          flex: 1 1 auto;
+          height: 1px;
+          background: ${S.border};
+        }
+
+        /* ── collections: links, not tick boxes ── */
+        .sf-cats { list-style: none; margin: 0; padding: 0; }
+        .sf-cat {
+          display: flex;
+          align-items: center;
+          gap: 11px;
+          /* 44: this is a navigation control on a phone. */
+          min-height: 46px;
+          padding: 5px 8px 5px 6px;
+          margin-inline: -6px;
+          text-decoration: none;
+          border: 1px solid transparent;
+          transition: background 0.2s ease, border-color 0.2s ease;
+        }
+        .sf-cat:hover { background: ${S.paper2}; }
+        .sf-cat.is-on { background: ${S.paper2}; border-color: ${S.border}; }
+        .sf-cat__art {
+          flex: none;
+          width: 34px;
+          height: 34px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          background: ${S.paper2};
+          box-shadow: 0 0 0 1px ${S.border};
+        }
+        .sf-cat__art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .sf-cat__art svg { width: 19px; height: 19px; opacity: 0.75; }
+        .sf-cat__art--all { background: ${S.paper}; }
+        .sf-cat.is-on .sf-cat__art { box-shadow: 0 0 0 1px ${S.gold}; }
+        .sf-cat__name {
+          flex: 1 1 auto;
+          min-width: 0;
+          font-family: ${ST.display};
+          font-size: 15px;
+          line-height: 1.25;
+          color: ${S.inkSoft};
+          /* WRAPS TO TWO LINES RATHER THAN TRUNCATING TO ONE.
+             The sidebar is ~180px of usable width and these names are real
+             ones an admin types: measured at 1280, "Screens & displays",
+             "Scanners & door kit", "Printed materials" and "Envelopes &
+             extras" ALL ellipsised — four of six collections identified by a
+             fragment. A truncated name is not a name, and this is the panel
+             where somebody is deciding which shelf to open. */
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+        .sf-cat:hover .sf-cat__name,
+        .sf-cat.is-on .sf-cat__name { color: ${S.ink}; }
+        .sf-cat__count {
+          flex: none;
+          font-family: ${ST.label};
+          font-size: 9px;
+          letter-spacing: 0.14em;
+          color: ${S.gold};
+        }
+        .sf-cat.is-on .sf-cat__count { color: ${S.goldInk}; }
+
+        /* ── tick rows ── */
+        .sf-row {
+          display: flex;
+          align-items: center;
+          gap: 11px;
+          min-height: 38px;
+          padding-inline: 6px;
+          margin-inline: -6px;
+          cursor: pointer;
+          transition: background 0.2s ease;
+        }
+        .sf-row:hover { background: ${S.paper2}; }
+        .sf-row--empty { opacity: 0.38; cursor: default; }
+        .sf-row--empty:hover { background: transparent; }
+        /* VISUALLY HIDDEN, NOT display:none and not replaced. The input keeps
+           the label association, the space bar, and the focus ring; only its
+           painted box is swapped for .sf-box below. */
+        .sf-row input {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          opacity: 0;
+          /* NO pointer-events: none. It is tempting on a 1px invisible box and
+             it is wrong twice: the input is inside its own <label>, so a click
+             anywhere on the row already reaches it, and switching pointer
+             events off makes the control unclickable to anything driving the
+             element directly — assistive tooling and the test suite included.
+             Hiding a control must not disable it. */
+        }
+        .sf-box {
+          flex: none;
+          position: relative;
+          width: 15px;
+          height: 15px;
+          border: 1px solid ${S.border};
+          background: ${S.paper};
+          transition: border-color 0.18s ease, background 0.18s ease;
+        }
+        .sf-row:hover .sf-box { border-color: ${S.gold}; }
+        .sf-box::after {
+          content: "";
+          position: absolute;
+          left: 4px;
+          top: 1px;
+          width: 4px;
+          height: 8px;
+          border: solid ${S.paper};
+          border-width: 0 1.5px 1.5px 0;
+          transform: rotate(45deg) scale(0.5);
+          opacity: 0;
+          transition: opacity 0.18s ease, transform 0.18s ease;
+        }
+        .sf-row input:checked ~ .sf-box {
+          background: ${S.goldInk};
+          border-color: ${S.goldInk};
+        }
+        .sf-row input:checked ~ .sf-box::after { opacity: 1; transform: rotate(45deg) scale(1); }
+        /* The ring the hidden input can no longer show for itself. :focus-visible
+           so it appears for the keyboard and not on a tap. */
+        .sf-row input:focus-visible ~ .sf-box {
+          outline: 2px solid ${S.gold};
+          outline-offset: 2px;
+        }
         .sf-label {
           flex: 1 1 auto;
           min-width: 0;
@@ -900,7 +1158,15 @@ export default function ShopBrowse({ products, categories, badges, settings, cat
           text-overflow: ellipsis;
           white-space: nowrap;
         }
-        .sf-count { flex: none; font-size: 11px; color: ${S.inkSoft}; opacity: 0.7; }
+        .sf-count {
+          flex: none;
+          font-size: 11px;
+          color: ${S.inkSoft};
+          opacity: 0.7;
+          /* Lining figures so a column of counts lines up rather than
+             jittering by digit. */
+          font-variant-numeric: tabular-nums;
+        }
 
         /* ── the grid ──
            --fx-col is declared HERE and never inline, so the desktop step

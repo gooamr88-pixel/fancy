@@ -135,7 +135,23 @@ const getPublicShop = async (req, res) => {
       return res.json({ success: true, enabled: false, products: [], categories: [], badges: [], settings });
     }
 
-    const [{ data: products, error }, { data: categories }, { data: badges }] = await Promise.all([
+    /* THE CATEGORY AND BADGE ERRORS ARE CAUGHT NOW, AND THAT MATTERS MORE
+       SINCE 2026-08-22.
+
+       Only the PRODUCTS error was checked. The other two destructured `data`
+       and dropped `error` on the floor, so a failing categories query fell
+       through to `categories || []` and the shop rendered with no collections
+       at all — no plates, no shelf index, no Collections group in the filter —
+       looking exactly like a shop nobody had configured yet, and logging
+       nothing.
+
+       That became a live deployment hazard when this select gained
+       `cover_image_url` / `cover_image_alt`: those columns arrive in migration
+       20260827000000, so deploying this code before running the migration
+       makes Postgres reject the query with "column does not exist" and the
+       catalogue silently loses every category. The failure needs to be
+       audible. */
+    const [{ data: products, error }, { data: categories, error: catError }, { data: badges, error: badgeError }] = await Promise.all([
       supabase
         .from('shop_products')
         .select(LIST_COLUMNS)
@@ -144,7 +160,12 @@ const getPublicShop = async (req, res) => {
         .order('published_at', { ascending: false }),
       supabase
         .from('shop_categories')
-        .select('id, name, slug, description, sort_order')
+        /* cover_image_url/alt: the collection's editorial cover, set in
+           Admin → Shop → Collections. Before this the public page picked a
+           product photograph out of the shelf instead, which meant nobody had
+           chosen the image and it changed whenever the catalogue was
+           re-ordered. */
+        .select('id, name, slug, description, sort_order, cover_image_url, cover_image_alt')
         .eq('is_published', true)
         .order('sort_order', { ascending: true }),
       supabase
@@ -155,6 +176,14 @@ const getPublicShop = async (req, res) => {
         .order('sort_order', { ascending: true }),
     ]);
     if (error) throw error;
+    /* Logged rather than thrown: a marketing listing must still render. A
+       missing collection list degrades the page; a 500 removes it. */
+    if (catError) {
+      logger.error({ err: catError }, 'getPublicShop: categories query failed — the catalogue will render with no collections. If this says "column does not exist", migration 20260827000000 has not been applied.');
+    }
+    if (badgeError) {
+      logger.error({ err: badgeError }, 'getPublicShop: badges query failed — labels and label filters will be missing.');
+    }
 
     res.set('Cache-Control', 'public, max-age=60, s-maxage=60');
     return res.json({

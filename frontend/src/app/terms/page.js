@@ -4,6 +4,8 @@ import Link from "next/link";
 import Navbar from "../components/landing/Navbar";
 import FooterSection from "../components/landing/FooterSection";
 import InvitationShowcase from "../components/templates/InvitationShowcase";
+import { REFUND_TERMS, PAYMENT_MODEL } from "../utils/refundPolicy";
+import { COMPANY_NAME, ADDRESS_CONFIGURED, addressOneLine, COMPANY_LOCATION } from "../utils/company";
 
 /* ═══════════════════════════════════════════════════════════
    Terms of Service — Fancy RSVP
@@ -16,7 +18,7 @@ const sections = [
     title: "1. Acceptance of Terms",
     content: [
       "By accessing or using the Fancy RSVP platform (\"Service\"), you agree to be bound by these Terms of Service (\"Terms\"). If you do not agree to all of these Terms, you may not access or use the Service.",
-      "These Terms constitute a legally binding agreement between you (\"User,\" \"you,\" or \"your\") and 16941460 Canada Corp., operating as Via Marketing (\"Company,\" \"we,\" \"us,\" or \"our\"), the owner and operator of the Fancy RSVP platform, with its registered office at 2488 Selord Court, Mississauga, Ontario L5J 1P7, Canada. They govern your access to and use of our website, applications, APIs, and all related services.",
+      `These Terms constitute a legally binding agreement between you ("User," "you," or "your") and ${COMPANY_NAME} ("Company," "we," "us," or "our"), the owner and operator of the Fancy RSVP platform, ${ADDRESS_CONFIGURED ? `with its registered office at ${addressOneLine()}` : `based in ${COMPANY_LOCATION}`}. They govern your access to and use of our website, applications, APIs, and all related services.`,
       "We may update these Terms from time to time. We will notify you of material changes at least 14 days before they take effect by sending an email to the address associated with your account or by posting a prominent notice on our platform. Your continued use of the Service after any changes constitutes your acceptance of the revised Terms.",
       "If you are using the Service on behalf of an organization, you represent and warrant that you have the authority to bind that organization to these Terms, and references to \"you\" shall include that organization.",
     ],
@@ -65,7 +67,7 @@ const sections = [
       "If you (as an event host) or your guests send or receive text messages through the Service, the following additional terms apply and are incorporated into these Terms of Service and our Privacy Policy.",
       "**Consent to Receive Text Messages Is Never Given Through These Terms:** Nothing in these Terms of Service, and no acceptance of these Terms or of our Privacy Policy, constitutes consent to receive text messages. SMS consent is collected only through a dedicated, separate, unchecked opt-in checkbox that refers to nothing but text messaging, and it is never bundled with these Terms, with the Privacy Policy, with account registration, with an RSVP, or with any other agreement, purchase, or transaction. Consent to receive text messages is voluntary and is never a condition of registering for an account, submitting an RSVP, attending an event, purchasing anything, or otherwise using the Service, and declining or later withdrawing it does not restrict any of those. A recipient may withdraw consent at any time by replying STOP, without affecting their RSVP, their account, or their attendance.",
       "**Program Description:** Fancy RSVP's SMS feature allows event hosts to send transactional and informational text messages to their own guests. The program covers exactly five message types and nothing else: event invitations, RSVP confirmations, RSVP updates, event reminders, and event updates (including day-of check-in and logistics instructions). This is not a marketing or promotional messaging service. Hosts may not use it to send unsolicited advertising, political messaging, debt collection, or any content unrelated to the specific event the recipient was invited to.",
-      "**Host Consent Obligations:** If you upload, import, or otherwise add a guest's phone number to the Service rather than having the guest submit it themselves, you represent and warrant that: (a) you have obtained that guest's prior express consent to receive text messages about your event before adding their number; (b) you will honor any opt-out request immediately and will not re-add that guest's number to any future messaging list without obtaining fresh consent; and (c) you are solely responsible for your own compliance with the TCPA, CTIA guidelines, and any applicable state-level telemarketing and texting laws with respect to numbers you supply. You agree to indemnify and hold harmless 16941460 Canada Corp. o/a Via Marketing from any claim, fine, or penalty arising from your failure to obtain proper consent for a phone number you provided.",
+      `**Host Consent Obligations:** If you upload, import, or otherwise add a guest's phone number to the Service rather than having the guest submit it themselves, you represent and warrant that: (a) you have obtained that guest's prior express consent to receive text messages about your event before adding their number; (b) you will honor any opt-out request immediately and will not re-add that guest's number to any future messaging list without obtaining fresh consent; and (c) you are solely responsible for your own compliance with the TCPA, CTIA guidelines, and any applicable state-level telemarketing and texting laws with respect to numbers you supply. You agree to indemnify and hold harmless ${COMPANY_NAME} from any claim, fine, or penalty arising from your failure to obtain proper consent for a phone number you provided.`,
       "**How Your Attestation Works:** When you add or import a guest's phone number, you are shown a separate, unchecked confirmation stating that you have obtained that recipient's consent to receive event-related SMS messages. Ticking it is optional. If you do not tick it, the number is saved to your guest list but the Service will never send it a text message. If you do tick it, we record that confirmation against that specific guest together with your account identity and the date, and the guest becomes eligible to receive your event messages. That record is your representation, not the guest's — you remain solely responsible for its accuracy, and we may require you to produce evidence of the underlying consent. Two limits apply and cannot be waived: a guest who was shown our own SMS consent checkbox and declined can never be re-enabled by your confirmation, and any recipient who replies STOP is suppressed permanently and platform-wide regardless of what you have confirmed.",
       "**No Sale or Sharing of Mobile Data:** Consistent with our Privacy Policy, Fancy RSVP will never sell, rent, license, trade, or share any mobile phone number, opt-in record, or consent data collected through the SMS feature with any third party or affiliate for marketing or promotional purposes. This commitment cannot be waived or modified by any other provision of these Terms.",
       "**Message Frequency & Charges:** Message frequency varies by event and is generally limited to confirmations, reminders, and day-of logistics — typically 1–5 messages per event per guest. Message and data rates may apply. Neither Fancy RSVP nor the event host is responsible for charges imposed by a guest's wireless carrier.",
@@ -89,13 +91,26 @@ const sections = [
   {
     id: "payment-terms",
     title: "7. Payment Terms",
+    /* REWRITTEN 2026-08-21. This section described a SUBSCRIPTION — monthly
+       and annual billing cycles, renewals, failed recurring payments,
+       downgrades on non-payment — and Fancy RSVP has never sold one. What it
+       sells is a free tier plus a one-time fee per event, which is what the
+       pricing page shows and what paymentController actually charges.
+
+       That mismatch was not cosmetic: it is why this site answered "can I get
+       a refund?" three different ways. A clause written around renewal dates
+       cannot be applied to a product with none, so every other surface
+       improvised its own answer, and each improvised differently. The refund
+       and billing wording now comes from utils/refundPolicy.js, which every
+       surface imports and none paraphrases. */
     content: [
-      "If you subscribe to a paid plan, the following payment terms apply:",
-      "**Pricing:** Prices for our subscription plans are listed on our pricing page and are subject to change. We will notify you at least 30 days before any price increase takes effect. The new price will apply at your next billing cycle after the notice period.",
-      "**Billing Cycle:** Subscriptions are billed in advance on a monthly or annual basis, depending on your chosen plan. Annual plans receive a discounted rate as indicated on our pricing page.",
-      "**Payment Method:** You authorize us to charge your designated payment method (credit card, debit card, or other accepted methods) for all fees associated with your subscription. You are responsible for keeping your payment information current.",
-      "**Failed Payments:** If a payment fails, we will attempt to process it again and notify you. If payment remains unsuccessful after 7 days, your account may be downgraded to the Free tier, and premium features will be disabled until payment is resolved.",
-      "**Refunds:** Annual subscriptions may be refunded within 14 days of the initial purchase or renewal if you have not substantially used the Service during that period. Monthly subscriptions are generally non-refundable. We may offer pro-rated refunds at our discretion for extenuating circumstances.",
+      PAYMENT_MODEL,
+      "**Pricing:** Prices are listed on our pricing page and may change. A change never affects an event you have already paid for — the price and the plan are fixed at the moment of purchase.",
+      "**Payment Method:** Paid plans are charged once, at the point you publish an event. Where card payment is enabled for your account it is handled by our payment processor, and we never see or store your card details; where it is not, our team arranges bank transfer or another accepted method with you directly.",
+      "**Upgrading An Event:** You may move an event to a higher plan at any time from that event's payment settings. You are charged only the difference between the plan you already paid for and the new one. Moving an event to a lower plan is not self-service; contact us and we will arrange it.",
+      "**Guest And Event Limits:** Each plan states the number of guests it covers and, where applicable, how many events it may publish. There is no automatic per-guest overage charge: when an event reaches its limit, new responses pause until you choose to upgrade. You are never billed more than the plan you selected without explicitly choosing to.",
+      "**Add-Ons:** Some capabilities are bought separately from the plan and are metered — text messaging is charged per message, and printed goods are quoted per order. These are stated as such at the point of purchase and are billed independently of the event licence.",
+      REFUND_TERMS,
       "**Taxes:** Stated prices do not include applicable taxes (VAT, GST, sales tax). Taxes will be calculated and added based on your billing address and applicable tax regulations.",
       "**Free Tier:** The Free plan is provided at no cost with limited features and guest capacity. We reserve the right to modify the Free plan's feature set with reasonable notice.",
     ],
@@ -117,9 +132,9 @@ const sections = [
     title: "9. Termination",
     content: [
       "Either party may terminate this agreement under the following conditions:",
-      "**By You:** You may close your account at any time through your account settings or by contacting info@fancyrsvp.com. Upon closure, you will retain access to your account until the end of your current billing period. After that, your data will be retained for 30 days (grace period) before permanent deletion.",
+      "**By You:** You may close your account at any time through your account settings or by contacting info@fancyrsvp.com. There is no billing period to run down — events you have already paid for stay active until they have taken place. After closure, your data is retained for 30 days (grace period) before permanent deletion.",
       "**By Us — For Cause:** We may suspend or terminate your account immediately if you violate these Terms, engage in fraudulent activity, fail to pay fees after notice, or if your use poses a security risk to our platform or other users. We will provide notice and an explanation unless prohibited by law or doing so would compromise security.",
-      "**By Us — Without Cause:** We may terminate any Free account that has been inactive for 12 consecutive months. For paid accounts, we may discontinue the Service with at least 90 days' prior notice and will provide pro-rated refunds for the unused portion of any prepaid subscription.",
+      "**By Us — Without Cause:** We may terminate any Free account that has been inactive for 12 consecutive months. We may discontinue the Service with at least 90 days' prior notice, and will refund in full any event that has been paid for but has not yet taken place.",
       "**Effect of Termination:** Upon termination, your right to use the Service ceases immediately (subject to any grace period). You may export your data before your account is closed. We are not obligated to retain your data after the 30-day grace period, except where required by law.",
       "**Survival:** Sections relating to intellectual property, limitation of liability, indemnification, and governing law shall survive termination of these Terms.",
     ],
@@ -141,10 +156,12 @@ const sections = [
     title: "11. Contact Information",
     content: [
       "If you have questions about these Terms of Service, please contact us through any of the following channels:",
-      "**Legal Entity:** 16941460 Canada Corp., operating as Via Marketing",
+      `**Operated by:** ${COMPANY_NAME}`,
       "**Email:** info@fancyrsvp.com",
-      "**Mail:** 16941460 Canada Corp. o/a Via Marketing, Attn: Legal, 2488 Selord Court, Mississauga, Ontario L5J 1P7, Canada",
-      "**Corporate Website:** viamarketing.ca",
+      /* See the note in privacy/page.js — same gate, same reason. */
+      ADDRESS_CONFIGURED
+        ? `**Mail:** ${COMPANY_NAME}, Attn: Legal, ${addressOneLine()}`
+        : `**Location:** ${COMPANY_LOCATION}`,
       "For urgent legal matters, including DMCA takedown requests, subpoenas, or law enforcement inquiries, please contact info@fancyrsvp.com with \"URGENT\" in the subject line.",
       "We encourage you to review these Terms regularly to stay informed about your rights and obligations when using Fancy RSVP.",
     ],

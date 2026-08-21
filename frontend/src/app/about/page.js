@@ -4,6 +4,7 @@ import Link from "next/link";
 import Navbar from "../components/landing/Navbar";
 import FooterSection from "../components/landing/FooterSection";
 import GoldDivider from "../components/GoldDivider";
+import { COMPANY_NAME, COMPANY_CITY } from "../utils/company";
 
 /* ═══════════════════════════════════════════════════════════
    About Page — Fancy RSVP
@@ -298,9 +299,8 @@ export default function AboutPage() {
                   borderRadius: "12px",
                 }}
               >
-                Fancy RSVP is built and operated by <strong style={{ color: "#191B1E" }}>16941460 Canada
-                Corp., operating as Via Marketing</strong>, based in Mississauga, Ontario, Canada — serving
-                hosts across the United States and Canada.
+                Fancy RSVP is built and operated by <strong style={{ color: "#191B1E" }}>{COMPANY_NAME}</strong>,
+                based in {COMPANY_CITY} — serving hosts across the United States and Canada.
               </p>
             </div>
           </div>

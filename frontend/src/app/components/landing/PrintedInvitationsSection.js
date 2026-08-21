@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { SHOP_PATH, productPath, priceLine, coverImage } from '../../utils/shopLinks';
+import { SHOP_PATH, SHOP_LABEL, productPath, priceLine, coverImage } from '../../utils/shopLinks';
 import { C as TOKENS } from './landingTokens';
 import ShopRail from './ShopRail';
 
@@ -90,14 +90,23 @@ export default async function PrintedInvitationsSection() {
           <div className="pis-head-copy">
             <p className="pis-kicker">ALSO FROM THE STUDIO</p>
             <h2 id="pis-title" className="pis-title">
-              Some invitations
+              Some of it
               <br />
-              are meant to be held
+              is meant to be held
             </h2>
           </div>
+          {/* THE SHELF IS NOT ONLY PRINT, AND THIS BAND USED TO SAY IT WAS.
+              The heading was "Some invitations are meant to be held" over a
+              rail whose twelve pieces include welcome screens, handheld
+              scanners, seating signage and door hardware. A visitor looking
+              for a scanner had no reason to open a band that promised printed
+              invitations — the same mistake the old /printed-invitations route
+              and the old nav label both made, corrected on both of those and
+              missed here. */}
           <p className="pis-lede">
-            Alongside the digital invitations, we make printed ones — foiled, pressed and
-            finished by hand, then delivered to your door. Every piece is quoted personally.
+            Beyond the digital invitation we make the physical side of the night too —
+            cards foiled and pressed by hand, envelopes and signage, welcome screens and
+            the scanners for your door. Priced per piece, delivered to you.
           </p>
         </div>
 
@@ -112,7 +121,11 @@ export default async function PrintedInvitationsSection() {
 
       <div className="fx-container fx-container--4xl fx-gutter">
         <div className="pis-cta">
-          <Link href={SHOP_PATH} className="pis-btn">See the printed collection</Link>
+          {/* "See the printed collection" until 2026-08-21 — a name for a
+              sixth of what the button opens. SHOP_LABEL rather than a literal
+              so this cannot drift from the nav and the footer again. */}
+          <Link href={SHOP_PATH} className="pis-btn">Visit the {SHOP_LABEL.toLowerCase()}</Link>
+          <p className="pis-cta-note">Cards, envelopes, signage, screens and door hardware.</p>
         </div>
       </div>
 
@@ -221,6 +234,14 @@ export default async function PrintedInvitationsSection() {
         .pis-price { display: block; font-size: 13px; color: ${C.inkSoft}; }
 
         .pis-cta { text-align: center; }
+        .pis-cta-note {
+          margin: 12px 0 0;
+          font-family: var(--font-sans);
+          font-size: 12px;
+          font-weight: 300;
+          letter-spacing: 0.01em;
+          color: ${C.inkSoft};
+        }
         .pis-btn {
           display: inline-flex; align-items: center; justify-content: center;
           min-height: 50px; padding: 0 32px; border: 1px solid ${C.ink}; border-radius: 2px;

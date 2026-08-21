@@ -2,6 +2,7 @@ import Link from "next/link";
 import Navbar from "../components/landing/Navbar";
 import FooterSection from "../components/landing/FooterSection";
 import OptInForm from "./OptInForm";
+import { COMPANY_NAME, COMPANY_CITY, COMPANY_LOCATION, COMPANY_SITE, ADDRESS_CONFIGURED, addressOneLine } from "../utils/company";
 
 /* ═══════════════════════════════════════════════════════════
    SMS Opt-In & Consent — public opt-in page
@@ -34,7 +35,7 @@ import OptInForm from "./OptInForm";
 export const metadata = {
   title: "SMS Opt-In & Consent — Fancy RSVP",
   description:
-    "How Fancy RSVP collects SMS consent from event guests: opt-in flow, message types, frequency, rates, and STOP/HELP opt-out instructions. Operated by 16941460 Canada Corp. o/a Via Marketing.",
+    `How Fancy RSVP collects SMS consent from event guests: opt-in flow, message types, frequency, rates, and STOP/HELP opt-out instructions. Operated by ${COMPANY_NAME}.`,
   alternates: { canonical: "https://fancyrsvp.com/sms-opt-in" },
 };
 
@@ -150,8 +151,8 @@ export default function SmsOptInPage() {
               <P style={{ marginBottom: "10px" }}>
                 <strong style={{ color: INK }}>Fancy RSVP</strong> (fancyrsvp.com) is an event invitation and
                 RSVP platform owned and operated by{" "}
-                <strong style={{ color: INK }}>16941460 Canada Corp., operating as Via Marketing</strong>. Both
-                the brand and the legal entity below are the sender of every text message described on this
+                <strong style={{ color: INK }}>{COMPANY_NAME}</strong>, based in {COMPANY_CITY}. The brand and
+                the operator are the same party, and are the sender of every text message described on this
                 page; there is no other party sending on our behalf.
               </P>
               <ul style={{ fontFamily: SANS, fontSize: "15px", color: BODY, lineHeight: 1.9, margin: 0, paddingLeft: "20px" }}>
@@ -161,12 +162,20 @@ export default function SmsOptInPage() {
                   sender identification appended to every text message. The two spellings are the same brand
                   and the same sender; there is no other.
                 </li>
-                <li><strong style={{ color: INK }}>Legal entity:</strong> 16941460 Canada Corp. o/a Via Marketing</li>
-                <li>Registered office: 2488 Selord Court, Mississauga, Ontario L5J 1P7, Canada</li>
+                {/* ⚠ THIS BLOCK IS READ BY A TWILIO TFV REVIEWER.
+                    It must match the business identity on the Toll-Free
+                    Verification submission exactly. This account has already
+                    been rejected once for "Business could not be verified",
+                    and the recorded cause was that the site published a
+                    California identity while the submission named a Canadian
+                    corporation. Changing the identity here without
+                    re-submitting there recreates that mismatch. */}
+                <li><strong style={{ color: INK }}>Operated by:</strong> {COMPANY_NAME}</li>
+                <li>{ADDRESS_CONFIGURED ? "Business address: " : "Based in: "}{ADDRESS_CONFIGURED ? addressOneLine() : COMPANY_LOCATION}</li>
                 <li>
-                  Corporate website:{" "}
-                  <a href="https://viamarketing.ca" target="_blank" rel="noopener noreferrer" style={{ color: GOLD, fontWeight: 600 }}>
-                    viamarketing.ca
+                  Website:{" "}
+                  <a href={COMPANY_SITE} target="_blank" rel="noopener noreferrer" style={{ color: GOLD, fontWeight: 600 }}>
+                    fancyrsvp.com
                   </a>
                 </li>
                 <li>

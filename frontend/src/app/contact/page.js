@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import Navbar from "../components/landing/Navbar";
 import FooterSection from "../components/landing/FooterSection";
+import { COMPANY_CITY, SOCIAL_INSTAGRAM, SOCIAL_FACEBOOK, INSTAGRAM_HANDLE } from "../utils/company";
 
 /* ═══════════════════════════════════════════════════════════
    Contact — Fancy RSVP
@@ -24,9 +25,9 @@ const contactCards = [
   },
   {
     label: "Message Us",
-    value: "@viamarketing.ca",
+    value: INSTAGRAM_HANDLE,
     detail: "DM us on Instagram",
-    href: "https://www.instagram.com/viamarketing.ca/",
+    href: SOCIAL_INSTAGRAM,
     icon: (
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#B8944F" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
@@ -34,9 +35,13 @@ const contactCards = [
     ),
   },
   {
-    label: "Visit Us",
-    value: "Mississauga, Ontario",
-    detail: "2488 Selord Court, L5J 1P7, Canada",
+    /* "Visit Us" over a street address invited people to turn up at a door.
+        There is no public office to visit and no street address after the
+        2026-08-22 rebrand, so the card states WHERE the business is rather
+        than pretending to be a place you can walk into. */
+    label: "Where We Are",
+    value: COMPANY_CITY,
+    detail: "Remote-first — reach us by email or Instagram",
     icon: (
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#B8944F" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <path d="M21 10C21 17 12 23 12 23S3 17 3 10C3 5.03 7.03 1 12 1S21 5.03 21 10Z" />
@@ -60,7 +65,7 @@ const contactCards = [
 const socialLinks = [
   {
     name: "Instagram",
-    url: "https://www.instagram.com/viamarketing.ca/",
+    url: SOCIAL_INSTAGRAM,
     icon: (
       <>
         <rect x="2" y="2" width="20" height="20" rx="5" />
@@ -70,7 +75,7 @@ const socialLinks = [
   },
   {
     name: "Facebook",
-    url: "https://www.facebook.com/viamarketing.ca",
+    url: SOCIAL_FACEBOOK,
     icon: <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3Z" />,
   },
 ];
@@ -245,7 +250,7 @@ export default function ContactPage() {
     const params = new URLSearchParams(window.location.search);
     const subject = params.get("subject");
     const guests = params.get("guests");
-    const validSubjects = ["general", "support", "billing", "partnership", "feedback", "enterprise"];
+    const validSubjects = ["general", "support", "billing", "refund", "partnership", "feedback", "enterprise"];
     if (!subject && !guests) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setFormData((prev) => ({
@@ -528,6 +533,12 @@ export default function ContactPage() {
                     <option value="general">General Inquiry</option>
                     <option value="support">Technical Support</option>
                     <option value="billing">Billing Question</option>
+                    {/* Its own subject, not a shade of "Billing". Both refund
+                        answers deep-link here with ?subject=refund, so the
+                        request arrives already labelled and lands in the same
+                        queue as everything else — a bare mailto in §7 of the
+                        Terms was a policy, not a method. */}
+                    <option value="refund">Refund Request</option>
                     <option value="partnership">Partnership Opportunity</option>
                     <option value="feedback">Feedback & Suggestions</option>
                     <option value="enterprise">Enterprise Plans</option>

@@ -1,76 +1,76 @@
-"use client";
-import React, { useMemo, useState } from "react";
-import Link from "next/link";
-import { formatTierPrice, tierCta, tierHref, tierGuestLine } from "../utils/usePublicPricing";
-// Cormorant, not Aboreto — see the note in pricing/page.js.
-import { T } from "../components/landing/landingTokens";
+'use client';
 
-/**
- * "Which Plan Do You Need?" — an interactive plan finder driven entirely by
- * the live pricing tiers (same data the cards below render, same data
- * checkout actually charges against). Tell it your guest count and the
- * features you need; it recommends the cheapest real tier that satisfies
- * both. Deliberately NOT a fake-urgency/scarcity widget ("Only 3 left!") —
- * the persuasion here is just removing the "which plan is right for me?"
- * friction with an honest, data-backed answer.
- */
-/** How many filter chips are shown before the "show all" toggle. Eight is two
- *  or three rows at a phone width — enough to make the control legible without
- *  turning it into a wall. */
-const CHIP_LIMIT = 8;
+import React, { useMemo, useState } from 'react';
+import Link from 'next/link';
+import { C, T } from '../components/landing/landingTokens';
+import { priceOf, capacityOf, ctaOf, hrefOf, formatCount } from './pricingData';
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE PLAN FINDER — "tell me the guest count, I will tell you the plan".
+
+   Driven entirely by the live tiers: the same data the ladder above renders
+   and the same data checkout charges against. Deliberately not a scarcity
+   widget; the only persuasion here is removing the "which one is right for
+   me?" friction with an answer that is honestly the CHEAPEST qualifying plan
+   rather than the dearest.
+
+   ── WHAT CHANGED, AND WHY IT MOVED ────────────────────────────────────────
+
+   This used to sit between the hero and the prices, as a 40px-padded white
+   card carrying its own heading, subheading, a slider, a number field and —
+   the expensive part — a chip for every feature in the ladder. A full ladder
+   is ~25 features, so at 440px that was an 824px wall inside a 1,671px card,
+   before a visitor had reached a single price. On a phone the whole component
+   measured roughly 1,300px: a screen and a half of form, first.
+
+   Three changes, in the order they matter:
+
+   1. It is now BELOW the prices, as a helper for someone the ladder did not
+      settle, and PricingClient owns the heading around it. Anyone who already
+      knows their guest count never has to touch it.
+   2. The must-have chips are behind a disclosure, closed. The heading itself
+      calls them optional; a wall of 25 optional controls is not a default.
+   3. It is on the landing tokens rather than the retired palette.
+
+   Plain <style>, not <style jsx>: the call to action is a next/link, and
+   styled-jsx stamps its hash class only onto lowercase intrinsic elements, so
+   a scoped rule aimed at .pr-btn would compile to .pr-btn.jsx-hash and match
+   nothing at all. No backticks inside the CSS comments below.
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 export default function PlanRecommender({ tiers }) {
   const [guestCount, setGuestCount] = useState(100);
   const [mustHave, setMustHave] = useState(new Set());
-  const [showAllFeatures, setShowAllFeatures] = useState(false);
+  const [showFeatures, setShowFeatures] = useState(false);
 
   const allFeatures = useMemo(() => {
     const set = new Set();
-    for (const t of tiers || []) {
-      for (const f of t.features || []) set.add(f);
-    }
+    for (const t of tiers || []) for (const f of t.features || []) set.add(f);
     return [...set];
   }, [tiers]);
 
-  /* Selected chips are always visible, whatever the limit. Otherwise a viewer
-     could tick a feature, collapse the list, and be left with a
-     recommendation that has no visible reason for being what it is. */
-  const visibleFeatures = useMemo(() => {
-    if (showAllFeatures || allFeatures.length <= CHIP_LIMIT) return allFeatures;
-    const head = allFeatures.slice(0, CHIP_LIMIT);
-    const selectedBelow = allFeatures
-      .slice(CHIP_LIMIT)
-      .filter((f) => mustHave.has(f));
-    return [...head, ...selectedBelow];
-  }, [allFeatures, showAllFeatures, mustHave]);
-
-  // The slider's ceiling is the largest FIXED (non-custom) plan's real guest
-  // cap — never a hardcoded number that could silently drift from what an
-  // admin actually configures at /admin/config. Once dragged to the top, the
-  // recommendation naturally falls to the custom/contact-sales tier (or the
-  // honest "closest match" fallback below if none is configured), so the
-  // slider never implies a hard ceiling on how many guests the platform
-  // supports — only where fixed pricing stops and a custom quote begins.
+  /* The slider's ceiling is the largest FIXED plan's real cap, never a
+     hardcoded number that would drift the moment an admin edits pricing. Once
+     dragged to the top the answer naturally falls to the quoted tier, so the
+     slider never implies a hard ceiling on what the platform supports — only
+     where fixed pricing stops and a conversation begins. */
   const largestFixedCap = useMemo(() => {
-    const caps = (tiers || [])
-      .filter((t) => !t.is_custom && t.max_guests > 0)
-      .map((t) => t.max_guests);
+    const caps = (tiers || []).filter((t) => !t.is_custom && t.max_guests > 0).map((t) => t.max_guests);
     return caps.length ? Math.max(...caps) : 1000;
   }, [tiers]);
 
-  // Deep-link into the contact form with the subject and guest count already
-  // filled in, so someone who just told us their event is too big for a fixed
-  // plan doesn't have to repeat themselves in the message box.
+  /* Deep-links into the contact form with the subject and guest count already
+     filled in, so somebody who has just told us their event is too big for a
+     fixed plan does not have to repeat themselves in the message box. */
   const contactHref = useMemo(
     () => `/contact?subject=enterprise&guests=${encodeURIComponent(guestCount)}`,
-    [guestCount]
+    [guestCount],
   );
 
   const toggleFeature = (f) => {
     setMustHave((prev) => {
       const next = new Set(prev);
-      if (next.has(f)) next.delete(f);
-      else next.add(f);
+      if (next.has(f)) next.delete(f); else next.add(f);
       return next;
     });
   };
@@ -80,8 +80,7 @@ export default function PlanRecommender({ tiers }) {
     const required = [...mustHave];
     const qualifies = (t) => {
       const capOk = !(t.max_guests > 0) || t.max_guests >= guestCount;
-      const featOk = required.every((f) => (t.features || []).includes(f));
-      return capOk && featOk;
+      return capOk && required.every((f) => (t.features || []).includes(f));
     };
     const qualifying = list.filter(qualifies);
     const cheapestFixed = qualifying
@@ -90,250 +89,350 @@ export default function PlanRecommender({ tiers }) {
     if (cheapestFixed) return { recommended: cheapestFixed, qualifyingCount: qualifying.length, fallback: false };
     const customTier = qualifying.find((t) => t.is_custom);
     if (customTier) return { recommended: customTier, qualifyingCount: qualifying.length, fallback: false };
-    // Nothing qualifies outright (guest count/feature combo exceeds every fixed
-    // tier and there's no custom tier configured) — fall back to the tier with
-    // the highest guest cap as the closest real option, flagged so the copy
-    // can be honest about it being an approximation, not a guaranteed fit.
+    /* Nothing qualifies outright — fall back to the highest-capacity tier as
+       the closest real option, FLAGGED, so the copy can be honest about it
+       being an approximation rather than a guaranteed fit. */
     const closest = [...list].sort((a, b) => (b.max_guests || Infinity) - (a.max_guests || Infinity))[0] || null;
     return { recommended: closest, qualifyingCount: 0, fallback: true };
   }, [tiers, guestCount, mustHave]);
 
   if (!tiers || tiers.length === 0) return null;
 
-  return (
-    <div
-      className="pr-card"
-      style={{
-        background: "#FFFFFF",
-        border: "1px solid #E8E2D6",
-        borderRadius: "20px",
-        padding: "40px 36px",
-        boxShadow: "0 4px 24px rgba(0,0,0,0.04)",
-        marginBottom: "64px",
-        boxSizing: "border-box",
-      }}
-    >
-      <div style={{ textAlign: "center", marginBottom: "32px" }}>
-        <span style={{ fontFamily: "var(--font-sans)", fontSize: "12px", fontWeight: 700, color: "#B8944F", letterSpacing: "1.5px", textTransform: "uppercase", display: "block", marginBottom: "10px" }}>
-          Plan Finder
-        </span>
-        <h2 style={{ fontFamily: T.display, fontSize: "28px", fontWeight: 700, color: "#191B1E", marginBottom: "8px" }}>
-          Not sure which plan fits?
-        </h2>
-        <p style={{ fontFamily: "var(--font-sans)", fontSize: "14.5px", color: "#5E5A52" }}>
-          Tell us your guest count and must-haves — we&apos;ll point to the cheapest plan that actually covers it.
-        </p>
-      </div>
+  const price = recommended ? priceOf(recommended) : null;
+  /* A free tier is usually NAMED "Free" and PRICED "Free", and printing both
+     gave two near-identical display lines, which reads as a rendering fault
+     rather than as a name above a price. String() on BOTH sides: price_label
+     comes out of admin-editable JSONB with no type enforcement, and a numeric
+     label would reach .trim() as a number and take the page down. */
+  const priceRepeatsName = price
+    && String(price.amount ?? '').trim().toLowerCase() === String(recommended.name ?? '').trim().toLowerCase();
 
-      <div className="pr-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "36px" }}>
-        {/* ── Inputs ── */}
-        <div>
-          <label htmlFor="pr-guest-count" style={{ fontFamily: "var(--font-sans)", fontSize: "13px", fontWeight: 700, color: "#191B1E", display: "block", marginBottom: "10px" }}>
-            Expected guest count: <span style={{ color: "#B8944F" }}>{guestCount.toLocaleString()}</span>
-          </label>
+  return (
+    <div className="pr">
+      <div className="pr-ask">
+        <label className="pr-label" htmlFor="pr-guest-count">
+          How many guests are you expecting?
+        </label>
+
+        <div className="pr-nums">
           <input
             id="pr-guest-count"
-            type="range"
-            min="10"
-            max={largestFixedCap}
-            step="10"
-            value={Math.min(guestCount, largestFixedCap)}
-            onChange={(e) => setGuestCount(Number(e.target.value))}
-            style={{ width: "100%", accentColor: "#B8944F", marginBottom: "4px" }}
+            className="pr-num"
+            type="number"
+            min="1"
+            value={guestCount}
+            onChange={(e) => setGuestCount(Math.max(1, Number(e.target.value) || 1))}
           />
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}>
-            <span style={{ fontFamily: "var(--font-sans)", fontSize: "11px", color: "#9E9A92" }}>10</span>
-            <span style={{ fontFamily: "var(--font-sans)", fontSize: "11px", color: "#9E9A92" }}>{largestFixedCap.toLocaleString()}+</span>
-          </div>
-          <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-            <input
-              type="number"
-              min="1"
-              value={guestCount}
-              onChange={(e) => setGuestCount(Math.max(1, Number(e.target.value) || 1))}
-              style={{
-                width: "100px", flexShrink: 0, boxSizing: "border-box", padding: "8px 12px", borderRadius: "8px",
-                border: "1.5px solid #E8E2D6", fontFamily: "var(--font-sans)",
-                /* 16px, not 14: iOS Safari ZOOMS the whole page in when a
-                   focused field's text is under 16px, and never zooms back
-                   out. This is the only text input on the pricing page, and
-                   it sits mid-page — one tap and the visitor is stranded at
-                   1.3x with the plan cards off screen. */
-                fontSize: "16px",
-                color: "#191B1E", outline: "none",
-              }}
-            />
-            <span style={{ fontFamily: "var(--font-sans)", fontSize: "13px", color: "#77736A", minWidth: 0 }}>
-              guests — type an exact number above {largestFixedCap.toLocaleString()} if the slider can&apos;t reach it
-            </span>
-          </div>
+          <span className="pr-numnote">
+            Type any number — above {formatCount(largestFixedCap)} we will quote you instead.
+          </span>
+        </div>
 
-          {allFeatures.length > 0 && (
-            <div style={{ marginTop: "28px" }}>
-              <span style={{ fontFamily: "var(--font-sans)", fontSize: "13px", fontWeight: 700, color: "#191B1E", display: "block", marginBottom: "10px" }}>
-                Must-have features (optional)
-              </span>
-              {/* COLLAPSED BY DEFAULT.
+        <input
+          className="pr-range"
+          type="range"
+          min="10"
+          max={largestFixedCap}
+          step="10"
+          aria-label="Expected guest count"
+          value={Math.min(guestCount, largestFixedCap)}
+          onChange={(e) => setGuestCount(Number(e.target.value))}
+        />
+        <div className="pr-scale">
+          <span>10</span>
+          <span>{formatCount(largestFixedCap)}+</span>
+        </div>
 
-                  A full ladder has ~25 features, and every one of them became
-                  a chip. Measured at 440px that was an 824px wall inside a
-                  1,671px card — 1.75 phone screens spent on a control the
-                  heading itself calls optional, before a visitor has reached a
-                  single price.
+        {allFeatures.length > 0 && (
+          <div className="pr-feat">
+            {/* CLOSED BY DEFAULT — see the note at the top of this file for
+                the measurement. Anything already ticked is summarised on the
+                button, so a collapsed list can never hide an active filter
+                and leave an answer that looks unexplained. */}
+            <button
+              type="button"
+              className="pr-disclose"
+              onClick={() => setShowFeatures((v) => !v)}
+              aria-expanded={showFeatures}
+            >
+              {showFeatures ? 'Hide must-haves' : 'Add must-haves (optional)'}
+              {mustHave.size > 0 && <span className="pr-count">{mustHave.size} chosen</span>}
+            </button>
 
-                  Eight is enough to show what the control DOES; the rest are
-                  one tap away. Anything already selected is forced into the
-                  visible set, so collapsing can never hide an active filter
-                  and leave a recommendation that looks unexplained. */}
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                {visibleFeatures.map((f) => {
+            {showFeatures && (
+              <div className="pr-chips">
+                {allFeatures.map((f) => {
                   const active = mustHave.has(f);
                   return (
                     <button
                       key={f}
                       type="button"
+                      className={`pr-chip${active ? ' is-on' : ''}`}
                       onClick={() => toggleFeature(f)}
                       aria-pressed={active}
-                      style={{
-                        padding: "7px 14px", borderRadius: "100px",
-                        border: active ? "1.5px solid #B8944F" : "1px solid #E8E2D6",
-                        background: active ? "rgba(184,148,79,0.1)" : "#FFFFFF",
-                        color: active ? "#B8944F" : "#5E5A52",
-                        fontFamily: "var(--font-sans)", fontSize: "12.5px", fontWeight: 600,
-                        cursor: "pointer", transition: "all 0.2s ease",
-                      }}
                     >
                       {f}
                     </button>
                   );
                 })}
               </div>
-
-              {allFeatures.length > CHIP_LIMIT && (
-                <button
-                  type="button"
-                  onClick={() => setShowAllFeatures((v) => !v)}
-                  aria-expanded={showAllFeatures}
-                  style={{
-                    marginTop: "12px",
-                    minHeight: "44px",
-                    padding: "0 2px",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    fontFamily: "var(--font-sans)",
-                    fontSize: "12.5px",
-                    fontWeight: 600,
-                    color: "#8A6D34",
-                    textDecoration: "underline",
-                    textUnderlineOffset: "4px",
-                  }}
-                >
-                  {showAllFeatures
-                    ? "Show fewer"
-                    : `Show all ${allFeatures.length} features`}
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* ── Recommendation ── */}
-        <div
-          style={{
-            background: "#F8F4EC",
-            borderRadius: "16px",
-            border: "1px solid #E8E2D6",
-            padding: "28px 26px",
-            display: "flex",
-            flexDirection: "column",
-            /* Side by side, this panel stretches to the height of the input
-               column — which is driven by however many feature chips the
-               tiers happen to produce — and left a ~200px void under the
-               recommendation. Centring costs nothing when the column stacks
-               on a phone, where the panel is only as tall as its contents. */
-            justifyContent: "center",
-          }}
-        >
-          {recommended ? (
-            <>
-              <span style={{ fontFamily: "var(--font-sans)", fontSize: "11px", fontWeight: 700, color: "#B8944F", letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: "10px" }}>
-                {fallback ? "Closest Match" : "Recommended For You"}
-              </span>
-              <h3 style={{ fontFamily: T.display, fontSize: "24px", fontWeight: 700, color: "#191B1E", marginBottom: "4px" }}>
-                {recommended.name}
-              </h3>
-              {/* A free tier is usually NAMED "Free" and PRICED "Free", and
-                  this printed both — two near-identical serif lines, 24px
-                  above 30px, which reads as a rendering fault rather than as a
-                  name above a price. When they say the same thing, the name
-                  has already said it. */}
-              {/* String() on BOTH sides. formatTierPrice returns
-                  `tier.price_label` verbatim when one is set, and price_label
-                  comes out of the admin-editable pricing_tiers JSONB with no
-                  type enforcement — a numeric label would reach .trim() as a
-                  number and take the whole pricing page down with a
-                  TypeError. */}
-              {String(formatTierPrice(recommended).price ?? '').trim().toLowerCase()
-                !== String(recommended.name ?? '').trim().toLowerCase() && (
-                <div style={{ display: "flex", alignItems: "baseline", gap: "4px", marginBottom: "14px" }}>
-                  <span style={{ fontFamily: T.display, fontSize: "30px", fontWeight: 700, color: "#191B1E" }}>
-                    {formatTierPrice(recommended).price}
-                  </span>
-                  <span style={{ fontFamily: "var(--font-sans)", fontSize: "13px", color: "#5E5A52" }}>
-                    {formatTierPrice(recommended).period}
-                  </span>
-                </div>
-              )}
-              <p style={{ fontFamily: "var(--font-sans)", fontSize: "13.5px", color: "#5E5A52", marginBottom: "18px", lineHeight: 1.6 }}>
-                {tierGuestLine(recommended)}
-                {fallback && " — our largest fixed plan."}
-              </p>
-              <Link
-                href={(fallback || recommended.is_custom) ? contactHref : tierHref(recommended)}
-                className="btn-gold"
-                style={{ padding: "12px 28px", fontSize: "14px", fontWeight: 700, borderRadius: "8px", textAlign: "center", textDecoration: "none" }}
-              >
-                {fallback ? "Contact Sales" : tierCta(recommended)}
-              </Link>
-
-              {/* The one place this ambiguity actually shows up live: make it
-                  unambiguous, in plain language, right where it happens —
-                  never a silent/automatic charge either way. */}
-              {fallback ? (
-                <p style={{ fontFamily: "var(--font-sans)", fontSize: "12.5px", color: "#77736A", marginTop: "14px", marginBottom: 0, lineHeight: 1.6 }}>
-                  Your guest count is above every plan shown here. There&apos;s no automatic overage fee — <Link href={contactHref} style={{ color: "#B8944F", fontWeight: 700 }}>contact us</Link> and we&apos;ll quote a plan sized to your event before anything is charged.
-                </p>
-              ) : recommended.is_custom ? (
-                <p style={{ fontFamily: "var(--font-sans)", fontSize: "12.5px", color: "#77736A", marginTop: "14px", marginBottom: 0, lineHeight: 1.6 }}>
-                  Custom-priced for your guest count — you&apos;ll get a clear quote from our team before anything is charged, never an automatic fee.
-                </p>
-              ) : qualifyingCount > 1 && (
-                <p style={{ fontFamily: "var(--font-sans)", fontSize: "12px", color: "#77736A", marginTop: "14px", marginBottom: 0 }}>
-                  {qualifyingCount - 1} other plan{qualifyingCount - 1 === 1 ? "" : "s"} also cover{qualifyingCount - 1 === 1 ? "s" : ""} this — see the full comparison below.
-                </p>
-              )}
-            </>
-          ) : (
-            <p style={{ fontFamily: "var(--font-sans)", fontSize: "14px", color: "#5E5A52" }}>
-              Pricing is temporarily unavailable — see the plans below or{" "}
-              <Link href="/contact" style={{ color: "#B8944F" }}>contact us</Link>.
-            </p>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
 
-      <style jsx>{`
-        /* Collapses at 1024, not 768. Two columns inside a 768px page leaves
-           each about 330px: the feature chips wrap to one per line and stack
-           into a tall ragged column, while the recommendation beside it —
-           which is short — sits in its own half-empty box. Stacked, the chips
-           get the full width and flow three to a row. */
-        @media (max-width: 1023.98px) {
-          .pr-grid { grid-template-columns: 1fr !important; gap: 28px !important; }
+      {/* ── The answer ─────────────────────────────────────────────────── */}
+      <div className="pr-answer">
+        {recommended ? (
+          <>
+            <span className="pr-answer__label">
+              {fallback ? 'Closest match' : 'Your plan'}
+            </span>
+            <h3 className="pr-answer__name">{recommended.name}</h3>
+            {!priceRepeatsName && (
+              <div className="pr-answer__price">
+                <span className="pr-answer__amount">{price.amount}</span>
+                <span className="pr-answer__per">{price.note}</span>
+              </div>
+            )}
+            <p className="pr-answer__cap">
+              Holds {capacityOf(recommended).value === 'Unlimited'
+                ? 'as many guests as you need'
+                : `up to ${capacityOf(recommended).value} guests`}
+              {fallback && ' — our largest fixed plan'}
+            </p>
+
+            <Link
+              href={(fallback || recommended.is_custom) ? contactHref : hrefOf(recommended)}
+              className="pr-btn"
+            >
+              {fallback ? 'Talk to us' : ctaOf(recommended)}
+            </Link>
+
+            {/* The one place this ambiguity actually bites, answered in plain
+                language exactly where it happens — never a silent charge. */}
+            {fallback ? (
+              <p className="pr-answer__note">
+                That is more guests than any plan here holds. Nothing is charged automatically
+                — <Link href={contactHref} className="pr-inline">tell us about the event</Link> and
+                we will quote a plan sized to it before anything is billed.
+              </p>
+            ) : recommended.is_custom ? (
+              <p className="pr-answer__note">
+                Priced around your event. You will get a clear quote from a person before
+                anything is charged.
+              </p>
+            ) : qualifyingCount > 1 && (
+              <p className="pr-answer__note">
+                {qualifyingCount - 1} other plan{qualifyingCount - 1 === 1 ? '' : 's'} would
+                also cover this — it is just the cheapest that does.
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="pr-answer__note">
+            Prices are not loading — <Link href="/contact" className="pr-inline">contact us</Link> and
+            we will send them over.
+          </p>
+        )}
+      </div>
+
+      <style>{`
+        .pr {
+          display: flex;
+          flex-direction: column;
+          gap: 26px;
+          margin-top: 30px;
+          border: 1px solid ${C.border};
+          background: ${C.paper};
+          padding: 28px 22px 30px;
         }
-        @media (max-width: 639.98px) {
-          .pr-card { padding: 28px 22px !important; }
+        .pr-label {
+          display: block;
+          font-family: ${T.body};
+          font-size: 13px;
+          font-weight: 600;
+          color: ${C.ink};
+          margin-bottom: 12px;
+        }
+        .pr-nums { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+        .pr-num {
+          width: 116px;
+          flex: none;
+          box-sizing: border-box;
+          padding: 11px 13px;
+          border: 1px solid ${C.border};
+          background: ${C.paper};
+          font-family: ${T.display};
+          /* 16px MINIMUM, and this is the only text input on the page. iOS
+             Safari zooms the whole page in when a focused field's text is
+             under 16px and never zooms back out — one tap and the visitor is
+             stranded at 1.3x with the prices off screen. */
+          font-size: 21px;
+          color: ${C.ink};
+          outline: none;
+        }
+        .pr-num:focus { border-color: ${C.gold}; }
+        .pr-numnote {
+          font-family: ${T.body};
+          font-size: 12px;
+          font-weight: 300;
+          line-height: 1.5;
+          color: ${C.inkSoft};
+          min-width: 0;
+        }
+        .pr-range {
+          width: 100%;
+          margin: 20px 0 0;
+          accent-color: ${C.gold};
+        }
+        .pr-scale {
+          display: flex;
+          justify-content: space-between;
+          font-family: ${T.body};
+          font-size: 11px;
+          color: ${C.inkSoft};
+          margin-top: 4px;
+        }
+
+        .pr-feat { margin-top: 22px; border-top: 1px solid ${C.border}; padding-top: 6px; }
+        .pr-disclose {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          min-height: 48px;
+          padding: 0;
+          background: none;
+          border: 0;
+          cursor: pointer;
+          font-family: ${T.body};
+          font-size: 12.5px;
+          font-weight: 600;
+          letter-spacing: 0.04em;
+          color: ${C.goldInk};
+          text-decoration: underline;
+          text-underline-offset: 5px;
+        }
+        .pr-count {
+          font-size: 10px;
+          font-weight: 600;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          color: ${C.goldInk};
+          border: 1px solid ${C.gold};
+          border-radius: 999px;
+          padding: 2px 9px;
+          text-decoration: none;
+        }
+        .pr-chips { display: flex; flex-wrap: wrap; gap: 7px; padding: 4px 0 6px; }
+        .pr-chip {
+          padding: 7px 13px;
+          border-radius: 999px;
+          border: 1px solid ${C.border};
+          background: ${C.paper};
+          color: ${C.inkSoft};
+          font-family: ${T.body};
+          font-size: 12px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+        }
+        .pr-chip.is-on {
+          border-color: ${C.gold};
+          background: ${C.paper3};
+          color: ${C.goldInk};
+        }
+
+        .pr-answer {
+          border: 1px solid ${C.border};
+          background: ${C.paper2};
+          padding: 26px 22px 28px;
+          display: flex;
+          flex-direction: column;
+          /* Side by side this panel stretches to the height of the input
+             column, which is driven by however many chips the tiers happen to
+             produce. Centring costs nothing when it stacks on a phone, where
+             the panel is only as tall as its contents. */
+          justify-content: center;
+        }
+        .pr-answer__label {
+          font-family: ${T.label};
+          font-size: 10px;
+          letter-spacing: 0.28em;
+          text-transform: uppercase;
+          color: ${C.goldInk};
+        }
+        .pr-answer__name {
+          font-family: ${T.display};
+          font-size: 30px;
+          font-weight: 400;
+          line-height: 1.1;
+          color: ${C.ink};
+          margin: 12px 0 0;
+        }
+        .pr-answer__price { display: flex; align-items: baseline; gap: 8px; margin-top: 8px; }
+        .pr-answer__amount {
+          font-family: ${T.display};
+          font-size: 28px;
+          color: ${C.ink};
+        }
+        .pr-answer__per {
+          font-family: ${T.body};
+          font-size: 11.5px;
+          color: ${C.inkSoft};
+        }
+        .pr-answer__cap {
+          font-family: ${T.body};
+          font-size: 13px;
+          font-weight: 300;
+          line-height: 1.6;
+          color: ${C.inkSoft};
+          margin: 12px 0 0;
+        }
+        .pr-answer__note {
+          font-family: ${T.body};
+          font-size: 12px;
+          font-weight: 300;
+          line-height: 1.7;
+          color: ${C.inkSoft};
+          margin: 14px 0 0;
+        }
+        .pr-inline {
+          color: ${C.ink};
+          text-decoration: none;
+          border-bottom: 1px solid ${C.gold};
+        }
+        .pr-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 48px;
+          margin-top: 20px;
+          padding: 0 22px;
+          border: 1px solid ${C.ink};
+          background: ${C.ink};
+          color: ${C.ivory};
+          font-family: ${T.body};
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+          text-decoration: none;
+          text-align: center;
+          transition: background 0.25s ease, border-color 0.25s ease, color 0.25s ease;
+        }
+        .pr-btn:hover { background: ${C.gold}; border-color: ${C.gold}; color: ${C.ink}; }
+
+        /* Two columns only from 1024. At 768 each half is about 330px: the
+           chips wrap one per line into a tall ragged column while the answer
+           beside it, which is short, sits in a half-empty box. */
+        @media (min-width: 1024px) {
+          .pr {
+            display: grid;
+            grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+            gap: 36px;
+            padding: 34px 32px 36px;
+          }
         }
       `}</style>
     </div>

@@ -10,6 +10,8 @@ import InvitationShowcase from "../components/templates/InvitationShowcase";
    Clean layout, TOC sidebar, 10 legal sections
    ═══════════════════════════════════════════════════════════ */
 
+import { COMPANY_NAME, ADDRESS_CONFIGURED, addressOneLine, COMPANY_LOCATION, REFUND_REQUEST_HREF } from "../utils/company";
+
 const sections = [
   {
     id: "information-we-collect",
@@ -141,10 +143,17 @@ const sections = [
     title: "11. Contact Us",
     content: [
       "If you have any questions, concerns, or requests related to this Privacy Policy or our data practices, please contact us through any of the following channels:",
-      "**Legal Entity:** Fancy RSVP is owned and operated by 16941460 Canada Corp., operating as Via Marketing.",
+      `**Operated by:** Fancy RSVP is owned and operated by ${COMPANY_NAME}.`,
       "**Email:** info@fancyrsvp.com",
-      "**Mail:** 16941460 Canada Corp. o/a Via Marketing, Attn: Privacy, 2488 Selord Court, Mississauga, Ontario L5J 1P7, Canada",
-      "**Corporate Website:** viamarketing.ca",
+      /* GDPR Art. 13, CCPA and PIPEDA all expect an address a data-subject
+         request can be posted to. Until COMPANY_ADDRESS carries a street this
+         prints the location and nothing more — a notice address no letter
+         reaches is worse than an absent one, because it asserts something
+         false in a document the business is bound by. Filling in two fields in
+         utils/company.js turns this into a real "Mail" line. */
+      ADDRESS_CONFIGURED
+        ? `**Mail:** ${COMPANY_NAME}, Attn: Privacy, ${addressOneLine()}`
+        : `**Location:** ${COMPANY_LOCATION}`,
       "**Data Protection Officer:** For GDPR-related inquiries, contact our DPO at info@fancyrsvp.com",
       "We are committed to resolving any complaints about your privacy. If you feel we have not adequately addressed your concerns, you have the right to lodge a complaint with your local data protection supervisory authority.",
     ],

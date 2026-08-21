@@ -2110,19 +2110,18 @@ const getPendingPayments = async (req, res, next) => {
 const getPublicPricing = async (req, res, next) => {
   try {
     const config = await getPlatformConfig();
-    const { getFeatureByKey } = require('../config/featureRegistry');
+    const { getFeatureByKey, isValidFeatureKey } = require('../config/featureRegistry');
     // Keys are minted on the way out for a config saved before they existed, so
     // a client always has an identity to send back to checkout. The stored row
     // is left alone here; the first admin save persists them.
     const tiers = ensureTierKeys(Array.isArray(config?.pricing_tiers) ? config.pricing_tiers : []);
 
     const publicTiers = tiers.map((t) => {
+      const ownKeys = Array.isArray(t.features) ? t.features.filter(isValidFeatureKey) : [];
       // Convert feature keys to human-readable labels for the public page.
-      const featureLabels = Array.isArray(t.features)
-        ? t.features
-            .map(key => { const feat = getFeatureByKey(key); return feat ? feat.label : null; })
-            .filter(Boolean)
-        : [];
+      const featureLabels = ownKeys
+        .map(key => { const feat = getFeatureByKey(key); return feat ? feat.label : null; })
+        .filter(Boolean);
       return {
         // The plan's stable identity — what checkout must send back, so that
         // renaming a plan between page load and payment cannot 400 the
@@ -2131,7 +2130,24 @@ const getPublicPricing = async (req, res, next) => {
         name: String(t.name || ''),
         price_cents: Number(t.price_cents) || 0,
         max_guests: Number(t.max_guests) || 0,
+        /* THE CAP NOBODY WAS TOLD ABOUT.
+           `max_events` (0 = unlimited) is not decorative: it is re-checked in
+           four places on the payment path — createCheckoutSession,
+           initiateManualPayment, their post-payment re-checks and
+           paymentFulfillment — and it REFUSES to publish an event with
+           "You've reached the maximum number of events (N) allowed on the
+           'X' plan." It was stored, enforced and stripped here, so the one
+           page promising "no hidden fees, no surprises" was the only surface
+           that could not mention it. */
+        max_events: Number(t.max_events) || 0,
         features: featureLabels,
+        /* The same set, by KEY. `features` stays labels because
+           /solutions/corporate and the plan finder render it directly, but a
+           label is a display string: matching on it is how the comparison
+           table ended up comparing prose. Keys let a consumer join a tier to
+           the catalogue below — for the category a row belongs in, and for the
+           note saying a feature is access-only. */
+        feature_keys: ownKeys,
         recommended: t.recommended === true,
         is_custom: t.is_custom === true,
         price_label: (t.price_label || '').toString().trim(),
@@ -2144,6 +2160,27 @@ const getPublicPricing = async (req, res, next) => {
     return res.json({
       success: true,
       tiers: publicTiers,
+      /* THE CATALOGUE, so the public page can group and caveat like every
+         other surface that prints plan contents.
+
+         `category` and `meteredNote` have been in the registry all along and
+         were dropped on this one route: the pricing page received a flat list
+         of ~25 labels, which is why its comparison table was 25 ungrouped rows
+         — and why "Text messaging" appeared there indistinguishable from the
+         features a plan actually includes. featureRegistry's own comment on
+         FEATURE_NOTES names "the public pricing page" as the first surface
+         that must carry the caveat; it is the surface that did not get it.
+
+         `builtIn` is deliberately NOT exposed. It is an internal marker for a
+         bullet whose gate is not mounted yet, and it is nobody's business
+         outside this repo. */
+      featureCatalog: PLATFORM_FEATURES.map((f) => ({
+        key: f.key,
+        label: f.label,
+        category: f.category,
+        description: f.description,
+        note: FEATURE_NOTES[f.key] || '',
+      })),
       features: { stripeEnabled: stripeEnabled(), smsEnabled: smsEnabled() },
     });
   } catch (err) {
