@@ -160,6 +160,66 @@ async function sendEmailBulk(eventId, { partyIds, resend = false } = {}) {
 }
 
 /**
+ * The table this party was last EMAILED, or `undefined` if they have never
+ * been sent a pass.
+ *
+ * Read from the `invitations` ledger, which every pass send writes with
+ * `metadata.tableName`. It is what makes a re-send honest: without it the
+ * seating sweep cannot tell "this guest has never been told where they sit"
+ * from "this guest was told, and then moved", and those need different mail —
+ * or, in the third case, no mail at all.
+ *
+ * `undefined` for "never sent" and `null` for "sent while unseated" are
+ * DIFFERENT answers and both are load-bearing, so this must not collapse them
+ * with `|| null`.
+ */
+async function lastEmailedTable(partyId) {
+  try {
+    const { data } = await supabase
+      .from('invitations')
+      .select('metadata, sent_at')
+      .eq('party_id', partyId)
+      .eq('channel', 'qr')
+      .eq('status', 'sent')
+      .order('sent_at', { ascending: false, nullsFirst: false })
+      .limit(1);
+    if (!data || data.length === 0) return undefined;
+    const t = data[0]?.metadata?.tableName;
+    return t === undefined ? null : t;
+  } catch {
+    // Ledger unreadable: treat it as "never sent". Sending a correct pass one
+    // extra time is a far better failure than staying silent about a move.
+    return undefined;
+  }
+}
+
+/**
+ * The language this party RSVP'd in, best-effort, defaulting to English.
+ *
+ * A SEPARATE query rather than a column on the main select, and that is the
+ * whole point of it. `rsvp_parties.preferred_lang` arrives in migration
+ * 20260821000000, which is part of the SMS chain this deployment has a history
+ * of not having applied. PostgREST fails the WHOLE select when one requested
+ * column does not exist, so adding it to the party query below would turn a
+ * missing column into `PARTY_NOT_FOUND` — and this function is what
+ * assignSeat's automatic pass and the organizer's "Resend QR ticket" button
+ * both call. An unapplied migration would have stopped entry passes going out
+ * at all, on a path that never needed the column before.
+ *
+ * Isolated here, the worst case is an English email.
+ */
+async function partyLang(partyId) {
+  try {
+    const { data, error } = await supabase
+      .from('rsvp_parties').select('preferred_lang').eq('id', partyId).maybeSingle();
+    if (error || !data) return 'en';
+    return data.preferred_lang === 'ar' ? 'ar' : 'en';
+  } catch {
+    return 'en';
+  }
+}
+
+/**
  * Sends the QR check-in pass for one party.
  *
  * Seating is OPTIONAL. This used to query `seating_assignments` as the ROOT
@@ -172,8 +232,20 @@ async function sendEmailBulk(eventId, { partyIds, resend = false } = {}) {
  * "Unassigned"), so an unseated pass has always been valid at the gate; only
  * this send path disagreed. The party row is now the root and the assignment is
  * an optional embed.
+ *
+ * @param {string} eventId
+ * @param {string} partyId
+ * @param {{skipIfUnchanged?: boolean, changed?: boolean|null}} [opts]
+ *   `skipIfUnchanged` — return without sending when the last pass we emailed
+ *   already named this exact table. This is what lets the seating sweep call
+ *   this unconditionally: a guest who was seated once and never moved has
+ *   already had the immediate email from assignSeat, and must not get a second
+ *   copy of it ten minutes later.
+ *   `changed` — force the "your table has changed" wording. Left null it is
+ *   derived from the ledger, which is what every current caller wants.
  */
-async function sendQrTicketEmail(eventId, partyId) {
+async function sendQrTicketEmail(eventId, partyId, opts = {}) {
+  const { skipIfUnchanged = false, changed = null } = opts;
   const { data: party, error } = await supabase
     .from('rsvp_parties')
     .select(`
@@ -196,11 +268,44 @@ async function sendQrTicketEmail(eventId, partyId) {
   const event = party.events;
   const tableName = (Array.isArray(party.seating_assignments) ? party.seating_assignments[0] : party.seating_assignments)
     ?.tables?.table_name || null;
+  // The language the guest actually RSVP'd in. This mail used to be English
+  // for everybody, including a guest whose confirmation, reminder and text
+  // were all Arabic. See partyLang for why it is not on the select above.
+  const lang = await partyLang(partyId);
 
   if (!primaryEmail) {
     logger.info(`[InvitationService] Party ${party.label} has no email configured. Skipping QR ticket email.`);
     return { sent: false, reason: 'NO_EMAIL' };
   }
+
+  // What we last told them, if anything. Needed for both the skip and the
+  // wording, so it is read once here rather than twice below.
+  const previousTable = (skipIfUnchanged || changed === null)
+    ? await lastEmailedTable(partyId)
+    : undefined;
+
+  if (skipIfUnchanged && previousTable !== undefined && previousTable === tableName) {
+    return { sent: false, reason: 'UNCHANGED' };
+  }
+
+  /**
+   * A move is "we have emailed this party before, and it named a different
+   * table". A first pass is not a change, and neither is a re-send of the same
+   * one (which skipIfUnchanged has already returned on when it applies).
+   *
+   * `tableName` MUST be non-null for this to be a change, and that guard is
+   * load-bearing rather than defensive. A guest who was seated, emailed, and
+   * then UNSEATED has `previousTable = 'Table 7'` and `tableName = null`, which
+   * satisfies "different" — and the changed template then renders the sentence
+   * "Your table is now ." with nothing in it. That is reachable today from the
+   * organizer's "Resend QR ticket" button, which passes no options and lets the
+   * wording be derived. With no table there is nothing to announce a change TO,
+   * and the ordinary pass already has correct wording for it ("Assigned when
+   * you arrive").
+   */
+  const isChange = changed === null
+    ? (tableName !== null && previousTable !== undefined && previousTable !== tableName)
+    : (!!changed && tableName !== null);
 
   const token = tokenService.signQrTicket({
     partyId,
@@ -233,23 +338,35 @@ async function sendQrTicketEmail(eventId, partyId) {
   // The data model has no table→zone relationship (zones are standalone venue
   // elements in the same `tables` table, not a parent of seatable tables), so a
   // ticket carries no zone label.
-  const html = getQRTicketTemplate(shimParty, event, { tableName, zoneName: null, links });
+  const html = getQRTicketTemplate(shimParty, event, {
+    tableName, zoneName: null, links, lang, changed: isChange,
+  });
 
-  const subject = tableName
-    ? `Your Entry Pass & Table: ${event.title}`
-    : `Your Entry Pass: ${event.title}`;
+  // The subject line is the only part of a re-send most guests will read in
+  // their inbox list, so it has to carry the news rather than repeat the
+  // original — two identical subjects read as a duplicate and get skipped.
+  const subject = lang === 'ar'
+    ? (isChange
+      ? `تغيّرت طاولتك – ${event.title}`
+      : (tableName ? `بطاقة دخولك وطاولتك – ${event.title}` : `بطاقة دخولك – ${event.title}`))
+    : (isChange
+      ? `Your table has changed: ${event.title}`
+      : (tableName
+        ? `Your Entry Pass & Table: ${event.title}`
+        : `Your Entry Pass: ${event.title}`));
   const success = await notificationService.sendEmailViaBrevo(primaryEmail, subject, html);
   await logInvitation({
     partyId, eventId, channel: 'qr', token, status: success ? 'sent' : 'failed',
-    metadata: { tableName },
+    metadata: { tableName, changed: isChange },
   });
   if (success) {
     await supabase.from('activity_logs').insert({
-      event_id: eventId, action: 'qr_email_sent', entity_type: 'rsvp_party', entity_id: partyId,
-      metadata: { label: party.label, email: primaryEmail },
+      event_id: eventId, action: isChange ? 'seating_change_email_sent' : 'qr_email_sent',
+      entity_type: 'rsvp_party', entity_id: partyId,
+      metadata: { label: party.label, email: primaryEmail, tableName },
     });
   }
-  return { sent: success };
+  return { sent: success, changed: isChange };
 }
 
 /* ─── SMS invitations ──────────────────────────────────────────────────────

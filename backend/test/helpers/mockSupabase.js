@@ -14,7 +14,7 @@
  * `state` shape passed to the resolver:
  *   { table, op, cols, count, payload, upsertOpts, filters, fn, params, terminal }
  *   - op:      'select' | 'insert' | 'update' | 'upsert' | 'delete' | 'rpc'
- *   - filters: { eq:[[col,val]], neq, in, ilike, is, not, or, match }
+ *   - filters: { eq:[[col,val]], neq, in, ilike, like, is, not, or, match }
  *   - terminal:'single' | 'maybeSingle' | 'list'
  *
  * The resolver returns { data, error, count }. Returning undefined => empty result
@@ -64,6 +64,7 @@ function createMockSupabase() {
       neq(c, v) { return pushFilter('neq', c, v); },
       in(c, v) { return pushFilter('in', c, v); },
       ilike(c, v) { return pushFilter('ilike', c, v); },
+      like(c, v) { return pushFilter('like', c, v); },
       is(c, v) { return pushFilter('is', c, v); },
       not(c, op, v) { return pushFilter('not', c, op, v); },
       or(s) { return pushFilter('or', s); },

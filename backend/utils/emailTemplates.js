@@ -215,6 +215,24 @@ const formatEventDate = (d) => {
   return dt.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 };
 
+/**
+ * Date AND time, for the organizer-facing "when did this arrive" line.
+ *
+ * UTC, and labelled as such. The server's own timezone is an accident of where
+ * it is hosted, and an unlabelled "3:40 PM" that is neither the host's clock
+ * nor the guest's is worse than no time at all — a host reconciling a late
+ * reply against an RSVP deadline needs to know which clock they are reading.
+ */
+const formatDateTime = (d) => {
+  if (!d) return null;
+  const dt = new Date(d);
+  if (Number.isNaN(dt.getTime())) return null;
+  return `${dt.toLocaleString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric',
+    hour: 'numeric', minute: '2-digit', timeZone: 'UTC',
+  })} UTC`;
+};
+
 const money = (cents) => `$${((Number(cents) || 0) / 100).toFixed(2)} USD`;
 
 /* ═══ Reusable, email-safe components ═══ */
@@ -906,7 +924,7 @@ const venueValueHtml = (event, lang) => {
  * table at scan time rather than trusting the token, so an unseated pass is
  * fully valid at the door — the table line just says so.
  */
-const getQRTicketTemplate = (rsvp, event, { tableName = null, zoneName = null, links = {}, lang = 'en' } = {}) => {
+const getQRTicketTemplate = (rsvp, event, { tableName = null, zoneName = null, links = {}, lang = 'en', changed = false } = {}) => {
   const { qrImageUrl, qrDownloadUrl, ticketUrl } = links;
   const formattedTable = formatTableLabel(tableName, lang);
   const formattedDate = formatEventDateLang(event.event_date, lang);
@@ -921,20 +939,62 @@ const getQRTicketTemplate = (rsvp, event, { tableName = null, zoneName = null, l
   if (zoneName) rows.push([pick(lang, { en: 'Zone', ar: 'المنطقة' }), escapeHtml(zoneName)]);
   rows.push([pick(lang, { en: 'Admits', ar: 'عدد الأفراد' }), guestCount(partySize, lang)]);
 
+  /**
+   * THE SAME PASS, RE-ISSUED BECAUSE THE SEATING MOVED.
+   *
+   * A guest who was moved from table 7 to table 3 is holding an email that
+   * says 7. Sending them the identical "here is your entry pass" mail a second
+   * time does not correct that — it reads as a duplicate and gets ignored,
+   * which is the failure this variant exists to prevent. The subject, the
+   * eyebrow and the opening line all have to say the thing that changed.
+   *
+   * Everything below the intro is deliberately unchanged: the QR, the party
+   * size and the venue are all still exactly right, and the door scanner
+   * re-reads the live table at scan time regardless.
+   */
+  /* `changed` is honoured only when there is a table to name. Without one the
+     notice below renders "Your table is now ." — a sentence with a hole in it.
+     invitationService already refuses to derive a change for an unseated party;
+     this is the same rule stated where the copy lives, so a future caller
+     passing `changed: true` by hand cannot reintroduce it. */
+  const announceChange = changed && !!formattedTable;
+
+  const openingHtml = announceChange
+    ? `${para(pick(lang, {
+        en: 'Your host has moved your seating, so here is your pass again with the new details. Please use this email rather than the earlier one — the table on it has changed.',
+        ar: 'قام مضيفك بتغيير مكان جلوسك، وهذه بطاقتك من جديد بالتفاصيل المحدَّثة. برجاء الاعتماد على هذه الرسالة بدلًا من السابقة — فقد تغيّرت الطاولة.',
+      }))}
+      ${noticeBox(pick(lang, {
+        en: `<strong>Your table is now ${escapeHtml(formattedTable)}.</strong> Any earlier email or saved code showing a different table is out of date.`,
+        ar: `<strong>طاولتك الآن ${escapeHtml(formattedTable)}.</strong> أي رسالة أو رمز محفوظ يعرض طاولة أخرى لم يعد صحيحًا.`,
+      }), 'warn')}`
+    : para(pick(lang, {
+      en: 'Here is your personal entry pass. The QR code below is what our team scans at the door — keep this email, or download the code so you have it even without a signal on the night.',
+      ar: 'هذه بطاقة دخولك الشخصية. رمز QR بالأسفل هو ما يمسحه فريقنا عند البوابة — احتفظ بهذه الرسالة، أو حمّل الرمز ليكون معك حتى بدون إنترنت ليلة الحفل.',
+    }));
+
   return emailShell({
     lang,
-    preheader: pick(lang, {
-      en: `Your check-in QR code for ${event.title} — save this email`,
-      ar: `رمز دخولك إلى ${event.title} — احتفظ بهذه الرسالة`,
-    }),
-    eyebrow: pick(lang, { en: 'Your entry pass', ar: 'بطاقة دخولك' }),
+    /* announceChange, NOT changed — the eyebrow and the preheader are the two
+       lines a guest reads before opening anything, and keying them off the raw
+       flag while the body used the guarded one would have shipped an email
+       headed "Your table has changed" over a body that never says what to. */
+    preheader: announceChange
+      ? pick(lang, {
+        en: `Your table for ${event.title} has changed`,
+        ar: `تغيّرت طاولتك في ${event.title}`,
+      })
+      : pick(lang, {
+        en: `Your check-in QR code for ${event.title} — save this email`,
+        ar: `رمز دخولك إلى ${event.title} — احتفظ بهذه الرسالة`,
+      }),
+    eyebrow: announceChange
+      ? pick(lang, { en: 'Your table has changed', ar: 'تغيّرت طاولتك' })
+      : pick(lang, { en: 'Your entry pass', ar: 'بطاقة دخولك' }),
     heading: escapeHtml(event.title),
     contentHtml: `
       ${greeting(rsvp.guest_name, lang)}
-      ${para(pick(lang, {
-        en: 'Here is your personal entry pass. The QR code below is what our team scans at the door — keep this email, or download the code so you have it even without a signal on the night.',
-        ar: 'هذه بطاقة دخولك الشخصية. رمز QR بالأسفل هو ما يمسحه فريقنا عند البوابة — احتفظ بهذه الرسالة، أو حمّل الرمز ليكون معك حتى بدون إنترنت ليلة الحفل.',
-      }))}
+      ${openingHtml}
 
       ${entryPass({
         guestName: rsvp.guest_name,
@@ -974,12 +1034,122 @@ const getQRTicketTemplate = (rsvp, event, { tableName = null, zoneName = null, l
 const { sideLabel } = require('./sideLabel');
 
 /**
+ * ── CAPS ON WHAT THE HOST'S EMAIL WILL PRINT ──
+ *
+ * Every value in the RSVP notification is typed by an unauthenticated stranger
+ * on a public form. It is all escaped, so none of it is an injection risk — but
+ * escaping does not bound SIZE, and this email is a REPORT rather than the
+ * record. The record is the database; the dashboard renders it in full.
+ *
+ * Without these, one guest could put a 50,000-character note, a hundred
+ * companion names and two hundred answers into the one message the host is
+ * expected to read on a phone. Gmail silently clips a message past ~102KB —
+ * so the failure mode is not a big email, it is the host seeing a truncated
+ * one with "[Message clipped]" where the rest of their guest list should be.
+ *
+ * The caps are generous enough that no honest submission ever meets them.
+ *
+ * They are tighter than they look, because a dataTable ROW costs ~700 bytes of
+ * inline-style markup before it holds any content at all — email HTML cannot
+ * use a stylesheet, so every cell carries its own styling. A first pass at
+ * these numbers (40 rows, 500-char values) measured 65KB on a legal worst-case
+ * submission, most of it chrome. Quoted-printable then inflates non-ASCII by
+ * roughly a third on the wire, so the raw budget has to sit well under Gmail's
+ * ~102KB clip rather than merely below it.
+ */
+const EMAIL_VALUE_MAX = 300;   // one answer, meal name, or dietary line
+const EMAIL_NOTE_MAX = 1500;   // the guest's message / decline reason
+const EMAIL_LIST_MAX = 20;     // companions shown by name, meal-tally entries
+const EMAIL_ANSWER_ROWS = 20;  // custom-question rows; the rest go to the dashboard
+
+/** Trim to a cap, marking it so a truncated value never reads as the whole one. */
+const clipValue = (s, max) => {
+  const str = String(s);
+  return str.length > max ? `${str.slice(0, max).trimEnd()}…` : str;
+};
+
+/**
+ * One custom-form answer, as text.
+ *
+ * `answer_value` is jsonb, so it arrives as whatever the form put there: a
+ * string for text and select, an ARRAY for multiselect, a boolean for a
+ * checkbox, a number for number. Printing it with String() gave the organizer
+ * "true" for a ticked box and "a,b" for a multiselect — which is the raw
+ * storage format, not an answer to the question they wrote.
+ *
+ * An OBJECT is not any of those. No form control this product ships produces
+ * one, so it can only arrive from a hand-rolled request, and `String({})` puts
+ * the literal text "[object Object]" in the host's inbox. Dropped instead.
+ */
+const answerText = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+  if (Array.isArray(value)) {
+    const parts = value
+      .filter((v) => v !== null && v !== undefined && typeof v !== 'object')
+      .map((v) => String(v).trim())
+      .filter(Boolean)
+      .slice(0, EMAIL_LIST_MAX);
+    return parts.length ? clipValue(parts.join(', '), EMAIL_VALUE_MAX) : null;
+  }
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'object') return null;
+  const s = String(value).trim();
+  return s ? clipValue(s, EMAIL_VALUE_MAX) : null;
+};
+
+/** "Chicken × 2 · Vegetarian × 1" from { Chicken: 2, Vegetarian: 1 }. */
+const mealTally = (counts) => {
+  if (!counts || typeof counts !== 'object' || Array.isArray(counts)) return null;
+  const parts = Object.entries(counts)
+    .filter(([, n]) => Number(n) > 0)
+    .slice(0, EMAIL_LIST_MAX)
+    .map(([meal, n]) => `${escapeHtml(clipValue(meal, 60))} &times; ${Number(n)}`);
+  return parts.length ? parts.join(' &middot; ') : null;
+};
+
+/**
+ * A block of prose the guest typed, quoted rather than squeezed into the
+ * label/value panel.
+ *
+ * Notes are the one field with no length limit worth speaking of, and a
+ * three-line answer in a right-aligned 15px value cell is unreadable. This
+ * gives it a heading and room.
+ */
+const quotedNote = (label, text) => `
+  <p style="margin:22px 0 6px; font-family:${SANS}; font-size:11px; font-weight:bold; letter-spacing:1.2px; text-transform:uppercase; color:${BRAND.stone};">${escapeHtml(label)}</p>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+    <tr><td dir="auto" style="border-left:3px solid ${BRAND.champagne}; padding:2px 0 2px 14px; font-family:${SANS}; font-size:14px; line-height:1.7; color:${BRAND.ink}; white-space:pre-wrap;">${escapeHtml(clipValue(text, EMAIL_NOTE_MAX))}</td></tr>
+  </table>`;
+
+/**
  * Alerts the organizer that a guest just submitted an RSVP. Also sent, verbatim
  * except for the CTA/footer, to secondary recipients configured on the event
  * (e.g. groom/bride emails) via `recipientRole: 'partner'` — they don't have
  * dashboard access, so the CTA links to the public event page instead.
+ *
+ * ── 2026-08-22: IT CARRIES THE WHOLE SUBMISSION NOW ───────────────────────
+ *
+ * It used to print four rows — response, party size, email, side — out of a
+ * form that can ask for a dozen things. The guest's phone number, their meal,
+ * their allergy, the names of the four people they are bringing, the note they
+ * wrote to the couple and every answer to every custom question the organizer
+ * built were all collected, stored, and then left out of the one message the
+ * host actually opens. The bride's father was told "Ahmed accepted, party of
+ * 5" and had to log into a dashboard to find out who the five were.
+ *
+ * Everything below is OPTIONAL and omitted when absent, so an event with a
+ * three-field form still sends a short, clean mail — the panel grows with the
+ * form rather than printing a column of blanks.
  */
-const getNewRsvpOrganizerTemplate = ({ eventTitle, guestName, response, partySize, email, side, eventType, recipientRole = 'organizer', eventSlug, partner1Name, partner2Name }) => {
+const getNewRsvpOrganizerTemplate = ({
+  eventTitle, guestName, response, partySize, email, side, eventType,
+  recipientRole = 'organizer', eventSlug, partner1Name, partner2Name,
+  // Everything from here down is new, and every one of it is optional.
+  phone = null, meal = null, dietaryNotes = null, companions = [],
+  companionMealCounts = null, customAnswers = [], notes = null,
+  declineReason = null, maybeConfirmBy = null, smsConsent = null,
+  language = null, submittedAt = null, isUpdate = false,
+}) => {
   const r = responseMeta(response);
   const verb = response === 'yes' || response === 'accepted'
     ? 'accepted'
@@ -990,8 +1160,80 @@ const getNewRsvpOrganizerTemplate = ({ eventTitle, guestName, response, partySiz
     ['Party Size', `${size} ${size === 1 ? 'Guest' : 'Guests'}`],
   ];
   if (email) rows.push(['Email', escapeHtml(email)]);
+  // A phone number is the field a host reaches for when something changes on
+  // the day, and it was the single most conspicuous omission here.
+  if (phone) rows.push(['Phone', `<a href="tel:${escapeHtml(phone)}" style="color:${BRAND.charcoal}; text-decoration:none;">${escapeHtml(phone)}</a>`]);
   const sLabel = sideLabel(side, eventType, partner1Name, partner2Name);
   if (sLabel) rows.push(['Side', escapeHtml(sLabel)]);
+
+  if (meal) rows.push(['Meal', escapeHtml(clipValue(meal, EMAIL_VALUE_MAX))]);
+  if (dietaryNotes) rows.push(['Dietary Notes', escapeHtml(clipValue(dietaryNotes, EMAIL_VALUE_MAX)), BRAND.goldDark]);
+
+  /**
+   * Companions are NAMES — that is the whole data model since the 2026-08-17
+   * rebuild — so they are listed, not counted twice.
+   *
+   * A name that is not a string is dropped rather than coerced: `String({})`
+   * is "[object Object]", and the party size row already tells the host how
+   * many people are coming, so a junk entry costs nothing by being absent.
+   * The count in the label is the REAL total, not the number shown, so a party
+   * over the display cap still reports its true size.
+   */
+  const names = (companions || [])
+    .map((g) => (typeof g === 'string' ? g : g?.fullName || g?.full_name))
+    .filter((n) => typeof n === 'string')
+    .map((n) => n.trim())
+    .filter(Boolean);
+  if (names.length > 0) {
+    const shown = names.slice(0, EMAIL_LIST_MAX)
+      .map((n) => `<span dir="auto">${escapeHtml(clipValue(n, 120))}</span>`);
+    if (names.length > EMAIL_LIST_MAX) {
+      shown.push(`<span style="color:${BRAND.stone};">+${names.length - EMAIL_LIST_MAX} more</span>`);
+    }
+    rows.push([
+      names.length === 1 ? 'Bringing' : `Bringing (${names.length})`,
+      shown.join('<br>'),
+    ]);
+  }
+
+  const tally = mealTally(companionMealCounts);
+  if (tally) rows.push(['Their Meals', tally]);
+
+  /* The organizer wrote these questions; the answers are the reason they did.
+     Row-capped: submit_rsvp_v2 accepts up to 200 answers, and 200 label/value
+     rows is not a notification, it is a document. A form that long is read in
+     the dashboard. */
+  const answers = (customAnswers || []).slice(0, EMAIL_ANSWER_ROWS);
+  for (const a of answers) {
+    const label = (a?.label || '').toString().trim();
+    const text = answerText(a?.value);
+    if (label && text) {
+      rows.push([clipValue(label, 120), `<span dir="auto">${escapeHtml(text)}</span>`]);
+    }
+  }
+  if ((customAnswers || []).length > answers.length) {
+    rows.push(['', `<span style="font-weight:400; color:${BRAND.stone};">+${customAnswers.length - answers.length} more answers — see the dashboard</span>`]);
+  }
+
+  if (maybeConfirmBy) rows.push(['Will Confirm By', escapeHtml(maybeConfirmBy), BRAND.goldDark]);
+
+  // Only meaningful when a number was actually given — a guest who left the
+  // phone field empty was never shown the consent checkbox at all, and
+  // printing "Not opted in" for them reads as a refusal that never happened.
+  if (phone && smsConsent !== null && smsConsent !== undefined) {
+    rows.push([
+      'SMS Updates',
+      smsConsent ? 'Opted in' : 'Not opted in',
+      smsConsent ? BRAND.success : BRAND.stone,
+    ]);
+  }
+  // Worth saying only when it is not the default — it tells the host which
+  // language this guest will be written to in every later message.
+  if (language === 'ar') rows.push(['Replied In', 'Arabic']);
+  if (submittedAt) {
+    const when = formatDateTime(submittedAt);
+    if (when) rows.push(['Submitted', escapeHtml(when)]);
+  }
 
   const isPartner = recipientRole === 'partner';
   const ctaUrl = isPartner ? buildGuestEventUrl(eventSlug) : `${getPublicBaseUrl()}/dashboard`;
@@ -1000,13 +1242,29 @@ const getNewRsvpOrganizerTemplate = ({ eventTitle, guestName, response, partySiz
     ? null
     : para('Manage your guest list, seating and check-ins from your organizer dashboard.', { size: 13, color: BRAND.stone, align: 'center', mb: 0 });
 
+  // The guest's own words, under the panel rather than inside it. Both are
+  // free text with no practical length limit, and a paragraph crammed into a
+  // right-aligned value cell is unreadable.
+  const prose = [
+    notes ? quotedNote('Message from the guest', notes) : '',
+    declineReason ? quotedNote('Reason given', declineReason) : '',
+  ].filter(Boolean).join('');
+
+  // An edit is not a new RSVP, and telling a host "Ahmed accepted" for the
+  // third time is how they stop reading these.
+  const eyebrow = isUpdate ? 'RSVP updated' : 'New RSVP received';
+  const lead = isUpdate
+    ? `<strong style="color:${BRAND.charcoal};">${escapeHtml(guestName)}</strong> has updated their response — they have ${verb} your invitation.`
+    : `<strong style="color:${BRAND.charcoal};">${escapeHtml(guestName)}</strong> has ${verb} your invitation.`;
+
   return emailShell({
     preheader: `${guestName} ${verb} — ${eventTitle}`,
-    eyebrow: 'New RSVP received',
+    eyebrow,
     heading: escapeHtml(eventTitle),
     contentHtml: `
-      ${para(`<strong style="color:${BRAND.charcoal};">${escapeHtml(guestName)}</strong> has ${verb} your invitation.`)}
+      ${para(lead)}
       ${dataTable(rows)}
+      ${prose}
       ${button(ctaUrl, ctaLabel)}
       ${ctaCaption || ''}
     `,

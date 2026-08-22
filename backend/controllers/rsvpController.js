@@ -404,23 +404,78 @@ const submitPublicRSVP = async (req, res, next) => {
       // so the "Side" row can name the actual groom/bride (template_data.partner1/
       // partner2) instead of the generic "Partner 1/2's Side" fallback.
       let td = {};
+      // The custom questions, by id, so each answer can be printed under the
+      // LABEL the organizer wrote rather than as a bare uuid. One query, and
+      // only when this submission actually carried answers.
+      let fieldLabels = new Map();
       if (isEmailPref) {
-        const { data: eventRow } = await supabase.from('events').select('template_data').eq('id', eventId).single();
+        const answered = Array.isArray(customAnswers)
+          ? customAnswers.filter((a) => a && a.fieldId)
+          : [];
+        const [{ data: eventRow }, fieldRes] = await Promise.all([
+          supabase.from('events').select('template_data').eq('id', eventId).single(),
+          answered.length > 0
+            ? supabase.from('custom_form_fields').select('id, field_label')
+              .eq('event_id', eventId)
+              .in('id', answered.map((a) => a.fieldId))
+            : Promise.resolve({ data: [] }),
+        ]);
         td = eventRow?.template_data || {};
+        // Best-effort: a failed label lookup drops the custom rows from the
+        // mail, it does not drop the mail.
+        fieldLabels = new Map((fieldRes?.data || []).map((f) => [f.id, f.field_label]));
       }
+
+      /**
+       * EVERYTHING THE GUEST ACTUALLY TYPED.
+       *
+       * Read from the request rather than re-queried: this is the submission
+       * that was just written, the RPC accepted it verbatim, and a read-back
+       * would be a second round-trip on the hot RSVP path to learn what is
+       * already in local scope.
+       *
+       * The one exception is `sms_consent`, which comes off `result` — the RPC
+       * is what decides it (a party can arrive already opted in), so the
+       * request's checkbox is not authoritative.
+       */
+      const submissionDetail = {
+        phone: normalizedPhone,
+        meal: primaryGuestMeal || null,
+        dietaryNotes: primaryGuestDietaryNotes || null,
+        companions: sanitizedAdditional,
+        companionMealCounts: req.body?.companionMealCounts || null,
+        customAnswers: (Array.isArray(customAnswers) ? customAnswers : [])
+          .map((a) => ({ label: fieldLabels.get(a?.fieldId) || null, value: a?.value }))
+          .filter((a) => a.label),
+        notes: notes || null,
+        declineReason: decline_reason || null,
+        maybeConfirmBy: maybe_confirm_by || null,
+        smsConsent: result.sms_consent ?? null,
+        language: guestLang,
+        submittedAt: new Date().toISOString(),
+        isUpdate: !!result.is_update,
+      };
 
       if (isEmailPref && result.org_email) {
         const orgEmailHtml = getNewRsvpOrganizerTemplate({
           eventTitle: result.event_title, guestName, response: result.response, partySize: computedPartySize, email,
           side: result.side, eventType: result.event_type, partner1Name: td.partner1, partner2Name: td.partner2,
+          ...submissionDetail,
         });
-        notificationService.sendEmailViaBrevo(result.org_email, `New RSVP: ${escapeHtml(guestName)} - ${escapeHtml(result.event_title)}`, orgEmailHtml)
+        const orgSubject = result.is_update
+          ? `RSVP updated: ${escapeHtml(guestName)} - ${escapeHtml(result.event_title)}`
+          : `New RSVP: ${escapeHtml(guestName)} - ${escapeHtml(result.event_title)}`;
+        notificationService.sendEmailViaBrevo(result.org_email, orgSubject, orgEmailHtml)
           .catch((err) => logger.error({ err }, 'Failed to notify organizer via email'));
       }
 
       // Also copy in the groom/bride, if the organizer configured their emails
       // on the event (template_data.partner1_email/partner2_email) — same
       // toggle, same template, just a public-page CTA instead of a dashboard one.
+      //
+      // They get the SAME detail. This is the couple's own family: the whole
+      // reason the co-recipient field exists is so they do not have to ask the
+      // organizer who is coming and what they eat.
       if (isEmailPref) {
         for (const partnerEmail of [td.partner1_email, td.partner2_email]) {
           if (partnerEmail && EMAIL_RE.test(String(partnerEmail).trim())) {
@@ -428,8 +483,12 @@ const submitPublicRSVP = async (req, res, next) => {
               eventTitle: result.event_title, guestName, response: result.response, partySize: computedPartySize, email,
               side: result.side, eventType: result.event_type, recipientRole: 'partner', eventSlug: result.event_slug,
               partner1Name: td.partner1, partner2Name: td.partner2,
+              ...submissionDetail,
             });
-            notificationService.sendEmailViaBrevo(partnerEmail.trim(), `New RSVP: ${escapeHtml(guestName)} - ${escapeHtml(result.event_title)}`, partnerEmailHtml)
+            const partnerSubject = result.is_update
+              ? `RSVP updated: ${escapeHtml(guestName)} - ${escapeHtml(result.event_title)}`
+              : `New RSVP: ${escapeHtml(guestName)} - ${escapeHtml(result.event_title)}`;
+            notificationService.sendEmailViaBrevo(partnerEmail.trim(), partnerSubject, partnerEmailHtml)
               .catch((err) => logger.error({ err }, 'Failed to notify partner recipient via email'));
           }
         }
@@ -1960,8 +2019,9 @@ const respondViaToken = async (req, res, next) => {
     if (!result || result.success === false) return sendRpcFailure(res, result, 409);
 
     const { data: party } = await supabase
-      .from('rsvp_parties').select('id, label, side, guests(is_primary_contact, email)').eq('id', payload.partyId).single();
-    const primaryEmail = (party?.guests || []).find((g) => g.is_primary_contact)?.email || null;
+      .from('rsvp_parties').select('id, label, side, notes, sms_consent, guests(is_primary_contact, email, phone)').eq('id', payload.partyId).single();
+    const primaryGuest = (party?.guests || []).find((g) => g.is_primary_contact) || null;
+    const primaryEmail = primaryGuest?.email || null;
     const guestName = party?.label;
 
     broadcast(event.id, 'rsvp_updated', { partyId: payload.partyId, guestName, response: mapped, partySize: computedPartySize });
@@ -1985,8 +2045,14 @@ const respondViaToken = async (req, res, next) => {
     // Notify organizer + groom/bride of the new RSVP (best-effort). Unlike
     // submitPublicRSVP, this one-click token path never notified the organizer
     // at all — closing that gap here too, same toggle/template as the direct-
-    // submit path (just without `side`/guest `email`, which aren't cheaply
-    // available on this path without another join).
+    // submit path.
+    //
+    // It carries LESS than the wizard does, and that is a property of the
+    // surface rather than an omission: QuickConfirm asks for a response, a
+    // party size and companion names, and never shows a meal picker, a
+    // dietary field or the custom questions. What it does have — the party's
+    // stored contact details and note — is now passed, so the two paths
+    // produce the same mail from the same facts.
     try {
       const prefs = event.notification_preferences;
       const isEmailPref = !prefs || prefs.email !== false;
@@ -2004,8 +2070,17 @@ const respondViaToken = async (req, res, next) => {
               recipientRole: role, eventSlug: event.slug,
               side: party?.side || null, eventType: event.event_type,
               partner1Name: td.partner1, partner2Name: td.partner2,
+              email: primaryEmail, phone: primaryGuest?.phone || null,
+              companions: sanitizedAdditional || [],
+              notes: party?.notes || null,
+              smsConsent: party?.sms_consent ?? null,
+              submittedAt: new Date().toISOString(),
+              isUpdate: ['yes', 'no', 'maybe'].includes(existingParty?.response),
             });
-            notificationService.sendEmailViaBrevo(recipientEmail.trim(), `New RSVP: ${escapeHtml(guestName)} - ${escapeHtml(event.title)}`, html)
+            const subject = ['yes', 'no', 'maybe'].includes(existingParty?.response)
+              ? `RSVP updated: ${escapeHtml(guestName)} - ${escapeHtml(event.title)}`
+              : `New RSVP: ${escapeHtml(guestName)} - ${escapeHtml(event.title)}`;
+            notificationService.sendEmailViaBrevo(recipientEmail.trim(), subject, html)
               .catch((err) => logger.error({ err, role }, 'Failed to notify RSVP recipient via email'));
           }
         }

@@ -25,6 +25,11 @@ const T = require('../utils/emailTemplates');
 const { getPublicBaseUrl } = require('../utils/publicUrl');
 const { sendTransactionalSms } = require('./smsDispatch');
 const { getSmsType } = require('../config/smsMessageTypes');
+// The seating sweep mails the re-issued pass as well as texting it. Requiring
+// the service (rather than rebuilding the template here) keeps ONE writer of
+// the invitations ledger — which is also what skipIfUnchanged reads to decide
+// whether this guest has already been told about this table.
+const invitationService = require('./invitationService');
 
 const HOUR = 3600 * 1000;
 const DAY = 24 * HOUR;
@@ -563,6 +568,47 @@ async function notifyGuestsOfEventChange(eventId, { includeSms = false, force = 
  */
 const SEATING_QUIET_MS = 10 * 60 * 1000;
 
+/**
+ * Have we already TEXTED this party about a DIFFERENT table?
+ *
+ * Read from sms_log rather than from the seating queue, because the queue only
+ * ever holds one row per party — the current state — and by the time this job
+ * runs, the row that named the old table has been overwritten by the move that
+ * queued this one. The send ledger is the only place the previous answer still
+ * exists.
+ *
+ * The ref format is the load-bearing detail: `seat:<party>:<table>` was chosen
+ * as an idempotency key, and it doubles as a record of which table each text
+ * announced. Anything on file for this party naming a different table means
+ * they are holding a message this one is about to contradict — which is
+ * exactly when the copy has to say so.
+ *
+ * Answers the SMS side only. The email side asks the same question of the
+ * invitations ledger (see sendQrTicketEmail), because the two channels can
+ * genuinely disagree: a guest with no phone was emailed a table and never
+ * texted one, and a text claiming their table "has changed" would be the first
+ * they had ever heard of it.
+ */
+async function textedADifferentTable(partyId, tableId) {
+  try {
+    const { data, error } = await supabase
+      .from('sms_log')
+      .select('ref')
+      .eq('kind', 'seating_reminder')
+      .eq('status', 'sent')
+      .like('ref', `seat:${partyId}:%`)
+      .limit(20);
+    if (error || !data) return false;
+    return data.some((r) => r.ref && r.ref !== `seat:${partyId}:${tableId}`);
+  } catch {
+    // Unreadable ledger: say it is not a change. The plain wording is correct
+    // for a first seating and merely terse for a move; the reverse — telling a
+    // guest their table changed when it never did — is a message that sends
+    // them looking for a problem that does not exist.
+    return false;
+  }
+}
+
 async function jobSeatingNotices() {
   const dueBefore = new Date(Date.now() - SEATING_QUIET_MS).toISOString();
 
@@ -620,6 +666,43 @@ async function jobSeatingNotices() {
           const tableName = party.seating_assignments?.[0]?.tables?.table_name || null;
           const tableId = party.seating_assignments?.[0]?.tables?.id || row.table_id || 'none';
 
+          /**
+           * THE EMAIL LEG — added 2026-08-22.
+           *
+           * A move used to be texted and never mailed. assignSeat emails the
+           * pass the moment a guest is first seated, but reassignSeat and the
+           * batch save deliberately sent nothing, on the reasoning that the
+           * pass a moved guest already holds is still valid at the door. It is
+           * — the scanner re-reads the live table — but the guest is holding
+           * an email that says table 7 while they are seated at table 3, and
+           * for a guest with no phone number, or one who never consented to
+           * SMS, that email was the ONLY thing that ever named their table.
+           *
+           * Sent unconditionally here, because sendQrTicketEmail's
+           * skipIfUnchanged does the deciding: it reads the last pass this
+           * party was actually emailed out of the invitations ledger and
+           * returns without sending when it already named this table. That is
+           * what stops a first assignment being mailed twice — once
+           * immediately, once by this sweep ten minutes later — and it is
+           * keyed on what was DELIVERED rather than on what the queue row
+           * happens to say.
+           *
+           * Deliberately before the text: the mail is free and carries the
+           * scannable pass, the text is charged and carries a link to it.
+           */
+          try {
+            const mail = await invitationService.sendQrTicketEmail(eventId, party.id, {
+              skipIfUnchanged: true,
+            });
+            if (mail?.sent) sent += 1;
+          } catch (mailErr) {
+            // NOT_ATTENDING / PARTY_NOT_FOUND throw. Neither should stop the
+            // text, and neither should stop the rest of the sweep.
+            logger.warn({ err: mailErr, partyId: party.id }, '[email-scheduler] seating change email failed');
+          }
+
+          const movedByText = await textedADifferentTable(party.id, tableId);
+
           const result = await sendTransactionalSms({
             type: 'seating_reminder',
             eventId,
@@ -643,6 +726,9 @@ async function jobSeatingNotices() {
               eventTitle: ev.title,
               tableName,
               ticketUrl: ticketUrlFor(party, ev, tableName),
+              // Makes the text read "your table has changed to 3" rather than
+              // "your table is 3" — see textedADifferentTable.
+              changed: movedByText,
             },
           });
           if (result.sent) sent += 1;

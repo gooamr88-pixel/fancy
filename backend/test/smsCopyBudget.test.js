@@ -74,6 +74,25 @@ const CEILINGS = [
   ['seating_reminder', 'ar', { tableName: null, dateLabel: null }, 3],
 
   /**
+   * THE MOVE. "Your table has changed to 12" / "تغيّرت طاولتك إلى 12".
+   *
+   * Costed separately because it is the one shape that spends units to
+   * CONTRADICT a message the guest already has, and that is worth paying for:
+   * a text identical to last week's reads as a duplicate, so the guest keeps
+   * trusting the first one and walks to the wrong table.
+   *
+   * Measured, worst case: English 193 GSM-7 units and Arabic 161 UCS-2 — both
+   * inside the ceilings the plain wording already carries, so a move costs no
+   * more than a first seating at the worst case. It does push the shorter
+   * shapes up by one (English with no date measures 1 plain, 2 changed), which
+   * is the real price and is only ever paid on an actual move.
+   */
+  ['seating_reminder', 'en', { changed: true }, 2],
+  ['seating_reminder', 'en', { changed: true, dateLabel: null }, 2],
+  ['seating_reminder', 'ar', { changed: true }, 4],
+  ['seating_reminder', 'ar', { changed: true, dateLabel: null }, 4],
+
+  /**
    * The one type that buys detail with segments on purpose — see its own note
    * in smsTemplates.js.
    *
@@ -117,7 +136,7 @@ test('every English body stays in GSM-7', () => {
   // One curly quote, one em dash, one '…' anywhere in this file costs ~80
   // characters of headroom on every English message the platform sends.
   for (const [type] of Object.entries(TEMPLATES)) {
-    for (const over of [{}, { cancelled: true }, { tableName: null, dateLabel: null }]) {
+    for (const over of [{}, { cancelled: true }, { tableName: null, dateLabel: null }, { changed: true }]) {
       const { encoding, body } = measure(type, 'en', over);
       assert.equal(encoding, 'GSM-7', `${type}/en left GSM-7 — find the non-GSM character:\n  ${body}`);
     }
