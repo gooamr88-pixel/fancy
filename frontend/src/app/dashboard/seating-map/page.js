@@ -13,6 +13,7 @@ import { useConfirm } from '../../components/useConfirm';
 // The shape catalogue and world geometry are shared with the two guest-facing
 // maps — see utils/seatingGeometry.js for why they must not be re-declared here.
 import {
+import { formatInZone } from '../../utils/timezone';
   WORLD_W, WORLD_H, SHAPES, shapeMeta, isZone,
   elWidth, elHeight, pctToPx, elCenterX, elCenterY, elBox,
 } from '../../utils/seatingGeometry';
@@ -387,6 +388,7 @@ export default function SeatingMapPage() {
   const [hasSeatingFeature, setHasSeatingFeature] = useState(null); // null = loading, true/false = known
   const [eventTitle, setEventTitle] = useState('');
   const [eventDate, setEventDate] = useState(null);
+  const [eventTimezone, setEventTimezone] = useState(null);
   // Organizer's own display name — shown on the printed/exported chart's
   // letterhead ("Prepared for <organizer>") alongside the event name and the
   // Fancy RSVP brand mark. Non-critical: the print header just omits it if
@@ -542,6 +544,7 @@ export default function SeatingMapPage() {
         if (data?.event) {
           setEventTitle(data.event.title || '');
           setEventDate(data.event.event_date || null);
+          setEventTimezone(data.event.timezone || null);
           setEventIsPaid(!!data.event.is_paid || !!data.event.manual_override);
           // is_paid alone used to be the whole gate here — a paid organizer on a
           // tier that excludes seating_map could still reach this page directly
@@ -2556,6 +2559,7 @@ export default function SeatingMapPage() {
         <PrintPreviewModal
           eventTitle={eventTitle}
           eventDate={eventDate}
+          eventTimezone={eventTimezone}
           organizerName={organizerName}
           elements={elements}
           namesByTable={namesByTable}
@@ -2687,7 +2691,7 @@ function PrintLetterhead({ eventTitle, organizerName, formattedDate, stats }) {
         <img src="/logo.svg" alt="Fancy RSVP" style={{ height: 22, display: 'block' }} />
         <div style={{ textAlign: 'right' }}>
           <p style={{ fontSize: 9.5, color: INK, margin: 0, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 800 }}>Seating Chart</p>
-          <p style={{ fontSize: 10, color: INK, opacity: 0.6, margin: '2px 0 0' }}>Printed {new Date().toLocaleDateString()}</p>
+          <p style={{ fontSize: 10, color: INK, opacity: 0.6, margin: '2px 0 0' }}>Printed {formatInZone(Date.now(), eventTimezone, { year: 'numeric', month: 'long', day: 'numeric' })}</p>
         </div>
       </div>
 
@@ -2783,7 +2787,7 @@ function compareTableNames(a, b) {
    keeps a free-text "Custom Area" readable: its typed name lands in the
    legend rather than being crushed into a 130px box.
    ════════════════════════════════════════════════════════════════ */
-function PrintPreviewModal({ eventTitle, eventDate, organizerName, elements, namesByTable, summary, onClose }) {
+function PrintPreviewModal({ eventTitle, eventDate, eventTimezone, organizerName, elements, namesByTable, summary, onClose }) {
   const [overrides, setOverrides] = useState({});
   const [dragging, setDragging] = useState(false);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
@@ -2847,7 +2851,7 @@ function PrintPreviewModal({ eventTitle, eventDate, organizerName, elements, nam
   }
 
   const formattedDate = eventDate
-    ? new Date(eventDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
+    ? formatInZone(eventDate, eventTimezone, { year: 'numeric', month: 'long', day: 'numeric' })
     : null;
 
   // Sorted table-by-table, and guests sorted within each table.

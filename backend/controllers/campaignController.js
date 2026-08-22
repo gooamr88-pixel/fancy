@@ -771,7 +771,7 @@ async function buildResendContext(eventId, row) {
 
   try {
     const { data: event } = await supabase
-      .from('events').select('title, slug, event_date, status').eq('id', eventId).single();
+      .from('events').select('title, slug, event_date, timezone, status').eq('id', eventId).single();
     ctx.eventTitle = event?.title || '';
     if (event?.slug) {
       ctx.url = `${base}/${event.slug}`;
@@ -799,7 +799,15 @@ async function buildResendContext(eventId, row) {
     if (row.party_id) {
       const { data } = await supabase
         .from('rsvp_parties')
-        .select('label, response, party_size, seating_assignments(tables(table_name))')
+        /* `guests(id)` and NOT `party_size` — there has never been a
+           `party_size` column on rsvp_parties.
+           The cap is `max_party_size`; the actual size is the number of rows in
+           `guests`, which is how invitationService and emailScheduler both
+           derive it. Selecting a column that does not exist does not return
+           null for that field — PostgREST rejects the WHOLE query, so this
+           lookup returned nothing at all and every seating reminder built from
+           it went out with no pass link. */
+        .select('label, response, guests(id), seating_assignments(tables(table_name))')
         .eq('id', row.party_id).maybeSingle();
       party = data;
       if (party?.label) ctx.guestName = party.label;
@@ -820,7 +828,7 @@ async function buildResendContext(eventId, row) {
         partyId: row.party_id,
         eventId,
         tableName: ctx.tableName,
-        partySize: party.party_size,
+        partySize: (party.guests || []).length || 1,
         eventDate: event?.event_date,
       });
       if (token) ctx.ticketUrl = buildTicketLinks(token).ticketUrl;

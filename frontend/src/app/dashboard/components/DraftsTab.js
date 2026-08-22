@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from '../../utils/toast';
 import Icon from '../../components/icons/Icon';
+import { formatInZone } from '../../utils/timezone';
 
 const C = {
   gold: '#B8944F', charcoal: '#191B1E', white: '#FFFFFF',
@@ -18,12 +19,10 @@ const goldBtn = {
   fontSize: 13, fontWeight: 700, cursor: 'pointer', textDecoration: 'none',
 };
 
-const fmtDate = (d) => {
-  if (!d) return null;
-  const dt = new Date(d);
-  if (Number.isNaN(dt.getTime())) return null;
-  return dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-};
+// formatInZone already returns null for absent and unparseable input, so the
+// guards this used to carry would only repeat a check it makes itself.
+const fmtDate = (d, timeZone) =>
+  formatInZone(d, timeZone, { month: 'short', day: 'numeric', year: 'numeric' });
 
 /** Check if an event has a pending cash/manual payment awaiting admin verification */
 const getPendingPayment = (ev) => {
@@ -275,11 +274,11 @@ export default function DraftsTab({ events = [], apiUrl, onRefresh }) {
                 ) : (
                   <span style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--fx-micro)', fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.gold, background: 'rgba(184,148,79,0.1)', border: '1px solid rgba(184,148,79,0.25)', padding: '3px 9px', borderRadius: 100 }}>Draft</span>
                 )}
-                {fmtDate(ev.updated_at) && <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: C.stone }}>Edited {fmtDate(ev.updated_at)}</span>}
+                {fmtDate(ev.updated_at, ev.timezone) && <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: C.stone }}>Edited {fmtDate(ev.updated_at, ev.timezone)}</span>}
               </div>
               <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 600, color: C.charcoal, margin: 0 }}>{ev.title || 'Untitled event'}</h3>
               <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: C.stone, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {fmtDate(ev.event_date) && <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5 }}><Icon name="calendar" size={12} strokeWidth={1.7} /> {fmtDate(ev.event_date)}</span>}
+                {fmtDate(ev.event_date, ev.timezone) && <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5 }}><Icon name="calendar" size={12} strokeWidth={1.7} /> {fmtDate(ev.event_date, ev.timezone)}</span>}
                 {ev.location_name && <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5 }}><Icon name="mapPin" size={12} strokeWidth={1.7} /> {ev.location_name}</span>}
                 {ev.slug && <span style={{ wordBreak: 'break-all', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5 }}><Icon name="link" size={12} strokeWidth={1.7} style={{ flexShrink: 0 }} /> /{ev.slug}</span>}
               </div>

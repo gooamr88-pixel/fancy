@@ -14,6 +14,7 @@
  */
 const ExcelJS = require('exceljs');
 const { sanitizeCsvValue } = require('./csvHelper');
+const { formatInZone, zoneAbbreviation } = require('./timezone');
 
 const GOLD = 'FFB8944F';
 const CHARCOAL = 'FF191B1E';
@@ -30,17 +31,42 @@ const styleHeader = (sheet, argb) => {
 
 const s = (v) => sanitizeCsvValue(v) || '';
 
-/** ISO → "2026-08-01 19:05:00" in the reader's local time. Blank when absent. */
-const fmt = (iso) => {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return Number.isFinite(d.getTime()) ? d.toLocaleString() : '';
+/**
+ * ISO → a local date-time string on the EVENT's clock, with the zone named.
+ *
+ * The docstring here used to say "in the reader's local time", and that was
+ * never true. This file runs on the SERVER, so `toLocaleString()` with no zone
+ * rendered every arrival in whatever timezone the VPS happens to be configured
+ * for — a fact about the hosting provider, printed into a spreadsheet an
+ * organizer opens to reconcile who walked through the door and when.
+ *
+ * Every timestamp in this report — arrivals, peak windows, conflict
+ * resolutions — happened at one venue, so they all belong on that venue's
+ * clock. Labelled, because a column of times that silently belongs to a
+ * different zone than the reader assumes is worse than no times at all.
+ */
+const fmtIn = (iso, timeZone) => {
+  const formatted = formatInZone(iso, timeZone, {
+    year: 'numeric', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
+  if (!formatted) return '';
+  const abbr = zoneAbbreviation(iso, timeZone);
+  return abbr ? `${formatted} ${abbr}` : formatted;
 };
 
-const fmtWindow = (w) => (w ? `${fmt(w.startsAt)} → ${fmt(w.endsAt)} (${w.arrivals} arrivals)` : 'No arrivals recorded');
+const fmtWindowIn = (w, timeZone) => (w
+  ? `${fmtIn(w.startsAt, timeZone)} → ${fmtIn(w.endsAt, timeZone)} (${w.arrivals} arrivals)`
+  : 'No arrivals recorded');
 
 async function generateCheckinReport(report) {
   const { event, guests, conflicts, stats } = report;
+
+  // Bound once here rather than threaded through ten call sites: every date in
+  // this workbook is on the same clock, so passing the zone to each one would
+  // be repetition that invites exactly one of them to be forgotten.
+  const fmt = (iso) => fmtIn(iso, event?.timezone);
+  const fmtWindow = (w) => fmtWindowIn(w, event?.timezone);
 
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Fancy RSVP';

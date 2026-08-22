@@ -1,3 +1,4 @@
+import { wallClockToInstant } from '../../../utils/timezone';
 import { toTagArray } from '../../components/TagListEditor';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -18,38 +19,39 @@ import { toTagArray } from '../../components/TagListEditor';
    ═══════════════════════════════════════════════════════════════ */
 
 /* ═══════════════════════════════════════════════════════════════
-   A `<input type="datetime-local">` value, as the SERVER will read it back.
+   A `<input type="datetime-local">` value, as the SERVER will store it.
 
-   The wizard's date fields produce "2027-05-15T02:00" — a date-time with no
-   timezone designator. Two different things then read that string:
+   The wizard's date fields produce "2027-05-15T18:30" — a date-time with no
+   timezone designator, which is not a moment until someone says whose clock it
+   is on. The preview's whole job is to show the organizer the page their
+   guests will get, so it has to answer that question the SAME way the server
+   will when they hit save: by reading the digits on the organizer's own
+   timezone and converting to the instant they name.
 
-     Postgres  `event_date` is TIMESTAMPTZ and the connection runs in UTC, so a
-               naive literal is stored as 02:00 UTC and returned to the guest
-               page as "2027-05-15T02:00:00+00:00".
-     new Date() ECMAScript parses the SAME naive string as LOCAL time.
+   This file previously appended a literal "Z" instead, and that was correct
+   for exactly as long as the server did the same thing — back when event dates
+   were the typed digits filed as UTC and every guest surface printed them back
+   with `timeZone: 'UTC'`. Both halves of that arrangement are now gone.
+   Appending Z today would produce a preview off by the organizer's own offset
+   from the page it claims to be showing: a 6:30pm San Diego ceremony would
+   preview as 11:30am, and an event running to 2am would preview as ending the
+   day before — printing "MAY 14 - MAY 14" as its date range.
 
-   So the preview was shifted by the organizer's own UTC offset against the
-   page it claims to be showing. Every guest-facing display formats with
-   `timeZone: 'UTC'` (the "floating wall-clock" convention — the digits shown
-   are the digits typed), which turned that shift into visible nonsense: on
-   UTC+3, a ceremony typed as 18:30 previewed as 15:30, and an event running to
-   02:00 on the 15th previewed as ending on the 14th — printing "MAY 14 - MAY
-   14" as its date range.
-
-   Appending Z makes the browser parse it exactly as Postgres will store it,
-   which is the whole contract this file exists to keep. Values that already
-   carry an offset (an event loaded back from the API into the wizard) are left
-   alone — re-stamping those would move them for real. */
-export function toStoredIso(value) {
+   Values that already carry an offset (an event loaded back from the API into
+   the wizard) are already instants and pass through untouched — re-interpreting
+   one of those would move it for real. That guard lives in wallClockToInstant,
+   which is the same function the backend uses, so the preview and the save
+   path cannot drift apart. */
+export function toStoredIso(value, timeZone) {
   if (!value || typeof value !== 'string') return value || null;
-  // Already has a zone designator, or isn't a bare date-time at all.
-  if (/[zZ]$|[+-]\d{2}:?\d{2}$/.test(value)) return value;
-  const m = value.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(:\d{2})?$/);
-  if (!m) return value;
-  return `${m[1]}T${m[2]}${m[3] || ':00'}Z`;
+  return wallClockToInstant(value, timeZone) || value;
 }
 
 export function buildPreviewEvent(state = {}) {
+  // The organizer's own clock, threaded in from the wizard. Falls back inside
+  // safeZone/wallClockToInstant when the profile has not loaded yet, so the
+  // preview renders a plausible time rather than nothing.
+  const timeZone = state.timeZone;
   const {
     templateType, title, description, eventDate, eventEndDate,
     locationName, locationAddress, locationLat, locationLng,
@@ -80,16 +82,20 @@ export function buildPreviewEvent(state = {}) {
     // A blank date is the common case early in Stage 2. Left null so the
     // countdown and date sections hide themselves exactly as they would for a
     // guest, rather than rendering "Invalid Date".
-    event_date: toStoredIso(eventDate),
-    event_end_date: toStoredIso(eventEndDate),
+    event_date: toStoredIso(eventDate, timeZone),
+    event_end_date: toStoredIso(eventEndDate, timeZone),
     location_name: locationName || null,
     location_address: locationAddress || null,
     location_lat: locationLat ?? null,
     location_lng: locationLng ?? null,
     dress_code: dressCode || null,
-    // Same normalisation: RsvpSection prints this with timeZone: 'UTC' too,
-    // and an "RSVP by" date one day out is worse than a wrong hero time.
-    rsvp_deadline: toStoredIso(rsvpDeadline),
+    // Same conversion: RsvpSection reads this on the event's zone too, and an
+    // "RSVP by" date one day out is worse than a wrong hero time.
+    rsvp_deadline: toStoredIso(rsvpDeadline, timeZone),
+    // The guest surfaces read this to decide which clock to print on, exactly
+    // as they do for a saved event — the preview must carry it or it would
+    // render on the platform default instead of the organizer's.
+    timezone: timeZone || null,
     cover_image_url: coverImageUrl || null,
     gallery_urls: Array.isArray(galleryUrls) ? galleryUrls : [],
     custom_colors: customColors || {},

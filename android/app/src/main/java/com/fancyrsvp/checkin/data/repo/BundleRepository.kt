@@ -149,7 +149,7 @@ class BundleRepository @Inject constructor(
             val startsAt = dto.startsAt?.toEpochMillisOrNull() ?: 0L
 
             if (db.eventDao().byId(dto.id) != null) {
-                db.eventDao().updateSummary(dto.id, dto.name, dto.venue, startsAt)
+                db.eventDao().updateSummary(dto.id, dto.name, dto.venue, startsAt, dto.timezone)
             } else {
                 db.eventDao().upsert(
                     EventEntity(
@@ -158,6 +158,7 @@ class BundleRepository @Inject constructor(
                         venue = dto.venue,
                         venueAddress = dto.venueAddress,
                         startsAt = startsAt,
+                        timezone = dto.timezone,
                         brandingPrimaryColor = dto.brandingPrimaryColor,
                         // URL only. The file is fetched during preparation, not
                         // here — a refresh is a metadata poll that may run
@@ -532,6 +533,9 @@ class BundleRepository @Inject constructor(
         venue = event.venue,
         venueAddress = event.venueAddress,
         startsAt = parseIsoMillis(event.startsAt) ?: previous?.startsAt ?: 0L,
+        // Falls back to the cached zone rather than to null: a manifest that
+        // omits it must not blank a zone the device already has.
+        timezone = event.timezone ?: previous?.timezone,
         brandingPrimaryColor = event.brandingPrimaryColor,
         coverImageUrl = event.coverImageUrl,
         // Falls back to whatever was already cached. A re-prepare on venue-office

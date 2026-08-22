@@ -154,7 +154,7 @@ async function jobRsvpReminders() {
     .from('events')
     // sms_* are selected once per EVENT and passed down to every party, so adding
     // the SMS channel costs one column set per event rather than a query per guest.
-    .select('id, title, slug, event_date, rsvp_deadline, sms_addon_purchased_at, sms_settings')
+    .select('id, title, slug, event_date, timezone, rsvp_deadline, sms_addon_purchased_at, sms_settings')
     .eq('status', 'active').eq('is_paid', true)
     .not('rsvp_deadline', 'is', null).gte('rsvp_deadline', nowISO()).lte('rsvp_deadline', soon)
     .limit(100);
@@ -228,7 +228,7 @@ async function jobEventReminders() {
     // absent. That fallback works, but it drops a guest at whatever Google
     // matches for a free-typed address rather than at the pin the organizer
     // actually placed — on the one message they open outside the venue.
-    .select('id, title, slug, event_date, location_name, location_address, location_lat, location_lng, sms_addon_purchased_at, sms_settings')
+    .select('id, title, slug, event_date, timezone, location_name, location_address, location_lat, location_lng, sms_addon_purchased_at, sms_settings')
     .eq('status', 'active').eq('is_paid', true)
     .gte('event_date', nowISO()).lte('event_date', soon)
     .limit(100);
@@ -269,7 +269,7 @@ async function jobEventReminders() {
         context: {
           guestName: party.label,
           eventTitle: ev.title,
-          dateLabel: T.formatEventDate ? T.formatEventDate(ev.event_date) : null,
+          dateLabel: T.formatEventDate ? T.formatEventDate(ev.event_date, ev.timezone) : null,
           tableName,
           ticketUrl: links?.ticketUrl || null,
         },
@@ -299,7 +299,7 @@ async function jobFinalReports() {
   const soon = new Date(Date.now() + 30 * HOUR).toISOString();
   const { data: events } = await supabase
     .from('events')
-    .select('id, title, slug, event_date, notification_preferences, sms_addon_purchased_at, sms_settings, organizations(name, email)')
+    .select('id, title, slug, event_date, timezone, notification_preferences, sms_addon_purchased_at, sms_settings, organizations(name, email)')
     .eq('status', 'active').eq('is_paid', true)
     .gte('event_date', nowISO()).lte('event_date', soon)
     .is('final_report_sent_at', null).limit(100);
@@ -338,7 +338,7 @@ async function jobPostEvent() {
   const since = new Date(Date.now() - 3 * DAY).toISOString();
   const { data: events } = await supabase
     .from('events')
-    .select('id, title, slug, event_date, recap_sent_at, notification_preferences, organizations(name, email)')
+    .select('id, title, slug, event_date, timezone, recap_sent_at, notification_preferences, organizations(name, email)')
     .in('status', ['active', 'completed']).eq('is_paid', true)
     .lt('event_date', nowISO()).gte('event_date', since)
     .limit(100);
@@ -447,7 +447,7 @@ async function notifyGuestsOfEventChange(eventId, { includeSms = false, force = 
       // event on the platform — not erroring, not logging, simply never texting
       // anyone about a cancellation. A quiet always-false is the worst kind of
       // bug to own, so the columns are listed with a note rather than inherited.
-      .select('id, title, slug, event_date, location_name, location_address, status, is_paid, cancellation_reason, sms_addon_purchased_at, sms_settings')
+      .select('id, title, slug, event_date, timezone, location_name, location_address, status, is_paid, cancellation_reason, sms_addon_purchased_at, sms_settings')
       .eq('id', eventId).single();
 
     // 'cancelled' is as valid a reason to notify as a date change — more so.
@@ -457,7 +457,7 @@ async function notifyGuestsOfEventChange(eventId, { includeSms = false, force = 
     const cancelled = ev.status === 'cancelled';
     const where = ev.location_name || ev.location_address || '';
     const changes = [];
-    if (ev.event_date) changes.push({ label: 'When', value: T.formatEventDate(ev.event_date) || '' });
+    if (ev.event_date) changes.push({ label: 'When', value: T.formatEventDate(ev.event_date, ev.timezone) || '' });
     if (where) changes.push({ label: 'Where', value: where });
     const url = `${T.getPublicBaseUrl()}/${ev.slug || ''}`;
 
@@ -636,7 +636,7 @@ async function jobSeatingNotices() {
   for (const [eventId, rows] of byEvent) {
     const { data: ev } = await supabase
       .from('events')
-      .select('id, title, slug, event_date, sms_addon_purchased_at, sms_settings, status')
+      .select('id, title, slug, event_date, timezone, sms_addon_purchased_at, sms_settings, status')
       .eq('id', eventId).maybeSingle();
 
     // A cancelled event must not text anyone about where they were going to sit.

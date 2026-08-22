@@ -259,11 +259,34 @@ test('guest-typed text cannot inject markup into the host\'s inbox', () => {
   assert.match(html, /&lt;b&gt;Mona/);
 });
 
-test('the time it arrived names the clock it is on', () => {
+test('the time it arrived is on the EVENT\'s clock, and names it', () => {
   // An unlabelled time that is neither the host's clock nor the guest's is
   // worse than none, and the server's timezone is an accident of hosting.
-  const html = getNewRsvpOrganizerTemplate({ ...BASE, submittedAt: '2026-08-20T15:40:00Z' });
-  assert.match(html, /UTC/);
+  //
+  // This used to be satisfied by printing UTC — honest, but a clock nobody
+  // involved in the event actually reads. Now the event carries a real zone,
+  // so the stamp is converted into it. The label stays, for the original
+  // reason: a host reconciling a late reply against a deadline has to know
+  // which clock the number is on.
+  const at = '2026-08-20T15:40:00Z';
+
+  const sanDiego = getNewRsvpOrganizerTemplate({
+    ...BASE, submittedAt: at, timeZone: 'America/Los_Angeles',
+  });
+  assert.match(sanDiego, /8:40\s*AM/, '15:40Z is 08:40 in San Diego');
+  assert.match(sanDiego, /PDT|PT/, 'the clock is named');
+
+  // A different organizer's event must read differently from the same instant
+  // — otherwise the zone is being accepted and ignored, which is the exact
+  // failure this whole change exists to end.
+  const cairo = getNewRsvpOrganizerTemplate({
+    ...BASE, submittedAt: at, timeZone: 'Africa/Cairo',
+  });
+  assert.match(cairo, /6:40\s*PM/, '15:40Z is 18:40 in Cairo');
+  assert.ok(
+    !cairo.includes('8:40 AM'),
+    'the Cairo mail must not carry the San Diego rendering',
+  );
 });
 
 /* ── Both recipients get the same thing ──────────────────────────────────── */

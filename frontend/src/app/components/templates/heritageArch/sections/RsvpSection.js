@@ -26,6 +26,7 @@ import { getRsvpDeadlineStatus, daysLeftPhrase } from '../../../../utils/rsvpDea
 import { useSeatingLookup } from '../../../../[slug]/rsvp/hooks/useSeatingLookup';
 import SeatingResultPanel from '../../../../[slug]/rsvp/steps/SeatingResultPanel';
 import { alpha, darken, isDark } from '../../../../utils/color';
+import { safeZone } from '../../../../utils/timezone';
 
 const ALLERGY_OPTIONS = ['Gluten-free / Celiac', 'Lactose-free', 'Nut allergy', 'Seafood'];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -796,6 +797,7 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
               guestName={passGuestName}
               eventTitle={event.title}
               eventDate={event.event_date}
+              eventTimezone={event.timezone}
               eventLocation={event.location_name || event.location_address}
               tableName={guestRsvp?.table_name || null}
               response="yes"
@@ -863,7 +865,7 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
           // (previously this pill kept quietly showing a date already in the
           // past, which read as broken rather than as "please respond now").
           const tone = status.passed ? ERR : status.urgent ? C.gold : C.maroon;
-          const deadlineText = new Date(event.rsvp_deadline).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+          const deadlineText = new Date(event.rsvp_deadline).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: safeZone(event.timezone) });
           // A full-width, prominent banner, not a small inline pill — the
           // passed/urgent states in particular are the single most
           // time-critical thing a guest can read on this page. Letter-spacing

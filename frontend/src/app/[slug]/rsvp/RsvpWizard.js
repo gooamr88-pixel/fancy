@@ -23,6 +23,7 @@ import StepAttendance from './steps/StepAttendance';
 import StepPartyDetails from './steps/StepPartyDetails';
 import StepCustomQuestions from './steps/StepCustomQuestions';
 import StepSuccess from './steps/StepSuccess';
+import { safeZone } from '../../utils/timezone';
 
 /**
  * RsvpWizard — the single-page input surface for the public RSVP form, rendered
@@ -653,7 +654,7 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
               // states and need to read the same regardless of custom colors,
               // same as the plain "clock" pill always did for the normal case.
               const tone = status.passed ? '#E8A0A0' : status.urgent ? '#F0C36B' : lighten(secondaryColor, 0.35);
-              const deadlineText = new Date(event.rsvp_deadline).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+              const deadlineText = new Date(event.rsvp_deadline).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: safeZone(event.timezone) });
               const label = status.passed
                 ? t.reply_by_passed.replace('{date}', deadlineText)
                 : status.urgent

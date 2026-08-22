@@ -4,6 +4,7 @@ const guestService = require('../services/guestService');
 const { isEventLiveForGuests } = require('../utils/eventAccess');
 const { sendOk, sendFail } = require('../utils/responseEnvelope');
 const { broadcast } = require('../utils/realtime');
+const { formatInZone } = require('../utils/timezone');
 
 /**
  * Scan QR ticket and check in the whole party it represents.
@@ -28,6 +29,12 @@ const scanCheckIn = async (req, res, next) => {
 
   try {
     const { data: party } = await supabase.from('rsvp_parties').select('label').eq('id', decoded.partyId).single();
+    // The venue's clock, for the "already checked in at ..." message below.
+    // That line is read by a staff member standing at the door next to the
+    // guest being turned away, so the time in it has to match the clock on the
+    // wall behind them — not the server's, which is where it came from before.
+    const { data: checkinEvent } = await supabase
+      .from('events').select('timezone').eq('id', eventId).maybeSingle();
     
     // Query current live table assignment rather than relying solely on the static token payload
     const { data: assignment } = await supabase
@@ -51,7 +58,7 @@ const scanCheckIn = async (req, res, next) => {
       if (result.error === 'ALREADY_CHECKED_IN') {
         return sendFail(res, {
           status: 409, error: 'ALREADY_CHECKED_IN',
-          message: `${party?.label || 'Guest'} already checked in at ${result.checkedInAt ? new Date(result.checkedInAt).toLocaleTimeString() : 'an earlier time'}`,
+          message: `${party?.label || 'Guest'} already checked in at ${result.checkedInAt ? formatInZone(result.checkedInAt, checkinEvent?.timezone, { hour: 'numeric', minute: '2-digit' }) : 'an earlier time'}`,
         });
       }
       return sendFail(res, { status: 404, error: 'GUEST_NOT_FOUND' });

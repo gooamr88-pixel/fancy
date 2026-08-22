@@ -11,6 +11,8 @@ import { TEMPLATES, TEMPLATE_PREVIEW_PATTERN, RETIRED_TEMPLATE_SUCCESSOR } from 
 import { CINEMATIC_KEYS } from '../../components/templates/cinematic/cinematicThemes';
 import { resolveOccasion } from '../../utils/eventOccasion';
 import { buildPreviewEvent } from './components/previewEvent';
+import { instantToWallClock } from '../../utils/timezone';
+import { useOrganizerTimeZone } from '../components/OrganizerClock';
 
 /* ═══════════════════════════════════════════════════════
    LAZY-LOADED STAGE COMPONENTS
@@ -435,7 +437,14 @@ export default function CreateEventWizard() {
         const data = await res.json();
         const ev = data?.event;
         if (!ev) return;
-        const dt = (v) => (v ? String(v).slice(0, 16) : ''); // ISO → datetime-local
+        /* ISO instant → datetime-local, ON THE EVENT'S CLOCK.
+           This used to be `String(v).slice(0, 16)`, which was correct while a
+           stored date WAS the typed digits with a UTC suffix — slicing simply
+           removed the suffix. It is now destructive: the stored instant for a
+           6:30pm San Diego draft is 01:30 the next day in UTC, so slicing
+           prefills tomorrow at 1:30am. The organizer resumes their draft,
+           sees a time they never typed, and saving writes it back. */
+        const dt = (v) => instantToWallClock(v, ev.timezone);
         setEventId(ev.id);
         /* A draft saved before Royale Wedding / Eternal Love were retired
            still carries one of their keys. Selecting it here would leave the
@@ -601,6 +610,19 @@ export default function CreateEventWizard() {
   const handleRecheckPayment = useCallback(() => {
     if (pendingSessionId) verifyPaymentSession(pendingSessionId);
   }, [pendingSessionId, verifyPaymentSession]);
+
+  /* ═══ The organizer's own clock ═══
+     The preview converts the wizard's naive date fields exactly as the server
+     will on save; without the right zone it would show the organizer a page
+     their guests never get, which is the one failure the preview exists to
+     prevent.
+
+     Read from the context the dashboard layout already establishes, NOT
+     fetched here. This page fetched /auth/profile for itself first, and that
+     was a second request for a value the layout had already loaded on the same
+     page load — the layout wraps the no-chrome routes too, precisely so the
+     wizard and the seating map are not left to re-derive it. */
+  const orgTimezone = useOrganizerTimeZone();
 
   /* ═══ Fetch platform pricing tiers (for the payment step) ═══ */
   useEffect(() => {
@@ -825,6 +847,7 @@ export default function CreateEventWizard() {
     customColors, templateData, customConfig,
     allowGuestEdits, trackGuestSide, noKidsAllowed, collectDietaryRestrictions,
     customFields, slug,
+    timeZone: orgTimezone,
   }) : null;
 
   /* ═══ Template selection handlers ═══ */

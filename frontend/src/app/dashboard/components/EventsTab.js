@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { apiFetch } from '../../utils/apiClient';
 import EventSharePanel from './EventSharePanel';
 import Icon from '../../components/icons/Icon';
+import { formatInZone } from '../../utils/timezone';
 
 /* ═══ Design Tokens ═══ */
 const C = {
@@ -171,19 +172,27 @@ const CSS = `
 `;
 
 /* ═══ Helpers ═══ */
-function fmtDate(d, end) {
+function fmtDate(d, end, timeZone) {
   if (!d) return 'Date TBD';
-  const dt = new Date(d);
-  if (isNaN(dt.getTime())) return 'Date TBD';
   const dOpts = { month: 'short', day: 'numeric', year: 'numeric' };
   const tOpts = { hour: 'numeric', minute: '2-digit', hour12: true };
-  const dp = dt.toLocaleDateString('en-US', dOpts);
-  const tp = dt.toLocaleTimeString('en-US', tOpts);
+
+  const dp = formatInZone(d, timeZone, dOpts);
+  if (!dp) return 'Date TBD';
+  const tp = formatInZone(d, timeZone, tOpts);
+
   if (end) {
-    const ed = new Date(end);
-    if (!isNaN(ed.getTime())) {
-      if (dt.toDateString() === ed.toDateString()) return `${dp} · ${tp} — ${ed.toLocaleTimeString('en-US', tOpts)}`;
-      return `${dp} — ${ed.toLocaleDateString('en-US', dOpts)}`;
+    const edp = formatInZone(end, timeZone, dOpts);
+    if (edp) {
+      // "Same day" has to be decided on the EVENT's clock, not the browser's.
+      // Comparing toDateString() asked whether the two instants fall on the
+      // same day where the ORGANIZER is sitting — so a party running 8pm to
+      // 1am in San Diego reads as one evening from California and as two
+      // separate dates from Cairo, off the same data. Comparing the formatted
+      // date strings asks the question the reader actually cares about: do
+      // these print as the same day on the page?
+      if (dp === edp) return `${dp} · ${tp} — ${formatInZone(end, timeZone, tOpts)}`;
+      return `${dp} — ${edp}`;
     }
   }
   return `${dp} · ${tp}`;
@@ -809,7 +818,7 @@ function CurrentPlanBlock({ eventId, event }) {
               <div><span style={{ color: C.stone }}>Method: </span>{manualPayment.manual_method}</div>
             )}
             {manualPayment.completed_at && (
-              <div><span style={{ color: C.stone }}>Approved: </span>{new Date(manualPayment.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+              <div><span style={{ color: C.stone }}>Approved: </span>{formatInZone(manualPayment.completed_at, event.timezone, { month: 'short', day: 'numeric', year: 'numeric' })}</div>
             )}
           </div>
         </div>
@@ -1057,7 +1066,7 @@ const EventCard = React.memo(function EventCard({ event, index, isActive, onSele
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5, fontSize: 12, color: C.stone, fontFamily: 'var(--font-sans)' }}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-              <span>{fmtDate(eventDate, event.end_date || event.event_end_date)}</span>
+              <span>{fmtDate(eventDate, event.end_date || event.event_end_date, event.timezone)}</span>
               {rel && (
                 <span style={{
                   padding: '1px 8px', borderRadius: 10,

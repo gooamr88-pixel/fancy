@@ -56,6 +56,7 @@ const buildMapsUrl = (event) => {
 
 // Shared bulletproof resolver (splits commas, repairs typos, first valid https origin).
 const { getPublicBaseUrl, getBackendBaseUrl } = require('./publicUrl');
+const { formatInZone, zoneAbbreviation } = require('./timezone');
 
 /**
  * The three URLs a signed QR ticket resolves to. Built here rather than at each
@@ -207,30 +208,44 @@ const CHROME = {
   there:        { en: 'there', ar: 'ضيفنا الكريم' },
 };
 
-/** Long, friendly event-date string, or null when no/invalid date. */
-const formatEventDate = (d) => {
-  if (!d) return null;
-  const dt = new Date(d);
-  if (Number.isNaN(dt.getTime())) return null;
-  return dt.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-};
+/**
+ * Long, friendly event-date string, or null when no/invalid date.
+ *
+ * `timeZone` is the EVENT's zone and is effectively required, despite being
+ * the second argument. Omitting it falls back to the platform default, which
+ * is right for a San Diego event and silently wrong for every other one.
+ *
+ * Before this took a zone, it formatted in the SERVER's zone — an accident of
+ * where the process happens to run. That put every date in every email one
+ * step out of agreement with the guest page, which was formatting the same
+ * column under a different rule entirely. This is the fix for that: the email
+ * and the invitation now read the same instant on the same clock.
+ */
+const formatEventDate = (d, timeZone) => formatInZone(d, timeZone, {
+  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+});
 
 /**
  * Date AND time, for the organizer-facing "when did this arrive" line.
  *
- * UTC, and labelled as such. The server's own timezone is an accident of where
- * it is hosted, and an unlabelled "3:40 PM" that is neither the host's clock
- * nor the guest's is worse than no time at all — a host reconciling a late
- * reply against an RSVP deadline needs to know which clock they are reading.
+ * Still labelled with its zone, for exactly the reason it used to be labelled
+ * "UTC": a host reconciling a late reply against an RSVP deadline has to know
+ * which clock they are reading, and an unlabelled "3:40 PM" cannot tell them.
+ *
+ * What changed is WHICH clock. UTC was the honest answer while the platform
+ * had no better one — it was at least a clock we could name, unlike the
+ * server's own zone. Now the event has a real timezone, so the timestamp is
+ * shown on the organizer's own clock and labelled with it. That is the same
+ * principle applied to a better answer, not a reversal of it.
  */
-const formatDateTime = (d) => {
-  if (!d) return null;
-  const dt = new Date(d);
-  if (Number.isNaN(dt.getTime())) return null;
-  return `${dt.toLocaleString('en-US', {
+const formatDateTime = (d, timeZone) => {
+  const formatted = formatInZone(d, timeZone, {
     month: 'short', day: 'numeric', year: 'numeric',
-    hour: 'numeric', minute: '2-digit', timeZone: 'UTC',
-  })} UTC`;
+    hour: 'numeric', minute: '2-digit',
+  });
+  if (!formatted) return null;
+  const abbr = zoneAbbreviation(d, timeZone);
+  return abbr ? `${formatted} ${abbr}` : formatted;
 };
 
 const money = (cents) => `$${((Number(cents) || 0) / 100).toFixed(2)} USD`;
@@ -617,13 +632,9 @@ const responseMeta = (response, lang) => {
  * mixing two numeral systems. Latin digits are also the norm in Egyptian and
  * Gulf digital products.
  */
-const formatEventDateLang = (d, lang) => {
-  if (!d) return null;
-  const dt = new Date(d);
-  if (Number.isNaN(dt.getTime())) return null;
-  const locale = isRtl(lang) ? 'ar-EG-u-nu-latn' : 'en-US';
-  return dt.toLocaleDateString(locale, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-};
+const formatEventDateLang = (d, lang, timeZone) => formatInZone(d, timeZone, {
+  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+}, isRtl(lang) ? 'ar-EG-u-nu-latn' : 'en-US');
 
 /** Party-size phrase — Arabic needs real dual/plural forms, not "1 Guests". */
 const guestCount = (n, lang) => {
@@ -673,7 +684,7 @@ const getPasswordResetTemplate = (name, otp) => emailShell({
 
 /** Guest INVITATION with one-click Accept / Maybe / Decline (signed per-guest links). */
 const getInvitationTemplate = (rsvp, event, links, lang = 'en') => {
-  const formattedDate = formatEventDateLang(event.event_date, lang);
+  const formattedDate = formatEventDateLang(event.event_date, lang, event.timezone);
   const where = event.location_name || event.location_address || null;
   const rows = [[pick(lang, { en: 'Event', ar: 'المناسبة' }), escapeHtml(event.title)]];
   if (formattedDate) rows.push([pick(lang, { en: 'Date', ar: 'التاريخ' }), escapeHtml(formattedDate)]);
@@ -709,7 +720,7 @@ const getInvitationTemplate = (rsvp, event, links, lang = 'en') => {
  * adapts rather than promising a table to someone who hasn't committed yet.
  */
 const getRSVPConfirmationTemplate = (rsvp, event, lang = 'en', links = null) => {
-  const formattedDate = formatEventDateLang(event.event_date, lang);
+  const formattedDate = formatEventDateLang(event.event_date, lang, event.timezone);
   const r = responseMeta(rsvp.response, lang);
   const isMaybe = rsvp.response === 'maybe';
   // A confirmed guest gets their check-in pass HERE, in the one email they
@@ -784,7 +795,7 @@ const getRSVPConfirmationTemplate = (rsvp, event, lang = 'en', links = null) => 
 
 /** Thank-you for a declined RSVP, with a one-click "change my RSVP" link. */
 const getDeclineConfirmationTemplate = (rsvp, event, lang = 'en') => {
-  const formattedDate = formatEventDateLang(event.event_date, lang);
+  const formattedDate = formatEventDateLang(event.event_date, lang, event.timezone);
   const eventPageUrl = buildGuestEventUrl(event.slug, rsvp.id);
   const declined = pick(lang, { en: 'Regretfully Declined', ar: 'اعتذر عن الحضور' });
   const rows = [[pick(lang, { en: 'Response', ar: 'الرد' }), `<span style="color:${BRAND.danger};">${declined}</span>`, BRAND.danger]];
@@ -821,7 +832,7 @@ const getDeclineConfirmationTemplate = (rsvp, event, lang = 'en') => {
 
 /** Email sent to a companion guest confirming they are attending with the primary guest. */
 const getCompanionRSVPConfirmationTemplate = (companionName, mainGuestName, event, eventUrl, lang = 'en') => {
-  const formattedDate = formatEventDateLang(event.event_date, lang);
+  const formattedDate = formatEventDateLang(event.event_date, lang, event.timezone);
   const where = event.location_name || event.location_address || null;
   const registered = pick(lang, { en: 'Registered as Guest', ar: 'مسجّل كضيف' });
   const rows = [
@@ -927,7 +938,7 @@ const venueValueHtml = (event, lang) => {
 const getQRTicketTemplate = (rsvp, event, { tableName = null, zoneName = null, links = {}, lang = 'en', changed = false } = {}) => {
   const { qrImageUrl, qrDownloadUrl, ticketUrl } = links;
   const formattedTable = formatTableLabel(tableName, lang);
-  const formattedDate = formatEventDateLang(event.event_date, lang);
+  const formattedDate = formatEventDateLang(event.event_date, lang, event.timezone);
   const partySize = Number(rsvp.party_size) || 1;
   const rtl = isRtl(lang);
 
@@ -1149,6 +1160,9 @@ const getNewRsvpOrganizerTemplate = ({
   companionMealCounts = null, customAnswers = [], notes = null,
   declineReason = null, maybeConfirmBy = null, smsConsent = null,
   language = null, submittedAt = null, isUpdate = false,
+  // The event's zone, so the "Submitted" stamp below reads on the
+  // organizer's own clock instead of on UTC or on the server's.
+  timeZone = null,
 }) => {
   const r = responseMeta(response);
   const verb = response === 'yes' || response === 'accepted'
@@ -1231,7 +1245,7 @@ const getNewRsvpOrganizerTemplate = ({
   // language this guest will be written to in every later message.
   if (language === 'ar') rows.push(['Replied In', 'Arabic']);
   if (submittedAt) {
-    const when = formatDateTime(submittedAt);
+    const when = formatDateTime(submittedAt, timeZone);
     if (when) rows.push(['Submitted', escapeHtml(when)]);
   }
 
@@ -1348,8 +1362,8 @@ const getEventLiveTemplate = ({ orgName, eventTitle, eventUrl }) => emailShell({
 
 /** "You haven't responded yet" nudge as the RSVP deadline approaches. */
 const getRsvpReminderTemplate = (rsvp, event, links, lang = 'en') => {
-  const formattedDate = formatEventDateLang(event.event_date, lang);
-  const deadline = formatEventDateLang(event.rsvp_deadline, lang);
+  const formattedDate = formatEventDateLang(event.event_date, lang, event.timezone);
+  const deadline = formatEventDateLang(event.rsvp_deadline, lang, event.timezone);
   const rtl = isRtl(lang);
   const choice = (href, label, bg, color, border) =>
     `<td align="center" style="padding:5px 5px;"><a class="fr-btn" href="${href}" target="_blank" rel="noopener" style="display:inline-block; font-family:${SANS}; font-size:14px; font-weight:bold; color:${color}; background-color:${bg}; text-decoration:none; padding:13px 22px; border-radius:10px; border:1px solid ${border};">${label}</a></td>`;
@@ -1402,7 +1416,7 @@ const getRsvpReminderTemplate = (rsvp, event, links, lang = 'en') => {
  * Nothing here promises a follow-up any more, because there isn't one.
  */
 const getEventReminderTemplate = (rsvp, event, opts = {}, lang = 'en') => {
-  const formattedDate = formatEventDateLang(event.event_date, lang);
+  const formattedDate = formatEventDateLang(event.event_date, lang, event.timezone);
   const where = event.location_name || event.location_address || null;
   const { qrImageUrl, qrDownloadUrl, ticketUrl } = opts.links || {};
   const formattedTable = formatTableLabel(opts.tableName, lang);
@@ -1543,7 +1557,7 @@ const getEventUpdatedTemplate = (rsvp, event, changes, eventUrl, lang = 'en') =>
  *     it is not ours to paraphrase.
  */
 const getEventCancelledTemplate = (rsvp, event, eventUrl, lang = 'en', reason = null) => {
-  const when = event.event_date ? formatEventDate(event.event_date) : null;
+  const when = event.event_date ? formatEventDate(event.event_date, event.timezone) : null;
   const rows = when ? [[pick(lang, { en: 'Was scheduled for', ar: 'كان مقررًا في' }), escapeHtml(when)]] : [];
   return emailShell({
     lang,
@@ -1599,7 +1613,7 @@ const getOrganizerWelcomeTemplate = (name) => emailShell({
 
 /** Near-final headcount report the day before the event. */
 const getFinalHeadcountReportTemplate = ({ orgName, event, stats }) => {
-  const formattedDate = formatEventDate(event.event_date);
+  const formattedDate = formatEventDate(event.event_date, event.timezone);
   return emailShell({
     preheader: `Final headcount for ${event.title}`,
     eyebrow: 'Final headcount',

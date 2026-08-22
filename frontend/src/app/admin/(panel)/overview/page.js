@@ -7,7 +7,7 @@ import DataTable from '../../_components/DataTable';
 import { PageLoading } from '../../_components/Spinner';
 import { ErrorState } from '../../_components/ErrorState';
 import { T, card } from '../../_components/theme';
-import { money as fmtMoney } from '../../_lib/format';
+import { money as fmtMoney, adminTime } from '../../_lib/format';
 
 /**
  * Executive Overview (Master Plan §1) rebuilt on the new shell + primitives.
@@ -175,7 +175,7 @@ export default function OverviewPage() {
           { key: 'action', header: 'Action', render: (r) => <span style={{ fontWeight: 600 }}>{r.action}</span> },
           { key: 'entityType', header: 'Entity' },
           { key: 'eventTitle', header: 'Event', render: (r) => r.eventTitle || '—' },
-          { key: 'createdAt', header: 'When', render: (r) => new Date(r.createdAt).toLocaleString() },
+          { key: 'createdAt', header: 'When', render: (r) => adminTime(r.createdAt) },
         ]}
         rows={ov.recentActivity || []}
         rowKey={(r) => r.id}

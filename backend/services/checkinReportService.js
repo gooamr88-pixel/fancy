@@ -164,7 +164,7 @@ function computeReportStats(guests, conflicts = []) {
 async function gatherReportData(eventId) {
   const { data: event, error: eventErr } = await supabase
     .from('events')
-    .select('id, title, event_date, location_name, location_address')
+    .select('id, title, event_date, timezone, location_name, location_address')
     .eq('id', eventId)
     .single();
   if (eventErr || !event) {
@@ -259,6 +259,7 @@ async function gatherReportData(eventId) {
       id: event.id,
       title: event.title,
       eventDate: event.event_date,
+      timezone: event.timezone || null,
       venue: event.location_name || null,
       venueAddress: event.location_address || null,
     },

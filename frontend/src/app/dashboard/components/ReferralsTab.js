@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../../utils/apiClient';
+import { useOrganizerTimeZone } from './OrganizerClock';
+import { formatInZone } from '../../utils/timezone';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -11,11 +13,8 @@ const COLORS = {
 
 const fmtCents = (cents) => `$${((cents || 0) / 100).toFixed(2)}`;
 
-function formatDate(dateStr) {
-  if (!dateStr) return '—';
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+function formatDate(dateStr, timeZone) {
+  return formatInZone(dateStr, timeZone, { month: 'short', day: 'numeric', year: 'numeric' }) || '—';
 }
 
 function StatCard({ label, value, sub }) {
@@ -62,6 +61,7 @@ const STATUS_STYLE = {
 };
 
 export default function ReferralsTab() {
+  const timeZone = useOrganizerTimeZone();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -176,7 +176,7 @@ export default function ReferralsTab() {
                 }}>
                   <div style={{ minWidth: 0 }}>
                     <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13.5, fontWeight: 700, color: COLORS.charcoal, margin: 0, overflowWrap: 'break-word' }}>{r.name || 'Organizer'}</p>
-                    <p style={{ fontFamily: 'var(--font-sans)', fontSize: 11.5, color: COLORS.stone, margin: '2px 0 0' }}>Joined {formatDate(r.joinedAt)}</p>
+                    <p style={{ fontFamily: 'var(--font-sans)', fontSize: 11.5, color: COLORS.stone, margin: '2px 0 0' }}>Joined {formatDate(r.joinedAt, timeZone)}</p>
                   </div>
                   <span style={{
                     flexShrink: 0, padding: '4px 12px', borderRadius: 100, fontSize: 11, fontWeight: 700,
@@ -202,7 +202,7 @@ export default function ReferralsTab() {
                   <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: COLORS.charcoal, margin: 0 }}>
                     {l.type === 'earned' ? 'Referral reward earned' : l.type === 'redeemed' ? 'Applied to a payment' : l.type === 'admin_grant' ? 'Credit granted' : 'Credit adjusted'}
                   </p>
-                  <p style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: COLORS.stone, margin: '2px 0 0' }}>{formatDate(l.createdAt)}</p>
+                  <p style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: COLORS.stone, margin: '2px 0 0' }}>{formatDate(l.createdAt, timeZone)}</p>
                 </div>
                 <span style={{ flexShrink: 0, fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 700, color: l.amountCents >= 0 ? COLORS.success : COLORS.stone }}>
                   {l.amountCents >= 0 ? '+' : '−'}{fmtCents(Math.abs(l.amountCents))}

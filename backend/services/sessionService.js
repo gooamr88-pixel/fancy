@@ -4,6 +4,7 @@ const logger = require('../utils/logger');
 const { captureRequestMeta } = require('../middleware/adminAudit');
 const { sendEmailViaBrevo } = require('../utils/notificationService');
 const { getNewSignInTemplate } = require('../utils/emailTemplates');
+const { formatInZone, zoneAbbreviation } = require('../utils/timezone');
 
 /**
  * Best-effort security alert: emails the organizer when their account is accessed
@@ -35,10 +36,20 @@ async function maybeAlertNewDevice(req, userId) {
     if (!inserted || (priorCount || 0) === 0) return; // first-ever device is expected
 
     const { data: org } = await supabase
-      .from('organizations').select('name, email').eq('owner_user_id', userId).single();
+      .from('organizations').select('name, email, timezone').eq('owner_user_id', userId).single();
     if (!org || !org.email) return;
 
-    const when = new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+    // On the ORGANIZER's own clock, and labelled with it.
+    //
+    // This is a security alert — "someone signed in to your account at X" —
+    // and its entire value depends on the recipient being able to answer "was
+    // that me?". A time rendered in the server's timezone makes that question
+    // unanswerable: an organizer who signed in at 9pm reads "4:00 PM" and
+    // cannot tell a hosting detail from an intruder.
+    const now = new Date().toISOString();
+    const stamp = formatInZone(now, org.timezone, { dateStyle: 'medium', timeStyle: 'short' });
+    const abbr = zoneAbbreviation(now, org.timezone);
+    const when = abbr ? `${stamp} ${abbr}` : stamp;
     const html = getNewSignInTemplate(org.name, { device: deviceLabel, ip, when });
     sendEmailViaBrevo(org.email, 'New Sign-in to Your Fancy RSVP Account', html).catch(() => {});
   } catch (err) {

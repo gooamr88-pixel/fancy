@@ -162,6 +162,7 @@ function RsvpLockedCard({ event, guest, allowEdits, isRTL, onEdit, onReset, seat
                 guestName={guest.guest_name}
                 eventTitle={event.title}
                 eventDate={event.event_date}
+                eventTimezone={event.timezone}
                 eventLocation={event.location_name || event.location_address}
                 tableName={guest.table_name || null}
                 response="yes"

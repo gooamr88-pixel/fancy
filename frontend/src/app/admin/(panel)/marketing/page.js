@@ -9,6 +9,7 @@ import Modal, { Button } from '../../_components/Modal';
 import { T, card } from '../../_components/theme';
 import { useAlert } from '../../_components/AlertContext';
 import { Field, Row } from '../../_components/Field';
+import { adminTime, adminDate } from '../../_lib/format';
 
 /**
  * Marketing — Referral Program oversight. Permissions marketing.view /
@@ -289,7 +290,7 @@ export default function MarketingPage() {
                     <div style={{ fontSize: 11, color: T.text400 }}>{r.referredOrgEmail}</div>
                   </div>
                 ) },
-                { key: 'joinedAt', header: 'Joined', render: (r) => r.joinedAt ? new Date(r.joinedAt).toLocaleDateString() : '—' },
+                { key: 'joinedAt', header: 'Joined', render: (r) => r.joinedAt ? adminDate(r.joinedAt) : '—' },
                 { key: 'status', header: 'Status', render: (r) => {
                   const s = STATUS_BADGE[r.status] || STATUS_BADGE.pending;
                   return (
@@ -312,7 +313,7 @@ export default function MarketingPage() {
               emptyText="No credit activity yet."
               rowKey={(r) => r.id}
               columns={[
-                { key: 'createdAt', header: 'Date', render: (r) => r.createdAt ? new Date(r.createdAt).toLocaleString() : '—' },
+                { key: 'createdAt', header: 'Date', render: (r) => r.createdAt ? adminTime(r.createdAt) : '—' },
                 { key: 'orgName', header: 'Organization', render: (r) => r.orgName || '—' },
                 { key: 'type', header: 'Type', render: (r) => r.type },
                 { key: 'referredOrgName', header: 'Referred', render: (r) => r.referredOrgName || '—' },
@@ -340,7 +341,7 @@ export default function MarketingPage() {
           emptyText="No inquiries yet."
           rowKey={(r) => r.id}
           columns={[
-            { key: 'createdAt', header: 'Received', render: (r) => r.created_at ? new Date(r.created_at).toLocaleString() : '—' },
+            { key: 'createdAt', header: 'Received', render: (r) => r.created_at ? adminTime(r.created_at) : '—' },
             { key: 'from', header: 'From', render: (r) => (
               <div>
                 <div style={{ fontWeight: 700, color: T.text900 }}>{r.name}</div>
@@ -402,7 +403,7 @@ export default function MarketingPage() {
             </div>
             {replyingTo.admin_response && (
               <div style={{ margin: '0 0 12px', padding: 12, background: T.successSoft, border: `1px solid rgba(16,185,129,0.2)`, borderRadius: T.radiusSm, fontSize: 12, color: T.text700 }}>
-                <strong style={{ color: T.successDark }}>Already replied</strong> {replyingTo.responded_at ? `on ${new Date(replyingTo.responded_at).toLocaleString()}` : ''}:
+                <strong style={{ color: T.successDark }}>Already replied</strong> {replyingTo.responded_at ? `on ${adminTime(replyingTo.responded_at)}` : ''}:
                 <div style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}>{replyingTo.admin_response}</div>
               </div>
             )}

@@ -6,6 +6,7 @@ import { lighten, darken, alpha, mix, luminance } from "../../utils/color";
 import { useGuestAnalytics } from "../../utils/useGuestAnalytics";
 import Icon from "../icons/Icon";
 import { REVEAL_ASSETS, REVEAL_ASSETS_CRITICAL } from "./revealAssets";
+import { safeZone } from '../../utils/timezone';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    InvitationReveal — "The Unsealing"
@@ -683,7 +684,7 @@ export default function InvitationReveal({
   const arTitle = event?.title_ar || td.title_ar;
   const displayTitle = isRTL && arTitle ? arTitle : identity.full;
   const dateStr = event?.event_date
-    ? new Date(event.event_date).toLocaleDateString(isRTL ? "ar-EG" : "en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
+    ? new Date(event.event_date).toLocaleDateString(isRTL ? "ar-EG" : "en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: safeZone(event.timezone) })
     : "";
 
   /* ─── Instrumentation ───

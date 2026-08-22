@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { GlassmorphismCard, PremiumButton, AttendanceCard, PartySizeStepper, CalendarButton, ShareButton } from '../GuestUI';
 import { FadeInUp, ScaleIn, GlowPulse, ConfettiExplosion } from '../GuestAnimations';
 import { CalendarIcon, CheckIcon, LockIcon } from '../RsvpIcons';
+import { safeZone } from '../../../utils/timezone';
 
 /**
  * QuickConfirm — the one-click email-token input surface, now a thin presentational
@@ -41,7 +42,7 @@ export default function QuickConfirm({ event, guest, intendedResponse, isRTL, su
   const [finalResponse, setFinalResponse] = useState(null);
 
   const dateStr = event?.event_date
-    ? new Date(event.event_date).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
+    ? new Date(event.event_date).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: safeZone(event.timezone) })
     : null;
 
   const handlePartySizeChange = (size) => {

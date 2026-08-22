@@ -53,7 +53,7 @@ async function logInvitation({ partyId, eventId, channel, token = null, status, 
 async function resolveLiveEvent(eventId) {
   const { data: event, error } = await supabase
     .from('events')
-    .select('id, title, event_date, slug, location_name, location_address, is_paid, status, notification_preferences')
+    .select('id, title, event_date, timezone, slug, location_name, location_address, is_paid, status, notification_preferences')
     .eq('id', eventId)
     .single();
   if (error || !event) return { event: null, code: 'EVENT_NOT_FOUND' };
@@ -452,7 +452,7 @@ function buildDetailContext(party, event) {
   return {
     guestName: party.label || 'Guest',
     eventTitle: event.title,
-    dateLabel: formatEventDate ? formatEventDate(event.event_date) : null,
+    dateLabel: formatEventDate ? formatEventDate(event.event_date, event.timezone) : null,
     venue: event.location_name || event.location_address || null,
     tableName,
     companions,
@@ -496,7 +496,7 @@ async function sendInvitationSmsBulk(eventId, partyIds, { user = null, type = 'i
      * included them. The same button producing a different message depending on who
      * triggered it is exactly the kind of thing a template test does not catch.
      */
-    .select('id, title, slug, event_date, location_name, location_address, sms_addon_purchased_at, sms_settings')
+    .select('id, title, slug, event_date, timezone, location_name, location_address, sms_addon_purchased_at, sms_settings')
     .eq('id', eventId)
     .single();
   if (!event) return { code: 'EVENT_NOT_FOUND', message: 'That event could not be found.' };

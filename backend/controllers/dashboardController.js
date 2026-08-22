@@ -115,7 +115,7 @@ const getDashboardData = async (req, res, next) => {
       safeQuery(
         supabase
           .from('events')
-          .select('id, title, event_date, location_name, status')
+          .select('id, title, event_date, timezone, location_name, status')
           .eq('org_id', orgId)
           .gte('event_date', new Date().toISOString())
           .order('event_date', { ascending: true })

@@ -223,7 +223,7 @@ const getOperationalSummary = async (req, res, next) => {
 
   try {
     const [{ data: event }, { data: devices }, { data: checkIns }, { data: conflicts }] = await Promise.all([
-      supabase.from('events').select('id, title, event_date, organizations(name)').eq('id', eventId).maybeSingle(),
+      supabase.from('events').select('id, title, event_date, timezone, organizations(name)').eq('id', eventId).maybeSingle(),
       supabase.from('event_devices').select('id, device_label, last_seen_at, battery_level, storage_free_mb, bundle_version, queue_depth, app_version, revoked_at, created_at').eq('event_id', eventId),
       supabase.from('check_ins').select('device_label, method, checked_in_at, server_received_at, token_verified, deleted_at').eq('event_id', eventId),
       supabase.from('event_check_in_conflicts').select('id, resolved_at').eq('event_id', eventId),

@@ -1,5 +1,6 @@
 'use client';
 import { toast } from '../../utils/toast';
+import { instantToWallClock, formatInZone } from '../../utils/timezone';
 
 import React, { useCallback, useEffect, useState } from 'react';
 import PlacesAutocomplete from '../../components/PlacesAutocomplete';
@@ -90,21 +91,20 @@ const TABS = [
   { key: 'status', label: 'Status & Danger Zone', icon: 'gear' },
 ];
 
-// Event date/time is stored and rendered everywhere as a "floating" wall-clock
-// time — every guest-facing display formats it with timeZone: 'UTC' so the
-// digits shown are exactly the digits the organizer typed, with no real
-// timezone conversion. These two helpers must read those same UTC digits back
-// (not the browser's local time) or the prefilled field silently disagrees
-// with what guests actually see, and re-saving it shifts the real value by
-// the organizer's own UTC offset.
-function toLocalDatetimeString(dateStr) {
-  if (!dateStr) return '';
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return '';
-    const pad = (n) => String(n).padStart(2, '0');
-    return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
-  } catch { return ''; }
+// Event dates are real instants now, so prefilling this form means rendering
+// each one on the EVENT's clock — not the browser's, and no longer by reading
+// the raw UTC digits back.
+//
+// Reading UTC digits was correct while the stored value WAS those digits. It
+// is now actively destructive: the stored instant for a 6:30pm San Diego event
+// is 01:30 the next day in UTC, so the old helper would prefill the field with
+// tomorrow at 1:30am. The organizer sees a time they never set, and saving
+// writes it back — moving the event further on every visit.
+//
+// `instantToWallClock` is the exact inverse of the conversion the server
+// applies on save, which is what makes open → save a no-op instead of a drift.
+function toLocalDatetimeString(dateStr, timeZone) {
+  return instantToWallClock(dateStr, timeZone);
 }
 
 /* A draft/pending_review event (already-created, revisited from the dashboard
@@ -536,14 +536,14 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         title: event.title || '',
         slug: event.slug || '',
         description: event.description || '',
-        event_date: toLocalDatetimeString(event.event_date || event.date),
-        event_end_date: toLocalDatetimeString(event.event_end_date || event.end_date),
+        event_date: toLocalDatetimeString(event.event_date || event.date, event.timezone),
+        event_end_date: toLocalDatetimeString(event.event_end_date || event.end_date, event.timezone),
         location_name: event.location_name || event.venue_name || '',
         location_address: event.location_address || event.venue_address || '',
         location_lat: event.location_lat || null,
         location_lng: event.location_lng || null,
         location_place_id: event.location_place_id || '',
-        rsvp_deadline: toLocalDatetimeString(event.rsvp_deadline),
+        rsvp_deadline: toLocalDatetimeString(event.rsvp_deadline, event.timezone),
         privacy_mode: event.privacy_mode || 'public',
         // The server no longer sends the stored password hash at all (see
         // withResolvedTier) — this always starts blank. Pre-filling it with the
@@ -749,17 +749,22 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     setSaving(true); setError(''); setSuccess(false);
     try {
       const body = { ...form };
-      // Append the UTC suffix directly instead of routing through `new
-      // Date(...).toISOString()` — that constructor reads a plain "YYYY-MM-
-      // DDTHH:mm" string as the BROWSER's local time and converts it, silently
-      // shifting the stored value by the organizer's own UTC offset every time
-      // the event was saved (compounding on repeated edits). The digits typed
-      // into the field are the wall-clock time guests are meant to see, so
-      // they must be preserved verbatim — matching toLocalDatetimeString above
-      // and the create-event wizard, which never converts them either.
-      if (body.event_date) body.event_date = `${body.event_date}:00.000Z`;
-      if (body.event_end_date) body.event_end_date = `${body.event_end_date}:00.000Z`;
-      if (body.rsvp_deadline) body.rsvp_deadline = `${body.rsvp_deadline}:00.000Z`;
+      // The date fields are sent EXACTLY as typed — "2027-05-15T18:30", with
+      // no zone suffix — and the server converts them through the event's own
+      // timezone.
+      //
+      // This used to append ":00.000Z" here, back when the stored value was
+      // the raw digits filed as UTC. Continuing to do that would now be worse
+      // than useless: a value carrying a zone designator is already an instant
+      // by definition, so the server's converter passes it through untouched.
+      // The suffix would therefore silently DISABLE the conversion and refile
+      // every edited event under the old broken convention — the one bug this
+      // change exists to remove, reintroduced by one line on the way out.
+      //
+      // Routing through `new Date(...).toISOString()` is equally wrong and for
+      // the original reason: it reads a naive string as the BROWSER's local
+      // time, shifting the value by the organizer's own offset on every save.
+      // Send the digits; let the server decide whose clock they are on.
       // access_password now always starts blank (the server never sends the
       // stored hash back — see withResolvedTier), so only include it when the
       // organizer actually typed a new one; otherwise omit it entirely so
@@ -2875,7 +2880,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             padding: '14px', marginBottom: '18px', fontSize: '13px', lineHeight: 1.6,
             color: COLORS.charcoal, fontFamily: 'var(--font-sans)',
           }}>
-            This event was cancelled{event.cancelled_at ? ` on ${new Date(event.cancelled_at).toLocaleDateString()}` : ''}. Your guests have been told.
+            This event was cancelled{event.cancelled_at ? ` on ${formatInZone(event.cancelled_at, event.timezone, { year: 'numeric', month: 'long', day: 'numeric' })}` : ''}. Your guests have been told.
           </div>
         )}
 

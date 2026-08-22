@@ -34,6 +34,7 @@ import FeatureGate from './components/FeatureGate';
 import OrganizerOverview from './components/OrganizerOverview';
 import OrganizerProfile from './components/OrganizerProfile';
 import ReferralsTab from './components/ReferralsTab';
+import { formatInZone } from '../utils/timezone';
 
 /* ═══════════════════════════════════════════════
    Brand Design Tokens
@@ -1507,7 +1508,7 @@ function DashboardPageInner() {
                       {activeEvent.title}
                     </h4>
                     <p style={{ fontSize: '11px', color: COLORS.stone, margin: 0, fontFamily: 'var(--font-sans)', lineHeight: 1.4 }}>
-                      <strong>Date:</strong> {activeEvent.event_date ? new Date(activeEvent.event_date).toLocaleDateString() : 'N/A'}<br/>
+                      <strong>Date:</strong> {formatInZone(activeEvent.event_date, activeEvent.timezone, { year: 'numeric', month: 'long', day: 'numeric' }) || 'N/A'}<br/>
                       <strong>Venue:</strong> {activeEvent.location_name || 'TBA'}
                     </p>
                     <div style={{ background: COLORS.softBg, border: `1px solid ${COLORS.border}`, padding: 8, borderRadius: 8, marginTop: 8 }}>
@@ -1525,8 +1526,8 @@ function DashboardPageInner() {
                       const printWindow = window.open('', '_blank');
                       const qrDataUrl = await QRCode.toDataURL(`${window.location.origin}/${activeEvent.slug}`, { width: 300 });
                       const coverUrl = sanitizeCoverUrl(activeEvent.cover_image_url);
-                      const dateFormatted = activeEvent.event_date ? new Date(activeEvent.event_date).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A';
-                      const timeFormatted = activeEvent.event_date ? new Date(activeEvent.event_date).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : '';
+                      const dateFormatted = formatInZone(activeEvent.event_date, activeEvent.timezone, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) || 'N/A';
+                      const timeFormatted = formatInZone(activeEvent.event_date, activeEvent.timezone, { hour: '2-digit', minute: '2-digit' }) || '';
 
                       const safeTitle = escapeHtml(activeEvent.title);
                       const safeLocationName = escapeHtml(activeEvent.location_name) || 'TBA';

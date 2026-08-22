@@ -1,15 +1,35 @@
 -- ============================================================================
 -- Fancy RSVP — Database Schema (generated reference snapshot)
 --
--- SOURCE OF TRUTH: supabase/migrations/*.sql AND backend/migrations/*.sql
+-- ⚠  STALE. DO NOT READ THIS FILE TO ANSWER "WHAT COLUMNS DOES X HAVE?"  ⚠
 --
--- This file is a human-readable snapshot of the FINAL schema produced by
--- applying every migration in order, through:
---   supabase/migrations/20260719000000_marketing_forms.sql
---   backend/migrations/006_guest_cap_response_update_trigger.sql
--- It is NOT executed at deploy time — the migrations are. Regenerate it
--- whenever migrations change:
---   apply all migrations to a clean Postgres, then
+--     Last regenerated at: 20260719000000_marketing_forms.sql
+--     Migrations added since: 47, through 20260829000000.
+--
+-- Everything the SMS rebuild, the shop, the tier-identity work, the seating
+-- changes and the organizer-timezone work added is ABSENT from this file. It
+-- describes a database that has not existed since July.
+--
+-- Reading it as current is not a small error — this snapshot shows an
+-- `organizations` table with no `password_hash`, `referral_code` or
+-- `timezone`, and no `guest_analytics` table at all. Anyone checking a column
+-- against it would conclude the code was wrong.
+--
+-- SOURCE OF TRUTH: supabase/migrations/*.sql — that chain alone, in order.
+--
+--   `backend/migrations/*.sql` was a second, parallel chain that was applied
+--   to production by hand and never folded in. Its contents were folded into
+--   the tracked chain by 20260829000000_fold_in_untracked_schema.sql; those
+--   files are kept only as the historical record of how production came to
+--   have them. NOTHING NEW MAY BE ADDED THERE.
+--
+-- To answer a question about the schema without a database, run:
+--     node backend/scripts/audit-schema.js
+--   which parses the chain directly and is verified by
+--   backend/test/schemaChain.test.js on every test run.
+--
+-- To make this file trustworthy again: apply all migrations to a clean
+-- Postgres, then
 --   pg_dump --schema-only --schema=public --no-owner --no-comments
 --
 -- Guest model: rsvp_parties + guests, keyed by party_id. The legacy

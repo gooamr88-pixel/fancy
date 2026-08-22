@@ -4,6 +4,7 @@ import React, { useRef, useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { formatTableLabel } from '../../utils/tableLabel';
 import { lighten, luminance } from '../../utils/color';
+import { safeZone } from '../../utils/timezone';
 
 // This card's body is a fixed near-black (#191B1E) regardless of the event's
 // own custom_colors — callers pass in a raw, unclamped organizer color (e.g.
@@ -59,7 +60,7 @@ function Perforation({ isRTL }) {
 }
 
 export default function GuestPassCard({
-  guestName, eventTitle, eventDate, eventLocation,
+  guestName, eventTitle, eventDate, eventLocation, eventTimezone,
   tableName, response = 'yes', qrData, themeColor = '#B8944F',
   isRTL = false, onDownload, removeWatermark = false,
 }) {
@@ -80,13 +81,13 @@ export default function GuestPassCard({
   }, [qrData]);
 
   const dateFormatted = eventDate
-    ? new Date(eventDate).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+    ? new Date(eventDate).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: safeZone(eventTimezone) })
     : '';
   const dateShort = eventDate
-    ? new Date(eventDate).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { month: 'short', day: '2-digit', timeZone: 'UTC' })
+    ? new Date(eventDate).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { month: 'short', day: '2-digit', timeZone: safeZone(eventTimezone) })
     : '';
   const timeFormatted = eventDate
-    ? new Date(eventDate).toLocaleTimeString(isRTL ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })
+    ? new Date(eventDate).toLocaleTimeString(isRTL ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit', timeZone: safeZone(eventTimezone) })
     : '';
 
   const statusMeta = response === 'yes'

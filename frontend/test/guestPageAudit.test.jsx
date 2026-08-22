@@ -6,6 +6,7 @@ import path from 'node:path';
 
 import { FloatingParticles, ConfettiExplosion } from '../src/app/components/guest/GuestAnimations';
 import { buildPreviewEvent, toStoredIso } from '../src/app/dashboard/create-event/components/previewEvent';
+import { instantToWallClock } from '../src/app/utils/timezone';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Defects found by rendering the full guest page for all three templates at a
@@ -51,28 +52,47 @@ describe('a canvas that will not give out a context cannot blank the invitation'
 
 describe('the wizard preview dates the event the way the server will', () => {
   /* `<input type="datetime-local">` yields "2027-05-15T02:00" — no timezone
-     designator. Postgres (events.event_date is TIMESTAMPTZ, connection in UTC)
-     reads that as 02:00 UTC; the browser's `new Date()` reads it as LOCAL. The
-     guest page then formats everything with timeZone:'UTC', so the preview was
-     off by the organizer's own offset: on UTC+3 an 18:30 ceremony previewed as
-     15:30, and an event running to 02:00 on the 15th previewed as ending on
-     the 14th — printing "MAY 14, 2027 - MAY 14, 2027" as its date range. */
-  it('stamps a naive datetime-local value as UTC', () => {
-    expect(toStoredIso('2027-05-15T02:00')).toBe('2027-05-15T02:00:00Z');
-    expect(toStoredIso('2027-05-15T02:00:00')).toBe('2027-05-15T02:00:00Z');
+     designator, so it is not a moment until someone says whose clock it is on.
+     The preview has to answer that the same way the server does on save, or it
+     shows the organizer a page their guests will never get.
+
+     These assertions used to expect a literal "Z" stamped on the end, and that
+     was right while event dates were the typed digits filed as UTC and every
+     guest surface printed them back with timeZone:'UTC'. Both halves of that
+     arrangement are gone: dates are real instants now, converted through the
+     ORGANIZER's zone. Stamping Z today would preview a 6:30pm San Diego
+     ceremony as 11:30am. */
+  const LA = 'America/Los_Angeles';
+
+  it('converts a naive datetime-local value through the organizer zone', () => {
+    // 02:00 on 15 May in San Diego is 09:00 UTC (PDT, UTC-7).
+    expect(toStoredIso('2027-05-15T02:00', LA)).toBe('2027-05-15T09:00:00.000Z');
+    expect(toStoredIso('2027-05-15T02:00:00', LA)).toBe('2027-05-15T09:00:00.000Z');
+  });
+
+  it('reads the same digits differently on a different clock', () => {
+    // The whole point of the change: identical input, different organizers,
+    // different real moments. If these two ever match, the zone is being
+    // accepted and ignored.
+    expect(toStoredIso('2027-05-15T02:00', LA))
+      .not.toBe(toStoredIso('2027-05-15T02:00', 'Africa/Cairo'));
+    expect(toStoredIso('2027-05-15T02:00', 'Africa/Cairo')).toBe('2027-05-14T23:00:00.000Z');
   });
 
   it('leaves a value that already carries a zone alone', () => {
-    // An event loaded back from the API into the wizard. Re-stamping these
-    // would move them for real.
+    // An event loaded back from the API into the wizard. These are already
+    // instants; re-interpreting them as wall clocks would move them for real.
     ['2027-05-15T02:00:00Z', '2027-05-15T02:00:00+00:00', '2027-05-15T02:00:00-05:00']
-      .forEach((v) => expect(toStoredIso(v)).toBe(v));
+      .forEach((v) => expect(toStoredIso(v, LA)).toBe(v));
   });
 
-  it('passes anything unrecognised straight through', () => {
-    expect(toStoredIso('')).toBeNull();
-    expect(toStoredIso(null)).toBeNull();
-    expect(toStoredIso('2027-05-15')).toBe('2027-05-15');
+  it('treats a bare date as midnight on the organizer clock', () => {
+    expect(toStoredIso('', LA)).toBeNull();
+    expect(toStoredIso(null, LA)).toBeNull();
+    // Not passed through untouched any more. A date with no time still names a
+    // moment once you know the zone, and midnight in San Diego is 07:00 UTC —
+    // reading it as midnight UTC would put the event on the previous day.
+    expect(toStoredIso('2027-05-15', LA)).toBe('2027-05-15T07:00:00.000Z');
   });
 
   it('the preview event reads back as the digits the organizer typed', () => {
@@ -80,12 +100,16 @@ describe('the wizard preview dates the event the way the server will', () => {
       eventDate: '2027-05-14T18:30',
       eventEndDate: '2027-05-15T02:00',
       rsvpDeadline: '2027-04-30T23:59',
+      timeZone: LA,
     });
-    const utc = (iso) => new Date(iso).toISOString().slice(0, 16);
-    // Would fail on any machine not on UTC before the fix — which is the point.
-    expect(utc(ev.event_date)).toBe('2027-05-14T18:30');
-    expect(utc(ev.event_end_date)).toBe('2027-05-15T02:00');
-    expect(utc(ev.rsvp_deadline)).toBe('2027-04-30T23:59');
+    // Read back ON THE EVENT'S CLOCK, which is the round trip that matters:
+    // whatever the organizer typed is what the guest page will print. Reading
+    // back in UTC (as this test used to) only ever proved the digits had been
+    // filed verbatim — the very behaviour that made the schedulers fire hours
+    // out.
+    expect(instantToWallClock(ev.event_date, LA)).toBe('2027-05-14T18:30');
+    expect(instantToWallClock(ev.event_end_date, LA)).toBe('2027-05-15T02:00');
+    expect(instantToWallClock(ev.rsvp_deadline, LA)).toBe('2027-04-30T23:59');
   });
 });
 

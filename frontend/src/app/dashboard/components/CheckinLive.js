@@ -9,9 +9,14 @@ const C = {
   white: '#FFFFFF', softBg: '#FAFAF8', danger: '#B03A2E', warn: '#C8871B', success: '#2E7D5B',
 };
 
+import { useOrganizerTimeZone } from './OrganizerClock';
+import { formatInZone } from '../../utils/timezone';
+
 const REFRESH_MS = 15_000;
 
-const fmtTime = (iso) => (iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—');
+// Takes the zone rather than reading it: hooks cannot be called from a
+// module-level helper, so the component resolves it once and passes it in.
+const fmtTime = (iso, timeZone) => formatInZone(iso, timeZone, { hour: '2-digit', minute: '2-digit' }) || '—';
 
 /**
  * Live check-in view (amendment A-16 item 4; spec §8.6 for the organizer).
@@ -27,6 +32,7 @@ const fmtTime = (iso) => (iso ? new Date(iso).toLocaleTimeString([], { hour: '2-
  * by a 15-second refresh.
  */
 export default function CheckinLive({ eventId }) {
+  const timeZone = useOrganizerTimeZone();
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -148,11 +154,11 @@ export default function CheckinLive({ eventId }) {
 
       <div className="fx-grid fx-grid--4 fx-grid--gap-sm">
         <Stat label="Still to arrive" value={stats.totals.noShows} />
-        <Stat label="First arrival" value={fmtTime(stats.firstArrivalAt)} />
-        <Stat label="Latest arrival" value={fmtTime(stats.lastArrivalAt)} />
+        <Stat label="First arrival" value={fmtTime(stats.firstArrivalAt, timeZone)} />
+        <Stat label="Latest arrival" value={fmtTime(stats.lastArrivalAt, timeZone)} />
         <Stat
           label="Busiest 15 min"
-          value={peak ? `${fmtTime(peak.startsAt)} · ${peak.arrivals}` : '—'}
+          value={peak ? `${fmtTime(peak.startsAt, timeZone)} · ${peak.arrivals}` : '—'}
         />
       </div>
 

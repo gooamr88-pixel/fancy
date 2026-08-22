@@ -1,5 +1,6 @@
 const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
+const { safeZone, wallClockToInstant, instantToWallClock } = require('../utils/timezone');
 const crypto = require('crypto');
 
 /* ═══════════════════════════════════════════════════════════════
@@ -164,24 +165,55 @@ const getEventAnalytics = async (req, res, next) => {
     return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: "'from' date must be before 'to' date." });
   }
 
-  /* Applies the ?from / ?to window to a query.
-     These two parameters were validated in careful detail above and then
-     applied to NOTHING: every query ran unscoped, so the endpoint answered
-     every date range with the same all-time numbers. A range control in the
-     UI on top of that would not be a missing feature, it would be a lie, so
-     the filter is wired here before anything is built against it.
-     `to` is taken as inclusive of its whole day — an organizer asking for
-     "up to the 24th" means the end of the 24th, not midnight at its start. */
-  const rangeApplied = !!(from || to);
-  const toEndOfDay = to ? new Date(new Date(to).setUTCHours(23, 59, 59, 999)).toISOString() : null;
-  const inRange = (query) => {
-    let q = query;
-    if (from) q = q.gte('created_at', new Date(from).toISOString());
-    if (toEndOfDay) q = q.lte('created_at', toEndOfDay);
-    return q;
-  };
-
   try {
+    /* The clock this whole endpoint reads days on.
+       Analytics for an event are about THAT event's days, so the event's own
+       frozen zone is the right one — not the organizer's current setting, which
+       an admin correction could change after the fact, and not the server's,
+       which is an accident of hosting.
+
+       This one runs BEFORE the parallel batch below rather than inside it, and
+       that is a real dependency rather than an oversight: `inRange` converts
+       ?from / ?to through this zone, so the windowed queries cannot be built
+       until it is known. It is a primary-key lookup of a single column, so the
+       cost is one round-trip — but it is a round-trip the batch waits on, and
+       anyone adding to that batch should know it is not the first thing that
+       happens.
+
+       Taking the zone from the client instead would remove the wait. It is not
+       done because the server would then bucket a day however the browser
+       asked it to, and two tabs could disagree about what Tuesday means. */
+    const { data: analyticsEvent } = await supabase
+      .from('events').select('timezone').eq('id', eventId).maybeSingle();
+    const zone = safeZone(analyticsEvent?.timezone);
+
+    /* Applies the ?from / ?to window to a query.
+       These two parameters were validated in careful detail above and then
+       applied to NOTHING: every query ran unscoped, so the endpoint answered
+       every date range with the same all-time numbers. A range control in the
+       UI on top of that would not be a missing feature, it would be a lie, so
+       the filter is wired here before anything is built against it.
+
+       `to` is inclusive of its whole day — an organizer asking for "up to the
+       24th" means the end of the 24th, not midnight at its start.
+
+       BOTH EDGES ARE THE EVENT'S MIDNIGHTS, NOT UTC'S.
+       They used to be UTC midnights (`new Date('2026-08-15')` parses a bare date
+       as midnight UTC, and setUTCHours closed the far end the same way). For an
+       event seven hours behind UTC that put the boundaries at 5pm the previous
+       afternoon — so "last 7 days" quietly began mid-afternoon on day zero and
+       ran eight days wide. Converting through the event's zone is what makes a
+       day on this screen the same day the organizer lived through. */
+    const rangeApplied = !!(from || to);
+    const fromInstant = from ? wallClockToInstant(`${from}T00:00:00`, zone) : null;
+    const toInstant = to ? wallClockToInstant(`${to}T23:59:59`, zone) : null;
+    const inRange = (query) => {
+      let q = query;
+      if (fromInstant) q = q.gte('created_at', fromInstant);
+      if (toInstant) q = q.lte('created_at', toInstant);
+      return q;
+    };
+
     // Run all analytics queries in parallel
     const [
       analyticsResult,
@@ -302,7 +334,13 @@ const getEventAnalytics = async (req, res, next) => {
     // ─── DAILY TIMELINE ───
     const dailyMap = {};
     timelineData.forEach(a => {
-      const day = new Date(a.created_at).toISOString().split('T')[0];
+      /* The calendar day this happened on IN THE EVENT'S ZONE.
+         `toISOString().split('T')[0]` is the UTC day, and for an event behind
+         UTC that puts everything after 5pm local into tomorrow's bar — so the
+         busiest hours of an evening wedding, which is most of the traffic an
+         invitation ever gets, were consistently attributed to the wrong day.
+         The key stays a bare "YYYY-MM-DD", which the chart prints verbatim. */
+      const day = instantToWallClock(a.created_at, zone).slice(0, 10);
       if (!dailyMap[day]) dailyMap[day] = { date: day, views: 0, rsvps: 0, engagements: 0 };
       if (a.event_type === 'page_view') dailyMap[day].views++;
       else if (a.event_type === 'rsvp_completed') dailyMap[day].rsvps++;

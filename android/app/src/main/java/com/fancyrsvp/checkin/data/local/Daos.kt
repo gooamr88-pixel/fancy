@@ -33,8 +33,8 @@ interface EventDao {
      * list endpoint does not carry it. Overwriting it with 0 would break the
      * pre-download storage check (§21.9).
      */
-    @Query("UPDATE events SET name = :name, venue = :venue, startsAt = :startsAt WHERE id = :eventId")
-    suspend fun updateSummary(eventId: String, name: String, venue: String?, startsAt: Long)
+    @Query("UPDATE events SET name = :name, venue = :venue, startsAt = :startsAt, timezone = :timezone WHERE id = :eventId")
+    suspend fun updateSummary(eventId: String, name: String, venue: String?, startsAt: Long, timezone: String?)
 
     @Query("SELECT * FROM events WHERE id = :eventId")
     fun observe(eventId: String): Flow<EventEntity?>

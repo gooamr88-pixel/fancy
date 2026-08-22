@@ -84,10 +84,20 @@ const downloadApk = async (req, res, next) => {
     const release = readReleaseConfig(await getPlatformConfig());
 
     if (!release.enabled || !release.storagePath) {
+      /* This is "no signed build has been published through the admin release
+         record", NOT "the app does not exist". The app is out, and the
+         dashboard sends organizers to the public APK whenever this record is
+         empty — so reaching here means something called the gated endpoint
+         directly, and the useful answer is where the file actually is.
+
+         The message used to promise an email when the app opened. There is no
+         such email anywhere in this codebase and there never was, so it was a
+         commitment nothing could keep, made to the one person who had already
+         paid for the feature. */
       return sendFail(res, {
         status: 403,
         error: 'RELEASE_UNAVAILABLE',
-        message: 'The Fancy Check-in app is not available for download yet. We will email you as soon as it opens.',
+        message: 'No signed build is published for this event yet. Download Fancy Check-in from your check-in setup page, or from fancyrsvp.com/checkin-app.',
       });
     }
 

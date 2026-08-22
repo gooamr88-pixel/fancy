@@ -3,7 +3,26 @@ const { sanitizeCsvValue } = require('./csvHelper');
 
 const MAX_EXCEL_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 
-const generateExcelExport = async (rsvps, tables, checkIns) => {
+const { formatInZone, zoneAbbreviation } = require('./timezone');
+
+/**
+ * The organizer's guest-list export.
+ *
+ * `timeZone` is the EVENT's zone. Without it the arrival column rendered in
+ * the SERVER's timezone — a fact about the hosting provider, printed into a
+ * spreadsheet the organizer opens to reconcile who arrived and when.
+ */
+const fmtArrival = (iso, timeZone) => {
+  const formatted = formatInZone(iso, timeZone, {
+    year: 'numeric', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
+  if (!formatted) return '';
+  const abbr = zoneAbbreviation(iso, timeZone);
+  return abbr ? ` ` : formatted;
+};
+
+const generateExcelExport = async (rsvps, tables, checkIns, timeZone = null) => {
   // Estimate input data size to prevent runaway memory usage
   const estimatedSize = JSON.stringify({ rsvps, tables, checkIns }).length;
   if (estimatedSize > MAX_EXCEL_SIZE_BYTES) {
@@ -147,7 +166,7 @@ const generateExcelExport = async (rsvps, tables, checkIns) => {
     const guestName = c.rsvps?.guest_name || 'Unknown Guest';
     checkinSheet.addRow({
       guest_name: sanitizeCsvValue(guestName),
-      checked_in_at: new Date(c.checked_in_at).toLocaleString(),
+      checked_in_at: fmtArrival(c.checked_in_at, timeZone),
       method: c.method === 'qr_scan' ? 'QR Code Scan' : c.method === 'self_service' ? 'Self-Service Kiosk' : 'Manual Search',
       party_count: c.party_count_arrived || 1,
       checked_in_by: sanitizeCsvValue(c.checked_in_by) || 'Staff'

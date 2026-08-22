@@ -1,3 +1,4 @@
+import { safeZone } from './timezone';
 import { WEDDING_VARIANT_TEMPLATES } from './templateFamilies';
 import { getCinematicTemplate, getCinematicOccasion } from '../components/templates/cinematic/cinematicThemes';
 import { CUSTOM_CATEGORY_BY_KEY } from './customEventCategories';
@@ -21,7 +22,7 @@ function formatEventDateLine(event, isRTL) {
   if (!event?.event_date) return null;
   return new Date(event.event_date).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
-    timeZone: 'UTC',
+    timeZone: safeZone(event?.timezone),
   });
 }
 
@@ -166,7 +167,7 @@ export function buildInvitationCardData(event, isRTL) {
       const headline = (isRTL && titleAr) ? titleAr : headlineEn;
       const subtitle = td.theme || td.partyTheme || null;
       const replyBy = event?.rsvp_deadline
-        ? `Kindly reply by ${new Date(event.rsvp_deadline).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}`
+        ? `Kindly reply by ${new Date(event.rsvp_deadline).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric', timeZone: safeZone(event?.timezone) })}`
         : null;
       return { headline, subtitle, dateLine, venueLine, replyBy };
     }

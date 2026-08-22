@@ -21,6 +21,7 @@ import Icon from '../../components/icons/Icon';
 // The same coordinates-first / address-fallback builder the guest page's venue
 // sections use, so the pin a guest gets here is the pin they get everywhere.
 import { getDirectionsUrl } from '../../components/templates/heritageArch/shared';
+import { safeZone } from '../../utils/timezone';
 
 /**
  * Turns a failed ticket lookup into something true.
@@ -120,7 +121,7 @@ function TicketRoute({ token }) {
   const qrSrc = `${API_URL}/public/qr/${encodeURIComponent(token)}.png`;
   const themeColor = event?.custom_colors?.primary || '#B8944F';
   const formattedDate = event?.event_date
-    ? new Date(event.event_date).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+    ? new Date(event.event_date).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: safeZone(event.timezone) })
     : '';
 
   return (

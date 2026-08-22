@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { formatInZone } from '../../utils/timezone';
 
 const STATUS_CONFIG = {
   active: { accent: '#4A7C59', bg: '#F0F7F0', color: '#3D6B4A', glow: 'rgba(74,124,89,0.35)', label: 'Active' },
@@ -18,19 +19,19 @@ function getStatusConfig(status) {
   return STATUS_CONFIG[(status || '').toLowerCase()] || DEFAULT_STATUS;
 }
 
-function formatEventDate(dateStr) {
-  if (!dateStr) return null;
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return null;
-    const month = d.toLocaleDateString('en-US', { month: 'short' });
-    const day = d.getDate();
-    const year = d.getFullYear();
-    const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-    return `${month} ${day}, ${year} · ${time}`;
-  } catch {
-    return null;
-  }
+// Every part of this — the month name, the day NUMBER, the year, the time —
+// has to be read on the event's clock. The old version mixed sources:
+// toLocaleDateString for the month but getDate()/getFullYear() for the day and
+// year, and those getters are browser-local. An organizer abroad could see a
+// correct month beside the previous day's number.
+// The two halves are formatted separately and joined explicitly rather than
+// asked for in one call: a combined request returns whatever separator the
+// locale prefers ("May 15, 2027, 6:30 PM"), and this card's design uses "·".
+function formatEventDate(dateStr, timeZone) {
+  const date = formatInZone(dateStr, timeZone, { month: 'short', day: 'numeric', year: 'numeric' });
+  if (!date) return null;
+  const time = formatInZone(dateStr, timeZone, { hour: 'numeric', minute: '2-digit', hour12: true });
+  return time ? `${date} · ${time}` : date;
 }
 
 function CalendarIcon() {
@@ -194,7 +195,7 @@ export default function UpcomingEventsCards({ upcomingEvents = [] }) {
         {events.map((event, idx) => {
           const status = event.status || 'draft';
           const cfg = getStatusConfig(status);
-          const dateFormatted = formatEventDate(event.event_date || event.date || event.startDate || event.start_date);
+          const dateFormatted = formatEventDate(event.event_date || event.date || event.startDate || event.start_date, event.timezone);
           const guestCount = event.guestCount ?? event.guest_count ?? event.guests ?? 0;
           const location = event.location_name || event.location || event.venue || '';
           const title = event.title || event.name || 'Untitled Event';

@@ -6,6 +6,8 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { toast } from '../../utils/toast';
 import PlanLock from '../components/PlanLock';
 import { startSmsCreditPurchase } from '../../utils/smsPurchase';
+import { useOrganizerTimeZone } from '../components/OrganizerClock';
+import { formatInZone } from '../../utils/timezone';
 
 /**
  * THE MESSAGES PAGE — balance, delivery log, and the four switches.
@@ -51,6 +53,7 @@ const C = {
 };
 
 export default function MessagesPage() {
+  const timeZone = useOrganizerTimeZone();
   const params = useSearchParams();
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
@@ -397,7 +400,7 @@ export default function MessagesPage() {
                               : 'Message sent'}
                         </td>
                         <td style={{ ...cell, color: C.stone, fontSize: 12 }}>
-                          {new Date(row.created_at).toLocaleDateString()}
+                          {formatInZone(row.created_at, timeZone, { month: 'short', day: 'numeric', year: 'numeric' }) || '—'}
                         </td>
                         <td style={{
                           ...cell, textAlign: 'right', fontWeight: 700,

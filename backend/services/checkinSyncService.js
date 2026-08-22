@@ -658,7 +658,7 @@ async function getBundlePage(eventId, { page = 1, limit = BUNDLE_PAGE_SIZE } = {
 async function getBundleManifest(eventId) {
   const { data: event, error: eventErr } = await supabase
     .from('events')
-    .select('id, title, event_date, location_name, location_address, custom_colors, cover_image_url, status, is_paid, tier_name, no_kids_allowed')
+    .select('id, title, event_date, timezone, location_name, location_address, custom_colors, cover_image_url, status, is_paid, tier_name, no_kids_allowed')
     .eq('id', eventId)
     .single();
   if (eventErr || !event) {
@@ -711,6 +711,10 @@ async function getBundleManifest(eventId) {
       id: event.id,
       name: event.title,
       startsAt: event.event_date,
+      // The event's own clock. Without it the tablet formats startsAt in the
+      // DEVICE's timezone — and a check-in tablet is a rented or borrowed
+      // Android device whose zone nobody has ever checked.
+      timezone: event.timezone || null,
       venue: event.location_name || null,
       venueAddress: event.location_address || null,
       brandingPrimaryColor: (event.custom_colors && event.custom_colors.primary) || null,

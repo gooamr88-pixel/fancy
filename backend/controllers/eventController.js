@@ -7,6 +7,7 @@ const { isAcceptedResponse, isDeclinedResponse, isMaybeResponse } = require('../
 const { getPlatformConfig } = require('../utils/configCache');
 const { resolveTier } = require('../utils/tierResolver');
 const { hashEventPassword, verifyEventPassword, isHashedEventPassword } = require('../utils/eventPassword');
+const { safeZone, wallClockToInstant, formatInZone } = require('../utils/timezone');
 const tokenService = require('../services/tokenService');
 const logger = require('../utils/logger');
 
@@ -205,10 +206,15 @@ const createEvent = async (req, res, next) => {
   }
 
   try {
-    // Derive orgId from authenticated user instead of trusting client input
+    // Derive orgId from authenticated user instead of trusting client input.
+    // `timezone` rides along on this existing query rather than a second one —
+    // note that a deploy of this code against a database WITHOUT the
+    // organizer-timezone migration fails the whole select (PostgREST rejects
+    // the entire request over one unknown column), not just this field. That
+    // is why the migration ships first.
     const { data: org, error: orgError } = await supabase
       .from('organizations')
-      .select('id')
+      .select('id, timezone')
       .eq('owner_user_id', req.user.id)
       .single();
 
@@ -217,7 +223,20 @@ const createEvent = async (req, res, next) => {
     }
     const orgId = org.id;
 
-    const eventYear = new Date(finalEventDate).getFullYear();
+    // The clock this event keeps, fixed now and stored on the row. Everything
+    // below converts through it, so the wizard's naive "2027-05-15T18:30"
+    // becomes the instant that wall clock actually names in the organizer's
+    // zone instead of being filed as though the organizer lived in UTC.
+    const eventTimezone = safeZone(org.timezone);
+    const eventDateIso = wallClockToInstant(finalEventDate, eventTimezone);
+    const eventEndDateIso = eventEndDate ? wallClockToInstant(eventEndDate, eventTimezone) : null;
+    const rsvpDeadlineIso = rsvpDeadline ? wallClockToInstant(rsvpDeadline, eventTimezone) : null;
+
+    // Read in the event's own zone, not the server's. This year goes into the
+    // auto-generated slug ("sarah-wedding-2027"), and a late-December evening
+    // event is in a different year depending on which clock you ask — a
+    // 31 December 6pm party in San Diego is already 2028 in UTC.
+    const eventYear = Number(formatInZone(eventDateIso, eventTimezone, { year: 'numeric' }));
     let finalSlug;
 
     if (slug) {
@@ -251,15 +270,16 @@ const createEvent = async (req, res, next) => {
       template_type: templateType,
       title: finalTitle,
       description: description || null,
-      event_date: finalEventDate,
-      event_end_date: eventEndDate || null,
+      event_date: eventDateIso,
+      event_end_date: eventEndDateIso,
+      timezone: eventTimezone,
       location_name: locationName || null,
       location_address: locationAddress || null,
       location_lat: locationLat || null,
       location_lng: locationLng || null,
       location_place_id: locationPlaceId || null,
       dress_code: dressCode || null,
-      rsvp_deadline: rsvpDeadline || null,
+      rsvp_deadline: rsvpDeadlineIso,
       privacy_mode: privacyMode || 'private',
       // SEC-9: store a scrypt hash, never the plaintext door code.
       access_password: accessPassword ? await hashEventPassword(accessPassword) : null,
@@ -459,12 +479,13 @@ const getPublicEventBySlug = async (req, res, next) => {
         description,
         event_date,
         event_end_date,
+        rsvp_deadline,
+        timezone,
         location_name,
         location_address,
         location_lat,
         location_lng,
         dress_code,
-        rsvp_deadline,
         privacy_mode,
         access_password,
         cover_image_url,
@@ -774,6 +795,42 @@ const updateEvent = async (req, res, next) => {
     return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: themeError });
   }
 
+  // Wall clock → instant, BEFORE the ordering checks below.
+  //
+  // The settings form posts naive strings ("2027-05-15T18:30") exactly as the
+  // create wizard does, while the stored values they are about to be compared
+  // against are real instants. Converting afterwards would leave the
+  // comparison mixing the two conventions — `new Date()` reads a naive string
+  // in the SERVER's zone, so an organizer eight hours away could be told their
+  // deadline was after their event when it was not, or worse, not told when it
+  // was. Both sides have to be instants before any of them are compared.
+  const touchesDates = filteredUpdates.event_date !== undefined
+    || filteredUpdates.event_end_date !== undefined
+    || filteredUpdates.rsvp_deadline !== undefined;
+
+  let eventTimezone = null;
+  // Kept as a local rather than stashed on `filteredUpdates` — that object is
+  // the update payload itself, and any extra key on it is a column PostgREST
+  // does not know, which fails the whole write.
+  let currentEventDate = null;
+  if (touchesDates) {
+    const { data: current } = await supabase
+      .from('events').select('event_date, timezone').eq('id', eventId).single();
+
+    // The event's own frozen zone — never the organization's current one. An
+    // admin correcting a misdetected account must not silently move the times
+    // on events whose invitations already went out.
+    eventTimezone = safeZone(current?.timezone);
+
+    for (const field of ['event_date', 'event_end_date', 'rsvp_deadline']) {
+      if (filteredUpdates[field] !== undefined) {
+        filteredUpdates[field] = wallClockToInstant(filteredUpdates[field], eventTimezone);
+      }
+    }
+
+    currentEventDate = current?.event_date;
+  }
+
   // Date ordering: end date must be after the start date, and the RSVP
   // deadline must not be after the event itself. Previously unchecked
   // anywhere (client or server) — an event could be saved ending before it
@@ -781,8 +838,7 @@ const updateEvent = async (req, res, next) => {
   if (filteredUpdates.event_end_date !== undefined || filteredUpdates.rsvp_deadline !== undefined) {
     let effectiveEventDate = filteredUpdates.event_date;
     if (effectiveEventDate === undefined) {
-      const { data: current } = await supabase.from('events').select('event_date').eq('id', eventId).single();
-      effectiveEventDate = current?.event_date;
+      effectiveEventDate = currentEventDate;
     }
     if (effectiveEventDate) {
       if (filteredUpdates.event_end_date && new Date(filteredUpdates.event_end_date) < new Date(effectiveEventDate)) {

@@ -43,6 +43,7 @@ import { rememberedId } from '../components/guest/rsvp/useRsvpResolver';
 import { WEDDING_VARIANT_TEMPLATES } from '../utils/templateFamilies';
 import { buildInvitationCardData } from '../utils/invitationCardData';
 import Icon from '../components/icons/Icon';
+import { safeZone } from '../utils/timezone';
 
 /* ═══════════════════════════════════════════════════════════════
    Route-level code splitting
@@ -1638,7 +1639,7 @@ export default function EventPageClient({
                         <Icon name="calendar" size={13} strokeWidth={1.6} /> {t.when}
                       </span>
                       <span style={{ fontSize: '18px', color: '#191B1E', fontWeight: 600, display: 'block', marginBottom: '10px' }}>
-                        {new Date(event.event_date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })}
+                        {new Date(event.event_date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: safeZone(event.timezone) })}
                       </span>
                       {/* Event Time — its own clearly bordered badge so start
                           (and end, when the host set one) time never reads as
@@ -1650,9 +1651,9 @@ export default function EventPageClient({
                       }}>
                         <Icon name="clock" size={13} color={themeColor} strokeWidth={1.8} />
                         <span style={{ fontSize: '13px', color: '#191B1E', fontWeight: 700 }}>
-                          {new Date(event.event_date).toLocaleTimeString(lang === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
+                          {new Date(event.event_date).toLocaleTimeString(lang === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit', timeZone: safeZone(event.timezone) })}
                           {event.event_end_date && (
-                            <> – {new Date(event.event_end_date).toLocaleTimeString(lang === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}</>
+                            <> – {new Date(event.event_end_date).toLocaleTimeString(lang === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit', timeZone: safeZone(event.timezone) })}</>
                           )}
                         </span>
                       </span>
@@ -2038,7 +2039,7 @@ export default function EventPageClient({
                       // regardless of custom colors — same reasoning as the
                       // RSVP wizard's pill above.
                       const tone = status.passed ? '#C45E5E' : status.urgent ? '#B8944F' : themeColor;
-                      const deadlineText = new Date(event.rsvp_deadline).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+                      const deadlineText = new Date(event.rsvp_deadline).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: safeZone(event.timezone) });
                       const label = status.passed
                         ? t.reply_by_passed.replace('{date}', deadlineText)
                         : status.urgent
@@ -2395,7 +2396,7 @@ export default function EventPageClient({
                 </p>
                 {event.rsvp_deadline && (() => {
                   const status = getRsvpDeadlineStatus(event.rsvp_deadline);
-                  const deadlineText = new Date(event.rsvp_deadline).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+                  const deadlineText = new Date(event.rsvp_deadline).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric', timeZone: safeZone(event.timezone) });
                   const label = status.passed
                     ? t.reply_by_passed.replace('{date}', deadlineText)
                     : status.urgent

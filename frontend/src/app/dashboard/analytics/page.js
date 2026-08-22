@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '../../utils/apiClient';
+import { instantToWallClock } from '../../utils/timezone';
 import { useIsClient } from '../../utils/useIsClient';
 import {
   VIZ, Card, Hero, Stat, Meter, BarList, StackedBar, LinePanel, Empty, StatusNote,
@@ -106,8 +107,25 @@ export default function AnalyticsPage() {
       const days = RANGES.find((r) => r.key === rangeKey)?.days;
       const qs = new URLSearchParams();
       if (days) {
-        qs.set('from', new Date(Date.now() - days * 86400000).toISOString().slice(0, 10));
-        qs.set('to', new Date().toISOString().slice(0, 10));
+        /* Both edges are calendar dates ON THE EVENT'S CLOCK, and the server
+           reads them back the same way.
+
+           `toISOString().slice(0, 10)` was here and gave the UTC date. For an
+           event seven hours behind UTC that is already tomorrow's date from
+           late afternoon onward, so the window opened at 5pm on the afternoon
+           BEFORE the day it named — and disagreed with the day buckets the
+           chart drew underneath it, which the server groups in the event's
+           zone. Two different definitions of "a day" on one screen. */
+        const zone = events.find((e) => e.id === id)?.timezone;
+
+        /* `days - 1`, and the minus one is the whole point.
+           Both edges are INCLUSIVE — the server opens at 00:00 on `from` and
+           closes at 23:59 on `to` — so counting back a full 7 days from today
+           and then including today as well produced EIGHT days of bars under a
+           control labelled "Last 7 days". Today counts as one of the seven. */
+        const startOfWindow = Date.now() - (days - 1) * 86400000;
+        qs.set('from', instantToWallClock(startOfWindow, zone).slice(0, 10));
+        qs.set('to', instantToWallClock(Date.now(), zone).slice(0, 10));
       }
       const q = qs.toString();
       const res = await apiFetch(`/events/${id}/analytics${q ? `?${q}` : ''}`);
@@ -120,7 +138,17 @@ export default function AnalyticsPage() {
     } finally {
       if (token === requestRef.current) { setLoading(false); setRefreshing(false); }
     }
-  }, []);
+    /* `events` is a real dependency now that the window is built from the
+       selected event's zone. With the empty array this had before, the lookup
+       above would close over the INITIAL empty list forever, always find
+       nothing, and silently fall back to the platform timezone — the failure
+       mode being fixed here, reintroduced one line lower.
+
+       It costs no extra request: `setEvents` and `setEventId` land in the same
+       batch, and the effect below returns early until `eventId` exists, so the
+       first render where this identity changes is also the first one that
+       fetches at all. */
+  }, [events]);
 
   // The whole body is inside an async IIFE so no state is set during the
   // effect's own synchronous run.

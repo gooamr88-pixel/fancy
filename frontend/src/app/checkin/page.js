@@ -11,6 +11,7 @@ import { useIsClient } from '../utils/useIsClient';
 import { playAccept, playError, buzz } from '../utils/sound';
 import Icon from '../components/icons/Icon';
 import SeatingMiniMap from '../[slug]/rsvp/SeatingMiniMap';
+import { formatInZone } from '../utils/timezone';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 const C = { gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC', champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF' };
@@ -87,6 +88,16 @@ export default function CheckInPage() {
   useEffect(() => { if (showConfirmOverlay) { const timer = setTimeout(() => setShowConfirmOverlay(false), 3200); return () => clearTimeout(timer); } }, [showConfirmOverlay]);
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+  /* The clock the arrival log is stamped on.
+     Read off the SELECTED EVENT rather than the device. A check-in kiosk is
+     routinely a rented, borrowed, or freshly-unboxed machine whose timezone
+     nobody has ever looked at, so its own clock is not evidence of anything —
+     and this log is the record staff read back when a guest disputes whether
+     they were already admitted. Derived rather than stored in state: it is a
+     pure function of two values already held here, so a third piece of state
+     could only ever disagree with them. */
+  const eventTimeZone = events.find((e) => e.id === eventId)?.timezone || null;
 
   // Seed eventId from localStorage the moment we know authReady — adjusting
   // state during render (like RsvpWizard's prevLangParam) rather than in an
@@ -210,8 +221,8 @@ export default function CheckInPage() {
       if (data.success) {
         const result = data.data;
         playAccept(); buzz([12, 24, 12]);
-        setSelectedGuest(prev => prev ? { ...prev, isCheckedIn: true, checkedInAt: new Date().toLocaleTimeString() } : null);
-        setCheckInLogs(logs => [{ partyId, guestName: result.guestName, partySize: result.partySize, tableName: result.tableName, checkedInAt: new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }), method: 'manual_search' }, ...logs]);
+        setSelectedGuest(prev => prev ? { ...prev, isCheckedIn: true, checkedInAt: formatInZone(Date.now(), eventTimeZone, { hour: '2-digit', minute: '2-digit' }) } : null);
+        setCheckInLogs(logs => [{ partyId, guestName: result.guestName, partySize: result.partySize, tableName: result.tableName, checkedInAt: formatInZone(Date.now(), eventTimeZone, { hour: '2-digit', minute: '2-digit' }), method: 'manual_search' }, ...logs]);
         fetchCheckInSummary();
         setOverlayData({ type: 'success', guestName: result.guestName, partySize: result.partySize, tableName: result.tableName, message: 'Guest arrival verified. Welcome to the event!' });
         setShowConfirmOverlay(true);
@@ -251,7 +262,7 @@ export default function CheckInPage() {
         const result = data.data;
         playAccept(); buzz([12, 24, 12]);
         setScanStatus({ type: 'success', message: `${result.guestName} (${result.partySize} guests) checked in successfully at ${result.tableName}.` });
-        setCheckInLogs(logs => [{ partyId: result.partyId, guestName: result.guestName, partySize: result.partySize, tableName: result.tableName, checkedInAt: new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }), method: 'qr_scan' }, ...logs]);
+        setCheckInLogs(logs => [{ partyId: result.partyId, guestName: result.guestName, partySize: result.partySize, tableName: result.tableName, checkedInAt: formatInZone(Date.now(), eventTimeZone, { hour: '2-digit', minute: '2-digit' }), method: 'qr_scan' }, ...logs]);
         fetchCheckInSummary();
         setOverlayData({ type: 'success', guestName: result.guestName, partySize: result.partySize, tableName: result.tableName, message: 'QR Ticket credentials verified successfully!' });
         setShowConfirmOverlay(true);

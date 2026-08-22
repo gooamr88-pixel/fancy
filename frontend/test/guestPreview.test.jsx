@@ -22,6 +22,10 @@ const WIZARD_STATE = {
   title: 'Nadia & Omar',
   description: 'Please join us.',
   eventDate: '2027-05-14T18:30:00',
+  // The organizer's own clock, as the wizard now threads it in from their
+  // profile. Named explicitly rather than left to the fallback so these
+  // assertions describe a decision instead of a default.
+  timeZone: 'America/Los_Angeles',
   locationName: 'Beit Al Qamar',
   locationAddress: '12 Corniche Road, Alexandria',
   dressCode: 'Garden formal',
@@ -48,12 +52,22 @@ describe('buildPreviewEvent', () => {
     expect(e.location_name).toBe('Beit Al Qamar');
     expect(e.location_address).toBe('12 Corniche Road, Alexandria');
     expect(e.dress_code).toBe('Garden formal');
-    // Stamped UTC, not passed through: the wizard's datetime-local value has no
-    // zone designator, Postgres reads it as UTC and `new Date()` reads it as
-    // LOCAL, so an unstamped value previewed the event at the organizer's own
-    // offset from the time their guests will actually see. See toStoredIso and
-    // test/guestPageAudit.test.jsx.
-    expect(e.event_date).toBe('2027-05-14T18:30:00Z');
+    // Converted through the organizer's zone, not passed through and not
+    // stamped UTC. The wizard's datetime-local value has no zone designator, so
+    // it is not a moment until someone says whose clock it is on — and the
+    // preview has to answer that the same way the server will on save, or it
+    // shows the organizer a different page from the one their guests get.
+    //
+    // 18:30 in San Diego on 14 May is 01:30 UTC on the 15th (PDT, UTC-7).
+    // This used to assert '2027-05-14T18:30:00Z', which was correct while
+    // event dates were the typed digits filed as UTC. See toStoredIso.
+    expect(e.event_date).toBe('2027-05-15T01:30:00.000Z');
+    expect(e.timezone).toBe('America/Los_Angeles');
+
+    // And the same digits on a different clock must produce a different
+    // instant — otherwise the zone is being accepted and ignored.
+    const cairo = buildPreviewEvent({ ...WIZARD_STATE, timeZone: 'Africa/Cairo' });
+    expect(cairo.event_date).toBe('2027-05-14T15:30:00.000Z');
     expect(e.template_type).toBe('wedding');
     expect(e.custom_colors.primary).toBe('#7d5694');
     expect(e.no_kids_allowed).toBe(true);

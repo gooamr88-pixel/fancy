@@ -10,6 +10,7 @@ import Modal, { Button, StatusBadge } from '../../_components/Modal';
 import { T } from '../../_components/theme';
 import { useAlert } from '../../_components/AlertContext';
 import { Row } from '../../_components/Field';
+import { adminTime, adminDate } from '../../_lib/format';
 
 /**
  * User Management (Master Plan §4): paginated list with search, lifecycle
@@ -137,7 +138,7 @@ export default function UsersPage() {
             <Row label="Phone">{u.phone || '—'}</Row>
             <Row label="Role">{u.isAdmin ? <span style={{ fontWeight: 700, color: T.primary }}>{u.role}</span> : 'Organizer'}</Row>
             <Row label="Events">{u.eventCount}</Row>
-            <Row label="Joined">{new Date(u.createdAt).toLocaleDateString()}</Row>
+            <Row label="Joined">{adminDate(u.createdAt)}</Row>
             {u.suspendedReason && <Row label="Reason">{u.suspendedReason}</Row>}
 
             <h4 style={{ margin: '18px 0 8px', fontSize: 13, fontWeight: 700, color: T.text900 }}>Active sessions</h4>
@@ -147,7 +148,7 @@ export default function UsersPage() {
               <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${T.border}` }}>
                 <div>
                   <div style={{ fontSize: 12.5 }}>{s.device_label || s.user_agent || 'Unknown device'}</div>
-                  <div style={{ fontSize: 11, color: T.text400 }}>{s.ip} · {new Date(s.created_at).toLocaleString()}</div>
+                  <div style={{ fontSize: 11, color: T.text400 }}>{s.ip} · {adminTime(s.created_at)}</div>
                 </div>
                 {can('users.sessions') && <Button variant="ghost" disabled={busy} onClick={() => revokeSession(u.userId, s.id)}>Revoke</Button>}
               </div>
@@ -159,7 +160,7 @@ export default function UsersPage() {
             ) : (u.loginHistory || []).map((l, i) => (
               <div key={i} style={{ fontSize: 12, color: T.text500, padding: '4px 0' }}>
                 <span style={{ color: l.success ? T.success : T.danger, fontWeight: 600 }}>{l.success ? '✓' : '✗'}</span>{' '}
-                {new Date(l.created_at).toLocaleString()} · {l.ip} {l.failure_reason ? `· ${l.failure_reason}` : ''}
+                {adminTime(l.created_at)} · {l.ip} {l.failure_reason ? `· ${l.failure_reason}` : ''}
               </div>
             ))}
           </div>

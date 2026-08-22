@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useOrganizerTimeZone } from './OrganizerClock';
+import { formatInZone } from '../../utils/timezone';
 
-function getRelativeTime(ts) {
+function getRelativeTime(ts, timeZone) {
   if (!ts) return '';
   const now = new Date();
   const d = new Date(ts);
@@ -15,7 +17,7 @@ function getRelativeTime(ts) {
   if (hr < 24) return `${hr} hour${hr > 1 ? 's' : ''} ago`;
   const day = Math.floor(hr / 24);
   if (day < 7) return `${day} day${day > 1 ? 's' : ''} ago`;
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return formatInZone(d, timeZone, { month: 'short', day: 'numeric' });
 }
 
 const ACTION_CONFIG = {
@@ -73,6 +75,7 @@ function ActionIcon({ type, color, size = 14 }) {
 }
 
 export default function RecentActivityFeed({ recentActivity = [] }) {
+  const timeZone = useOrganizerTimeZone();
   const activities = Array.isArray(recentActivity) ? recentActivity.slice(0, 10) : [];
   const hasActivity = activities.length > 0;
   const [visible, setVisible] = useState(false);
@@ -321,7 +324,7 @@ export default function RecentActivityFeed({ recentActivity = [] }) {
                   fontWeight: 500,
                   marginTop: 3,
                 }}>
-                  {getRelativeTime(timestamp)}
+                  {getRelativeTime(timestamp, timeZone)}
                 </div>
               </div>
             </div>

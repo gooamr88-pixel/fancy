@@ -42,7 +42,7 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
         VenueTableEntity::class,
         ConflictEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class CheckinDatabase : RoomDatabase() {
@@ -91,6 +91,35 @@ abstract class CheckinDatabase : RoomDatabase() {
         }
 
         /**
+         * The event's IANA timezone, so the tablet can print the start time on
+         * the VENUE's clock.
+         *
+         * `startsAt` has always been stored correctly — epoch millis, a real
+         * instant. What was wrong was the rendering: PrepareScreen formatted it
+         * with the platform default DateFormat, which uses the DEVICE's zone. A
+         * check-in tablet is routinely a rented, borrowed, or freshly-unboxed
+         * Android device whose timezone nobody has ever looked at, so staff
+         * could be shown a start time hours away from the one on the guests'
+         * invitations — at the door, while those guests were arriving.
+         *
+         * One nullable TEXT column, appended. Same reasoning as MIGRATION_1_2:
+         * no table rebuild, nothing to lose if the process dies mid-statement,
+         * and no check-in or queue table is touched. A tablet upgrading the
+         * night before an event is holding arrivals that exist nowhere else.
+         *
+         * NULL for every existing row, which readers treat as "unknown" and
+         * fall back to the device zone — exactly today's behaviour, so an
+         * upgraded tablet that has not re-prepared is no worse off than before.
+         */
+        private val MIGRATION_2_3 = object : androidx.room.migration.Migration(2, 3) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                // No `DEFAULT NULL` — see the note in MIGRATION_1_2 for why
+                // writing one here fails runMigrationsAndValidate.
+                db.execSQL("ALTER TABLE events ADD COLUMN timezone TEXT")
+            }
+        }
+
+        /**
          * All migrations, in order.
          *
          * When this grows: every entry must have a matching test in
@@ -98,7 +127,7 @@ abstract class CheckinDatabase : RoomDatabase() {
          * JSON for the PREVIOUS version. A migration with no test is how a
          * fleet of tablets loses a night's check-ins.
          */
-        val MIGRATIONS = arrayOf<androidx.room.migration.Migration>(MIGRATION_1_2)
+        val MIGRATIONS = arrayOf<androidx.room.migration.Migration>(MIGRATION_1_2, MIGRATION_2_3)
 
         /**
          * Loads SQLCipher's native library. Idempotent — the JVM ignores repeat

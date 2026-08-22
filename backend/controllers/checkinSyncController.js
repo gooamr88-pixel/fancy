@@ -46,7 +46,7 @@ const listCheckinEvents = async (req, res, next) => {
 
     const { data: events, error } = await supabase
       .from('events')
-      .select('id, title, event_date, location_name, status, is_paid, tier_name, manual_override')
+      .select('id, title, event_date, timezone, location_name, status, is_paid, tier_name, manual_override')
       .eq('org_id', org.id)
       .order('event_date', { ascending: true });
     if (error) throw error;
@@ -57,6 +57,7 @@ const listCheckinEvents = async (req, res, next) => {
         name: e.title,
         venue: e.location_name || null,
         startsAt: e.event_date,
+        timezone: e.timezone || null,
         status: e.status,
         isPaid: !!e.is_paid || !!e.manual_override,
         tierName: e.tier_name || null,

@@ -41,6 +41,7 @@ import InvitedToSection from './sections/InvitedToSection';
 import ThingsToDoSection from './sections/ThingsToDoSection';
 import GettingThereSection from './sections/GettingThereSection';
 import RsvpSection from './sections/RsvpSection';
+import { formatInZone, instantToWallClock } from '../../../utils/timezone';
 
 /* Custom Canvas's "Heading Typography" options (CustomBuilder.js's FONTS),
    mapped to the custom properties globals.css declares for them.
@@ -95,26 +96,34 @@ function buildFontVars(customFonts) {
   return Object.keys(vars).length ? vars : null;
 }
 
-function formatDateLine(startISO, endISO, isRTL) {
+function formatDateLine(startISO, endISO, isRTL, timeZone) {
   if (!startISO) return null;
   const locale = isRTL ? 'ar-EG' : 'en-US';
-  const opts = { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' };
-  const start = new Date(startISO).toLocaleDateString(locale, opts).toUpperCase();
+  const opts = { month: 'long', day: 'numeric', year: 'numeric' };
+  const start = (formatInZone(startISO, timeZone, opts, locale) || '').toUpperCase();
   if (!endISO) return start;
-  const end = new Date(endISO).toLocaleDateString(locale, opts).toUpperCase();
+  const end = (formatInZone(endISO, timeZone, opts, locale) || '').toUpperCase();
   return `${start} - ${end}`;
 }
 
 // Event time — separate from the date line so a multi-day range (which already
 // reads as "START - END") never has a single time awkwardly glued onto it.
-function formatTimeLine(startISO, isRTL) {
+function formatTimeLine(startISO, isRTL, timeZone) {
   if (!startISO) return null;
-  const d = new Date(startISO);
-  // A bare DATE-only value (no clock component supplied at creation) serializes
-  // to local midnight — showing "12:00 AM" for those would read as a real start
-  // time instead of "no time set," so this is intentionally hidden then.
-  if (d.getUTCHours() === 0 && d.getUTCMinutes() === 0) return null;
-  return d.toLocaleTimeString(isRTL ? 'ar-EG' : 'en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
+  // A bare DATE-only value (no clock component supplied at creation) becomes
+  // midnight — showing "12:00 AM" for those would read as a real start time
+  // instead of "no time set," so this is intentionally hidden then.
+  //
+  // The midnight test MUST be made in the event's own zone. It used to read
+  // getUTCHours(), which was right while the stored value was the typed digits
+  // filed as UTC — and is now actively wrong: a 5:00pm San Diego event is
+  // exactly 00:00 UTC, so a UTC test would classify a perfectly ordinary
+  // evening start as "no time set" and silently drop the time from the
+  // invitation. Reading the wall clock in the event's zone asks the question
+  // that was always meant: did the organizer leave the clock at midnight?
+  const wall = instantToWallClock(startISO, timeZone);
+  if (wall.endsWith('T00:00')) return null;
+  return formatInZone(startISO, timeZone, { hour: 'numeric', minute: '2-digit' }, isRTL ? 'ar-EG' : 'en-US');
 }
 
 function parseMealOptions(raw, isPreview) {
@@ -168,18 +177,18 @@ export default function HeritageArchPage({
 
   const partner1 = td.groom_name || td.partner1Name || td.partner1 || demo(D.partner1) || '';
   const partner2 = td.bride_name || td.partner2Name || td.partner2 || demo(D.partner2) || '';
-  const dateLine = formatDateLine(event.event_date, event.event_end_date, isRTL);
+  const dateLine = formatDateLine(event.event_date, event.event_end_date, isRTL, event.timezone);
   // Only shown for a single-day event — a start/end range already reads as a
   // full span, and gluing one clock time onto it would misleadingly imply
   // the whole range starts then.
-  const timeLine = !event.event_end_date ? formatTimeLine(event.event_date, isRTL) : null;
+  const timeLine = !event.event_end_date ? formatTimeLine(event.event_date, isRTL, event.timezone) : null;
   // Event start/end time for the Countdown section's "Event Time" card.
   // Single-day events already show their date + start time in the Hero, so
   // the card is suppressed then to avoid repeating the same line twice on
   // one page; it only surfaces for multi-day events, where the Hero
   // deliberately omits time and this is the sole place guests see it.
-  const startTimeLine = event.event_end_date ? formatTimeLine(event.event_date, isRTL) : null;
-  const endTimeLine = event.event_end_date ? formatTimeLine(event.event_end_date, isRTL) : null;
+  const startTimeLine = event.event_end_date ? formatTimeLine(event.event_date, isRTL, event.timezone) : null;
+  const endTimeLine = event.event_end_date ? formatTimeLine(event.event_end_date, isRTL, event.timezone) : null;
 
   // Custom's "what kind of event is this?" category (Stage 2) drives the hero
   // name/tagline for every category with no "couple" — wedding/engagement

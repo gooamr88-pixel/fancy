@@ -32,6 +32,12 @@ data class EventEntity(
     val venueAddress: String?,
     /** Epoch millis. */
     val startsAt: Long,
+    /**
+     * The event's IANA zone ("America/Los_Angeles"), or null on a row written
+     * before this column existed. Null means "unknown" and every reader falls
+     * back to the device zone, which is the old behaviour.
+     */
+    val timezone: String? = null,
     val brandingPrimaryColor: String?,
     /**
      * Where the event's photograph came from. Kept so a re-prepare can tell

@@ -129,6 +129,86 @@ class MigrationTest {
         }
     }
 
+    /**
+     * v2 → v3 adds the event's timezone.
+     *
+     * Written as a v1 → v3 run rather than v2 → v3 on purpose. A tablet that has
+     * been sitting in a drawer since before the photograph release upgrades
+     * across BOTH migrations in one open, and chaining is where migrations
+     * actually break — each one passes in isolation and the pair corrupts the
+     * schema. This is the path that fleet takes.
+     */
+    @Test
+    fun migrate1To3_addsTimezoneAndKeepsThePreparedEvent() {
+        val eventId = "evt-1"
+
+        helper.createDatabase(TEST_DB, 1).use { db ->
+            db.execSQL(
+                """
+                INSERT INTO events
+                    (id, name, venue, venueAddress, startsAt, brandingPrimaryColor,
+                     noKidsAllowed, totalInvited, bundleVersion, lastAppliedSeq,
+                     lastFullSyncAt, isReadyOffline, syncDisabled, realtimeDisabled,
+                     pollingOnly)
+                VALUES ('$eventId', 'Nadia & Omar', 'Grand Hall', '1 Main St',
+                        1780000000000, '#8A6D34', 1, 240, 7, 19,
+                        1780000001000, 1, 0, 0, 0)
+                """.trimIndent(),
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 3, true, *CheckinDatabase.MIGRATIONS)
+
+        db.query("SELECT * FROM events WHERE id = '$eventId'").use { cursor ->
+            assertTrue("the event row must survive both migrations", cursor.moveToFirst())
+
+            // The instant itself was always stored correctly — this migration is
+            // about how it is RENDERED, so losing it here would be the one
+            // outcome that makes the change worse than the bug it fixes.
+            assertEquals(1780000000000, cursor.getLong(cursor.getColumnIndexOrThrow("startsAt")))
+            assertEquals(19, cursor.getLong(cursor.getColumnIndexOrThrow("lastAppliedSeq")))
+            assertEquals(1, cursor.getInt(cursor.getColumnIndexOrThrow("isReadyOffline")))
+
+            // Null for a row that predates the column. PrepareScreen reads that
+            // as "unknown" and falls back to the device clock, which is exactly
+            // the behaviour this tablet had before it upgraded.
+            assertTrue(cursor.isNull(cursor.getColumnIndexOrThrow("timezone")))
+        }
+    }
+
+    /**
+     * And the queue is still untouchable at v3.
+     *
+     * Same assertion as the v1 → v2 case, re-run across the chain: a queued
+     * check-in is the one piece of data in this system that exists nowhere else
+     * (§21.3), so every migration that ships has to be shown not to disturb it.
+     */
+    @Test
+    fun migrate1To3_leavesTheSyncQueueAlone() {
+        helper.createDatabase(TEST_DB, 1).use { db ->
+            db.execSQL(
+                """
+                INSERT INTO sync_queue
+                    (payloadType, payloadJson, eventId, createdAt, attemptCount, lastError, isStalled)
+                VALUES ('check_in', '{"clientCheckinId":"queued-1"}', 'evt-1',
+                        1780000005000, 2, NULL, 0)
+                """.trimIndent(),
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 3, true, *CheckinDatabase.MIGRATIONS)
+
+        db.query("SELECT * FROM sync_queue WHERE eventId = 'evt-1'").use { cursor ->
+            assertTrue("a queued check-in must survive any migration", cursor.moveToFirst())
+            assertEquals(2, cursor.getInt(cursor.getColumnIndexOrThrow("attemptCount")))
+            assertEquals(
+                """{"clientCheckinId":"queued-1"}""",
+                cursor.getString(cursor.getColumnIndexOrThrow("payloadJson")),
+            )
+            assertNull(cursor.getString(cursor.getColumnIndexOrThrow("lastError")))
+        }
+    }
+
     private companion object {
         const val TEST_DB = "migration-test.db"
     }

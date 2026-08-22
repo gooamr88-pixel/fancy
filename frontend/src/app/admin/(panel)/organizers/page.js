@@ -9,7 +9,7 @@ import FilterBar from '../../_components/FilterBar';
 import Modal, { Button, StatusBadge } from '../../_components/Modal';
 import { T } from '../../_components/theme';
 import { useAlert } from '../../_components/AlertContext';
-import { money } from '../../_lib/format';
+import { money, adminDate } from '../../_lib/format';
 import Icon from '../../../components/icons/Icon';
 
 export default function OrganizersPage() {
@@ -121,7 +121,7 @@ export default function OrganizersPage() {
           { key: 'activeEventCount', header: 'Active Events' },
           { key: 'lifetimeRevenueCents', header: 'Lifetime Revenue', render: (r) => <span style={{ color: T.success, fontWeight: 700 }}>{money(r.lifetimeRevenueCents)}</span> },
           { key: 'billing', header: 'Billing', render: (r) => r.hasStripeCustomer ? <StatusBadge status="completed" label="Stripe" /> : <StatusBadge status="draft" label="None" /> },
-          { key: 'createdAt', header: 'Joined', render: (r) => new Date(r.createdAt).toLocaleDateString() },
+          { key: 'createdAt', header: 'Joined', render: (r) => adminDate(r.createdAt) },
           { key: 'actions', header: '', align: 'right', render: (r) => <Button variant="ghost" onClick={() => openDetail(r)}>Manage</Button> },
         ]}
       />
@@ -147,7 +147,7 @@ export default function OrganizersPage() {
               <div className="org-detail-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '12px', color: T.text700 }}>
                 <div>
                   <span style={{ display: 'block', color: T.text400, fontSize: '10px', textTransform: 'uppercase', fontWeight: 700 }}>Joined Date</span>
-                  <span style={{ fontWeight: 600 }}>{new Date(selectedOrg.createdAt).toLocaleDateString()}</span>
+                  <span style={{ fontWeight: 600 }}>{adminDate(selectedOrg.createdAt)}</span>
                 </div>
                 <div>
                   <span style={{ display: 'block', color: T.text400, fontSize: '10px', textTransform: 'uppercase', fontWeight: 700 }}>Lifetime Revenue</span>

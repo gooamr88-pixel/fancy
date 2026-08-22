@@ -5,6 +5,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { apiFetch } from '../../utils/apiClient';
 import { supabase } from '../../utils/supabaseClient';
 import PhoneNumberInput from '../../components/PhoneNumberInput';
+import { ORGANIZER_TIMEZONES } from '../../utils/organizerTimezones';
+import { formatInZone, zoneAbbreviation } from '../../utils/timezone';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -63,6 +65,7 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
     bio: '',
     website: '',
     logo_url: '',
+    timezone: '',
     socialLinks: { instagram: '', twitter: '', linkedin: '' }
   });
   const [passwordForm, setPasswordForm] = useState({
@@ -95,6 +98,7 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
         bio: p.bio || '',
         website: p.website || '',
         logo_url: p.logo_url || '',
+        timezone: p.timezone || '',
         socialLinks: p.social_links || { instagram: '', twitter: '', linkedin: '' }
       });
     } catch (err) {
@@ -191,6 +195,17 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
           bio: form.bio.trim() || null,
           website: form.website.trim() || null,
           logo_url: form.logo_url.trim() || null,
+          /* Sent ONLY when it actually changed.
+             The field is hydrated from the saved profile, so an organizer
+             editing their bio would otherwise re-send the same zone on every
+             save — and the server stamps `timezone_source: 'manual'` on any
+             write. That would quietly convert a detected zone into a "human
+             decided this" one, which is the exact flag a later re-resolution
+             pass checks before it skips a row. An unrelated save must not
+             change the provenance of a value nobody touched. */
+          ...(form.timezone && form.timezone !== profile?.timezone
+            ? { timezone: form.timezone }
+            : {}),
           social_links: form.socialLinks
         }),
       });
@@ -410,6 +425,50 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
               onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
               onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
             />
+          </div>
+
+          {/* Time Zone.
+              Set once, from where the account was created, and shown here so
+              it can be corrected — the one predictable failure of detecting it
+              from a signup IP is somebody opening an account for a business in
+              one country while sitting in another. Without a control there is
+              no route back, and every event they create would advertise the
+              wrong hour.
+
+              A native <select> rather than a search box: the list is short
+              because it is scoped to zones this platform actually serves, and
+              a free-text field would let an organizer type something that is
+              not an IANA name and get a 400 they cannot interpret. */}
+          <div style={fieldGroupStyle}>
+            <label style={labelStyle}>Time Zone</label>
+            <select
+              value={form.timezone}
+              onChange={handleChange('timezone')}
+              style={{ ...inputStyle, appearance: 'auto' }}
+              onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
+              onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
+            >
+              {!form.timezone && <option value="">Not set</option>}
+              {ORGANIZER_TIMEZONES.map((z) => (
+                <option key={z.id} value={z.id}>{z.label}</option>
+              ))}
+              {/* A zone that was detected but is not on the curated list still
+                  has to appear, or opening this dropdown would silently offer
+                  to change it and show the wrong current value. */}
+              {form.timezone && !ORGANIZER_TIMEZONES.some((z) => z.id === form.timezone) && (
+                <option value={form.timezone}>{form.timezone}</option>
+              )}
+            </select>
+            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 11.5, color: COLORS.stone, margin: '6px 0 0', lineHeight: 1.5 }}>
+              Every date and time you enter is read on this clock, and your guests
+              see the same hours you type.
+              {form.timezone && (
+                <> It&rsquo;s currently <strong style={{ color: COLORS.charcoal }}>
+                  {formatInZone(Date.now(), form.timezone, { hour: 'numeric', minute: '2-digit' })} {zoneAbbreviation(Date.now(), form.timezone)}
+                </strong> there.</>
+              )}
+              {' '}Changing it does not move events you have already created.
+            </p>
           </div>
         </div>
 

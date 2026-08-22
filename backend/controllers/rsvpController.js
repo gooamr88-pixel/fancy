@@ -404,6 +404,12 @@ const submitPublicRSVP = async (req, res, next) => {
       // so the "Side" row can name the actual groom/bride (template_data.partner1/
       // partner2) instead of the generic "Partner 1/2's Side" fallback.
       let td = {};
+      // The event's clock, so the "Submitted" stamp on the organizer's mail
+      // reads on their own clock. It rides the template_data query below
+      // rather than adding one — the RPC result this handler works from does
+      // not carry the column, and a second round-trip on the hot RSVP path to
+      // fetch one string would not be worth it.
+      let eventTimezone = null;
       // The custom questions, by id, so each answer can be printed under the
       // LABEL the organizer wrote rather than as a bare uuid. One query, and
       // only when this submission actually carried answers.
@@ -413,7 +419,7 @@ const submitPublicRSVP = async (req, res, next) => {
           ? customAnswers.filter((a) => a && a.fieldId)
           : [];
         const [{ data: eventRow }, fieldRes] = await Promise.all([
-          supabase.from('events').select('template_data').eq('id', eventId).single(),
+          supabase.from('events').select('template_data, timezone').eq('id', eventId).single(),
           answered.length > 0
             ? supabase.from('custom_form_fields').select('id, field_label')
               .eq('event_id', eventId)
@@ -421,6 +427,7 @@ const submitPublicRSVP = async (req, res, next) => {
             : Promise.resolve({ data: [] }),
         ]);
         td = eventRow?.template_data || {};
+        eventTimezone = eventRow?.timezone || null;
         // Best-effort: a failed label lookup drops the custom rows from the
         // mail, it does not drop the mail.
         fieldLabels = new Map((fieldRes?.data || []).map((f) => [f.id, f.field_label]));
@@ -454,6 +461,7 @@ const submitPublicRSVP = async (req, res, next) => {
         language: guestLang,
         submittedAt: new Date().toISOString(),
         isUpdate: !!result.is_update,
+        timeZone: eventTimezone,
       };
 
       if (isEmailPref && result.org_email) {
@@ -552,7 +560,7 @@ const submitPublicRSVP = async (req, res, next) => {
       (async () => {
         const [{ data: ev }, { data: party }] = await Promise.all([
           supabase.from('events')
-            .select('id, title, slug, event_date, location_name, location_address, sms_addon_purchased_at, sms_settings')
+            .select('id, title, slug, event_date, timezone, location_name, location_address, sms_addon_purchased_at, sms_settings')
             .eq('id', eventId).single(),
           // Read the COMMITTED party rather than rebuilding it from the request
           // body: the RPC has already normalized names, party size and meals, and
@@ -599,7 +607,7 @@ const submitPublicRSVP = async (req, res, next) => {
           context: {
             guestName: party.label || guestName,
             eventTitle: ev.title,
-            dateLabel: T.formatEventDate ? T.formatEventDate(ev.event_date) : null,
+            dateLabel: T.formatEventDate ? T.formatEventDate(ev.event_date, ev.timezone) : null,
             venue: ev.location_name || ev.location_address || null,
             tableName: null,
             companions,
@@ -1105,6 +1113,13 @@ const exportGuestsExcel = async (req, res, next) => {
     const { data: tables, error: tablesError } = await supabase.from('tables').select('*').eq('event_id', eventId);
     if (tablesError) throw tablesError;
 
+    // The clock the arrival times are printed on. Fetched rather than derived
+    // from the organizer's current session: the export is a record of what
+    // happened at a venue, so it belongs on that venue's clock regardless of
+    // where the person downloading it happens to be.
+    const { data: exportEvent } = await supabase
+      .from('events').select('timezone').eq('id', eventId).maybeSingle();
+
     // Live arrivals only. Undone check-ins are retained as evidence (soft
     // delete, migration 20260814000000) but must never appear in the Check-in
     // Log sheet as though the guest attended.
@@ -1121,7 +1136,7 @@ const exportGuestsExcel = async (req, res, next) => {
     }));
 
     const { generateExcelExport } = require('../utils/excelHelper');
-    const excelBuffer = await generateExcelExport(guestRows, tables || [], checkins || []);
+    const excelBuffer = await generateExcelExport(guestRows, tables || [], checkins || [], exportEvent?.timezone || null);
 
     const xlsxName = `event-${eventId}-${attendingOnly ? 'attending' : 'rsvps'}${sort ? '-by-' + sort : ''}.xlsx`;
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -1695,7 +1710,7 @@ const getTicketSeatingView = async (req, res, next) => {
          organizer actually placed — on the one screen they open while
          standing outside the venue. Same reasoning as the day-before email's
          venue block (services/emailScheduler.js). */
-      .select('id, slug, title, event_date, location_name, location_address, location_lat, location_lng, is_paid, status, custom_colors, custom_fonts, cover_image_url')
+      .select('id, slug, title, event_date, timezone, location_name, location_address, location_lat, location_lng, is_paid, status, custom_colors, custom_fonts, cover_image_url')
       .eq('id', decoded.eventId)
       .single();
     /**
@@ -1978,7 +1993,7 @@ const respondViaToken = async (req, res, next) => {
 
   try {
     const { data: event, error: eventError } = await supabase
-      .from('events').select('id, title, event_date, slug, is_paid, status, rsvp_deadline, notification_preferences, allow_guest_edits, template_data, event_type, organizations(email, phone)')
+      .from('events').select('id, title, event_date, timezone, slug, is_paid, status, rsvp_deadline, notification_preferences, allow_guest_edits, template_data, event_type, organizations(email, phone)')
       .eq('id', payload.eventId).single();
     if (eventError || !event) return sendFail(res, { status: 404, error: 'GUEST_NOT_FOUND' });
     if (!isEventLiveForGuests(event)) return sendFail(res, { status: 404, error: 'EVENT_INACTIVE' });
@@ -2076,6 +2091,7 @@ const respondViaToken = async (req, res, next) => {
               smsConsent: party?.sms_consent ?? null,
               submittedAt: new Date().toISOString(),
               isUpdate: ['yes', 'no', 'maybe'].includes(existingParty?.response),
+              timeZone: event.timezone,
             });
             const subject = ['yes', 'no', 'maybe'].includes(existingParty?.response)
               ? `RSVP updated: ${escapeHtml(guestName)} - ${escapeHtml(event.title)}`

@@ -9,7 +9,7 @@ import FilterBar from '../../_components/FilterBar';
 import Modal, { Button, StatusBadge } from '../../_components/Modal';
 import { T } from '../../_components/theme';
 import { useAlert } from '../../_components/AlertContext';
-import { money as fmt } from '../../_lib/format';
+import { money as fmt, adminTime, adminDate } from '../../_lib/format';
 import { Row, Field } from '../../_components/Field';
 
 /**
@@ -146,7 +146,7 @@ function PaymentsLedger() {
           { key: 'amount_cents', header: 'Amount', align: 'right', render: (r) => <span style={{ fontWeight: 700, color: T.text900 }}>{fmt(r.amount_cents)}</span> },
           { key: 'payment_method', header: 'Method', render: (r) => <span style={{ color: T.text500 }}>{METHOD_LABEL[r.payment_method] || r.payment_method}</span> },
           { key: 'status', header: 'Status', render: (r) => <StatusBadge status={r.status} /> },
-          { key: 'created_at', header: 'Date', render: (r) => <span style={{ color: T.text500 }}>{new Date(r.completed_at || r.created_at).toLocaleDateString()}</span> },
+          { key: 'created_at', header: 'Date', render: (r) => <span style={{ color: T.text500 }}>{adminDate(r.completed_at || r.created_at)}</span> },
           { key: 'actions', header: '', align: 'right', render: (r) => <Button variant="ghost" onClick={() => open(r)}>Manage</Button> },
         ]}
       />
@@ -178,7 +178,7 @@ function PaymentsLedger() {
             <Row label="Method">{METHOD_LABEL[active.payment_method] || active.payment_method}</Row>
             <Row label="Status"><StatusBadge status={active.status} /></Row>
             <Row label="Reference">{active.reference_number || active.stripe_payment_intent_id || '—'}</Row>
-            <Row label="Date">{new Date(active.completed_at || active.created_at).toLocaleString()}</Row>
+            <Row label="Date">{adminTime(active.completed_at || active.created_at)}</Row>
             {active.refund_amount_cents > 0 && <Row label="Refunded">{fmt(active.refund_amount_cents)}</Row>}
 
             {mode === 'refund' && (
@@ -242,7 +242,7 @@ function DisputesList() {
           { key: 'amount_cents', header: 'Amount', align: 'right', render: (r) => fmt(r.amount_cents) },
           { key: 'status', header: 'Status', render: (r) => <StatusBadge status={r.status} /> },
           { key: 'reason', header: 'Reason', render: (r) => <span style={{ color: T.text500 }}>{r.reason || '—'}</span> },
-          { key: 'created_at', header: 'Opened', render: (r) => new Date(r.created_at).toLocaleDateString() },
+          { key: 'created_at', header: 'Opened', render: (r) => adminDate(r.created_at) },
         ]}
       />
     </div>

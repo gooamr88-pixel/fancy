@@ -152,6 +152,7 @@ export default function StepSuccess({
               guestName={guestName}
               eventTitle={localizedTitle}
               eventDate={event?.event_date}
+              eventTimezone={event?.timezone}
               eventLocation={event?.location_name || event?.location_address}
               tableName={assignedTableName}
               response="yes"
@@ -238,6 +239,7 @@ export default function StepSuccess({
               guestName={guestName}
               eventTitle={localizedTitle}
               eventDate={event?.event_date}
+              eventTimezone={event?.timezone}
               eventLocation={event?.location_name || event?.location_address}
               tableName={assignedTableName}
               response="maybe"

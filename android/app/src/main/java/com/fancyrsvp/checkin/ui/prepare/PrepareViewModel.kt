@@ -39,6 +39,8 @@ class PrepareViewModel @Inject constructor(
         val name: String,
         val venue: String?,
         val startsAt: Long,
+        /** The event's IANA zone, or null to fall back to the device clock. */
+        val timezone: String?,
         val totalInvited: Int,
         val readiness: Readiness,
         val lastSyncedAt: Long?,
@@ -182,6 +184,7 @@ class PrepareViewModel @Inject constructor(
             name = name,
             venue = venue,
             startsAt = startsAt,
+            timezone = timezone,
             totalInvited = totalInvited,
             readiness = readiness,
             lastSyncedAt = lastFullSyncAt,

@@ -11,6 +11,7 @@ import { useAdminList } from '../../_hooks/useAdminList';
 import { usePermissions } from '../../_hooks/usePermissions';
 import { useAlert } from '../../_components/AlertContext';
 import adminApi from '../../_lib/adminApi';
+import { adminDate } from '../../_lib/format';
 
 /**
  * Super-admin Promo Codes console (Revenue group). A promo code lets an
@@ -43,7 +44,7 @@ const ICONS = {
 
 function formatDate(iso) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  return adminDate(iso);
 }
 
 export default function PromoCodesPage() {

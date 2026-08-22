@@ -9,6 +9,9 @@ const { sendEmailViaBrevo } = require('../utils/notificationService');
 const { newJti, recordSession, revokeByJti, revokeAllForUser, recordLogin } = require('../services/sessionService');
 const { getAccessContext } = require('../services/rbacService');
 const { generateUniqueReferralCode, resolveReferrerOrgId } = require('../services/referralService');
+const { captureRequestMeta } = require('../middleware/adminAudit');
+const { resolveTimezoneFromIp } = require('../utils/timezoneFromIp');
+const { PLATFORM_TIMEZONE, isValidTimeZone } = require('../utils/timezone');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) throw new Error('FATAL: JWT_SECRET environment variable is required');
@@ -118,6 +121,49 @@ const issueAuthCookie = async (req, res, payload) => {
 };
 
 /**
+ * The timezone columns for a brand-new organization, resolved from the IP the
+ * account is being created on.
+ *
+ * Stamped ONCE, here, and never recomputed — the same one-shot rule the
+ * referral attribution beside it follows, for a closely related reason. A
+ * referrer that could change retroactively could be gamed; a timezone that
+ * could change retroactively would move the advertised start time of events
+ * that already have invitations out. Both facts are about the moment the
+ * account was created, so both are settled at that moment and frozen.
+ *
+ * This is what makes "signed up in San Diego, signing in from Cairo" keep
+ * San Diego time: no later request re-asks the question.
+ *
+ * Always resolves — never rejects, never blocks signup. A failed lookup
+ * records the platform default with source 'default', which is a durable
+ * marker that this account's zone was never truly established rather than a
+ * silent pretence that San Diego was detected.
+ */
+const resolveSignupTimezone = async (req) => {
+  try {
+    const { ip } = captureRequestMeta(req);
+    const geo = await resolveTimezoneFromIp(ip);
+    if (geo) {
+      return {
+        timezone: geo.timeZone,
+        timezone_source: 'ip',
+        signup_ip_country: geo.country,
+      };
+    }
+  } catch (err) {
+    // resolveTimezoneFromIp already swallows its own failures; this catch
+    // exists so that an unexpected throw in captureRequestMeta cannot take
+    // down registration over a cosmetic field.
+    logger.warn({ err }, 'resolveSignupTimezone: falling back to the platform default');
+  }
+  return {
+    timezone: PLATFORM_TIMEZONE,
+    timezone_source: 'default',
+    signup_ip_country: null,
+  };
+};
+
+/**
  * Registers a new organizer account.
  * Creates the user in an UNVERIFIED state, generates 6-digit OTP, and dispatches email.
  * No auth cookie is issued until the OTP is verified via /verify-registration.
@@ -182,7 +228,14 @@ const register = async (req, res, next) => {
     // by a later "?ref=" visit. A bad/unknown code silently resolves to null
     // rather than blocking registration.
     const refCode = (req.body.refCode || '').toString().trim();
-    const referrerOrgId = refCode ? await resolveReferrerOrgId(refCode) : null;
+    // Resolved concurrently with the referrer rather than after it: both are
+    // independent network round-trips on the signup critical path, and running
+    // them in series would add the geo lookup's latency to every registration
+    // for no reason.
+    const [referrerOrgId, signupTimezone] = await Promise.all([
+      refCode ? resolveReferrerOrgId(refCode) : Promise.resolve(null),
+      resolveSignupTimezone(req),
+    ]);
 
     if (existingUser && existingUser.length > 0) {
       // Update existing unverified record. Only attach a referrer if this
@@ -195,6 +248,15 @@ const register = async (req, res, next) => {
         registration_otp_expires_at: otpExpiresAt,
         otp_attempts: 0,
         email_verified: false,
+        // Re-stamped, unlike the referrer directly below, and the asymmetry is
+        // intentional. This branch only runs for a record that was never
+        // verified — no login ever happened, no event was ever created, so
+        // there is no earlier decision to protect. What is being overwritten
+        // here is an abandoned attempt, and the person in front of us now is
+        // the one whose clock the account should keep. The referrer resists
+        // overwriting because first-touch attribution is a claim someone else
+        // has on this signup; a timezone is not.
+        ...signupTimezone,
       };
       if (referrerOrgId && !existingUser[0].referred_by_org_id) {
         updatePayload.referred_by_org_id = referrerOrgId;
@@ -220,6 +282,7 @@ const register = async (req, res, next) => {
           email_verified: false,
           referral_code: referralCode,
           referred_by_org_id: referrerOrgId,
+          ...signupTimezone,
         });
 
       if (orgError) throw orgError;
@@ -717,7 +780,12 @@ const getProfile = async (req, res, next) => {
   try {
     let { data: org, error } = await supabase
       .from('organizations')
-      .select('id, name, email, phone, created_at, bio, website, logo_url, social_links, password_hash')
+      // `timezone` rides the branded select rather than the fallback below on
+      // purpose: this endpoint already degrades gracefully when a column is
+      // missing, so on a database without the timezone migration the profile
+      // still loads — it just comes back without a zone, and every reader
+      // falls back to the platform default instead of the dashboard breaking.
+      .select('id, name, email, phone, created_at, bio, website, logo_url, social_links, password_hash, timezone, timezone_source')
       .eq('owner_user_id', req.user.id)
       .single();
 
@@ -768,8 +836,8 @@ const getProfile = async (req, res, next) => {
  */
 const updateProfile = async (req, res, next) => {
   try {
-    const { name, phone, bio, website, logo_url, social_links } = req.body;
-    
+    const { name, phone, bio, website, logo_url, social_links, timezone } = req.body;
+
     const updates = {};
     if (name !== undefined) updates.name = name.trim();
     if (phone !== undefined) updates.phone = phone.trim();
@@ -777,6 +845,35 @@ const updateProfile = async (req, res, next) => {
     if (website !== undefined) updates.website = website !== null ? website.trim() : null;
     if (logo_url !== undefined) updates.logo_url = logo_url !== null ? logo_url.trim() : null;
     if (social_links !== undefined) updates.social_links = social_links;
+
+    /**
+     * The escape hatch the IP-detection design requires.
+     *
+     * Detection is a guess about a moment, and it has one predictable failure:
+     * someone opening an account for a business in one country while sitting
+     * in another. That organizer would be stamped with the wrong clock and,
+     * with no way to correct it, would have no route back — every event they
+     * ever create would advertise the wrong hour.
+     *
+     * Setting it by hand marks the row 'manual', which is what protects the
+     * correction: any later re-resolution pass skips manual rows, so a human
+     * decision is never overwritten by a lookup.
+     *
+     * Validated against the runtime's tz database rather than accepted as
+     * free text — an unrecognised zone written here would throw much later,
+     * inside a guest page render, with nothing pointing back at this request.
+     */
+    if (timezone !== undefined) {
+      if (!isValidTimeZone(timezone)) {
+        return res.status(400).json({
+          success: false,
+          error: 'INVALID_TIMEZONE',
+          message: 'That is not a recognised timezone name.',
+        });
+      }
+      updates.timezone = timezone;
+      updates.timezone_source = 'manual';
+    }
 
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ success: false, error: 'NO_UPDATES', message: 'No fields to update' });
@@ -786,7 +883,7 @@ const updateProfile = async (req, res, next) => {
       .from('organizations')
       .update(updates)
       .eq('owner_user_id', req.user.id)
-      .select('id, name, email, phone, bio, website, logo_url, social_links')
+      .select('id, name, email, phone, bio, website, logo_url, social_links, timezone, timezone_source')
       .single();
 
     if (error) {
@@ -979,9 +1076,15 @@ const googleAuth = async (req, res, next) => {
       // New account → create it with no password, email pre-verified
       const newUserId = crypto.randomUUID();
       const refCode = (req.body.refCode || '').toString().trim();
-      const [referrerOrgId, referralCode] = await Promise.all([
+      const [referrerOrgId, referralCode, signupTimezone] = await Promise.all([
         refCode ? resolveReferrerOrgId(refCode) : Promise.resolve(null),
         generateUniqueReferralCode(),
+        // Google sign-up creates a real account with no OTP step, so it is a
+        // first-class signup path and must stamp the zone exactly as the
+        // password path does. Missing it here would have left every
+        // Google-created organizer on the fallback default forever, since
+        // nothing downstream ever revisits the question.
+        resolveSignupTimezone(req),
       ]);
       const { error: orgError } = await supabase
         .from('organizations')
@@ -993,6 +1096,7 @@ const googleAuth = async (req, res, next) => {
           email_verified: true,
           referral_code: referralCode,
           referred_by_org_id: referrerOrgId,
+          ...signupTimezone,
         });
       if (orgError) throw orgError;
 

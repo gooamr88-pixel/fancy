@@ -3,13 +3,15 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '../../utils/apiClient';
 import { toast } from '../../utils/toast';
+import { useOrganizerTimeZone } from './OrganizerClock';
+import { formatTimestamp } from '../../utils/timezone';
 
 const C = {
   gold: '#B8944F', charcoal: '#191B1E', stone: '#77736A', border: '#E8E2D6',
   white: '#FFFFFF', softBg: '#FAFAF8', danger: '#B03A2E', warn: '#C8871B', success: '#2E7D5B',
 };
 
-const fmt = (iso) => (iso ? new Date(iso).toLocaleString() : '—');
+const fmt = (iso, timeZone) => formatTimestamp(iso, timeZone) || '—';
 
 /**
  * Conflict resolution and anomalies (amendment A-16 item 5; spec §5.3 L4, §19.5).
@@ -25,6 +27,7 @@ const fmt = (iso) => (iso ? new Date(iso).toLocaleString() : '—');
  * separately-audited undo, done from the tablet or the guest list.
  */
 export default function CheckinConflicts({ eventId }) {
+  const timeZone = useOrganizerTimeZone();
   const [conflicts, setConflicts] = useState([]);
   const [anomalies, setAnomalies] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -148,7 +151,7 @@ export default function CheckinConflicts({ eventId }) {
 
               {c.resolvedAt ? (
                 <p style={{ margin: '14px 0 0', fontSize: '13px', color: C.stone }}>
-                  Reviewed {fmt(c.resolvedAt)}
+                  Reviewed {fmt(c.resolvedAt, timeZone)}
                   {c.resolutionNote && ` — ${c.resolutionNote}`}
                 </p>
               ) : noteFor === c.id ? (
@@ -224,7 +227,7 @@ export default function CheckinConflicts({ eventId }) {
                   : `admission reversed${a.reason ? `: ${a.reason}` : ''}.`}
                 {a.guestRemoved && ' This guest was removed from the list after arriving, so they are in the room but not on it.'}
                 <div style={{ color: C.stone, fontSize: '13px', marginTop: '4px' }}>
-                  {fmt(a.checkedInAt)}{a.gate ? ` · ${a.gate}` : ''}{a.staffName ? ` · ${a.staffName}` : ''}
+                  {fmt(a.checkedInAt, timeZone)}{a.gate ? ` · ${a.gate}` : ''}{a.staffName ? ` · ${a.staffName}` : ''}
                 </div>
               </div>
             ))}
@@ -242,6 +245,10 @@ export default function CheckinConflicts({ eventId }) {
 }
 
 function SidePanel({ title, tint, staff, gate, at }) {
+  // Its own hook call rather than a prop: SidePanel is a sibling component, so
+  // the parent's timeZone is not in scope here, and the context is exactly the
+  // mechanism that makes threading it unnecessary.
+  const timeZone = useOrganizerTimeZone();
   return (
     <div style={{
       background: C.softBg, border: `1px solid ${C.border}`,
@@ -252,7 +259,7 @@ function SidePanel({ title, tint, staff, gate, at }) {
       </div>
       <div style={{ marginTop: '6px', fontSize: '15px', color: C.charcoal }}>{gate || 'Unknown gate'}</div>
       <div style={{ fontSize: '13px', color: C.stone }}>
-        {staff || 'Unattributed'} · {fmt(at)}
+        {staff || 'Unattributed'} · {fmt(at, timeZone)}
       </div>
     </div>
   );

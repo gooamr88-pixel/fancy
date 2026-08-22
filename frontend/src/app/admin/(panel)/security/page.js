@@ -8,6 +8,7 @@ import DataTable from '../../_components/DataTable';
 import { Button } from '../../_components/Modal';
 import { T } from '../../_components/theme';
 import { useAlert } from '../../_components/AlertContext';
+import { adminTime } from '../../_lib/format';
 
 /**
  * Security Center (Master Plan §19): active sessions (revocable), security
@@ -67,7 +68,7 @@ export default function SecurityPage() {
             { key: 'ownerEmail', header: 'User', render: (r) => r.ownerEmail || r.user_id },
             { key: 'device_label', header: 'Device', render: (r) => r.device_label || r.user_agent || '—' },
             { key: 'ip', header: 'IP' },
-            { key: 'last_seen_at', header: 'Last seen', render: (r) => new Date(r.last_seen_at || r.created_at).toLocaleString() },
+            { key: 'last_seen_at', header: 'Last seen', render: (r) => adminTime(r.last_seen_at || r.created_at) },
             ...(can('security.manage') ? [{ key: 'actions', header: '', align: 'right', render: (r) => <Button variant="ghost" disabled={busy} onClick={() => revoke(r.id)}>Revoke</Button> }] : []),
           ]}
         />
@@ -83,7 +84,7 @@ export default function SecurityPage() {
             { key: 'type', header: 'Type', render: (r) => <span style={{ fontFamily: 'monospace' }}>{r.type}</span> },
             { key: 'severity', header: 'Severity', render: (r) => <span style={{ color: r.severity === 'critical' ? T.danger : r.severity === 'warning' ? T.warning : T.text500, fontWeight: 600 }}>{r.severity}</span> },
             { key: 'ip', header: 'IP', render: (r) => r.ip || '—' },
-            { key: 'created_at', header: 'When', render: (r) => new Date(r.created_at).toLocaleString() },
+            { key: 'created_at', header: 'When', render: (r) => adminTime(r.created_at) },
           ]}
         />
       </>)}
@@ -98,7 +99,7 @@ export default function SecurityPage() {
             { key: 'email', header: 'Email' },
             { key: 'ip', header: 'IP' },
             { key: 'failure_reason', header: 'Reason', render: (r) => r.failure_reason || '—' },
-            { key: 'created_at', header: 'When', render: (r) => new Date(r.created_at).toLocaleString() },
+            { key: 'created_at', header: 'When', render: (r) => adminTime(r.created_at) },
           ]}
         />
       </>)}

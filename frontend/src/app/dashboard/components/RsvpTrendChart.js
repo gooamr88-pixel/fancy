@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useOrganizerTimeZone } from './OrganizerClock';
+import { formatInZone } from '../../utils/timezone';
 
 /* ── Constants ──────────────────────────────────────────────── */
 
@@ -96,15 +98,9 @@ function approxPathLength(pts) {
 
 /* ── Date Format ───────────────────────────────────────────── */
 
-function formatDate(d) {
+function formatDate(d, timeZone) {
   if (!d) return '';
-  try {
-    const dt = new Date(d);
-    if (isNaN(dt.getTime())) return String(d);
-    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  } catch {
-    return String(d);
-  }
+  return formatInZone(d, timeZone, { month: 'short', day: 'numeric' }) || String(d);
 }
 
 /* ── Empty State ────────────────────────────────────────────── */
@@ -177,6 +173,7 @@ function EmptyState() {
 /* ── Main Component ─────────────────────────────────────────── */
 
 export default function RsvpTrendChart({ rsvpTrend = [] }) {
+  const timeZone = useOrganizerTimeZone();
   const data = useMemo(() => (Array.isArray(rsvpTrend) ? rsvpTrend : []), [rsvpTrend]);
   const hasData = data.length >= 1;
 
@@ -418,7 +415,7 @@ export default function RsvpTrendChart({ rsvpTrend = [] }) {
   const tooltipData =
     hoverIdx >= 0
       ? {
-          date: formatDate(data[hoverIdx]?.date || data[hoverIdx]?.label),
+          date: formatDate(data[hoverIdx]?.date || data[hoverIdx]?.label, timeZone),
           values: SERIES_CONFIG.filter((s) => enabledSeries[s.key]).map((s) => ({
             label: s.label,
             color: s.color,
@@ -581,7 +578,7 @@ export default function RsvpTrendChart({ rsvpTrend = [] }) {
                   transition: 'fill 0.2s, font-weight 0.2s',
                 }}
               >
-                {formatDate(pt.date)}
+                {formatDate(pt.date, timeZone)}
               </text>
             );
           })}

@@ -53,6 +53,33 @@ import com.fancyrsvp.checkin.ui.theme.StateNeutral
 import com.fancyrsvp.checkin.ui.theme.StateWelcome
 import java.text.DateFormat
 import java.util.Date
+import java.util.TimeZone
+
+/**
+ * The event start, on the VENUE's clock rather than this tablet's.
+ *
+ * `startsAt` is a real instant, so formatting it with the platform default
+ * DateFormat renders it in whatever zone the DEVICE is set to. A check-in
+ * tablet is routinely rented, borrowed, or straight out of the box, and its
+ * zone is something nobody has ever checked — so staff at the door could be
+ * shown a start time hours away from the one printed on the invitations the
+ * guests in front of them are holding.
+ *
+ * A null zone means the row predates the column (see MIGRATION_2_3) or the
+ * server did not supply one. Falling back to the device zone keeps exactly the
+ * old behaviour for those rows rather than inventing a clock.
+ */
+private fun formatEventStart(startsAt: Long, timezone: String?): String {
+    val fmt = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
+    if (timezone != null) {
+        val zone = TimeZone.getTimeZone(timezone)
+        // getTimeZone falls back to GMT for an unrecognised id rather than
+        // throwing, so an unknown zone would silently render GMT. Checking the
+        // resolved id catches that and keeps the device zone instead.
+        if (zone.id == timezone) fmt.timeZone = zone
+    }
+    return fmt.format(Date(startsAt))
+}
 
 /**
  * Is this tablet ready for tonight? (spec §8.2)
@@ -255,8 +282,7 @@ private fun ReadyCard(
                 Text(
                     text = listOfNotNull(
                         event.venue,
-                        DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
-                            .format(Date(event.startsAt)),
+                        formatEventStart(event.startsAt, event.timezone),
                         event.totalInvited.takeIf { it > 0 }
                             ?.let { stringResource(R.string.prepare_guest_count, it) },
                     ).joinToString("  ·  "),
@@ -368,8 +394,7 @@ private fun EventPicker(
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
-                            DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
-                                .format(Date(event.startsAt)),
+                            formatEventStart(event.startsAt, event.timezone),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,

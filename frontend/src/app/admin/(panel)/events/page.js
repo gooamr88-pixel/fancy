@@ -10,6 +10,7 @@ import Modal, { Button, StatusBadge } from '../../_components/Modal';
 import { T } from '../../_components/theme';
 import { useAlert } from '../../_components/AlertContext';
 import { money } from '../../_lib/format';
+import { formatInZone } from '../../../utils/timezone';
 
 export default function EventsPage() {
   const { showAlert, showConfirm } = useAlert();
@@ -207,7 +208,7 @@ export default function EventsPage() {
               </div>
             )
           },
-          { key: 'event_date', header: 'Date', render: (r) => new Date(r.event_date).toLocaleDateString() },
+          { key: 'event_date', header: 'Date', render: (r) => formatInZone(r.event_date, r.timezone, { year: 'numeric', month: 'short', day: 'numeric' }) || '—' },
           {
             key: 'status', header: 'Status', render: (r) => {
               const busy = busyId === r.id;

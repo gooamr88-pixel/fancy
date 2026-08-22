@@ -13,6 +13,8 @@ import SendInvitationModal from './SendInvitationModal';
 import FeatureGate from './FeatureGate';
 import { PlanLockBadge, plansSentence } from './PlanLock';
 import MobileDisclosure from './MobileDisclosure';
+import { useOrganizerTimeZone } from './OrganizerClock';
+import { formatTimestamp } from '../../utils/timezone';
 
 const COLORS = {
   gold: '#B8944F',
@@ -79,13 +81,11 @@ function isPending(response) {
   return !isAccepted(response) && !isDeclined(response);
 }
 
-function formatTime(ts) {
-  if (!ts) return '—';
-  const d = new Date(ts);
-  if (isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +
-    ', ' +
-    d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+// When a reply arrived, on the organizer's clock and labelled with it. Takes
+// the zone as an argument because hooks cannot be called from a module-level
+// helper — the component resolves it once and passes it down.
+function formatTime(ts, timeZone) {
+  return formatTimestamp(ts, timeZone) || '—';
 }
 
 function responseBadge(response) {
@@ -1234,6 +1234,10 @@ export default function RSVPsTab({
 
 /* ── Table Row ───────────────────────────────────────────────── */
 const RSVPRow = React.memo(function RSVPRow({ rsvp, isEven, deletingId, onDelete, resending, onEdit, selected, onToggleSelect, sending, onSendGuest, smsAddonActive, onBuySms, smsAccess, plansWithSms, onUpgradePlan }) {
+  // Read here rather than passed in: RSVPRow is React.memo'd, and adding a
+  // prop that never changes would widen its comparison for no benefit. The
+  // context re-renders it only if the organizer's zone actually changes.
+  const timeZone = useOrganizerTimeZone();
   const [hovered, setHovered] = useState(false);
   const badge = responseBadge(rsvp.response);
   const reach = smsReachability(rsvp);
@@ -1335,7 +1339,7 @@ const RSVPRow = React.memo(function RSVPRow({ rsvp, isEven, deletingId, onDelete
         fontFamily: 'var(--font-sans)',
         whiteSpace: 'nowrap',
       }}>
-        {formatTime(rsvp.timestamp)}
+        {formatTime(rsvp.timestamp, timeZone)}
       </td>
 
       {/* Texting — states WHY, not just yes/no. The same sentence appears in the
@@ -1403,6 +1407,7 @@ const RSVPRow = React.memo(function RSVPRow({ rsvp, isEven, deletingId, onDelete
 
 /* ── Mobile Card (same data/actions as RSVPRow, stacked instead of tabular) ── */
 const RSVPCard = React.memo(function RSVPCard({ rsvp, deletingId, onDelete, resending, onEdit, selected, onToggleSelect, sending, onSendGuest, smsAddonActive, onBuySms, smsAccess, plansWithSms, onUpgradePlan }) {
+  const timeZone = useOrganizerTimeZone();
   const badge = responseBadge(rsvp.response);
   const reach = smsReachability(rsvp);
   return (
@@ -1450,7 +1455,7 @@ const RSVPCard = React.memo(function RSVPCard({ rsvp, deletingId, onDelete, rese
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 12, color: COLORS.stone, fontFamily: 'var(--font-sans)' }}>
         <span>Party of {rsvp.party_size ?? '—'}</span>
         {rsvp.meal && <span>· {rsvp.meal}</span>}
-        <span>· {formatTime(rsvp.timestamp)}</span>
+        <span>· {formatTime(rsvp.timestamp, timeZone)}</span>
       </div>
 
       {/* Identical actions to the desktop row, in the same order. The two views

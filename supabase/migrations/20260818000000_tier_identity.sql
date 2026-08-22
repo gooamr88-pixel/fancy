@@ -59,29 +59,58 @@ COMMENT ON COLUMN events.tier_price_cents IS
 -- differing only in punctuation) gets the ordinal appended rather than
 -- colliding, because two tiers sharing a key would make entitlement ambiguous
 -- for every event on either of them.
-WITH keyed AS (
+-- THIS RAN IN THREE STAGES BECAUSE IT HAS TO.
+--
+-- The first version computed the duplicate count with
+-- `COUNT(*) OVER (PARTITION BY ...)` INSIDE `jsonb_agg(...)`, and Postgres
+-- rejects that outright:
+--     42803: aggregate function calls cannot contain window function calls
+-- Window functions are evaluated after aggregation, so one can never be an
+-- argument to the other. That error is why this migration had never been
+-- applied anywhere — it could not be.
+--
+-- Splitting it fixes that: `exploded` derives the slug, `counted` runs the
+-- window over those slugs, and only then does `keyed` aggregate.
+WITH exploded AS (
   SELECT
     sac.id,
+    arr.tier,
+    arr.ord,
+    -- The slug, computed ONCE and reused. The original derived it twice with
+    -- two different expressions — the PARTITION BY skipped the trim and the
+    -- 'tier' fallback that the written key applied. Two tiers named "Pro" and
+    -- "_Pro_" would therefore land in different partitions, neither would be
+    -- seen as a duplicate, and both would be written the identical key `pro`.
+    -- Duplicate keys make entitlement ambiguous for every event on either
+    -- tier, which is the exact outcome the ordinal exists to prevent.
+    COALESCE(
+      NULLIF(trim(both '_' from regexp_replace(lower(arr.tier->>'name'), '[^a-z0-9]+', '_', 'g')), ''),
+      'tier'
+    ) AS slug
+  FROM super_admin_config sac,
+       LATERAL jsonb_array_elements(sac.pricing_tiers) WITH ORDINALITY AS arr(tier, ord)
+),
+counted AS (
+  SELECT
+    exploded.*,
+    COUNT(*) OVER (PARTITION BY id, slug) AS same_slug
+  FROM exploded
+),
+keyed AS (
+  SELECT
+    id,
     jsonb_agg(
       CASE
         WHEN COALESCE(NULLIF(tier->>'key', ''), '') <> '' THEN tier
         ELSE tier || jsonb_build_object(
           'key',
-          CASE
-            WHEN COUNT(*) OVER (
-              PARTITION BY sac.id,
-              NULLIF(regexp_replace(lower(tier->>'name'), '[^a-z0-9]+', '_', 'g'), '')
-            ) > 1
-            THEN COALESCE(NULLIF(trim(both '_' from regexp_replace(lower(tier->>'name'), '[^a-z0-9]+', '_', 'g')), ''), 'tier') || '_' || ord::text
-            ELSE COALESCE(NULLIF(trim(both '_' from regexp_replace(lower(tier->>'name'), '[^a-z0-9]+', '_', 'g')), ''), 'tier')
-          END
+          CASE WHEN same_slug > 1 THEN slug || '_' || ord::text ELSE slug END
         )
       END
       ORDER BY ord
     ) AS tiers
-  FROM super_admin_config sac,
-       LATERAL jsonb_array_elements(sac.pricing_tiers) WITH ORDINALITY AS arr(tier, ord)
-  GROUP BY sac.id
+  FROM counted
+  GROUP BY id
 )
 UPDATE super_admin_config sac
 SET pricing_tiers = keyed.tiers

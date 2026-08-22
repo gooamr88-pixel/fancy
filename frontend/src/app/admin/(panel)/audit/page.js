@@ -6,6 +6,7 @@ import DataTable from '../../_components/DataTable';
 import FilterBar from '../../_components/FilterBar';
 import { ErrorState } from '../../_components/ErrorState';
 import { T } from '../../_components/theme';
+import { adminTime } from '../../_lib/format';
 
 /**
  * Audit Logs (Master Plan §17): searchable, paginated view of admin actions with
@@ -39,7 +40,7 @@ export default function AuditPage() {
           { key: 'entity_type', header: 'Entity', render: (r) => r.entity_type || '—' },
           { key: 'ip', header: 'IP', render: (r) => <span style={{ color: T.text500 }}>{r.ip || '—'}</span> },
           { key: 'browser', header: 'Device', render: (r) => [r.browser, r.os].filter(Boolean).join(' / ') || '—' },
-          { key: 'created_at', header: 'When', render: (r) => new Date(r.created_at).toLocaleString() },
+          { key: 'created_at', header: 'When', render: (r) => adminTime(r.created_at) },
         ]}
       />
     </div>

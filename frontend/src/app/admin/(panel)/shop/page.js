@@ -11,6 +11,7 @@ import { T, card } from '../../_components/theme';
 import { useAlert } from '../../_components/AlertContext';
 import { Field } from '../../_components/Field';
 import { makeImageUploadHandler, makeMultiImageUploadHandler } from '../../_lib/uploadImage';
+import { adminTime } from '../../_lib/format';
 
 /**
  * PRINTED INVITATIONS — the super-admin control centre.
@@ -1324,7 +1325,7 @@ function InquiriesTab() {
           {
             key: 'last',
             header: 'Most recent',
-            render: (r) => <span style={{ fontSize: 12.5, color: T.text500 }}>{r.lastAt ? new Date(r.lastAt).toLocaleString() : '—'}</span>,
+            render: (r) => <span style={{ fontSize: 12.5, color: T.text500 }}>{r.lastAt ? adminTime(r.lastAt) : '—'}</span>,
           },
         ]}
       />
