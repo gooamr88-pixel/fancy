@@ -13,10 +13,10 @@ import { useConfirm } from '../../components/useConfirm';
 // The shape catalogue and world geometry are shared with the two guest-facing
 // maps — see utils/seatingGeometry.js for why they must not be re-declared here.
 import {
-import { formatInZone } from '../../utils/timezone';
   WORLD_W, WORLD_H, SHAPES, shapeMeta, isZone,
   elWidth, elHeight, pctToPx, elCenterX, elCenterY, elBox,
 } from '../../utils/seatingGeometry';
+import { formatInZone } from '../../utils/timezone';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 const C = { gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC', champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF', danger: '#C45E5E' };
